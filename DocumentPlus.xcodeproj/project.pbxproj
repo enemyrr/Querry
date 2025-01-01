@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		9A529EB02D24145800618009 /* MongoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 9A529EAF2D24145800618009 /* MongoSwift */; };
 		9A529EB22D24145800618009 /* MongoSwiftSync in Frameworks */ = {isa = PBXBuildFile; productRef = 9A529EB12D24145800618009 /* MongoSwiftSync */; };
+		9AE4BF712D25281600EA996E /* Meow in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF702D25281600EA996E /* Meow */; };
+		9AE4BF732D25281600EA996E /* MongoClient in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF722D25281600EA996E /* MongoClient */; };
+		9AE4BF752D25281600EA996E /* MongoCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF742D25281600EA996E /* MongoCore */; };
+		9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF762D25281600EA996E /* MongoKitten */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,7 +61,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */,
 				9A529EB22D24145800618009 /* MongoSwiftSync in Frameworks */,
+				9AE4BF712D25281600EA996E /* Meow in Frameworks */,
+				9AE4BF732D25281600EA996E /* MongoClient in Frameworks */,
+				9AE4BF752D25281600EA996E /* MongoCore in Frameworks */,
 				9A529EB02D24145800618009 /* MongoSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -121,6 +129,10 @@
 			packageProductDependencies = (
 				9A529EAF2D24145800618009 /* MongoSwift */,
 				9A529EB12D24145800618009 /* MongoSwiftSync */,
+				9AE4BF702D25281600EA996E /* Meow */,
+				9AE4BF722D25281600EA996E /* MongoClient */,
+				9AE4BF742D25281600EA996E /* MongoCore */,
+				9AE4BF762D25281600EA996E /* MongoKitten */,
 			);
 			productName = documentPlus;
 			productReference = 9A529E7B2D23CFC700618009 /* DocumentPlus.app */;
@@ -206,6 +218,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9A529EAE2D24145800618009 /* XCRemoteSwiftPackageReference "mongo-swift-driver" */,
+				9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -413,6 +426,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DocumentPlus/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -441,6 +455,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DocumentPlus/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -573,6 +588,14 @@
 				kind = branch;
 			};
 		};
+		9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/orlandos-nl/MongoKitten.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.9.8;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -585,6 +608,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9A529EAE2D24145800618009 /* XCRemoteSwiftPackageReference "mongo-swift-driver" */;
 			productName = MongoSwiftSync;
+		};
+		9AE4BF702D25281600EA996E /* Meow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = Meow;
+		};
+		9AE4BF722D25281600EA996E /* MongoClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = MongoClient;
+		};
+		9AE4BF742D25281600EA996E /* MongoCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = MongoCore;
+		};
+		9AE4BF762D25281600EA996E /* MongoKitten */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = MongoKitten;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

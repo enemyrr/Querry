@@ -7,55 +7,37 @@
 
 import SwiftUI
 import SwiftData
+import MongoKitten
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var viewModel = DatabaseViewModel()
     @Query private var items: [Item]
-    @State private var searchText = ""
-    @State private var selectedItem: Item?
     @State private var itemToDelete: Item?
     @State private var showDeleteConfirmation = false
-    
-    // Add this for the dark theme
-    init() {
-        NSWindow.allowsAutomaticWindowFrame = true
-    }
+    @State private var showingConnectionDialog = false
     
     var body: some View {
         HSplitView {
             // Left Sidebar
             VStack(spacing: 0) {
-                List {
-                    // Search bar in sidebar
-                    HStack {
-                        TextField("Search for item...", text: $searchText)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                    
-                    ForEach(items) { item in
-                        HStack {
-                            Image(systemName: "folder.fill")
-                            Text(item.timestamp.description)
-                        }                    }
-                }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.automatic)
+                SidebarView(viewModel: viewModel)
             }
-            .frame(minWidth: .zero, maxWidth: 300)
-            .background(Color.clear)
             
             // Main Content Area
             ScrollView {
                 VStack {
-                    ForEach(items) { item in
-                        DocumentCardView()
+                    ForEach(Array(viewModel.currentDocuments.enumerated()), id: \.offset) { index, document in
+                        DocumentCardView(document: document)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
                     }
-                    
                 }.padding(.vertical)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .task {
+            viewModel.setupDatabase()
         }
         .toolbar {
             ToolbarItemGroup(placement: .principal) {
@@ -84,23 +66,12 @@ struct ContentView: View {
                 .frame(height: 1)
                 .foregroundColor(.black)
         }
-        .preferredColorScheme(.dark) // For dark mode
-    }
-    
-    private func toggleSidebar() {
-        NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
     }
     
     private func addItem() {
         withAnimation {
             let newItem = Item(timestamp: Date())
             modelContext.insert(newItem)
-        }
-    }
-    
-    private func deleteItems() {
-        withAnimation {
-            
         }
     }
 }
