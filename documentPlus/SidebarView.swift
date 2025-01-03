@@ -8,45 +8,53 @@ import SwiftUI
 import MongoKitten
 
 struct SidebarView: View {
+    @EnvironmentObject var databaseViewModel: DatabaseViewModel
     @State private var searchText = ""
-    @ObservedObject var viewModel: DatabaseViewModel
     @State private var selection: String?
-    
-    
-    init(viewModel: DatabaseViewModel) {
-        self.viewModel = viewModel
+    @Binding var tabs: [ContentItem]
+    @Binding var selectedTab: ContentItem?
+
+    init(tabs: Binding<[ContentItem]>,
+         selectedTab: Binding<ContentItem?>
+    ) {
+        _tabs = tabs
+        _selectedTab = selectedTab
         NSWindow.allowsAutomaticWindowFrame = true
     }
     
     var filteredCollections: [MongoCollection] {
         if searchText.isEmpty {
-            return viewModel.collections
+            return databaseViewModel.collections
         }
-        return viewModel.collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        return databaseViewModel.collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
     
     var body: some View {
         List(filteredCollections, id: \.name, selection: $selection) { collection in
             HStack {
-                Image(systemName: "folder.fill")
-                    .foregroundColor(.white)
+                Image(systemName: "tablecells")
                 Text(collection.name)
-                    .foregroundColor(.white)
             }
         }
-        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Search items...")
         .onChange(of: selection) { oldValue, newValue in
             if let selectedCollection = newValue {
                 Task {
-                    await viewModel.getDocuments(collectionName: selectedCollection)
+                    addTab(for: ContentItem(title: selectedCollection, databaseViewModel: databaseViewModel))
                 }
             }
-        }.frame(idealWidth: 250)
+        }
     }
-}
-
-
-#Preview {
-    SidebarView(viewModel: DatabaseViewModel())
-        .modelContainer(for: Item.self, inMemory: true)
+    
+    
+    private func addTab(for item: ContentItem) {
+        if !tabs.contains(where: { $0.id == item.id }) {
+            withAnimation {
+                tabs.append(item)
+            }
+        }
+        selectedTab = item
+        
+    }
 }

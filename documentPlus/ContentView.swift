@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import MongoKitten
+import Combine
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -16,62 +17,58 @@ struct ContentView: View {
     @State private var itemToDelete: Item?
     @State private var showDeleteConfirmation = false
     @State private var showingConnectionDialog = false
+    @State private var tabs: [ContentItem] = []
+    @State private var selectedTab: ContentItem? = nil
+    
+    @State private var documents: [ProcessedDocument] = []
     
     var body: some View {
-        HSplitView {
-            // Left Sidebar
+        
+        NavigationView {
+            SidebarView(tabs: $tabs, selectedTab: $selectedTab)
             VStack(spacing: 0) {
-                SidebarView(viewModel: viewModel)
+                Divider()
+                TabBar(tabs: $tabs, selectedTab: $selectedTab, removeTab: removeTab)
+                Divider()
+                
+                if selectedTab != nil {
+                    ContentDetailView(documents: $documents)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if documents.isEmpty {
+                    Text("No item found")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                else {
+                    Text("Select an item from the list to open a tab.")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
-            
-            // Main Content Area
-            ScrollView {
-                VStack {
-                    ForEach(Array(viewModel.currentDocuments.enumerated()), id: \.offset) { index, document in
-                        DocumentCardView(document: document)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal)
-                    }
-                }.padding(.vertical)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .task {
             viewModel.setupDatabase()
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .principal) {
-                VStack {
-                    Text("Mongo 8.0 : New Connection : test : teams")
-                        .font(.subheadline)
-                        .padding(.leading, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(minWidth: 450)
-                .padding(4)
-                .background(Color(NSColor.systemFill))
-                .cornerRadius(4)
-                
-            }
-            
-            ToolbarItem(placement: .automatic) {
-                Button(action: addItem) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .toolbarBackground(Color(NSColor.windowBackgroundColor))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(.black)
-        }
+        .onChange(of: selectedTab, { oldValue, newValue in
+            guard let collection = newValue else { return }
+            Task { documents = await collection.databaseViewModel.getDocumentsAsync(byCollectionName: collection.title) }
+        })
+        .environmentObject(viewModel)
     }
+    
     
     private func addItem() {
         withAnimation {
             let newItem = Item(timestamp: Date())
             modelContext.insert(newItem)
+        }
+    }
+    
+    
+    private func removeTab(_ item: ContentItem) {
+        if let index = tabs.firstIndex(where: { $0.id == item.id }) {
+            tabs.remove(at: index)
+            if selectedTab == item {
+                selectedTab = tabs.last // Switch to the last tab, or nil if no tabs are left
+            }
         }
     }
 }
