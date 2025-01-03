@@ -11,24 +11,22 @@ import MongoKitten
 import Combine
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @StateObject private var viewModel = DatabaseViewModel()
-    @Query private var items: [Item]
     @State private var itemToDelete: Item?
     @State private var showDeleteConfirmation = false
     @State private var showingConnectionDialog = false
     @State private var tabs: [ContentItem] = []
     @State private var selectedTab: ContentItem? = nil
+    @State private var collections: [MongoCollection] = []
     
     @State private var documents: [ProcessedDocument] = []
     
     var body: some View {
         
         NavigationView {
-            SidebarView(tabs: $tabs, selectedTab: $selectedTab)
+            SidebarView(tabs: $tabs, selectedTab: $selectedTab, collections: $collections)
             VStack(spacing: 0) {
                 Divider()
-                TabBar(tabs: $tabs, selectedTab: $selectedTab, removeTab: removeTab)
+                TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 Divider()
                 
                 if selectedTab != nil {
@@ -44,32 +42,17 @@ struct ContentView: View {
                 }
             }
         }
-        .task {
-            viewModel.setupDatabase()
-        }
+        .onAppear(perform: {
+            Task {
+                await DatabaseProvider.shared.setupDatabase()
+                self.collections = await DatabaseProvider.shared.fetchCollections()
+                
+            }
+        })
         .onChange(of: selectedTab, { oldValue, newValue in
             guard let collection = newValue else { return }
-            Task { documents = await collection.databaseViewModel.getDocumentsAsync(byCollectionName: collection.title) }
+            Task { documents = await DatabaseProvider.shared.getDocumentsAsync(byCollectionName: collection.title) }
         })
-        .environmentObject(viewModel)
-    }
-    
-    
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-    
-    
-    private func removeTab(_ item: ContentItem) {
-        if let index = tabs.firstIndex(where: { $0.id == item.id }) {
-            tabs.remove(at: index)
-            if selectedTab == item {
-                selectedTab = tabs.last // Switch to the last tab, or nil if no tabs are left
-            }
-        }
     }
 }
 

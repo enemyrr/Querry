@@ -8,31 +8,35 @@ import SwiftUI
 import MongoKitten
 
 struct SidebarView: View {
-    @EnvironmentObject var databaseViewModel: DatabaseViewModel
     @State private var searchText = ""
     @State private var selection: String?
+    
+    @Binding var collections: [MongoCollection]
     @Binding var tabs: [ContentItem]
     @Binding var selectedTab: ContentItem?
-
+    
     init(tabs: Binding<[ContentItem]>,
-         selectedTab: Binding<ContentItem?>
+         selectedTab: Binding<ContentItem?>,
+         collections: Binding<[MongoCollection]>
     ) {
         _tabs = tabs
         _selectedTab = selectedTab
+        _collections = collections
         NSWindow.allowsAutomaticWindowFrame = true
     }
     
     var filteredCollections: [MongoCollection] {
         if searchText.isEmpty {
-            return databaseViewModel.collections
+            return self.collections
         }
-        return databaseViewModel.collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        return self.collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
     
     var body: some View {
         List(filteredCollections, id: \.name, selection: $selection) { collection in
             HStack {
                 Image(systemName: "tablecells")
+                    .foregroundColor(Color(#colorLiteral(red: 0.9999999404, green: 1, blue: 1, alpha: 1)))
                 Text(collection.name)
             }
         }
@@ -41,7 +45,7 @@ struct SidebarView: View {
         .onChange(of: selection) { oldValue, newValue in
             if let selectedCollection = newValue {
                 Task {
-                    addTab(for: ContentItem(title: selectedCollection, databaseViewModel: databaseViewModel))
+                    addTab(for: ContentItem(title: selectedCollection ))
                 }
             }
         }
@@ -49,12 +53,12 @@ struct SidebarView: View {
     
     
     private func addTab(for item: ContentItem) {
-        if !tabs.contains(where: { $0.id == item.id }) {
+        if !tabs.contains(where: { $0.title == item.title }) {
             withAnimation {
                 tabs.append(item)
             }
         }
-        selectedTab = item
         
+        selectedTab = item
     }
 }

@@ -56,7 +56,7 @@ struct ProcessedDocument {
             return String(describing: value)
         }
     }
-
+    
     private static func getValueColor(_ value: Primitive?) -> Color {
         guard let value = value else { return .gray }
         
@@ -82,43 +82,41 @@ struct ProcessedDocument {
 }
 
 @MainActor
-final class DatabaseViewModel: ObservableObject {
+final class DatabaseProvider: ObservableObject {
+    static let shared = DatabaseProvider()
+    
     @Published private(set) var collections: [MongoCollection] = []
     @Published private(set) var currentDocuments: [ProcessedDocument] = []
     @Published private(set) var error: Error?
+    @Published private(set) var isConnected: Bool = false
     
-    private let mongoManager: MongoManager
+    private let mongoManager: MongoManager = .shared
     
-    init(mongoManager: MongoManager = .shared) {
-        self.mongoManager = mongoManager
-    }
-    
-    func setupDatabase(connectionString: String = "mongodb://localhost:27017/jurifyte", databaseName: String = "jurifyte") {
-        Task {
-            do {
-                try await mongoManager.connect(connectionString: connectionString)
-                await fetchCollections()
-            } catch {
-                print(error)
-                self.error = error
-            }
+    func setupDatabase(connectionString: String = "mongodb://localhost:27017/jurifyte", databaseName: String = "jurifyte") async {
+        do {
+            try await mongoManager.connect(connectionString: connectionString)
+            isConnected = true
+        } catch {
+            print(error)
+            self.error = error
         }
     }
     
-    func fetchCollections() async {
+    func fetchCollections() async -> [MongoCollection] {
         do {
             self.collections = try await mongoManager.getCollections()
         } catch {
+            print(self.error)
             self.error = error
         }
+        
+        return self.collections
     }
     
     func getDocuments(collectionName: String) async {
         do {
             let documents = try await mongoManager.getDocuments(from: collectionName)
             self.currentDocuments = documents.map { ProcessedDocument.processDocument($0) }
-            print(self.currentDocuments)
-
         } catch {
             self.error = error
         }
