@@ -22,7 +22,8 @@ struct Root: App {
     
     var body: some Scene {
         WindowGroup {
-            MainView()
+//            MainView()
+            WelcomeScreen()
         }
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
