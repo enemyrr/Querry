@@ -1,19 +1,16 @@
 //
-//  documentPlusApp.swift
-//  documentPlus
+//  Root.swift
+//  DocumentPlus
 //
-//  Created by Fauzaan on 12/31/24.
+//  Created by Fauzaan on 1/3/25.
 //
-
 import SwiftUI
 import SwiftData
 
 @main
-struct documentPlusApp: App {
+struct Root: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
+        let schema = Schema()
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         
         do {
@@ -25,7 +22,7 @@ struct documentPlusApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainView()
         }
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)

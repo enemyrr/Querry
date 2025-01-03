@@ -104,9 +104,8 @@ final class DatabaseProvider: ObservableObject {
     
     func fetchCollections() async -> [MongoCollection] {
         do {
-            self.collections = try await mongoManager.getCollections()
+            self.collections = try await mongoManager.getCollections().sorted { $0.name < $1.name }
         } catch {
-            print(self.error)
             self.error = error
         }
         

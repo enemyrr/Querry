@@ -12,11 +12,11 @@ struct SidebarView: View {
     @State private var selection: String?
     
     @Binding var collections: [MongoCollection]
-    @Binding var tabs: [ContentItem]
-    @Binding var selectedTab: ContentItem?
+    @Binding var tabs: [String]
+    @Binding var selectedTab: String?
     
-    init(tabs: Binding<[ContentItem]>,
-         selectedTab: Binding<ContentItem?>,
+    init(tabs: Binding<[String]>,
+         selectedTab: Binding<String?>,
          collections: Binding<[MongoCollection]>
     ) {
         _tabs = tabs
@@ -33,10 +33,18 @@ struct SidebarView: View {
     }
     
     var body: some View {
+        Divider()
+        HStack(spacing: 20) {
+            Image(systemName: "tablecells").foregroundColor(Color(NSColor.controlAccentColor))
+            Image(systemName: "folder").foregroundColor(Color.white.opacity(0.5))
+            Image(systemName: "clock").foregroundColor(Color.white.opacity(0.5))
+            Image(systemName: "magnifyingglass").foregroundColor(Color.white.opacity(0.5))
+        }.frame(height: 14)
+        Divider()
+        
         List(filteredCollections, id: \.name, selection: $selection) { collection in
             HStack {
                 Image(systemName: "tablecells")
-                    .foregroundColor(Color(#colorLiteral(red: 0.9999999404, green: 1, blue: 1, alpha: 1)))
                 Text(collection.name)
             }
         }
@@ -45,15 +53,29 @@ struct SidebarView: View {
         .onChange(of: selection) { oldValue, newValue in
             if let selectedCollection = newValue {
                 Task {
-                    addTab(for: ContentItem(title: selectedCollection ))
+                    addTab(for: selectedCollection)
                 }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    toggleSidebar()
+                }, label: {
+                    Image(systemName: "sidebar.left")
+                })
+                .help("Toggle Sidebar")
             }
         }
     }
     
     
-    private func addTab(for item: ContentItem) {
-        if !tabs.contains(where: { $0.title == item.title }) {
+    func toggleSidebar() {
+        NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
+    }
+    
+    private func addTab(for item: String) {
+        if !tabs.contains(where: { $0 == item }) {
             withAnimation {
                 tabs.append(item)
             }

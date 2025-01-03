@@ -4,13 +4,11 @@
 //
 //  Created by Fauzaan on 1/3/25.
 //
-
 import SwiftUI
 
-// Custom Tab Bar
 struct TabBar: View {
-    @Binding var tabs: [ContentItem]
-    @Binding var selectedTab: ContentItem?
+    @Binding var tabs: [String]
+    @Binding var selectedTab: String?
     
     var body: some View {
         ScrollViewReader { proxy in
@@ -57,13 +55,13 @@ struct TabBar: View {
                     Divider()
                     
                     ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
-                        TabBarItem(tab: tab, isSelected: selectedTab?.id == tab.id, onSelect: {
+                        TabBarItem(tab: tab, isSelected: selectedTab == tab, onSelect: {
                             selectedTab = tab
-                            proxy.scrollTo(tab.title, anchor: nil)
+                            proxy.scrollTo(tab, anchor: nil)
                         }, onClose: {
                             removeTab(tab)
                         })
-                        .id(tab.title)
+                        .id(tab)
                         
                         Divider()
                     }
@@ -73,8 +71,8 @@ struct TabBar: View {
         }
     }
     
-    private func removeTab(_ item: ContentItem) {
-        if let index = tabs.firstIndex(where: { $0.id == item.id }) {
+    private func removeTab(_ item: String) {
+        if let index = tabs.firstIndex(where: { $0 == item }) {
             tabs.remove(at: index)
             if selectedTab == item {
                 selectedTab = tabs.last
@@ -82,8 +80,8 @@ struct TabBar: View {
         }
     }
     
-    private func nextTab(_ currentItem: ContentItem) {
-        if let currentIndex = tabs.firstIndex(where: { $0.id == currentItem.id }) {
+    private func nextTab(_ currentItem: String) {
+        if let currentIndex = tabs.firstIndex(where: { $0 == currentItem }) {
             // If we're at the last tab, do nothing
             if currentIndex == tabs.count - 1 {
                 return
@@ -93,8 +91,8 @@ struct TabBar: View {
             }
         }
     }
-    private func previousTab(_ currentItem: ContentItem) {
-        if let currentIndex = tabs.firstIndex(where: { $0.id == currentItem.id }) {
+    private func previousTab(_ currentItem: String) {
+        if let currentIndex = tabs.firstIndex(where: { $0 == currentItem }) {
             // If we're at the first tab, wrap around to the last tab
             if currentIndex == 0 {
                 return
@@ -107,9 +105,8 @@ struct TabBar: View {
     
 }
 
-// Individual Tab Item
 struct TabBarItem: View {
-    let tab: ContentItem
+    let tab: String
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -132,7 +129,7 @@ struct TabBarItem: View {
                     Spacer(minLength: 10)
                 }
                 
-                Text(tab.title.capitalized)
+                Text(tab)
                     .foregroundColor(isSelected ? .white : Color(.gray))
                 
                 Spacer(minLength: 10)
@@ -141,29 +138,7 @@ struct TabBarItem: View {
             .padding(.horizontal, 4)
         }
         .padding(7)
-        .background(isSelected ? Color(.darkGray) : .clear)
+        .background(isSelected ? Color(NSColor.systemFill) : .clear)
         .buttonStyle(.plain)
-    }
-}
-
-struct ContentItem: Identifiable, Equatable {
-    let id = UUID()
-    var title: String
-    
-    static func == (lhs: ContentItem, rhs: ContentItem) -> Bool {
-        return lhs.id == rhs.id && lhs.title == rhs.title
-    }
-}
-
-// Content Detail View
-struct ContentDetailView: View {
-    @Binding var documents: [ProcessedDocument]
-    
-    init(documents: Binding<[ProcessedDocument]>) {
-        _documents = documents
-    }
-    
-    var body: some View {
-        CollectionDetailView(documents: documents)
     }
 }
