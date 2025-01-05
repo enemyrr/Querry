@@ -10,7 +10,9 @@ import SwiftData
 @main
 struct Root: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema()
+        let schema = Schema([
+            Connection.self,
+        ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         
         do {
@@ -21,11 +23,16 @@ struct Root: App {
     }()
     
     var body: some Scene {
-        WindowGroup {
-//            MainView()
-            WelcomeScreen()
+//        WindowGroup("Welcome to DocumentPlus") {
+//            WelcomeWindow()
+//        }
+//        .modelContainer(sharedModelContainer)
+//        .windowStyle(.hiddenTitleBar)
+//        .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        
+        WindowGroup(id: "Connection Details") {
+            ConnectionDetailsWindow()
         }
-        .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
     }

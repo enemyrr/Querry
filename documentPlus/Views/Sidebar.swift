@@ -1,5 +1,5 @@
 //
-//  SidebarView.swift
+//  Sidebar.swift
 //  DocumentPlus
 //
 //  Created by Fauzaan on 1/1/25.
@@ -7,7 +7,7 @@
 import SwiftUI
 import MongoKitten
 
-struct SidebarView: View {
+struct Sidebar: View {
     @State private var searchText = ""
     @State private var selection: String?
     
@@ -44,11 +44,10 @@ struct SidebarView: View {
         
         List(filteredCollections, id: \.name, selection: $selection) { collection in
             HStack {
-                Image(systemName: "tablecells")
+                Image(systemName: "tablecells").opacity(0.5)
                 Text(collection.name)
             }
         }
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search items...")
         .onChange(of: selection) { oldValue, newValue in
             if let selectedCollection = newValue {
@@ -76,7 +75,7 @@ struct SidebarView: View {
     
     private func addTab(for item: String) {
         if !tabs.contains(where: { $0 == item }) {
-            withAnimation {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 tabs.append(item)
             }
         }

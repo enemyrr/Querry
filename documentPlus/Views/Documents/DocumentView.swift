@@ -1,5 +1,5 @@
 //
-//  DocumentDetailView.swift
+//  DocumentView.swift
 //  DocumentPlus
 //
 //  Created by Fauzaan on 1/2/25.
@@ -68,7 +68,7 @@ struct DocumentView: View {
             ScrollView {
                 LazyVStack {
                     ForEach(Array(documents.enumerated()), id: \.offset) { index, document in
-                        DocumentCardView(processedDoc: document)
+                        DocumentDetails(processedDoc: document)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
                             .padding(.vertical, 3)

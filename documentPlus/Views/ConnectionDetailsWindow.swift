@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  ConnectionDetailsWindow.swift
 //  documentPlus
 //
 //  Created by Fauzaan on 12/31/24.
@@ -9,7 +9,7 @@ import SwiftData
 import MongoKitten
 import Combine
 
-struct MainView: View {
+struct ConnectionDetailsWindow: View {
     @State private var tabs: [String] = []
     @State private var selectedTab: String? = nil
     @State private var collections: [MongoCollection] = []
@@ -17,15 +17,13 @@ struct MainView: View {
     
     var body: some View {
         NavigationView {
-            SidebarView(
+            Sidebar(
                 tabs: $tabs,
                 selectedTab: $selectedTab,
                 collections: $collections
             )
             VStack(spacing: 0) {
-                Divider()
                 TabBar(tabs: $tabs, selectedTab: $selectedTab)
-                Divider()
                 
                 if selectedTab != nil {
                     DocumentView(documents: $documents)
@@ -59,7 +57,7 @@ struct MainView: View {
                     Button("New...") {
                         // action
                     }
-
+                    
                     Button("Edit...") {
                         // action
                     }
@@ -75,7 +73,7 @@ struct MainView: View {
                         // action
                     }
                 } label: {
-                    Text("Innovaation Servers")
+                    Text("Innovation Servers")
                 }.menuStyle(.borderlessButton)
             }
             

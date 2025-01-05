@@ -1,5 +1,5 @@
 //
-//  DocumentView.swift
+//  DocumentDetails.swift
 //  documentPlus
 //
 //  Created by Fauzaan on 12/31/24.
@@ -8,7 +8,7 @@ import SwiftUI
 import SwiftData
 import MongoKitten
 
-struct DocumentCardView: View {
+struct DocumentDetails: View {
     let processedDoc: ProcessedDocument
     @State private var isCardHovered = false
     
