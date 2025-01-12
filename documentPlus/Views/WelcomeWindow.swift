@@ -55,7 +55,7 @@ struct CustomCloseButton: View {
 struct WelcomeWindow: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var connections: [Connection]
-    @State private var selection = Set<UUID>()
+    @State private var selection: PersistentIdentifier? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openWindow) private var openWindow
     
@@ -135,10 +135,12 @@ struct WelcomeWindow: View {
                     ConnectionItem(connection: connection)
                         .tag(connection.id)
                 }
-                .contextMenu(forSelectionType: UUID.self) { items in
-                        } primaryAction: { items in
-                            dismiss()
-                            openWindow(id: "Connection Details")
+                .contextMenu(forSelectionType: PersistentIdentifier.self) { connection in
+                        } primaryAction: { connectionId in
+                            if let connectionId = connectionId.first {
+                                dismiss()
+                                openWindow(id: "connectionDetails", value: connectionId)
+                            }
                         }
                 .listStyle(.sidebar)
                 .edgesIgnoringSafeArea(.all)

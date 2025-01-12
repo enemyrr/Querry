@@ -48,6 +48,8 @@ struct Sidebar: View {
                 Text(collection.name)
             }
         }
+        .frame(minWidth: 350, maxWidth: 750)
+        .frame(idealWidth: 350)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search items...")
         .onChange(of: selection) { oldValue, newValue in
             if let selectedCollection = newValue {

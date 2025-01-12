@@ -14,13 +14,11 @@ enum DatabaseType: String, Codable {
 
 @Model
 final class Connection {
-    var id: UUID
     var name: String
     var databaseType: DatabaseType
     var url: String
 
     init(name: String, databaseType: DatabaseType, url: String) {
-        self.id = UUID()
         self.name = name
         self.databaseType = databaseType
         self.url = url

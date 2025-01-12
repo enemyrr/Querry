@@ -179,7 +179,7 @@ struct TabBarItem: View {
             if isHovering {
                 Button("Dismiss", systemImage: "xmark", action: onClose)
                     .labelStyle(.iconOnly)
-                    .buttonStyle(.compactAccessory)
+                    .buttonStyle(.compactAccessory())
                     .controlSize(.small)
                     .offset(x: 8) // Fine-tune the position
                     .transition(.opacity)

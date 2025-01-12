@@ -9,7 +9,7 @@ import AppKit
 import MongoKitten
 
 struct DocumentView: View {
-    @Binding var documents: [ProcessedDocument]
+    @Binding var documents: [Document]
     @State private var vibrateOnRing = false
     @State private var selectField: Fields = .raw
     @State private var filterQuery:  String = ""
@@ -25,7 +25,7 @@ struct DocumentView: View {
     }
     
     
-    init(documents: Binding<[ProcessedDocument]>) {
+    init(documents: Binding<[Document]>) {
         _documents = documents
     }
     
@@ -68,17 +68,18 @@ struct DocumentView: View {
             ScrollView {
                 LazyVStack {
                     ForEach(Array(documents.enumerated()), id: \.offset) { index, document in
-                        DocumentDetails(processedDoc: document)
+                        DocumentDetails(document: document)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
                             .padding(.vertical, 3)
+                            .id(index)
                     }
                 }
                 .padding(.vertical)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .edgesIgnoringSafeArea(.all) // This will make it extend to the edges
-        .background(Color(NSColor.controlBackgroundColor)) // Optional: Add window background color
+        .edgesIgnoringSafeArea(.all)
+        .background(Color(NSColor.controlBackgroundColor))
     }
 }

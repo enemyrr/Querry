@@ -4,11 +4,15 @@
 //
 //  Created by Fauzaan on 1/3/25.
 //
+import Foundation
 import SwiftUI
 import SwiftData
 
 @main
-struct Root: App {
+struct DocumentPlus: App {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.scenePhase) private var scenePhase
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Connection.self,
@@ -23,17 +27,29 @@ struct Root: App {
     }()
     
     var body: some Scene {
-//        WindowGroup("Welcome to DocumentPlus") {
-//            WelcomeWindow()
-//        }
-//        .modelContainer(sharedModelContainer)
-//        .windowStyle(.hiddenTitleBar)
-//        .windowToolbarStyle(.unifiedCompact(showsTitle: false))
-        
-        WindowGroup(id: "Connection Details") {
-            ConnectionDetailsWindow()
+        WindowGroup("Welcome to DocumentPlus", id: "welcomeWindow") {
+            WelcomeWindow()
         }
+        .commandsRemoved()
+        .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        
+        WindowGroup("Connection Details", id: "connectionDetails", for: Connection.ID.self) { $connectionId in
+            if let connectionId {
+                ConnectionDetailsWindow(
+                    connectionId: connectionId
+                ).onDisappear {
+                    openWindow(id: "welcomeWindow")
+                }.onAppear {
+                    NSWindow.allowsAutomaticWindowTabbing = false
+                }
+            }
+        }
+        .commandsRemoved()
+        .modelContainer(sharedModelContainer)
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1300, height: 750)
+        .defaultPosition(.center)
     }
 }

@@ -9,11 +9,29 @@ import SwiftData
 import MongoKitten
 import Combine
 
+@MainActor class DocumentState: ObservableObject {
+    @Published private(set) var documents: [String: [Document]] = [:]
+    @Published private(set) var loadingStates: [String: Bool] = [:]
+    
+    func setDocuments(_ newDocuments: [Document], for tab: String) {
+        documents[tab] = newDocuments
+    }
+    
+    func getDocuments(for tab: String) -> [Document] {
+        return documents[tab] ?? []
+    }
+}
+
 struct ConnectionDetailsWindow: View {
+    let connectionId: PersistentIdentifier
+    
+    @State private var connection: Connection? = nil
     @State private var tabs: [String] = []
     @State private var selectedTab: String? = nil
     @State private var collections: [MongoCollection] = []
-    @State private var documents: [ProcessedDocument] = []
+    @StateObject private var documentState = DocumentState()
+    @State private var isConnecting: Bool = false
+    @Query private var connections: [Connection]
     
     var body: some View {
         NavigationView {
@@ -25,9 +43,15 @@ struct ConnectionDetailsWindow: View {
             VStack(spacing: 0) {
                 TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 
-                if selectedTab != nil {
-                    DocumentView(documents: $documents)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if let selectedTab {
+                    DocumentView(
+                        documents:
+                                .constant(
+                                    documentState.getDocuments(for: selectedTab)
+                                )
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .id(selectedTab)
                 } else {
                     Text("No item found")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -38,68 +62,31 @@ struct ConnectionDetailsWindow: View {
         }
         .onAppear(perform: {
             Task {
-                await DatabaseProvider.shared.setupDatabase()
-                self.collections = await DatabaseProvider.shared
-                    .fetchCollections()
+                isConnecting = true
+                self.connection = connections.first { $0.id == connectionId }
                 
+                if let connection {
+                    await DatabaseProvider.shared.setupDatabase(
+                        connectionString: connection.url, databaseName: connection.name
+                    )
+                    self.collections = await DatabaseProvider.shared
+                        .fetchCollections()
+                }
+                
+                isConnecting = false
             }
         })
         .onChange(of: selectedTab) {_oldValue, newValue in
             guard let collection = newValue else { return }
             Task {
-                documents = await DatabaseProvider.shared
-                    .getDocumentsAsync(byCollectionName: collection)
+                let newDocuments = await DatabaseProvider.shared
+                    .getDocuments(byCollectionName: collection)
+                documentState.setDocuments(newDocuments, for: collection)
             }
         }
+        .navigationTitle("")
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Menu {
-                    Button("New...") {
-                        // action
-                    }
-                    
-                    Button("Edit...") {
-                        // action
-                    }
-                    Divider()
-                    Button("Reload Current Tab") {
-                        // action
-                    }
-                    Button("Reconnect") {
-                        // action
-                    }
-                    Divider()
-                    Button("Disonnect") {
-                        // action
-                    }
-                } label: {
-                    Text("Innovation Servers")
-                }.menuStyle(.borderlessButton)
-            }
-            
-            ToolbarItem(placement: .principal) {
-                HStack(alignment: .center) {
-                    Text("Mongo 8.0 : New Connection : test : teams")
-                        .font(.subheadline)
-                        .padding(.leading, 4)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 4) {
-                        Text("Connecting")
-                            .font(.subheadline)
-                        
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .controlSize(.small)
-                    }
-                    
-                }
-                .frame(minWidth: 450)
-                .padding(4)
-                .background(Color(NSColor.systemFill))
-                .cornerRadius(4)
-            }
+            Toolbar(connection: $connection, isConnecting: $isConnecting)
         }
     }
 }
