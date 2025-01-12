@@ -55,26 +55,27 @@ extension Document {
             )
             
         case let doc as Document:
-//            if doc.isArray {
-//                let arrayItems = (0..<doc.count).compactMap { index in
-//                    formatValue(doc[String(index)])
-//                }
-//                return FormattedPrimitive(
-//                    value: "Array (\(doc.count))",
-//                    color: .gray,
-//                    isExpandable: !doc.isEmpty
-//                )
-//            } else {
+            if doc.isArray {
+                let arrayItems = (0..<doc.count).compactMap { index in
+                    formatValue(doc[String(index)])
+                }
+                
+                return FormattedPrimitive(
+                    value: "Array (\(doc.count))",
+                    color: .gray,
+                    isExpandable: !doc.isEmpty
+                )
+            } else {
                 return FormattedPrimitive(
                     value: "Object",
                     color: .white.opacity(0.5),
                     isExpandable: !doc.isEmpty
                 )
-//            }
+            }
             
         case let string as String:
             return FormattedPrimitive(
-                value: string,
+                value: "\"\(string)\"",
                 color: Color(red: 97/255, green: 193/255, blue: 119/255),
                 isExpandable: false
             )
@@ -86,7 +87,7 @@ extension Document {
         case let number as BSON.Decimal128:
             return FormattedPrimitive(
                 value: String(describing: number.toString),
-                color: .white,
+                color: .blue,
                 isExpandable: false
             )
         default:
@@ -101,7 +102,7 @@ extension Document {
     private func numberFormatted(_ number: Any, value: Primitive) -> FormattedPrimitive {
         return FormattedPrimitive(
             value: String(describing: number),
-            color: .white,
+            color: .blue,
             isExpandable: false
         )
     }

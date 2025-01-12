@@ -8,6 +8,45 @@ import SwiftUI
 import SwiftData
 import MongoKitten
 
+// MARK: - Common Styles and Modifiers
+struct HoverableText: ViewModifier {
+    @Binding var isHovered: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isHovered ? Color.gray.opacity(0.2) : Color.clear)
+            )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovered = hovering
+                }
+            }
+    }
+}
+
+extension View {
+    func hoverable(isHovered: Binding<Bool>) -> some View {
+        modifier(HoverableText(isHovered: isHovered))
+    }
+    
+    func monospacedStyle(color: Color = .white) -> some View {
+        self.font(.system(.body, design: .monospaced))
+            .foregroundColor(color)
+    }
+    
+    func cardStyle(isHovered: Bool) -> some View {
+        self.overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Document Details
 struct DocumentDetails: View {
     let document: Document
     @State private var isCardHovered = false
@@ -29,49 +68,176 @@ struct DocumentDetails: View {
     }
 }
 
+// MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
     let document: Document
     
     var body: some View {
-        ForEach(Array(document.keys.sorted()), id: \.self) { key in
-            let value = document[key]
-            
-            KeyValueRow(
-                formattedPrimitive: document.formatValue(value),
-                key: key
-            )
+        ForEach(Array(document.keys), id: \.self) { key in
+            if let value = document[key] {
+                let formatted = document.formatValue(value)
+                RecursiveKeyValueRow(
+                    formattedPrimitive: formatted,
+                    key: key,
+                    value: value
+                )
+            }
         }
     }
 }
 
+// MARK: - Key-Value Views
 struct KeyValueRow: View {
-    let formattedPrimitive: FormattedPrimitive
     let key: String
-    
-    var body: some View {
-        HStack {
-            Text("\(key):")
-                .foregroundColor(.white)
-                .font(.system(.body, design: .monospaced))
-            Text(formattedPrimitive.value)
-                .foregroundColor(formattedPrimitive.color)
-                .font(.system(.body, design: .monospaced))
-        }
-    }
-}
-
-struct HoverActionButtons: View {
-    let isVisible: Bool
+    let formattedValue: FormattedPrimitive
+    @State private var isHoveredKey = false
+    @State private var isHoveredValue = false
     
     var body: some View {
         HStack(spacing: 2) {
-            ActionButton(
-                systemName: "applepencil",
-                action: {},
-                fontWeight: .black
-            )
-            ActionButton(systemName: "doc.on.doc", action: {})
-            ActionButton(systemName: "trash", action: {})
+            Text("\(key):")
+                .monospacedStyle()
+                .hoverable(isHovered: $isHoveredKey)
+            
+            Text(formattedValue.value)
+                .monospacedStyle(color: formattedValue.color)
+                .hoverable(isHovered: $isHoveredValue)
+        }
+    }
+}
+
+struct ExpandableValueView: View {
+    let formattedPrimitive: FormattedPrimitive
+    let key: String
+    let value: Primitive
+    @State private var isExpanded = false
+    @State private var isHoveredKey = false
+    @State private var isHoveredValue = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 2) {
+                ExpandableHeader(
+                    key: key,
+                    isExpanded: isExpanded,
+                    isHoveredKey: $isHoveredKey
+                )
+                
+                Text(formattedPrimitive.value)
+                    .monospacedStyle(color: formattedPrimitive.color)
+                    .hoverable(isHovered: $isHoveredValue)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            }
+            
+            if isExpanded {
+                RecursiveDocumentView(value: value)
+                    .padding(.leading, 16)
+            }
+        }
+    }
+}
+
+struct ExpandableHeader: View {
+    let key: String
+    let isExpanded: Bool
+    @Binding var isHoveredKey: Bool
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.system(size: 10))
+                .foregroundColor(.gray)
+                .padding(.leading, 4)
+            
+            Text("\(key):")
+                .monospacedStyle()
+                .hoverable(isHovered: $isHoveredKey)
+        }
+    }
+}
+
+// MARK: - Recursive Views
+struct RecursiveDocumentView: View {
+    let value: Primitive
+    
+    var body: some View {
+        Group {
+            switch value {
+            case let array as [Primitive]:
+                ForEach(Array(array.enumerated()), id: \.offset) { index, item in
+                    let formatted = Document().formatValue(item)
+                    RecursiveKeyValueRow(
+                        formattedPrimitive: formatted,
+                        key: String(index),
+                        value: item
+                    )
+                }
+                
+            case let doc as Document:
+                ForEach(Array(doc.keys), id: \.self) { key in
+                    if let value = doc[key] {
+                        let formatted = doc.formatValue(value)
+                        RecursiveKeyValueRow(
+                            formattedPrimitive: formatted,
+                            key: key,
+                            value: value
+                        )
+                    }
+                }
+                
+            default:
+                EmptyView()
+            }
+        }
+    }
+}
+
+struct RecursiveKeyValueRow: View {
+    let formattedPrimitive: FormattedPrimitive
+    let key: String
+    let value: Primitive
+    
+    var body: some View {
+        Group {
+            if formattedPrimitive.isExpandable {
+                ExpandableValueView(
+                    formattedPrimitive: formattedPrimitive,
+                    key: key,
+                    value: value
+                )
+            } else {
+                KeyValueRow(
+                    key: key,
+                    formattedValue: formattedPrimitive
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Action Buttons
+struct HoverActionButtons: View {
+    let isVisible: Bool
+    private let buttons: [(systemName: String, weight: Font.Weight, action: () -> Void)] = [
+        ("applepencil", .black, {}),
+        ("doc.on.doc", .regular, {}),
+        ("trash", .regular, {})
+    ]
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(buttons, id: \.systemName) { button in
+                ActionButton(
+                    systemName: button.systemName,
+                    action: button.action,
+                    fontWeight: button.weight
+                )
+            }
         }
         .opacity(isVisible ? 0.5 : 0)
         .transition(.opacity)
@@ -82,7 +248,7 @@ struct HoverActionButtons: View {
 struct ActionButton: View {
     let systemName: String
     let action: () -> Void
-    var fontWeight: Font.Weight = .regular  // Default weight
+    var fontWeight: Font.Weight = .regular
     
     var body: some View {
         Button(action: action) {
@@ -91,15 +257,5 @@ struct ActionButton: View {
                 .foregroundColor(.white)
         }
         .buttonStyle(.compactAccessory(horizontal: 6))
-    }
-}
-
-extension View {
-    func cardStyle(isHovered: Bool) -> some View {
-        self.overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-        )
-        .cornerRadius(8)
     }
 }
