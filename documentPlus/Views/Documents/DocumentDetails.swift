@@ -1,5 +1,5 @@
 //
-//  DocumentView.swift
+//  DocumentDetails.swift
 //  documentPlus
 //
 //  Created by Fauzaan on 12/31/24.
@@ -8,13 +8,13 @@ import SwiftUI
 import SwiftData
 import MongoKitten
 
-struct DocumentCardView: View {
-    let processedDoc: ProcessedDocument
+struct DocumentDetails: View {
+    let document: Document
     @State private var isCardHovered = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            DocumentKeyValueList(processedDoc: processedDoc)
+            DocumentKeyValueList(document: document)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -30,27 +30,31 @@ struct DocumentCardView: View {
 }
 
 struct DocumentKeyValueList: View {
-    let processedDoc: ProcessedDocument
+    let document: Document
     
     var body: some View {
-        ForEach(Array(processedDoc.originalDocument.keys), id: \.self) { key in
-            KeyValueRow(key: key, value: processedDoc.formattedValues[key] ?? "", color: processedDoc.valueColors[key] ?? .white)
+        ForEach(Array(document.keys.sorted()), id: \.self) { key in
+            let value = document[key]
+            
+            KeyValueRow(
+                formattedPrimitive: document.formatValue(value),
+                key: key
+            )
         }
     }
 }
 
 struct KeyValueRow: View {
+    let formattedPrimitive: FormattedPrimitive
     let key: String
-    let value: String
-    let color: Color
     
     var body: some View {
         HStack {
             Text("\(key):")
                 .foregroundColor(.white)
                 .font(.system(.body, design: .monospaced))
-            Text(value)
-                .foregroundColor(color)
+            Text(formattedPrimitive.value)
+                .foregroundColor(formattedPrimitive.color)
                 .font(.system(.body, design: .monospaced))
         }
     }
@@ -60,12 +64,16 @@ struct HoverActionButtons: View {
     let isVisible: Bool
     
     var body: some View {
-        HStack(spacing: 8) {
-            ActionButton(systemName: "pencil", action: {})
+        HStack(spacing: 2) {
+            ActionButton(
+                systemName: "applepencil",
+                action: {},
+                fontWeight: .black
+            )
             ActionButton(systemName: "doc.on.doc", action: {})
             ActionButton(systemName: "trash", action: {})
         }
-        .opacity(isVisible ? 1 : 0)
+        .opacity(isVisible ? 0.5 : 0)
         .transition(.opacity)
         .padding(8)
     }
@@ -74,13 +82,15 @@ struct HoverActionButtons: View {
 struct ActionButton: View {
     let systemName: String
     let action: () -> Void
+    var fontWeight: Font.Weight = .regular  // Default weight
     
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
+                .fontWeight(fontWeight)
                 .foregroundColor(.white)
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.compactAccessory(horizontal: 6))
     }
 }
 
