@@ -10,7 +10,7 @@ import MongoKitten
 protocol DatabaseManaging {
     func connect(connectionString: String, databaseName: String) async throws
     func getCollections() async throws -> [MongoCollection]
-    func getDocuments(from collectionName: String) async throws -> [Document]
+    func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder
 }
 
 extension MongoManager: DatabaseManaging {}

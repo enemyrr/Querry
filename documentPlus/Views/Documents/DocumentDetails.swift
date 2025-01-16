@@ -59,12 +59,12 @@ struct DocumentDetails: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(NSColor.controlColor).opacity(0.1))
         .cardStyle(isHovered: isCardHovered)
-        .overlay(HoverActionButtons(isVisible: isCardHovered), alignment: .topTrailing)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isCardHovered = hovering
-            }
-        }
+//        .overlay(HoverActionButtons(isVisible: isCardHovered), alignment: .topTrailing)
+//        .onHover { hovering in
+//            withAnimation(.easeInOut(duration: 0.2)) {
+//                isCardHovered = hovering
+//            }
+//        }
     }
 }
 
@@ -73,7 +73,7 @@ struct DocumentKeyValueList: View {
     let document: Document
     
     var body: some View {
-        ForEach(Array(document.keys), id: \.self) { key in
+        ForEach(document.keys, id: \.self) { key in
             if let value = document[key] {
                 let formatted = document.formatValue(value)
                 RecursiveKeyValueRow(
@@ -81,8 +81,7 @@ struct DocumentKeyValueList: View {
                     key: key,
                     value: value
                 )
-            }
-        }
+            }        }
     }
 }
 

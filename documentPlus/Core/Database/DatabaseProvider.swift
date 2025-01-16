@@ -13,6 +13,7 @@ final class DatabaseProvider: ObservableObject {
     static let shared = DatabaseProvider()
     
     @Published private(set) var collections: [MongoCollection] = []
+    @Published private(set) var databases: [MongoDatabase] = []
     @Published private(set) var error: Error?
     @Published private(set) var isConnected: Bool = false
     
@@ -38,13 +39,24 @@ final class DatabaseProvider: ObservableObject {
         return self.collections
     }
     
-    func getDocuments(byCollectionName collectionName: String) async -> [Document] {
-        let documents = try? await mongoManager
-            .getDocuments(from: collectionName)
+    func fetchDatabases() async -> [MongoDatabase] {
+        do {
+            self.databases = try await mongoManager.getDatabases()
+        } catch {
+            self.error = error
+        }
         
-        // Get first value
-        let firstValue = documents?.first?["totalSpent"]
-//        print(firstValue.isNegative)
-        return documents ?? []
+        return self.databases
+    }
+
+    func findQueryBuilder(byCollectionName collectionName: String) -> FindQueryBuilder? {
+        do {
+            return try mongoManager
+                .findQueryBuilder(from: collectionName)
+        } catch {
+            self.error = error
+        }
+        
+        return nil
     }
 }

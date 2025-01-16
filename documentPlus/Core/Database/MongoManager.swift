@@ -29,6 +29,14 @@ final class MongoManager {
         }
     }
     
+    func getDatabases() async throws ->  [MongoDatabase] {
+        guard let database = database else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        return try await database.pool.listDatabases()
+    }
+    
     func getCollections() async throws -> [MongoCollection] {
         guard let database = database else {
             throw MongoError.databaseNotInitialized
@@ -37,11 +45,12 @@ final class MongoManager {
         return try await database.listCollections()
     }
     
-    func getDocuments(from collectionName: String) async throws -> [Document] {
+    func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder {
          guard let collection = database?[collectionName] else {
              throw MongoError.collectionNotFound
          }
          
-         return try await collection.find().drain()
+        return collection.find()
      }
 }
+

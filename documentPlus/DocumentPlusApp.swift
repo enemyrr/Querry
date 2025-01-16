@@ -37,7 +37,7 @@ struct DocumentPlus: App {
         
         WindowGroup("Connection Details", id: "connectionDetails", for: Connection.ID.self) { $connectionId in
             if let connectionId {
-                ConnectionDetailsWindow(
+                CollectionWindow(
                     connectionId: connectionId
                 ).onDisappear {
                     openWindow(id: "welcomeWindow")

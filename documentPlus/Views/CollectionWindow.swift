@@ -1,5 +1,5 @@
 //
-//  ConnectionDetailsWindow.swift
+//  CollectionWindow.swift
 //  documentPlus
 //
 //  Created by Fauzaan on 12/31/24.
@@ -22,13 +22,14 @@ import Combine
     }
 }
 
-struct ConnectionDetailsWindow: View {
+struct CollectionWindow: View {
     let connectionId: PersistentIdentifier
     
     @State private var connection: Connection? = nil
     @State private var tabs: [String] = []
     @State private var selectedTab: String? = nil
     @State private var collections: [MongoCollection] = []
+    @State private var databases: [MongoDatabase] = []
     @StateObject private var documentState = DocumentState()
     @State private var isConnecting: Bool = false
     @Query private var connections: [Connection]
@@ -38,17 +39,16 @@ struct ConnectionDetailsWindow: View {
             Sidebar(
                 tabs: $tabs,
                 selectedTab: $selectedTab,
-                collections: $collections
+                collections: $collections,
+                databases: $databases
+                
             )
             VStack(spacing: 0) {
                 TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 
                 if let selectedTab {
                     DocumentView(
-                        documents:
-                                .constant(
-                                    documentState.getDocuments(for: selectedTab)
-                                )
+                        collection: selectedTab
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(selectedTab)
@@ -60,29 +60,22 @@ struct ConnectionDetailsWindow: View {
                 }
             }
         }
-        .onAppear(perform: {
-            Task {
-                isConnecting = true
-                self.connection = connections.first { $0.id == connectionId }
-                
-                if let connection {
-                    await DatabaseProvider.shared.setupDatabase(
-                        connectionString: connection.url, databaseName: connection.name
-                    )
-                    self.collections = await DatabaseProvider.shared
-                        .fetchCollections()
-                }
-                
-                isConnecting = false
+        .task {
+            isConnecting = true
+            self.connection = connections.first { $0.id == connectionId }
+            
+            if let connection {
+                await DatabaseProvider.shared.setupDatabase(
+                    connectionString: connection.url, databaseName: connection.name
+                )
+                self.collections = await DatabaseProvider.shared
+                    .fetchCollections()
+                self.databases = await DatabaseProvider.shared
+                    .fetchDatabases()
             }
-        })
-        .onChange(of: selectedTab) {_oldValue, newValue in
-            guard let collection = newValue else { return }
-            Task {
-                let newDocuments = await DatabaseProvider.shared
-                    .getDocuments(byCollectionName: collection)
-                documentState.setDocuments(newDocuments, for: collection)
-            }
+            
+            isConnecting = false
+            
         }
         .navigationTitle("")
         .toolbar {

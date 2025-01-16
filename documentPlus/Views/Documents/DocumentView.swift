@@ -9,11 +9,16 @@ import AppKit
 import MongoKitten
 
 struct DocumentView: View {
-    @Binding var documents: [Document]
+    @Environment(\.self) private var viewContext
+    @State private var documents: [Document] = []
+    @State private var isLoading = false
+    @State private var error: Error?
     @State private var vibrateOnRing = false
     @State private var selectField: Fields = .raw
     @State private var filterQuery:  String = ""
     @State private var filterOperator: FilterOperators = .eq
+    
+    private var collectionName: String
     
     enum Fields: String, CaseIterable, Identifiable {
         case _id, name, raw
@@ -25,8 +30,8 @@ struct DocumentView: View {
     }
     
     
-    init(documents: Binding<[Document]>) {
-        _documents = documents
+    init(collection: String) {
+        self.collectionName = collection
     }
     
     var body: some View {
@@ -67,19 +72,55 @@ struct DocumentView: View {
             
             ScrollView {
                 LazyVStack {
-                    ForEach(Array(documents.enumerated()), id: \.offset) { index, document in
+                    ForEach(documents, id: \.self) { document in
                         DocumentDetails(document: document)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
                             .padding(.vertical, 3)
-                            .id(index)
                     }
                 }
                 .padding(.vertical)
             }
         }
+        .task {
+            await loadDocuments()
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .edgesIgnoringSafeArea(.all)
         .background(Color(NSColor.controlBackgroundColor))
+    }
+    
+    private func loadDocuments() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            guard let queryBuilder = DatabaseProvider.shared
+                .findQueryBuilder(byCollectionName: collectionName)
+            else {
+                return
+            }
+            
+            var loadedDocuments: [Document] = []
+            
+            // Now queryBuilder is unwrapped
+            for try await document in queryBuilder {
+                loadedDocuments.append(document)
+                
+                // Update UI in small batches for smoother experience
+                if loadedDocuments.count % 20 == 0 {
+                    await MainActor.run {
+                        self.documents = loadedDocuments
+                    }
+                }
+            }
+            
+            // Final update for any remaining documents
+            await MainActor.run {
+                self.documents = loadedDocuments
+            }
+        } catch {
+            self.error = error
+        }
     }
 }
