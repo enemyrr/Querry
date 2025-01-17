@@ -53,12 +53,18 @@ struct CollectionWindow: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(selectedTab)
                 } else {
-                    Text("No item found")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .edgesIgnoringSafeArea(.all)
-                        .background(Color(NSColor.controlBackgroundColor))
+                    HStack {
+                        Text("No item found")
+                            .edgesIgnoringSafeArea(.all)
+                            .background(Color(NSColor.red))
+                            .border(.background)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .edgesIgnoringSafeArea(.all)
+                    .background(Color(NSColor.yellow))
+                    .border(.background)
                 }
-            }
+            }.ignoresSafeArea(.all)
         }
         .task {
             isConnecting = true
@@ -76,10 +82,6 @@ struct CollectionWindow: View {
             
             isConnecting = false
             
-        }
-        .navigationTitle("")
-        .toolbar {
-            Toolbar(connection: $connection, isConnecting: $isConnecting)
         }
     }
 }

@@ -23,7 +23,6 @@ struct TabBar: View {
                 }
                 .frame(height: 30)
                 .background(Color(NSColor.controlBackgroundColor))
-                Divider()
             }
             
         }
