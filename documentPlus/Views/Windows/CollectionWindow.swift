@@ -36,13 +36,13 @@ struct CollectionWindow: View {
     
     var body: some View {
         NavigationView {
-            Sidebar(
-                tabs: $tabs,
-                selectedTab: $selectedTab,
-                collections: $collections,
-                databases: $databases
-                
-            )
+//            Sidebar(
+//                tabs: $tabs,
+//                selectedTab: $selectedTab,
+//                collections: $collections,
+//                databases: $databases
+//                
+//            )
             VStack(spacing: 0) {
                 TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 

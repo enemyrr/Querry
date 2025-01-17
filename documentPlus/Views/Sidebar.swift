@@ -1,3 +1,4 @@
+import MongoKitten
 //
 //  Sidebar.swift
 //  DocumentPlus
@@ -5,136 +6,188 @@
 //  Created by Fauzaan on 1/1/25.
 //
 import SwiftUI
-import MongoKitten
 
-struct RedBorderMenuStyle: MenuStyle {
+enum SidebarItem: Hashable {
+    case home
+    case database(String)
+}
+
+struct SidebarButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    let isActive: Bool
+    
     func makeBody(configuration: Configuration) -> some View {
-        Menu(configuration)
-            .border(Color.red)
+        HStack {
+            configuration.label
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    (isActive || isHovering)
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(
+                            (isActive && isHovering) ? 0.2 : 0.3
+                        )
+                    : Color.clear
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct ActionButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(5)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 }
 
 struct Sidebar: View {
-    @State private var searchText = ""
-    @State private var selection: String?
-    @State private var isMenuActive = false
-    
-    @Binding var collections: [MongoCollection]
-    @Binding var databases: [MongoDatabase]
-    @Binding var tabs: [String]
-    @Binding var selectedTab: String?
+    @Binding var activeSidebarItem: SidebarItem
+    @Binding var activeConnection: Connection?
     @State private var selectedDatabase: MongoDatabase?
+    @State private var databases: [MongoDatabase] = []
+    @State private var isFetchingDatabases = false
     
-    init(tabs: Binding<[String]>,
-         selectedTab: Binding<String?>,
-         collections: Binding<[MongoCollection]>,
-         databases: Binding<[MongoDatabase]>
+    init(
+        activeSidebarItem: Binding<SidebarItem>,
+        activeConnection: Binding<Connection?>
     ) {
-        _tabs = tabs
-        _selectedTab = selectedTab
-        _collections = collections
-        _databases = databases
-        NSWindow.allowsAutomaticWindowFrame = true
-    }
-    
-    var filteredCollections: [MongoCollection] {
-        if searchText.isEmpty {
-            return self.collections
-        }
-        return self.collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        _activeSidebarItem = activeSidebarItem
+        _activeConnection = activeConnection
     }
     
     var body: some View {
-        Divider()
-        HStack(spacing: 20) {
-            Image(systemName: "folder").foregroundColor(Color(NSColor.controlAccentColor))
-            Image(systemName: "clock").foregroundColor(Color.white.opacity(0.5))
-            Image(systemName: "magnifyingglass").foregroundColor(Color.white.opacity(0.5))
-        }.frame(height: 14)
-        Divider()
-        
-        HStack {
-            Menu {
-                ForEach(databases, id: \.name) { database in
-                    Button(database.name) {
-                        Task {
-                            await selectDatabase(database)
-                        }
+        VStack(spacing: 0) {
+            Button(action: { activeSidebarItem = .home }) {
+                Image(systemName: "house.fill").opacity(0.7)
+                Text("Home")
+            }
+            .buttonStyle(
+                SidebarButtonStyle(isActive: activeSidebarItem == .home))
+            
+            Button(action: {}) {
+                HStack {
+                    Image(systemName: "plus.app").opacity(0.7)
+                    Text("New Connection")
+                    Spacer()
+                }
+            }
+            .buttonStyle(SidebarButtonStyle(isActive: false))
+            
+            Divider().padding(.vertical, 10)
+            
+            if let activeConnection = activeConnection {
+                Button(action: {}) {
+                    HStack {
+                        Text(activeConnection.name)
+                        Spacer()
+                        Image(systemName: "chevron.down")
                     }
                 }
-                Divider()
-                Button("Manage database") {
-                    // Action
-                }
-            } label: {
-                Text(selectedDatabase?.name ?? "Select database")
+                .buttonStyle(SidebarButtonStyle(isActive: false))
+            }
+            
+            HStack {
+                Text("Databases")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+                
+                if (isFetchingDatabases) {
+                    Spacer()
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                
+                Spacer()
+                Button(action: {}) {
+                    Image(systemName: "plus.circle")
+                }
+                .buttonStyle(ActionButtonStyle())
+                .tint(.secondary)
+                .foregroundStyle(.secondary)
             }
-            .menuStyle(.borderlessButton)
-            .tint(.secondary)
-            .fixedSize()
-            
-            Spacer()
-            Button(action: {
-            }, label: {
-                Image(systemName: "plus.circle.fill")
-            }).buttonStyle(.borderless)
-        }
-        .padding(.horizontal)
-        .frame(maxWidth: .infinity)
-        
-        Divider()
-        
-        List(filteredCollections, id: \.name, selection: $selection) { collection in
-            HStack {
-                Image(systemName: "folder").opacity(0.5)
-                Text(collection.name)
-            }
-        }
-        .frame(minWidth: 250, maxWidth: 750)
-        .frame(idealWidth: 250)
-        .searchable(text: $searchText, placement: .sidebar, prompt: "Search items...")
-        .onChange(of: selection) { oldValue, newValue in
-            if let selectedCollection = newValue {
-                Task {
-                    addTab(for: selectedCollection)
+            .task(id: activeConnection?.name) {
+                if let activeConnection = activeConnection {
+                    isFetchingDatabases = true
+                    await DatabaseProvider.shared.setupDatabase(
+                        connectionString: activeConnection.url, databaseName: activeConnection.name
+                    )
+                    self.databases = await DatabaseProvider.shared
+                        .fetchDatabases()
+                    
+                    isFetchingDatabases = false
+
                 }
             }
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: {
-                    toggleSidebar()
-                }, label: {
-                    Image(systemName: "sidebar.left")
-                })
-                .help("Toggle Sidebar")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+            
+            VStack(spacing: 0) {
+                if databases.isEmpty {
+                    Text("Select a connection to view databases")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                }
+                
+                ForEach(databases, id: \.name) { database in
+                    Button(action: { activeSidebarItem = .database(database.name) }) {
+                        HStack {
+                            Image(systemName: "cylinder.split.1x2").opacity(0.7)
+                            Text(database.name)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(
+                        SidebarButtonStyle(
+                            isActive: activeSidebarItem == .database(database.name)
+                        ))
+                }
+                
             }
-        }
-    }
-    
-    
-    func toggleSidebar() {
-        NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
-    }
-    
-    private func addTab(for item: String) {
-        if !tabs.contains(where: { $0 == item }) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                tabs.append(item)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            Spacer()
+            
+            Divider().padding(.vertical, 10)
+            Button(action: {}) {
+                HStack {
+                    Image(systemName: "exclamationmark.bubble.fill").opacity(
+                        0.7)
+                    Text("Feedback")
+                    Spacer()
+                }
             }
+            .buttonStyle(SidebarButtonStyle(isActive: false))
         }
-        
-        selectedTab = item
-    }
-    
-    private func selectDatabase(_ database: MongoDatabase) async {
-        selectedDatabase = database
-        do {
-            collections = try await database.listCollections()
-        } catch {
-            print("Error loading collections: \(error)")
-        }
+        .padding(20)
     }
 }
+
+
