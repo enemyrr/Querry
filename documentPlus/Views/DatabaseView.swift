@@ -25,9 +25,11 @@ struct DatabaseView: View {
                     .id(selectedTab)
                 } else {
                     Text("No item found")
-                        .padding(.top, 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        
                 }
             }
+            .background(Color(.controlBackgroundColor).opacity(0.6))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)

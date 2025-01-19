@@ -30,7 +30,6 @@ struct SwipeDetectionView: NSViewRepresentable {
         }
         
         func startMonitoring() {
-            print("SwipeDetectionView is being created")
             monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self] event in
                 guard let self = self, let view = self.trackingView else { return event }
                 
@@ -55,7 +54,6 @@ struct SwipeDetectionView: NSViewRepresentable {
         }
         
         deinit {
-            print("SwipeDetectionView is being deinitialized")
             stopMonitoring()
         }
         
@@ -63,8 +61,8 @@ struct SwipeDetectionView: NSViewRepresentable {
             let currentTime = ProcessInfo.processInfo.systemUptime
             let timeDelta = currentTime - lastScrollTime
             lastScrollTime = currentTime
-            
-            let dampingFactor: CGFloat = 0.6
+
+            let dampingFactor: CGFloat = 0.4
             let scaledDelta = event.scrollingDeltaX * dampingFactor
             
             if timeDelta > 0 {
@@ -82,7 +80,7 @@ struct SwipeDetectionView: NSViewRepresentable {
             }
             
             // Process transitions
-            let isFastScroll = abs(scrollVelocity) > 1500
+            let isFastScroll = abs(scrollVelocity) > 1000
             let shouldTransition = abs(accumulatedScrollDeltaX) > (isFastScroll ? 0 : threshold)
             
             if (isFastScroll) && shouldTransition && !hasTransitioned {
@@ -140,7 +138,7 @@ struct SwipeDetectionView: NSViewRepresentable {
         }
         
         private func resetPosition() {
-            withAnimation(.spring(duration: 0.3)) {
+            withAnimation(.spring(duration: 0.1)) {
                 parent.scrollOffset = parent.sidebarActiveTab == .connections ? 0 : -parent.viewWidth
             }
         }
@@ -160,7 +158,6 @@ struct SwipeDetectionView: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
     
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
-        print("Stop monitorign")
         coordinator.stopMonitoring()
     }
 }

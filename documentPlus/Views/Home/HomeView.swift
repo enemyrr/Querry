@@ -12,6 +12,7 @@ import SwiftUI
 struct HomeView: View {
     @Query private var connections: [Connection]
     @State private var appState = AppState.shared
+    @State private var selectedConnectionId: PersistentIdentifier?
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -42,7 +43,11 @@ struct HomeView: View {
 
                 ConnectionList(
                     connections: connections,
+                    selectedConnectionId: $selectedConnectionId,
                     onSelect: { connection in
+                        selectedConnectionId = connection.persistentModelID
+                    },
+                    onOpen: { connection in
                         appState.addConnection(connection)
                         appState.changeActiveSidebarItem(.database(connection.name))
                         appState.changeActiveTab(.connection_details)
@@ -70,7 +75,9 @@ struct HomeView: View {
 
 struct ConnectionList: View {
     let connections: [Connection]
+    @Binding var selectedConnectionId: PersistentIdentifier?
     let onSelect: (Connection) -> Void
+    let onOpen: (Connection) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -96,7 +103,7 @@ struct ConnectionList: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(connections) { connection in
-                        ConnectionListItem(connection: connection, onSelect: self.onSelect)
+                        ConnectionListItem(connection: connection, isSelected: connection.persistentModelID == selectedConnectionId, onSelect: self.onSelect, onOpen: self.onOpen)
                     }
                 }
             }
@@ -106,59 +113,60 @@ struct ConnectionList: View {
 
 struct ConnectionListItem: View {
     let connection: Connection
+    let isSelected: Bool
     let onSelect: (Connection) -> Void
+    let onOpen: (Connection) -> Void
     @State private var isHovering = false
 
-    init(connection: Connection, onSelect: @escaping (Connection) -> Void) {
-        self.connection = connection
-        self.onSelect = onSelect
-    }
-
     var body: some View {
-        Button(
-            action: {
-                onSelect(connection)
-            },
-            label: {
-                HStack {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(connection.name)
-                                .foregroundStyle(.primary)
+        HStack {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(connection.name)
+                        .foregroundStyle(.primary)
 
-                            Text("taxpool")
-                                .foregroundStyle(.secondary)
-                                .font(.system(size: 12))
-                        }
-                    }
-                    .frame(width: 200, alignment: .leading)
-
-                    Spacer()
-
-                    Text(
-                        connection.updatedAt
-                            .formatted(.relative(presentation: .named))
-                    )
-                    .foregroundStyle(.secondary)
-                    .frame(width: 120, alignment: .leading)
-
-                    Text(
-                        connection.createdAt
-                            .formatted(date: .abbreviated, time: .omitted)
-                    )
-                    .foregroundStyle(.secondary)
-                    .frame(width: 120, alignment: .leading)
+                    Text("taxpool")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            isHovering ? Color.black.opacity(0.3) : Color.clear)
-                )
             }
+            .frame(width: 200, alignment: .leading)
+
+            Spacer()
+
+            Text(
+                Date().timeIntervalSince(connection.lastOpenedAt) < 60
+                    ? "a moment ago"
+                    : connection.lastOpenedAt.formatted(.relative(presentation: .named))
+            )
+            .foregroundStyle(.secondary)
+            .frame(width: 120, alignment: .leading)
+
+            Text(
+                connection.createdAt
+                    .formatted(date: .abbreviated, time: .omitted)
+            )
+            .foregroundStyle(.secondary)
+            .frame(width: 120, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isSelected || isHovering ? Color.black.opacity(0.3)  : Color.clear
+                )
+                .onTapGesture {
+                    onSelect(connection)
+                }
         )
-        .buttonStyle(.plain)
+        .simultaneousGesture(
+            TapGesture(count: 2)
+                .onEnded {
+                    onOpen(connection)
+                    connection.lastOpenedAt = Date()
+                }
+        )
         .onHover { hovering in
             isHovering = hovering
         }

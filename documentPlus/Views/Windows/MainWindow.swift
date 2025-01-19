@@ -27,5 +27,6 @@ struct MainWindow: View {
                 DatabaseView(databaseName: name)
             }
         }
+        .background(Color(.controlBackgroundColor).opacity(0.5))
     }
 }

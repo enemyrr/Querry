@@ -16,7 +16,7 @@ struct TabBar: View {
                 HStack(spacing: 0) {
                     navigationButtons
                     
-                    Divider()
+                    Divider().padding(.trailing, 10)
                     
                     tabScrollView
                 }
