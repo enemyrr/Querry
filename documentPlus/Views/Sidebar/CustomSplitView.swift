@@ -50,6 +50,7 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
                 .help("Toggle Sidebar")
             }
         }
+        .background(Color(.controlBackgroundColor).opacity(0.5))
     }
     
     private var sidebarContainer: some View {

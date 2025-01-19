@@ -11,16 +11,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Query private var connections: [Connection]
-    @Binding var activeSidebarItem: SidebarItem
-    @Binding var activeConnection: Connection?
-
-    init(
-        activeSidebarItem: Binding<SidebarItem>,
-        activeConnection: Binding<Connection?>
-    ) {
-        _activeSidebarItem = activeSidebarItem
-        _activeConnection = activeConnection
-    }
+    @State private var appState = AppState.shared
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -52,8 +43,9 @@ struct HomeView: View {
                 ConnectionList(
                     connections: connections,
                     onSelect: { connection in
-                        activeSidebarItem = .database("taxpool")
-                        activeConnection = connection
+                        appState.addConnection(connection)
+                        appState.changeActiveSidebarItem(.database(connection.name))
+                        appState.changeActiveTab(.connection_details)
                     }
                 )
 
@@ -65,7 +57,7 @@ struct HomeView: View {
                 maxHeight: .infinity,
                 alignment: .leading
             )
-            .background(.blue.gradient.opacity(0.02))
+            .background(Color(.controlColor).opacity(0.1))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator, lineWidth: 1)

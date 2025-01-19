@@ -13,7 +13,6 @@ struct TabBar: View {
     var body: some View {
         Group {
             if !tabs.isEmpty {
-                Divider()
                 HStack(spacing: 0) {
                     navigationButtons
                     
@@ -22,7 +21,6 @@ struct TabBar: View {
                     tabScrollView
                 }
                 .frame(height: 30)
-                .background(Color(NSColor.controlBackgroundColor))
             }
             
         }
@@ -48,7 +46,7 @@ struct TabBar: View {
     private var tabScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
+                HStack() {
                     ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
                         TabBarItem(
                             tab: tab,
@@ -68,7 +66,6 @@ struct TabBar: View {
                             return true
                         }
                         
-                        Divider()
                     }
                 }
             }
@@ -161,34 +158,36 @@ struct TabBarItem: View {
     let onSelect: () -> Void
     let onClose: () -> Void
     @State private var isHovering: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        ZStack(alignment: .leading) {
-            // Main tab content
-            HStack {
-                Text(tab)
-                    .foregroundColor(isSelected ? .primary : .secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .contentShape(Rectangle())
-            }
-            .padding(.vertical, 7)
-            .padding(.horizontal, 30)
-            
-            // Floating close button
-            if isHovering {
-                Button("Dismiss", systemImage: "xmark", action: onClose)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.compactAccessory())
-                    .controlSize(.small)
-                    .offset(x: 8) // Fine-tune the position
+        Button(action: onSelect) {
+            ZStack(alignment: .leading) {
+                // Main tab content
+                HStack {
+                    Text(tab)
+                        .foregroundColor(isSelected ? .primary : .secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 30)
+                
+                // Floating close button
+                if isHovering {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(CloseButtonStyle())
+                    .offset(x: 8)
                     .transition(.opacity)
+                }
             }
         }
-        .background(isSelected ? Color(NSColor.systemFill) : .clear)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
+        .buttonStyle(TabBarButtonStyle(isActive: isSelected, isHovering: isHovering))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.1)) {
                 isHovering = hovering

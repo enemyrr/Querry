@@ -12,24 +12,17 @@ import MongoKitten
 
 struct MainWindow: View {
     @Environment(\.modelContext) private var modelContext
+    @State private var appState = AppState.shared
     @Query private var connections: [Connection]
-    @State private var activeSidebarItem: SidebarItem = .home
     @State private var activeConnection: Connection?
     
     var body: some View {
         CustomSplitView {
-            Sidebar(
-                activeSidebarItem: $activeSidebarItem,
-                activeConnection: $activeConnection
-            )
-            
+            Sidebar()
         } detail: {
-            switch activeSidebarItem {
+            switch appState.activeSidebarItem {
             case .home:
-                HomeView(
-                    activeSidebarItem: $activeSidebarItem,
-                    activeConnection: $activeConnection
-                )
+                HomeView()
             case .database(let name):
                 DatabaseView(databaseName: name)
             }

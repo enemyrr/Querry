@@ -32,7 +32,7 @@ extension View {
         modifier(HoverableText(isHovered: isHovered))
     }
     
-    func monospacedStyle(color: Color = .white) -> some View {
+    func monospacedStyle(color: Color = .primary) -> some View {
         self.font(.system(.body, design: .monospaced))
             .foregroundColor(color)
     }

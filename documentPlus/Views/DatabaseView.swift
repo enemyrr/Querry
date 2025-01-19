@@ -9,22 +9,30 @@ import Foundation
 import SwiftUI
 
 struct DatabaseView: View {
+    @State private var appState = AppState.shared
     let databaseName: String
     
     var body: some View {
         VStack(spacing: 0) {
-            Text(databaseName)
-                .font(.title)
+            TabBar(tabs: $appState.tabs, selectedTab: $appState.selectedTab)
             
             VStack {
-                Text("Database Content for \(databaseName)")
+                if let selectedTab = appState.selectedTab {
+                    DocumentView(
+                        collection: selectedTab
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .id(selectedTab)
+                } else {
+                    Text("No item found")
+                        .padding(.top, 12)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator, lineWidth: 1)
             )
-            .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(10)
             .padding(8)
         }
