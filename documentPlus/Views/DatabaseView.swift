@@ -10,14 +10,13 @@ import SwiftUI
 
 struct DatabaseView: View {
     @State private var appState = AppState.shared
-    let databaseName: String
     
     var body: some View {
         VStack(spacing: 0) {
-            TabBar(tabs: $appState.tabs, selectedTab: $appState.selectedTab)
+            TabBar()
             
             VStack {
-                if let selectedTab = appState.selectedTab {
+                if let selectedTab = appState.activeConnectionInstance?.selectedTab {
                     DocumentView(
                         collection: selectedTab
                     )
@@ -26,7 +25,6 @@ struct DatabaseView: View {
                 } else {
                     Text("No item found")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        
                 }
             }
             .background(Color(.controlBackgroundColor).opacity(0.6))

@@ -15,79 +15,68 @@ struct SidebarConnectionDetailsView: View {
     @State private var isConnecting: Bool = false
     
     var body: some View {
-            VStack(spacing: 0) {
-                // Content container
-                ZStack(alignment: .top) {
-                    // Collections list
-                    VStack(spacing: 0) {
-                        ForEach(collections, id: \.name) { collection in
-                            Button(action: {
-                                addTab(for: collection.name)
-                            }) {
-                                HStack {
-                                    Image(systemName: "tablecells").opacity(0.7)
-                                    Text(collection.name)
-                                    Spacer()
-                                }
+        VStack(spacing: 0) {
+            // Content container
+            ZStack(alignment: .top) {
+                VStack(spacing: 0) {
+                    ForEach(collections, id: \.name) { collection in
+                        Button(action: {
+                            // TODO: Find a way to make sure id exists
+                            appState.addTab(instanceId: appState.activeConnectionInstanceId ?? UUID(), tabName: collection.name)
+                        }) {
+                            HStack {
+                                Image(systemName: "tablecells").opacity(0.7)
+                                Text(collection.name)
+                                Spacer()
                             }
-                            .buttonStyle(SidebarButtonStyle(isActive: false))
                         }
-                        
-                        if collections.isEmpty {
-                            Text("No collections found")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 4)
-                        }
+                        .buttonStyle(SidebarButtonStyle(isActive: false))
                     }
-                    .opacity(isConnecting ? 0.3 : 1)
+                    
+                    if collections.isEmpty {
+                        Text("No collections found")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                    }
                 }
-                .animation(.easeInOut(duration: 0.2), value: isConnecting)
-                .task(id: appState.activeConnection?.id) {
-                    guard let connection = appState.activeConnection else { return }
-                    
-                    withAnimation {
-                        isConnecting = true
-                    }
-                    
-                    do {
-                        await DatabaseProvider.shared.setupDatabase(
-                            connectionString: connection.url,
-                            databaseName: connection.name
-                        )
-                        
-                        async let collectionsTask = DatabaseProvider.shared.fetchCollections()
-                        async let databasesTask = DatabaseProvider.shared.fetchDatabases()
-                        
-                        let (newCollections, newDatabases) = await (collectionsTask, databasesTask)
-                        
-                        withAnimation {
-                            collections = newCollections
-                            databases = newDatabases
-                            isConnecting = false
-                        }
-                    } catch {
-                        // Handle error appropriately
-                        withAnimation {
-                            isConnecting = false
-                        }
-                    }
+                .opacity(isConnecting ? 0.3 : 1)
+            }
+            .animation(.easeInOut(duration: 0.2), value: isConnecting)
+            .task(id: appState.activeConnectionInstance?.id) {
+                guard let connectionInstance = appState.activeConnectionInstance else { return }
+                
+                withAnimation {
+                    isConnecting = true
                 }
                 
-                Spacer()
-            }
-        }
-    
-    
-    private func addTab(for item: String) {
-        if !appState.tabs.contains(where: { $0 == item }) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    appState.tabs.append(item)
+                do {
+                    await DatabaseProvider.shared.setupDatabase(
+                        connectionString: connectionInstance.connection.url,
+                        databaseName: connectionInstance.connection.name
+                    )
+                    
+                    async let collectionsTask = DatabaseProvider.shared.fetchCollections()
+                    async let databasesTask = DatabaseProvider.shared.fetchDatabases()
+                    
+                    let (newCollections, newDatabases) = await (collectionsTask, databasesTask)
+                    
+                    withAnimation {
+                        collections = newCollections
+                        databases = newDatabases
+                        isConnecting = false
+                    }
+                } catch {
+                    // Handle error appropriately
+                    withAnimation {
+                        isConnecting = false
+                    }
                 }
             }
             
-            appState.selectedTab = item
+            Spacer()
         }
+    }
 }
 
 struct SiderbarConnectionDetailsHeader: View {

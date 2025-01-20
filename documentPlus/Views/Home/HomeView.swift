@@ -48,9 +48,10 @@ struct HomeView: View {
                         selectedConnectionId = connection.persistentModelID
                     },
                     onOpen: { connection in
-                        appState.addConnection(connection)
-                        appState.changeActiveSidebarItem(.database(connection.name))
-                        appState.changeActiveTab(.connection_details)
+                        if let instanceId = appState.createNewConnectionInstance(for: connection) {
+                            appState.changeActiveSidebarItem(.connection(instanceId))
+                            appState.changeActiveTab(.connection_details)
+                        }
                     }
                 )
 

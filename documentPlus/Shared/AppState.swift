@@ -17,31 +17,50 @@ import SwiftUI
     var activeSidebarTab: SidebarTab = .connection_details
     var activeSiderbarTabOffset: CGFloat = 0
     var sidebarWidth: CGFloat = 0
-    var tabs: [String] = []
-    var selectedTab: String? = nil
+    
+    // Runtime instances of connections
+    var connectionInstances: [ConnectionInstance] = []
+    var activeConnectionInstanceId: UUID?
     
     private init() {}
     
+    var activeConnectionInstance: ConnectionInstance? {
+       connectionInstances.first { $0.id == activeConnectionInstanceId }
+   }
+    
     @discardableResult
-    func addConnection(_ connection: Connection) -> Bool {
-        guard !activeConnections.contains(where: { existingConnection in
-            existingConnection.id == connection.id
-        }) else {
-            return false
+    func createNewConnectionInstance(for connection: Connection) -> UUID? {
+        if let existingInstance = connectionInstances.first(where: { instance in
+            instance.connection.persistentModelID == connection.persistentModelID
+        }) {
+            activeConnectionInstanceId = existingInstance.id
+            return activeConnectionInstanceId
         }
         
-        activeConnections.append(connection)
-        activeConnection = connection
+        let newInstance = ConnectionInstance(connection: connection)
+        connectionInstances.append(newInstance)
+        activeConnectionInstanceId = newInstance.id
         
-        return true
+        // TODO:
+        // Support override to open as new tab
+        return newInstance.id
+    }
+    
+    func removeConnectionInstance(_ instanceId: UUID) {
+        connectionInstances.removeAll(where: { $0.id == instanceId })
+        if activeConnectionInstanceId == instanceId {
+            activeConnectionInstanceId = connectionInstances.first?.id
+        }
     }
     
     func changeActiveSidebarItem(_ sidebarItem: SidebarItem) -> Void {
         activeSidebarItem = sidebarItem
         
-        if case .database(let databaseName) = sidebarItem {
-            activeConnection = activeConnections.first { connection in
-                connection.name == databaseName
+        if case .connection(let connectionInstanceId) = sidebarItem {
+            if let connectionInstance = connectionInstances.first(where: { instance in
+                instance.id == connectionInstanceId
+            }) {
+                activeConnectionInstanceId = connectionInstance.id
             }
         }
     }
@@ -61,5 +80,42 @@ import SwiftUI
     func setSidebarWidth(_ width: CGFloat) {
         sidebarWidth = width
         activeSiderbarTabOffset = -width
+    }
+    
+    /// MARK: TABS
+//    private func addTab(for item: String) {
+//        if !appState.tabs.contains(where: { $0 == item }) {
+//            withAnimation(.spring(response: 0.3)) {
+//                appState.tabs.append(item)
+//            }
+//        }
+//        
+//        appState.selectedTab = item
+//    }
+    
+    func addTab(instanceId: UUID, tabName: String) {
+         guard let index = connectionInstances.firstIndex(where: { $0.id == instanceId }) else { return }
+         
+        if !connectionInstances[index].tabs.contains(tabName) {
+            connectionInstances[index].tabs.append(tabName)
+        }
+        
+        connectionInstances[index].selectedTab = tabName
+     }
+     
+    func removeTab(instanceId: UUID, tabName: String) {
+        if let index = connectionInstances.firstIndex(where: { $0.id == instanceId }) {
+            connectionInstances[index].tabs.removeAll(where: { $0 == tabName })
+            
+            if connectionInstances[index].selectedTab == tabName {
+                connectionInstances[index].selectedTab = connectionInstances[index].tabs.last
+            }
+        }
+    }
+    
+    func selectTab(instanceId: UUID, tabName: String) {
+        if let index = connectionInstances.firstIndex(where: { $0.id == instanceId }) {
+            connectionInstances[index].selectedTab = tabName
+        }
     }
 }

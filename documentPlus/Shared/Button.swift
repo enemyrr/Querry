@@ -31,7 +31,9 @@ struct SidebarButtonStyle: ButtonStyle {
                 )
         )
         .onHover { hovering in
-            isHovering = hovering
+            withAnimation(.easeOut(duration: 0.05)) {
+                isHovering = hovering
+            }
         }
     }
 }

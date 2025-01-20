@@ -68,7 +68,7 @@ struct Sidebar: View {
 
 enum SidebarItem: Hashable {
     case home
-    case database(String)
+    case connection(UUID)
 }
 
 enum SidebarTab: Equatable {

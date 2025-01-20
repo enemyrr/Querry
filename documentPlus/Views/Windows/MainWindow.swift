@@ -23,8 +23,8 @@ struct MainWindow: View {
             switch appState.activeSidebarItem {
             case .home:
                 HomeView()
-            case .database(let name):
-                DatabaseView(databaseName: name)
+            case .connection(let connectionIntanceId):
+                DatabaseView()
             }
         }
         .background(Color(.controlBackgroundColor).opacity(0.5))

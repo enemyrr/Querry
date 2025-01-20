@@ -44,7 +44,7 @@ struct CollectionWindow: View {
 //                
 //            )
             VStack(spacing: 0) {
-                TabBar(tabs: $tabs, selectedTab: $selectedTab)
+//                TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 
                 if let selectedTab {
                     DocumentView(
