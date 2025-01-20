@@ -7,25 +7,30 @@
 import SwiftUI
 
 struct TabBar: View {
-    @Binding var tabs: [String]
-    @Binding var selectedTab: String?
+    @State private var appState = AppState.shared
+    
+    var tabs: [String] {
+        appState.activeConnectionInstance?.tabs ?? []
+    }
+    
+    var selectedTab: String? {
+        appState.activeConnectionInstance?.selectedTab
+    }
     
     var body: some View {
         Group {
             if !tabs.isEmpty {
-                Divider()
                 HStack(spacing: 0) {
                     navigationButtons
                     
                     Divider()
+                        .padding(.vertical, 6)
+                        .padding(.trailing, 10)
                     
                     tabScrollView
                 }
                 .frame(height: 30)
-                .background(Color(NSColor.controlBackgroundColor))
-                Divider()
             }
-            
         }
     }
     
@@ -49,13 +54,21 @@ struct TabBar: View {
     private var tabScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
+                HStack() {
                     ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
                         TabBarItem(
                             tab: tab,
                             isSelected: selectedTab == tab,
-                            onSelect: { selectedTab = tab },
-                            onClose: { removeTab(tab) }
+                            onSelect: {
+                                if let activeConnectionId = appState.activeConnectionInstanceId {
+                                    appState.selectTab(instanceId: activeConnectionId, tabName: tab)
+                                }
+                            },
+                            onClose: {
+                                if let activeConnectionId = appState.activeConnectionInstanceId {
+                                    appState.removeTab(instanceId: activeConnectionId, tabName: tab)
+                                }
+                            }
                         )
                         .id(tab)
                         .draggable(tab) {
@@ -69,7 +82,6 @@ struct TabBar: View {
                             return true
                         }
                         
-                        Divider()
                     }
                 }
             }
@@ -90,9 +102,10 @@ struct TabBar: View {
         if newValue.count > oldValue.count {
             if let lastTab = tabs.last {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(lastTab, anchor: .trailing)
-                        selectedTab = lastTab
+                    if let activeConnectionId = appState.activeConnectionInstanceId {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            appState.selectTab(instanceId: activeConnectionId, tabName: lastTab)
+                        }
                     }
                 }
             }
@@ -104,24 +117,19 @@ struct TabBar: View {
               let destinationIndex = tabs.firstIndex(of: destinationItem),
               sourceIndex != destinationIndex else { return }
         
-        tabs.remove(at: sourceIndex)
-        tabs.insert(sourceItem, at: destinationIndex)
-    }
-    
-    private func removeTab(_ item: String) {
-        if let index = tabs.firstIndex(where: { $0 == item }) {
-            tabs.remove(at: index)
-            if selectedTab == item {
-                selectedTab = tabs.last
-            }
-        }
+        
+        //        tabs.remove(at: sourceIndex)
+        //        tabs.insert(sourceItem, at: destinationIndex)
     }
     
     private func nextTab(_ currentItem: String) {
         if let currentIndex = tabs.firstIndex(where: { $0 == currentItem }),
-           currentIndex < tabs.count - 1 {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedTab = tabs[currentIndex + 1]
+        currentIndex < tabs.count - 1 {
+            
+            if let activeConnectionId = appState.activeConnectionInstanceId {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    appState.selectTab(instanceId: activeConnectionId, tabName: tabs[currentIndex + 1])
+                }
             }
         }
     }
@@ -129,8 +137,10 @@ struct TabBar: View {
     private func previousTab(_ currentItem: String) {
         if let currentIndex = tabs.firstIndex(where: { $0 == currentItem }),
            currentIndex > 0 {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedTab = tabs[currentIndex - 1]
+            if let activeConnectionId = appState.activeConnectionInstanceId {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    appState.selectTab(instanceId: activeConnectionId, tabName: tabs[currentIndex - 1])
+                }
             }
         }
     }
@@ -162,34 +172,36 @@ struct TabBarItem: View {
     let onSelect: () -> Void
     let onClose: () -> Void
     @State private var isHovering: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        ZStack(alignment: .leading) {
-            // Main tab content
-            HStack {
-                Text(tab)
-                    .foregroundColor(isSelected ? .primary : .secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .contentShape(Rectangle())
-            }
-            .padding(.vertical, 7)
-            .padding(.horizontal, 30)
-            
-            // Floating close button
-            if isHovering {
-                Button("Dismiss", systemImage: "xmark", action: onClose)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.compactAccessory())
-                    .controlSize(.small)
-                    .offset(x: 8) // Fine-tune the position
+        Button(action: onSelect) {
+            ZStack(alignment: .leading) {
+                // Main tab content
+                HStack {
+                    Text(tab)
+                        .foregroundColor(isSelected ? .primary : .secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 30)
+                
+                // Floating close button
+                if isHovering {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(CloseButtonStyle())
+                    .offset(x: 8)
                     .transition(.opacity)
+                }
             }
         }
-        .background(isSelected ? Color(NSColor.systemFill) : .clear)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
+        .buttonStyle(TabBarButtonStyle(isActive: isSelected, isHovering: isHovering))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.1)) {
                 isHovering = hovering

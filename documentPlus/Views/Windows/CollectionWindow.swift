@@ -36,15 +36,15 @@ struct CollectionWindow: View {
     
     var body: some View {
         NavigationView {
-            Sidebar(
-                tabs: $tabs,
-                selectedTab: $selectedTab,
-                collections: $collections,
-                databases: $databases
-                
-            )
+//            Sidebar(
+//                tabs: $tabs,
+//                selectedTab: $selectedTab,
+//                collections: $collections,
+//                databases: $databases
+//                
+//            )
             VStack(spacing: 0) {
-                TabBar(tabs: $tabs, selectedTab: $selectedTab)
+//                TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 
                 if let selectedTab {
                     DocumentView(
@@ -53,12 +53,18 @@ struct CollectionWindow: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(selectedTab)
                 } else {
-                    Text("No item found")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .edgesIgnoringSafeArea(.all)
-                        .background(Color(NSColor.controlBackgroundColor))
+                    HStack {
+                        Text("No item found")
+                            .edgesIgnoringSafeArea(.all)
+                            .background(Color(NSColor.red))
+                            .border(.background)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .edgesIgnoringSafeArea(.all)
+                    .background(Color(NSColor.yellow))
+                    .border(.background)
                 }
-            }
+            }.ignoresSafeArea(.all)
         }
         .task {
             isConnecting = true
@@ -76,10 +82,6 @@ struct CollectionWindow: View {
             
             isConnecting = false
             
-        }
-        .navigationTitle("")
-        .toolbar {
-            Toolbar(connection: $connection, isConnecting: $isConnecting)
         }
     }
 }

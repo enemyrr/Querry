@@ -17,7 +17,10 @@ final class Connection {
     var name: String
     var databaseType: DatabaseType
     var url: String
-
+    var createdAt: Date = Date()
+    var lastOpenedAt: Date = Date()
+    var updatedAt: Date = Date()
+    
     init(name: String, databaseType: DatabaseType, url: String) {
         self.name = name
         self.databaseType = databaseType

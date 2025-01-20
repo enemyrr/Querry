@@ -28,28 +28,11 @@ struct DocumentPlus: App {
     
     var body: some Scene {
         WindowGroup("Welcome to DocumentPlus", id: "welcomeWindow") {
-            WelcomeWindow()
+            MainWindow()
         }
         .commandsRemoved()
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
-        
-        WindowGroup("Connection Details", id: "connectionDetails", for: Connection.ID.self) { $connectionId in
-            if let connectionId {
-                CollectionWindow(
-                    connectionId: connectionId
-                ).onDisappear {
-                    openWindow(id: "welcomeWindow")
-                }.onAppear {
-                    NSWindow.allowsAutomaticWindowTabbing = false
-                }
-            }
-        }
-        .commandsRemoved()
-        .modelContainer(sharedModelContainer)
-        .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1300, height: 750)
-        .defaultPosition(.center)
     }
 }

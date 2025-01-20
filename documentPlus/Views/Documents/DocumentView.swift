@@ -87,7 +87,6 @@ struct DocumentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .edgesIgnoringSafeArea(.all)
-        .background(Color(NSColor.controlBackgroundColor))
     }
     
     private func loadDocuments() async {
