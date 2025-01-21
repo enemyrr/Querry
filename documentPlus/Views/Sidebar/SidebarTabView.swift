@@ -13,14 +13,14 @@ struct SidebarTabView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ScrollView {
+                ScrollView(.vertical) {
                     SidebarConnectionsView()
                 }
                 .frame(maxWidth: .infinity)
                 .offset(x: appState.activeSiderbarTabOffset)
                 .zIndex(appState.activeSidebarTab == .connections ? 1 : 0)
                 
-                ScrollView {
+                ScrollView(.vertical) {
                     SidebarConnectionDetailsView()
                 }
                 .frame(maxWidth: .infinity)
@@ -57,8 +57,7 @@ struct SidebarTabView: View {
                     sidebarActiveTab: $appState.activeSidebarTab,
                     scrollOffset: $appState.activeSiderbarTabOffset,
                     viewWidth: geometry.size.width
-                )
-                .allowsHitTesting(false)
+                ).allowsHitTesting(false)
             )
         }
     }

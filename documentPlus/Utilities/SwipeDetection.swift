@@ -58,11 +58,18 @@ struct SwipeDetectionView: NSViewRepresentable {
         }
         
         func handleEvent(_ event: NSEvent) {
+            // Early return if vertical scroll is within ignore threshold
+            let verticalScrollThreshold: CGFloat = 0
+            if abs(event.scrollingDeltaY) > verticalScrollThreshold {
+                // Ignore small vertical scrolls
+                return
+            }
+            
             let currentTime = ProcessInfo.processInfo.systemUptime
             let timeDelta = currentTime - lastScrollTime
             lastScrollTime = currentTime
-
-            let dampingFactor: CGFloat = 0.4
+            
+            let dampingFactor: CGFloat = 0.3
             let scaledDelta = event.scrollingDeltaX * dampingFactor
             
             if timeDelta > 0 {
@@ -80,10 +87,10 @@ struct SwipeDetectionView: NSViewRepresentable {
             }
             
             // Process transitions
-            let isFastScroll = abs(scrollVelocity) > 1000
+            let isFastScroll = abs(scrollVelocity) > 350
             let shouldTransition = abs(accumulatedScrollDeltaX) > (isFastScroll ? 0 : threshold)
-            
-            if (isFastScroll) && shouldTransition && !hasTransitioned {
+
+            if (shouldTransition) {
                 handleTransition()
             }
             
@@ -197,5 +204,11 @@ struct SwipePageIndicator: View {
                     onPageChange(1)  // Navigate to collections
                 }
         }
+    }
+}
+
+extension CGFloat {
+    func clamp(min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {
+        return Swift.min(maxValue, Swift.max(minValue, self))
     }
 }
