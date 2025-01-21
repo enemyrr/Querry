@@ -9,6 +9,7 @@ import AppKit
 import MongoKitten
 
 struct DocumentView: View {
+    var instance: ConnectionInstanceNew
     @Environment(\.self) private var viewContext
     @State private var documents: [Document] = []
     @State private var isLoading = false
@@ -18,7 +19,7 @@ struct DocumentView: View {
     @State private var filterQuery:  String = ""
     @State private var filterOperator: FilterOperators = .eq
     
-    private var collectionName: String
+    var selectedTab: DatabaseTab
     
     enum Fields: String, CaseIterable, Identifiable {
         case _id, name, raw
@@ -27,11 +28,6 @@ struct DocumentView: View {
     enum FilterOperators: String, CaseIterable, Identifiable {
         case eq, ne, gt, lt, gte, lte
         var id: Self { self }
-    }
-    
-    
-    init(collection: String) {
-        self.collectionName = collection
     }
     
     var body: some View {
@@ -95,7 +91,7 @@ struct DocumentView: View {
         
         do {
             guard let queryBuilder = DatabaseProvider.shared
-                .findQueryBuilder(byCollectionName: collectionName)
+                .findQueryBuilder(byCollectionName: selectedTab.name)
             else {
                 return
             }
@@ -116,7 +112,7 @@ struct DocumentView: View {
             
             // Final update for any remaining documents
             await MainActor.run {
-                self.documents = loadedDocuments
+                instance.cacheDouments(tab: selectedTab, documents: loadedDocuments)
             }
         } catch {
             self.error = error

@@ -11,18 +11,20 @@ import SwiftUI
 
 @Observable @MainActor final class AppState {
     static let shared = AppState()
-    var activeSidebarItem: SidebarItem = .home
     var activeConnection: Connection?
     var activeConnections: [Connection] = []
-    var activeSidebarTab: SidebarTab = .connection_details
-    var activeSiderbarTabOffset: CGFloat = 0
-    var sidebarWidth: CGFloat = 0
     
     // Runtime instances of connections
     var connectionInstances: [ConnectionInstance] = []
-    var activeConnectionInstanceId: UUID?
     
-    private init() {}
+    // UI State only
+   var activeSidebarItem: SidebarItem = .home
+   var activeSidebarTab: SidebarTab = .connection_details
+   var sidebarWidth: CGFloat = 0
+   var activeSiderbarTabOffset: CGFloat = 0
+   
+   // Active instance tracking
+   var activeConnectionInstanceId: UUID?
     
     var activeConnectionInstance: ConnectionInstance? {
        connectionInstances.first { $0.id == activeConnectionInstanceId }
@@ -57,11 +59,7 @@ import SwiftUI
         activeSidebarItem = sidebarItem
         
         if case .connection(let connectionInstanceId) = sidebarItem {
-            if let connectionInstance = connectionInstances.first(where: { instance in
-                instance.id == connectionInstanceId
-            }) {
-                activeConnectionInstanceId = connectionInstance.id
-            }
+            activeConnectionInstanceId = connectionInstanceId
         }
     }
     

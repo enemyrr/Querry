@@ -9,30 +9,31 @@ import SwiftUI
 
 struct SidebarConnectionsView: View {
     @State private var appState = AppState.shared
-
+    @State private var connectionManager: ConnectionManager = ConnectionManager.shared
+    
     var body: some View {
         VStack(spacing: 0) {
-            if appState.connectionInstances.isEmpty {
+            if connectionManager.isEmpty() {
                 Text("Select a connection to get started")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
             }
 
-            ForEach(appState.connectionInstances) { connectionInstance in
+            ForEach(connectionManager.allInstances) { instance in
                 Button(action: {
-                    appState.changeActiveSidebarItem(.connection(connectionInstance.id))
+                    appState.changeActiveSidebarItem(.connection(instance.id))
                     appState.changeActiveTab(.connection_details)
                 }) {
                     HStack {
                         Image(systemName: "server.rack").opacity(0.7)
-                        Text(connectionInstance.connection.name)
+                        Text(instance.connection.name)
                         Spacer()
                     }
 
                     Spacer()
                     Button(action: {
-                        appState.removeConnectionInstance(connectionInstance.id)
+                        connectionManager.removeInstance(instance.id)
                     }) {
                         Image(systemName: "xmark")
                             .opacity(0.7)
@@ -42,8 +43,7 @@ struct SidebarConnectionsView: View {
                 }
                 .buttonStyle(
                     SidebarButtonStyle(
-                        isActive: appState.activeConnectionInstance?.id
-                            == connectionInstance.id
+                        isActive: appState.activeSidebarItem == .connection(instance.id)
                     ))
             }
 

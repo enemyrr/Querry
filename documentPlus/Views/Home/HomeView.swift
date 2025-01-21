@@ -12,6 +12,7 @@ import SwiftUI
 struct HomeView: View {
     @Query private var connections: [Connection]
     @State private var appState = AppState.shared
+    
     @State private var selectedConnectionId: PersistentIdentifier?
 
     var body: some View {
@@ -48,10 +49,9 @@ struct HomeView: View {
                         selectedConnectionId = connection.persistentModelID
                     },
                     onOpen: { connection in
-                        if let instanceId = appState.createNewConnectionInstance(for: connection) {
-                            appState.changeActiveSidebarItem(.connection(instanceId))
-                            appState.changeActiveTab(.connection_details)
-                        }
+                        let instanceId = ConnectionManager.shared.createInstance(for: connection)
+                        appState.changeActiveSidebarItem(.connection(instanceId))
+                        appState.changeActiveTab(.connection_details)
                     }
                 )
 

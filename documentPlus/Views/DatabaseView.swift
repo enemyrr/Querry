@@ -10,20 +10,22 @@ import SwiftUI
 
 struct DatabaseView: View {
     @State private var appState = AppState.shared
+    var instance: ConnectionInstanceNew
     
     var body: some View {
         VStack(spacing: 0) {
-            TabBar()
+            TabBar(instance: instance)
             
             VStack {
-                if let selectedTab = appState.activeConnectionInstance?.selectedTab {
+                if let selectedTab = instance.selectedTab {
                     DocumentView(
-                        collection: selectedTab
+                        instance: instance,
+                        selectedTab: selectedTab
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .id(selectedTab)
+                    .id(selectedTab.id)
                 } else {
-                    Text("No item found")
+                    Text("No database selected")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }

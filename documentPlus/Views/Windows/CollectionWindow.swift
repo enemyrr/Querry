@@ -47,11 +47,12 @@ struct CollectionWindow: View {
 //                TabBar(tabs: $tabs, selectedTab: $selectedTab)
                 
                 if let selectedTab {
-                    DocumentView(
-                        collection: selectedTab
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .id(selectedTab)
+//                    DocumentView(
+//                        instance: instance,
+//                        collection: selectedTab
+//                    )
+//                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+//                    .id(selectedTab)
                 } else {
                     HStack {
                         Text("No item found")
@@ -66,23 +67,23 @@ struct CollectionWindow: View {
                 }
             }.ignoresSafeArea(.all)
         }
-        .task {
-            isConnecting = true
-            self.connection = connections.first { $0.id == connectionId }
-            
-            if let connection {
-                await DatabaseProvider.shared.setupDatabase(
-                    connectionString: connection.url, databaseName: connection.name
-                )
-                self.collections = await DatabaseProvider.shared
-                    .fetchCollections()
-                self.databases = await DatabaseProvider.shared
-                    .fetchDatabases()
-            }
-            
-            isConnecting = false
-            
-        }
+//        .task {
+//            isConnecting = true
+//            self.connection = connections.first { $0.id == connectionId }
+//            
+//            if let connection {
+//                await DatabaseProvider.shared.setupDatabase(
+//                    connectionString: connection.url, databaseName: connection.name
+//                )
+//                self.collections = await DatabaseProvider.shared
+//                    .fetchCollections()
+//                self.databases = await DatabaseProvider.shared
+//                    .fetchDatabases()
+//            }
+//            
+//            isConnecting = false
+//            
+//        }
     }
 }
 

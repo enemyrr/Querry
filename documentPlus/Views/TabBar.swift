@@ -7,19 +7,11 @@
 import SwiftUI
 
 struct TabBar: View {
-    @State private var appState = AppState.shared
-    
-    var tabs: [String] {
-        appState.activeConnectionInstance?.tabs ?? []
-    }
-    
-    var selectedTab: String? {
-        appState.activeConnectionInstance?.selectedTab
-    }
+    var instance: ConnectionInstanceNew
     
     var body: some View {
         Group {
-            if !tabs.isEmpty {
+            if !instance.tabs.isEmpty {
                 HStack(spacing: 0) {
                     navigationButtons
                     
@@ -38,14 +30,18 @@ struct TabBar: View {
         HStack(spacing: 0) {
             NavigationButton(
                 icon: "chevron.left",
-                action: { previousTab((selectedTab ?? tabs.first)!) },
-                isDisabled: selectedTab == tabs.first
+                action: {
+                    previousTab((instance.selectedTab ?? instance.tabs.first)!)
+                },
+                isDisabled: instance.selectedTab == instance.tabs.first
             )
             
             NavigationButton(
                 icon: "chevron.right",
-                action: { nextTab((selectedTab ?? tabs.first)!) },
-                isDisabled: selectedTab == tabs.last
+                action: {
+                    nextTab((instance.selectedTab ?? instance.tabs.first)!)
+                },
+                isDisabled: instance.selectedTab == instance.tabs.last
             )
         }
         .padding(.horizontal, 10)
@@ -55,29 +51,25 @@ struct TabBar: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack() {
-                    ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
+                    ForEach(instance.tabs) { tab in
                         TabBarItem(
-                            tab: tab,
-                            isSelected: selectedTab == tab,
+                            tab: tab.name,
+                            isSelected: instance.selectedTab?.name == tab.name,
                             onSelect: {
-                                if let activeConnectionId = appState.activeConnectionInstanceId {
-                                    appState.selectTab(instanceId: activeConnectionId, tabName: tab)
-                                }
+                                selectTab(tab)
                             },
                             onClose: {
-                                if let activeConnectionId = appState.activeConnectionInstanceId {
-                                    appState.removeTab(instanceId: activeConnectionId, tabName: tab)
-                                }
+                                removeTab(tab)
                             }
                         )
-                        .id(tab)
+                        .id(tab.id)
                         .draggable(tab) {
-                            Text(tab)
+                            Text(tab.name)
                                 .padding(7)
                                 .background(Color(NSColor.systemFill))
                         }
-                        .dropDestination(for: String.self) { items, _ in
-                            guard let sourceItem = items.first else { return false }
+                        .dropDestination(for: DatabaseTab.self) { tabs, _ in
+                            guard let sourceItem = tabs.first else { return false }
                             handleDrop(of: sourceItem, to: tab)
                             return true
                         }
@@ -85,62 +77,72 @@ struct TabBar: View {
                     }
                 }
             }
-            .onChange(of: tabs) { oldValue, newValue in
+            .onChange(of: instance.tabs) { oldValue, newValue in
                 handleTabsChange(oldValue: oldValue, newValue: newValue, proxy: proxy)
             }
-            .onChange(of: selectedTab) { _, newValue in
+            .onChange(of: instance.selectedTab) { _, newValue in
                 if let tab = newValue {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(tab, anchor: .trailing)
+                        proxy.scrollTo(tab.id, anchor: .trailing)
                     }
                 }
             }
         }
     }
     
-    private func handleTabsChange(oldValue: [String], newValue: [String], proxy: ScrollViewProxy) {
+    private func handleTabsChange(oldValue: [DatabaseTab], newValue: [DatabaseTab], proxy: ScrollViewProxy) {
         if newValue.count > oldValue.count {
-            if let lastTab = tabs.last {
+            if let lastTab = instance.tabs.last {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let activeConnectionId = appState.activeConnectionInstanceId {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            appState.selectTab(instanceId: activeConnectionId, tabName: lastTab)
-                        }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectTab(lastTab)
                     }
                 }
             }
         }
     }
     
-    private func handleDrop(of sourceItem: String, to destinationItem: String) {
-        guard let sourceIndex = tabs.firstIndex(of: sourceItem),
-              let destinationIndex = tabs.firstIndex(of: destinationItem),
-              sourceIndex != destinationIndex else { return }
+    private func handleDrop(of sourceTab: DatabaseTab, to destinationTab: DatabaseTab) {
+        guard let sourceIndex = instance.tabs.firstIndex(where: {
+            $0.id == sourceTab.id
+        }),
+              
+                let destinationIndex = instance.tabs.firstIndex(where: {
+                    $0.id == destinationTab.id
+                }),
+              
+                sourceIndex != destinationIndex else { return }
         
         
-        //        tabs.remove(at: sourceIndex)
-        //        tabs.insert(sourceItem, at: destinationIndex)
+        instance.tabs.swapAt(sourceIndex, destinationIndex)
     }
     
-    private func nextTab(_ currentItem: String) {
-        if let currentIndex = tabs.firstIndex(where: { $0 == currentItem }),
-        currentIndex < tabs.count - 1 {
-            
-            if let activeConnectionId = appState.activeConnectionInstanceId {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    appState.selectTab(instanceId: activeConnectionId, tabName: tabs[currentIndex + 1])
-                }
-            }
+    private func nextTab(_ currentTab: DatabaseTab) {
+        if let currentIndex = instance.tabs.firstIndex(where: { $0.id == currentTab.id }),
+           currentIndex < instance.tabs.count - 1 {
+            instance.selectedTab = instance.tabs[currentIndex + 1]
         }
     }
     
-    private func previousTab(_ currentItem: String) {
-        if let currentIndex = tabs.firstIndex(where: { $0 == currentItem }),
+    private func previousTab(_ currentTab: DatabaseTab) {
+        if let currentIndex = instance.tabs.firstIndex(where: { $0.id == currentTab.id }),
            currentIndex > 0 {
-            if let activeConnectionId = appState.activeConnectionInstanceId {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    appState.selectTab(instanceId: activeConnectionId, tabName: tabs[currentIndex - 1])
-                }
+            instance.selectedTab = instance.tabs[currentIndex - 1]
+        }
+    }
+    
+    private func selectTab(_ tab: DatabaseTab) {
+        instance.selectedTab = tab
+    }
+    
+    private func removeTab(_ tab: DatabaseTab) {
+        if instance.tabs.count > 0 {
+            instance.tabs.removeAll { $0.id == tab.id }
+            
+            if let firstTab = instance.tabs.first {
+                instance.selectedTab = firstTab
+            } else {
+                instance.selectedTab = nil
             }
         }
     }

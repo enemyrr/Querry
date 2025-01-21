@@ -24,9 +24,19 @@ struct MainWindow: View {
             case .home:
                 HomeView()
             case .connection(let connectionIntanceId):
-                DatabaseView()
+                if let instance = ConnectionManager.shared.getInstance(connectionIntanceId) {
+                    DatabaseView(instance: instance)
+                } else {
+                    ConnectionErrorView()
+                }
             }
         }
         .background(Color(.controlBackgroundColor).opacity(0.5))
+    }
+}
+
+struct ConnectionErrorView: View {
+    var body: some View {
+        Text("Connection Error")
     }
 }
