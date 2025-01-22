@@ -26,7 +26,6 @@ struct SidebarConnectionDetailsView: View {
                         .opacity(isLoading ? 0.3 : 1)
                 } else {
                     ContentUnavailableView {
-                        Label("No Connection", systemImage: "tablecells.fill")
                     } description: {
                         Text("Select a connection to view details")
                     }
@@ -89,7 +88,6 @@ struct ConnectionContentView: View {
                     .padding()
             } else if instance.collections.isEmpty {
                 ContentUnavailableView {
-                    Label("No Collections", systemImage: "tablecells")
                 } description: {
                     Text("Select a database to view collections")
                 }

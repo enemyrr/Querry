@@ -190,8 +190,8 @@
             filePath = "documentPlus/Views/TabBar.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "72"
-            endingLineNumber = "72"
+            startingLineNumber = "71"
+            endingLineNumber = "71"
             landmarkName = "tabScrollView"
             landmarkType = "24">
          </BreakpointContent>

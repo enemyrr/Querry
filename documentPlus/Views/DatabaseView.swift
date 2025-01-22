@@ -25,8 +25,9 @@ struct DatabaseView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(selectedTab.id)
                 } else {
-                    Text("No database selected")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack {
+                        Text("No database selected")
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .background(Color(.controlBackgroundColor).opacity(0.6))

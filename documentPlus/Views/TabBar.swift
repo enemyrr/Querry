@@ -10,20 +10,19 @@ struct TabBar: View {
     var instance: ConnectionInstance
     
     var body: some View {
-        Group {
+        HStack(spacing: 0) {
             if !instance.tabs.isEmpty {
-                HStack(spacing: 0) {
-                    navigationButtons
-                    
-                    Divider()
-                        .padding(.vertical, 6)
-                        .padding(.trailing, 10)
-                    
-                    tabScrollView
-                }
-                .frame(height: 30)
+               navigationButtons
+            
+            Divider()
+                .padding(.vertical, 6)
+                .padding(.trailing, 10)
+            
+            tabScrollView 
             }
+            
         }
+        .frame(height: 30)
     }
     
     private var navigationButtons: some View {

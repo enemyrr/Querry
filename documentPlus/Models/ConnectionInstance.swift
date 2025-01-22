@@ -22,6 +22,7 @@ final class ConnectionInstance: Identifiable {
     // UI State
     var tabs: [DatabaseTab] = []
     var selectedTab: DatabaseTab?
+    let accentColor: Color
 
     // Query results cache
     private var queryCache: [String: Any] = [:]
@@ -48,6 +49,7 @@ final class ConnectionInstance: Identifiable {
 
     init(connection: Connection) {
         self.connection = connection
+        self.accentColor = AccentColor.random()
     }
     
     func connect() async throws {
