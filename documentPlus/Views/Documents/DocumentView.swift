@@ -9,7 +9,7 @@ import AppKit
 import MongoKitten
 
 struct DocumentView: View {
-    var instance: ConnectionInstanceNew
+    var instance: ConnectionInstance
     @Environment(\.self) private var viewContext
     @State private var documents: [Document] = []
     @State private var isLoading = false
@@ -90,11 +90,7 @@ struct DocumentView: View {
         defer { isLoading = false }
         
         do {
-            guard let queryBuilder = DatabaseProvider.shared
-                .findQueryBuilder(byCollectionName: selectedTab.name)
-            else {
-                return
-            }
+            let queryBuilder = try instance.findQueryBuilder(from: selectedTab.name)
             
             var loadedDocuments: [Document] = []
             

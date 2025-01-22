@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct TabBar: View {
-    var instance: ConnectionInstanceNew
+    var instance: ConnectionInstance
     
     var body: some View {
         Group {

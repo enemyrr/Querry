@@ -79,41 +79,4 @@ import SwiftUI
         sidebarWidth = width
         activeSiderbarTabOffset = -width
     }
-    
-    /// MARK: TABS
-//    private func addTab(for item: String) {
-//        if !appState.tabs.contains(where: { $0 == item }) {
-//            withAnimation(.spring(response: 0.3)) {
-//                appState.tabs.append(item)
-//            }
-//        }
-//        
-//        appState.selectedTab = item
-//    }
-    
-    func addTab(instanceId: UUID, tabName: String) {
-         guard let index = connectionInstances.firstIndex(where: { $0.id == instanceId }) else { return }
-         
-        if !connectionInstances[index].tabs.contains(tabName) {
-            connectionInstances[index].tabs.append(tabName)
-        }
-        
-        connectionInstances[index].selectedTab = tabName
-     }
-     
-    func removeTab(instanceId: UUID, tabName: String) {
-        if let index = connectionInstances.firstIndex(where: { $0.id == instanceId }) {
-            connectionInstances[index].tabs.removeAll(where: { $0 == tabName })
-            
-            if connectionInstances[index].selectedTab == tabName {
-                connectionInstances[index].selectedTab = connectionInstances[index].tabs.last
-            }
-        }
-    }
-    
-    func selectTab(instanceId: UUID, tabName: String) {
-        if let index = connectionInstances.firstIndex(where: { $0.id == instanceId }) {
-            connectionInstances[index].selectedTab = tabName
-        }
-    }
 }

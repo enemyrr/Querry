@@ -10,7 +10,7 @@ import SwiftUI
 
 struct DatabaseView: View {
     @State private var appState = AppState.shared
-    var instance: ConnectionInstanceNew
+    var instance: ConnectionInstance
     
     var body: some View {
         VStack(spacing: 0) {

@@ -11,7 +11,7 @@ import MongoKitten
 struct SidebarConnectionDetailsView: View {
     @State private var appState = AppState.shared
     @State private var connectionManager: ConnectionManager = ConnectionManager.shared
-    @State private var currentInstance: ConnectionInstanceNew?
+    @State private var currentInstance: ConnectionInstance?
     
     // Local state for UI
     @State private var isLoading: Bool = false
@@ -65,7 +65,7 @@ struct SidebarConnectionDetailsView: View {
 
 struct ConnectionContentView: View {
     @State private var appState = AppState.shared
-    var instance: ConnectionInstanceNew
+    var instance: ConnectionInstance
     
     
     var body: some View {
@@ -76,10 +76,10 @@ struct ConnectionContentView: View {
             }
             
             // Collections Section
-            if let selectedDb = instance.selectedDatabase {
+            if let selectedDb = instance.database {
                 CollectionsSection(
                     instance: instance,
-                    collections: instance.collections[selectedDb] ?? []
+                    collections: instance.collections[selectedDb.name] ?? []
                 )
             }
             
@@ -118,13 +118,13 @@ struct ConnectionContentView: View {
 }
 
 struct DatabasesSection: View {
-    var instance: ConnectionInstanceNew
+    var instance: ConnectionInstance
     
     var body: some View {
         DisclosureGroup("Databases") {
             ForEach(instance.databases, id: \.name) { database in
                 Button(action: {
-                    instance.selectedDatabase = database.name
+                    instance.database = database
                 }) {
                     HStack {
                         Image(systemName: "folder.fill")
@@ -134,7 +134,7 @@ struct DatabasesSection: View {
                     }
                 }
                 .buttonStyle(SidebarButtonStyle(
-                    isActive: instance.selectedDatabase == database.name
+                    isActive: instance.database?.name == database.name
                 ))
             }
         }
@@ -142,7 +142,7 @@ struct DatabasesSection: View {
 }
 
 struct CollectionsSection: View {
-    var instance: ConnectionInstanceNew
+    var instance: ConnectionInstance
     let collections: [MongoCollection]
     
     var body: some View {

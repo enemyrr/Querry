@@ -10,13 +10,13 @@ import Foundation
 @Observable
 final class ConnectionManager {
     static let shared = ConnectionManager()
-    private var instances: [UUID: ConnectionInstanceNew] = [:]
+    private var instances: [UUID: ConnectionInstance] = [:]
     
-    var allInstances: [ConnectionInstanceNew] {
+    var allInstances: [ConnectionInstance] {
         Array(instances.values)
     }
     
-    func getInstance(_ id: UUID) -> ConnectionInstanceNew? {
+    func getInstance(_ id: UUID) -> ConnectionInstance? {
         instances[id]
     }
     
@@ -27,7 +27,7 @@ final class ConnectionManager {
             return existingInstance.id
         }
         
-        let instance = ConnectionInstanceNew(connection: connection)
+        let instance = ConnectionInstance(connection: connection)
         instances[instance.id] = instance
         return instance.id
     }

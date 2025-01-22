@@ -1,112 +1,13 @@
 //
-//  ConnectionInstance.swift
+//  DatabaseTab.swift
 //  DocumentPlus
 //
-//  Created by Fauzaan on 1/21/25.
+//  Created by Fauzaan on 1/22/25.
 //
 
 import Foundation
-import MongoKitten
 import SwiftUI
-import UniformTypeIdentifiers
-
-@Observable
-final class ConnectionInstanceNew: Identifiable {
-    let id = UUID()
-    let connection: Connection
-    private var mongoConnection: MongoDatabase?
-
-    // Connection state
-    var isLoading = false
-    var isConnected: Bool = false
-    var lastError: Error?
-
-    // UI State
-    var selectedCollection: String?
-    var tabs: [DatabaseTab] = []
-    var selectedTab: DatabaseTab?
-
-    // Query results cache
-    private var queryCache: [String: Any] = [:]
-
-    // Database metadata
-    var databases: [MongoDatabase] = []
-    var collections: [String: [MongoCollection]] = [:]
-
-    var selectedDatabase: String? {
-        didSet {
-            if selectedDatabase != oldValue {
-                // Load collections for new selected database
-                if let dbName = selectedDatabase {
-                    Task {
-                        await loadCollectionsForDatabase(dbName)
-                    }
-                }
-            }
-        }
-    }
-    
-    init(connection: Connection) {
-        self.connection = connection
-    }
-    
-    func connect() async throws {
-        print("connecting again")
-        guard !isConnected else { return }
-        
-        isLoading = true
-        do {
-            await DatabaseProvider.shared.setupDatabase(
-                connectionString: connection.url, databaseName: connection.name
-            )
-            
-            self.databases = await DatabaseProvider.shared
-                .fetchDatabases()
-            
-            self.selectedDatabase = databases.first?.name
-            isConnected = true
-            lastError = nil
-        } catch {
-            lastError = error
-            throw error
-        }
-        isLoading = false
-    }
-    
-    func collectionsForCurrentDatabase() -> [MongoCollection] {
-        guard let dbName = selectedDatabase else { return [] }
-        return collections[dbName] ?? []
-    }
-    
-    private func loadCollectionsForDatabase(_ databaseName: String) async {
-        do {
-            let dbCollections = await DatabaseProvider.shared.fetchCollections()
-            collections[databaseName] = dbCollections
-        } catch {
-            lastError = error
-            collections[databaseName] = []
-        }
-    }
-    
-    func createNewTab(name: String) {
-        guard !tabs.contains(where: { $0.name == name }) else {
-            if let existingTab = tabs.first(where: { $0.name == name }) {
-                selectedTab = existingTab
-            }
-            return
-        }
-        
-        let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle)
-        tabs.append(newTab)
-        selectedTab = newTab
-    }
-    
-    func cacheDouments(tab: DatabaseTab, documents: [Document]) {
-        if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
-            tabs[index].documents = documents
-        }
-    }
-}
+import MongoKitten
 
 struct DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     let id: UUID

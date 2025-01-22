@@ -7,7 +7,7 @@
 import Foundation
 import MongoKitten
 
-final class MongoManager {
+ class MongoManager {
     static let shared = MongoManager()
     private var database: MongoDatabase?
     
