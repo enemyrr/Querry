@@ -71,7 +71,7 @@ struct ConnectionContentView: View {
         VStack(spacing: 0) {
             // Databases Section
             if !instance.databases.isEmpty {
-                DatabasesSection(instance: instance)
+//                DatabasesSection(instance: instance)
             }
             
             // Collections Section
@@ -166,37 +166,58 @@ struct CollectionsSection: View {
 
 struct SiderbarConnectionDetailsHeader: View {
     @State private var appState = AppState.shared
-    @State private var showConnectionMenu = false
+    var instance: ConnectionInstance
     
     var body: some View {
         HStack {
             if let instance = ConnectionManager.shared.getInstance(appState.activeConnectionInstanceId ?? UUID()) {
-                Button(action: { showConnectionMenu.toggle() }) {
-                    HStack {
-                        Text(instance.connection.name)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showConnectionMenu) {
-                    //                    ConnectionMenuView()
-                }
                 
+//                Menu {
+//                    Button("Item 1") { }
+//                    Button("Item 2") { }
+//                } label: {
+//                    Image(systemName: "arrowtriangle.down.fill")
+//                        .opacity(0.7)
+//                        .scaleEffect(CGSize(width: 1.0, height: 0.7))
+//                        .font(.footnote)
+//                        .padding(.trailing, 10)
+//                    Text(instance.database?.name ?? "No Database")
+//                        .font(.system(size: 12, weight: .semibold))
+//                        .foregroundStyle(.secondary)
+//                }
+//                .menuStyle(BorderlessButtonMenuStyle())
+//                .tint(.secondary)
+//                .frame(maxWidth: 100)
+//                .menuIndicator(.hidden)
+                
+                Image(systemName: "arrowtriangle.down.fill")
+                    .opacity(0.7)
+                    .scaleEffect(CGSize(width: 1.0, height: 0.7))
+                    .font(.footnote)
+                Text(instance.database?.name ?? "No Database")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+
                 Spacer()
                 
-                Button(action: {
-                    // Implement search
-                }) {
-                    Image(systemName: "magnifyingglass")
+                HStack(spacing: 4) {
+                    Button(action: {
+                        // Implement search
+                    }) {
+                        Image(systemName: "plus.circle").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(ActionButtonStyle())
+                    
+                    Button(action: {
+                        // Implement search
+                    }) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(ActionButtonStyle())
+
                 }
-                .buttonStyle(ActionButtonStyle())
-                .tint(.secondary)
             }
-        }
-        .padding(.horizontal, 4)
+        }.padding(.bottom, 5)
     }
 }

@@ -39,7 +39,7 @@ struct DatabaseView: View {
             .cornerRadius(10)
             .padding(8)
         }
-        .padding(.top, 12)
+        .padding(.top, 8)
         .ignoresSafeArea(.all)
     }
 }

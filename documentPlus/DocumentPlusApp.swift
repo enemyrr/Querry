@@ -30,6 +30,7 @@ struct DocumentPlus: App {
         WindowGroup("Welcome to DocumentPlus", id: "welcomeWindow") {
             MainWindow()
         }
+        .defaultSize(width: 850, height: 650)
         .commandsRemoved()
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)

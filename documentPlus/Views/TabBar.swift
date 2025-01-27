@@ -17,8 +17,8 @@ struct TabBar: View {
             Divider()
                 .padding(.vertical, 6)
                 .padding(.trailing, 10)
-            
-            tabScrollView 
+                
+                tabScrollView
             }
             
         }

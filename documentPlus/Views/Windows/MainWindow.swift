@@ -17,20 +17,24 @@ struct MainWindow: View {
     @State private var activeConnection: Connection?
     
     var body: some View {
-        CustomSplitView {
-            Sidebar()
-        } detail: {
-            switch appState.activeSidebarItem {
-            case .home:
-                HomeView()
-            case .connection(let connectionIntanceId):
-                if let instance = ConnectionManager.shared.getInstance(connectionIntanceId) {
-                    DatabaseView(instance: instance)
-                } else {
-                    ConnectionErrorView()
+        CustomSplitView(
+            sidebar: {
+                Sidebar()
+            },
+            detail: {
+                switch appState.activeSidebarItem {
+                case .home:
+                    HomeView()
+                case .connection(let connectionIntanceId):
+                    if let instance = ConnectionManager.shared.getInstance(connectionIntanceId) {
+                        DatabaseView(instance: instance)
+                    } else {
+                        ConnectionErrorView()
+                    }
                 }
-            }
-        }
+            },
+            isFullScreenView: appState.activeSidebarItem == .home
+        )
         .background(Color(.controlBackgroundColor).opacity(0.5))
     }
 }

@@ -22,11 +22,15 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     
     private let sidebarContent: SidebarContent
     private let detailContent: DetailContent
+    private let isFullScreenView: Bool
     
     init(@ViewBuilder sidebar: () -> SidebarContent,
-         @ViewBuilder detail: () -> DetailContent) {
+         @ViewBuilder detail: () -> DetailContent,
+         isFullScreenView: Bool = false
+    ) {
         self.sidebarContent = sidebar()
         self.detailContent = detail()
+        self.isFullScreenView = isFullScreenView
         
         _sidebarWidth = AppStorage(wrappedValue: defaultSidebarWidth, "sidebarWidth")
     }
@@ -54,12 +58,16 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     
     private var sidebarContainer: some View {
         ZStack(alignment: .trailing) {
+            let finalSidebarWidth = isFullScreenView ? 50 : sidebarWidth
+            
             sidebarContent
                 .frame(width: isResizing ?
-                       max(minSidebarWidth, min(sidebarWidth + dragOffset, maxSidebarWidth)) :
-                       sidebarWidth)
+                       max(minSidebarWidth, min(sidebarWidth + dragOffset, maxSidebarWidth)) : finalSidebarWidth)
+                .padding(.trailing, isFullScreenView ? -8 : 0)
             
-            resizeHandle
+            if (!isFullScreenView) {
+                resizeHandle
+            }
         }
         .transition(.move(edge: .leading).combined(with: .opacity))
         .matchedGeometryEffect(id: "sidebar", in: animation)
