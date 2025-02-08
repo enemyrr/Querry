@@ -15,8 +15,7 @@ final class ConnectionInstance: Identifiable {
     let connection: Connection
     
     // Connection state
-    var isLoading = false
-    var isConnected: Bool = false
+    var connectionStatus: ConnectionStatus = .disconnected
     var lastError: Error?
 
     // UI State
@@ -37,7 +36,8 @@ final class ConnectionInstance: Identifiable {
                 
                 if shouldUpdate {
                     Task {
-                        if isConnected {
+                        if connectionStatus == .connected {
+                            print("not done")
                             await loadCollectionsForDatabase(currentDatabase.name)
                             databases = try await currentDatabase.pool.listDatabases()
                         }
@@ -53,18 +53,19 @@ final class ConnectionInstance: Identifiable {
     }
     
     func connect() async throws {
-        guard !isConnected else { return }
+        guard connectionStatus != .connected else { return }
         
-        isLoading = true
+        connectionStatus = .connecting
+        
         do {
             self.database = try await MongoDatabase.connect(to: connection.url)
-            isConnected = true
+            connectionStatus = .connected
             lastError = nil
         } catch {
             lastError = error
+            connectionStatus = .error
             throw error
         }
-        isLoading = false
     }
     
     func collectionsForCurrentDatabase() -> [MongoCollection] {
@@ -107,9 +108,17 @@ final class ConnectionInstance: Identifiable {
         selectedTab = newTab
     }
     
+    
     func cacheDouments(tab: DatabaseTab, documents: [Document]) {
         if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
             tabs[index].documents = documents
         }
     }
+}
+
+enum ConnectionStatus: String {
+    case connected = "Connected"
+    case connecting = "Connecting"
+    case disconnected = "Disconnected"
+    case error = "Error"
 }

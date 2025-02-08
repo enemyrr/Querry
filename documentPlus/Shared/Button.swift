@@ -203,3 +203,113 @@ struct DatabaseIcon: View {
         }
     }
 }
+
+struct PrimaryButtonStyle: ButtonStyle {
+    static let buttonColor = Color(red: 99/255, green: 197/255, blue: 248/255)
+    @Environment(\.isEnabled) private var isEnabled
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)      // Vertical padding for height
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(isEnabled ? .black : .secondary)     // White text color
+            .background(
+                // Use system accent color for native feel, or specify custom blue
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+            )
+            // Add subtle pressed state effect
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            // Add subtle scale effect when pressed
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            // Smooth animation for press states
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            // Add hand cursor on hover
+            .onHover { isHovered in
+                if isHovered {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
+struct SecondaryButtonStyle: ButtonStyle {
+    static let buttonColor = Color(.black).opacity(0.3)
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)      // Vertical padding for height
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(isEnabled ? .secondary : .secondary)     // White text color
+            .background(
+                // Use system accent color for native feel, or specify custom blue
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isHovering ? Self.buttonColor : .clear)
+            )
+            // Add subtle pressed state effect
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            // Add subtle scale effect when pressed
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            // Smooth animation for press states
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            // Add hand cursor on hover
+            .onHover { isHovered in
+                isHovering = isHovered
+                if isHovered {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
+struct CustomMenuButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(12)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.2)
+                    : Color.clear
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+extension Button {
+    func primaryStyle() -> some View {
+        self.buttonStyle(PrimaryButtonStyle())
+    }
+    
+    func secondaryStyle() -> some View {
+        self.buttonStyle(SecondaryButtonStyle())
+    }
+    
+    func customMenuButtonStyle() -> some View {
+        self.buttonStyle(CustomMenuButtonStyle())
+    }
+}
+

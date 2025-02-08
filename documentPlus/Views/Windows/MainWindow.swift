@@ -11,8 +11,10 @@ import AppKit
 import MongoKitten
 
 struct MainWindow: View {
+    @State private var connectionManager = ConnectionManager.shared
+    @State private var sidebarViewModel = SidebarViewModel(connectionManager: ConnectionManager.shared)
+    
     @Environment(\.modelContext) private var modelContext
-    @State private var appState = AppState.shared
     @Query private var connections: [Connection]
     @State private var activeConnection: Connection?
     
@@ -20,20 +22,23 @@ struct MainWindow: View {
         CustomSplitView(
             sidebar: {
                 Sidebar()
+                    .environment(sidebarViewModel)
+                    .environment(connectionManager)
             },
             detail: {
-                switch appState.activeSidebarItem {
+                switch sidebarViewModel.activeSidebarItem {
                 case .home:
                     HomeView()
-                case .connection(let connectionIntanceId):
-                    if let instance = ConnectionManager.shared.getInstance(connectionIntanceId) {
-                        DatabaseView(instance: instance)
+                        .environment(sidebarViewModel)
+                case .connection(_):
+                    if let activeInstance = sidebarViewModel.activeInstance {
+                        DatabaseView(instance: activeInstance)
                     } else {
                         ConnectionErrorView()
                     }
                 }
             },
-            isFullScreenView: appState.activeSidebarItem == .home
+            isFullScreenView: sidebarViewModel.activeSidebarItem == .home
         )
         .background(Color(.controlBackgroundColor).opacity(0.5))
     }

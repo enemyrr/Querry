@@ -40,9 +40,9 @@ extension View {
     func cardStyle(isHovered: Bool) -> some View {
         self.overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                .stroke(Color.gray.opacity(0.3), lineWidth: 0)
         )
-        .cornerRadius(8)
+        .cornerRadius(10)
     }
 }
 

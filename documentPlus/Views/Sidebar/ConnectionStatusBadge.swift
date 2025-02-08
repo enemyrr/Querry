@@ -20,9 +20,9 @@ struct ConnectionStatusBadge: View {
                   .frame(width: 6, height: 6)
                   .shadow(color: statusColor.opacity(0.5), radius: 2)
               
-              Text(status.rawValue)
-                  .font(.system(size: 11, weight: .medium))
-                  .foregroundStyle(.secondary)
+//              Text(status.rawValue)
+//                  .font(.system(size: 11, weight: .medium))
+//                  .foregroundStyle(.secondary)
               
               if status == .error {
                   Button(action: onRetry) {
@@ -36,19 +36,8 @@ struct ConnectionStatusBadge: View {
                   .clipShape(Circle())
               }
           }
-          .padding(.horizontal, 8)
-          .padding(.vertical, 4)
-          .background(
-            Color(Color.black).opacity(0.3)
-                  .shadow(color: status == .error ? statusColor.opacity(isAnimating ? 0.4 : 0.3) : statusColor.opacity(0.2), radius: 3)
-          )
-          .overlay(
-              RoundedRectangle(cornerRadius: 6)
-                  .stroke(
-                      status == .error ? statusColor.opacity(isAnimating ? 0.6 : 0.3) : statusColor.opacity(0.3),
-                      lineWidth: 0.5
-                  )
-          )
+//          .padding(.horizontal, 8)
+          .padding(4)
           .cornerRadius(6)
           .onAppear {
               startAnimationIfNeeded()
@@ -75,9 +64,4 @@ struct ConnectionStatusBadge: View {
       }
 }
 
-enum ConnectionStatus: String {
-    case connected = "Connected"
-    case connecting = "Connecting"
-    case disconnected = "Disconnected"
-    case error = "Error"
-}
+

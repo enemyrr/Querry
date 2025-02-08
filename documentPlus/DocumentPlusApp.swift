@@ -27,13 +27,17 @@ struct DocumentPlus: App {
     }()
     
     var body: some Scene {
-        WindowGroup("Welcome to DocumentPlus", id: "welcomeWindow") {
+        WindowGroup("Home", id: "mainWindow") {
             MainWindow()
+                .onAppear {
+                    NSWindow.allowsAutomaticWindowTabbing = false
+                }
         }
         .defaultSize(width: 850, height: 650)
-        .commandsRemoved()
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        
     }
 }
+

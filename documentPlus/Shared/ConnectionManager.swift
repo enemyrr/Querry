@@ -6,37 +6,62 @@
 //
 
 import Foundation
+import MongoKitten
+import SwiftUI
 
 @Observable
 final class ConnectionManager {
     static let shared = ConnectionManager()
-    private var instances: [UUID: ConnectionInstance] = [:]
     
-    var allInstances: [ConnectionInstance] {
-        Array(instances.values)
+    // Store all connection instances
+    private(set) var connectionInstances: [ConnectionInstance] = []
+    
+    // Active connection instance
+    var activeConnectionInstanceId: UUID? {
+        didSet {
+            if activeConnectionInstanceId == nil {
+                activeConnectionInstanceId = connectionInstances.first?.id
+            }
+        }
     }
     
-    func getInstance(_ id: UUID) -> ConnectionInstance? {
-        instances[id]
+    var activeConnectionInstance: ConnectionInstance? {
+        connectionInstances.first { $0.id == activeConnectionInstanceId }
     }
     
-    func createInstance(for connection: Connection) -> UUID {
-        if let existingInstance = instances.values.first(where: {
-            $0.connection.persistentModelID == connection.persistentModelID
+    @discardableResult
+    func createNewConnectionInstance(for connection: Connection) -> UUID {
+        if let existingInstance = connectionInstances.first(where: { instance in
+            instance.connection.persistentModelID == connection.persistentModelID
         }) {
+            activeConnectionInstanceId = existingInstance.id
             return existingInstance.id
         }
         
-        let instance = ConnectionInstance(connection: connection)
-        instances[instance.id] = instance
-        return instance.id
+        let newInstance = ConnectionInstance(connection: connection)
+        connectionInstances.append(newInstance)
+        activeConnectionInstanceId = newInstance.id
+        return newInstance.id
     }
     
-    func removeInstance(_ id: UUID) {
-        instances.removeValue(forKey: id)
+    func removeConnectionInstance(_ instanceId: UUID) {
+        connectionInstances.removeAll(where: { $0.id == instanceId })
     }
     
-    func isEmpty() -> Bool {
-        instances.isEmpty
+    func getInstance(_ instanceId: UUID) -> ConnectionInstance? {
+        connectionInstances.first { $0.id == instanceId }
+    }
+    
+    func connect(to instance: ConnectionInstance) async {
+        do {
+            try await instance.connect()
+        } catch {
+            print("Connection failed: \(error)")
+        }
+    }
+    
+    func disconnect() {
+        activeConnectionInstance?.connectionStatus = .disconnected
+        activeConnectionInstanceId = nil
     }
 }

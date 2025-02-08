@@ -10,10 +10,15 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
+    @Environment(SidebarViewModel.self) private var sidebarViewModel
     @Query private var connections: [Connection]
-    @State private var appState = AppState.shared
+    @State private var showDatabaseModal = false
+
     
+
+    @Environment(\.openWindow) private var openWindow
     @State private var selectedConnectionId: PersistentIdentifier?
+    
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -31,12 +36,7 @@ struct HomeView: View {
                     }
 
                     Spacer()
-                    Button(action: {}) {
-                        Image(systemName: "plus.circle")
-                    }
-                    .buttonStyle(ActionButtonStyle())
-                    .tint(.secondary)
-                    .foregroundStyle(.secondary)
+                    CreateConnection()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 10)
@@ -49,9 +49,8 @@ struct HomeView: View {
                         selectedConnectionId = connection.persistentModelID
                     },
                     onOpen: { connection in
-                        let instanceId = ConnectionManager.shared.createInstance(for: connection)
-                        appState.changeActiveSidebarItem(.connection(instanceId))
-                        appState.changeActiveTab(.connection_details)
+                        let instanceId = sidebarViewModel.createNewConnectionInstance(for: connection)
+                        sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
                     }
                 )
 
@@ -73,6 +72,9 @@ struct HomeView: View {
         }
     }
 }
+
+
+
 
 struct ConnectionList: View {
     let connections: [Connection]

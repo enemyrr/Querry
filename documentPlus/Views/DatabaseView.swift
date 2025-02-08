@@ -9,7 +9,6 @@ import Foundation
 import SwiftUI
 
 struct DatabaseView: View {
-    @State private var appState = AppState.shared
     var instance: ConnectionInstance
     
     var body: some View {
@@ -30,7 +29,7 @@ struct DatabaseView: View {
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .background(Color(.controlBackgroundColor).opacity(0.6))
+            .background(Color(.controlBackgroundColor).opacity(0.8))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
