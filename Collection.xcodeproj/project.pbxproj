@@ -32,9 +32,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		9A529E7B2D23CFC700618009 /* DocumentPlus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DocumentPlus.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9A529E8E2D23CFC900618009 /* DocumentPlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DocumentPlusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9A529E982D23CFC900618009 /* DocumentPlusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DocumentPlusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A529E7B2D23CFC700618009 /* Collection.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Collection.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A529E8E2D23CFC900618009 /* CollectionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CollectionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A529E982D23CFC900618009 /* CollectionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CollectionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -98,9 +98,9 @@
 		9A529E7C2D23CFC700618009 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9A529E7B2D23CFC700618009 /* DocumentPlus.app */,
-				9A529E8E2D23CFC900618009 /* DocumentPlusTests.xctest */,
-				9A529E982D23CFC900618009 /* DocumentPlusUITests.xctest */,
+				9A529E7B2D23CFC700618009 /* Collection.app */,
+				9A529E8E2D23CFC900618009 /* CollectionTests.xctest */,
+				9A529E982D23CFC900618009 /* CollectionUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,9 +108,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9A529E7A2D23CFC700618009 /* DocumentPlus */ = {
+		9A529E7A2D23CFC700618009 /* Collection */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "DocumentPlus" */;
+			buildConfigurationList = 9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "Collection" */;
 			buildPhases = (
 				9A529E772D23CFC700618009 /* Sources */,
 				9A529E782D23CFC700618009 /* Frameworks */,
@@ -123,7 +123,7 @@
 			fileSystemSynchronizedGroups = (
 				9A529E7D2D23CFC700618009 /* documentPlus */,
 			);
-			name = DocumentPlus;
+			name = Collection;
 			packageProductDependencies = (
 				9AE4BF702D25281600EA996E /* Meow */,
 				9AE4BF722D25281600EA996E /* MongoClient */,
@@ -132,12 +132,12 @@
 				9A44A0BD2D2E91F900E04DC8 /* UInt128 */,
 			);
 			productName = documentPlus;
-			productReference = 9A529E7B2D23CFC700618009 /* DocumentPlus.app */;
+			productReference = 9A529E7B2D23CFC700618009 /* Collection.app */;
 			productType = "com.apple.product-type.application";
 		};
-		9A529E8D2D23CFC900618009 /* DocumentPlusTests */ = {
+		9A529E8D2D23CFC900618009 /* CollectionTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "DocumentPlusTests" */;
+			buildConfigurationList = 9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "CollectionTests" */;
 			buildPhases = (
 				9A529E8A2D23CFC900618009 /* Sources */,
 				9A529E8B2D23CFC900618009 /* Frameworks */,
@@ -151,16 +151,16 @@
 			fileSystemSynchronizedGroups = (
 				9A529E912D23CFC900618009 /* documentPlusTests */,
 			);
-			name = DocumentPlusTests;
+			name = CollectionTests;
 			packageProductDependencies = (
 			);
 			productName = documentPlusTests;
-			productReference = 9A529E8E2D23CFC900618009 /* DocumentPlusTests.xctest */;
+			productReference = 9A529E8E2D23CFC900618009 /* CollectionTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		9A529E972D23CFC900618009 /* DocumentPlusUITests */ = {
+		9A529E972D23CFC900618009 /* CollectionUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "DocumentPlusUITests" */;
+			buildConfigurationList = 9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "CollectionUITests" */;
 			buildPhases = (
 				9A529E942D23CFC900618009 /* Sources */,
 				9A529E952D23CFC900618009 /* Frameworks */,
@@ -174,11 +174,11 @@
 			fileSystemSynchronizedGroups = (
 				9A529E9B2D23CFC900618009 /* documentPlusUITests */,
 			);
-			name = DocumentPlusUITests;
+			name = CollectionUITests;
 			packageProductDependencies = (
 			);
 			productName = documentPlusUITests;
-			productReference = 9A529E982D23CFC900618009 /* DocumentPlusUITests.xctest */;
+			productReference = 9A529E982D23CFC900618009 /* CollectionUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -205,7 +205,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 9A529E762D23CFC700618009 /* Build configuration list for PBXProject "DocumentPlus" */;
+			buildConfigurationList = 9A529E762D23CFC700618009 /* Build configuration list for PBXProject "Collection" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -223,9 +223,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9A529E7A2D23CFC700618009 /* DocumentPlus */,
-				9A529E8D2D23CFC900618009 /* DocumentPlusTests */,
-				9A529E972D23CFC900618009 /* DocumentPlusUITests */,
+				9A529E7A2D23CFC700618009 /* Collection */,
+				9A529E8D2D23CFC900618009 /* CollectionTests */,
+				9A529E972D23CFC900618009 /* CollectionUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -281,12 +281,12 @@
 /* Begin PBXTargetDependency section */
 		9A529E902D23CFC900618009 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9A529E7A2D23CFC700618009 /* DocumentPlus */;
+			target = 9A529E7A2D23CFC700618009 /* Collection */;
 			targetProxy = 9A529E8F2D23CFC900618009 /* PBXContainerItemProxy */;
 		};
 		9A529E9A2D23CFC900618009 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9A529E7A2D23CFC700618009 /* DocumentPlus */;
+			target = 9A529E7A2D23CFC700618009 /* Collection */;
 			targetProxy = 9A529E992D23CFC900618009 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -493,7 +493,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DocumentPlus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DocumentPlus";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Collection.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Collection";
 			};
 			name = Debug;
 		};
@@ -511,7 +511,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DocumentPlus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DocumentPlus";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Collection.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Collection";
 			};
 			name = Release;
 		};
@@ -550,7 +550,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9A529E762D23CFC700618009 /* Build configuration list for PBXProject "DocumentPlus" */ = {
+		9A529E762D23CFC700618009 /* Build configuration list for PBXProject "Collection" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA02D23CFC900618009 /* Debug */,
@@ -559,7 +559,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "DocumentPlus" */ = {
+		9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "Collection" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA32D23CFC900618009 /* Debug */,
@@ -568,7 +568,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "DocumentPlusTests" */ = {
+		9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "CollectionTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA62D23CFC900618009 /* Debug */,
@@ -577,7 +577,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "DocumentPlusUITests" */ = {
+		9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "CollectionUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA92D23CFC900618009 /* Debug */,

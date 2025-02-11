@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A529E7A2D23CFC700618009"
-               BuildableName = "DocumentPlus.app"
-               BlueprintName = "DocumentPlus"
-               ReferencedContainer = "container:DocumentPlus.xcodeproj">
+               BuildableName = "Collection.app"
+               BlueprintName = "Collection"
+               ReferencedContainer = "container:Collection.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -36,9 +36,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A529E8D2D23CFC900618009"
-               BuildableName = "DocumentPlusTests.xctest"
-               BlueprintName = "DocumentPlusTests"
-               ReferencedContainer = "container:DocumentPlus.xcodeproj">
+               BuildableName = "CollectionTests.xctest"
+               BlueprintName = "CollectionTests"
+               ReferencedContainer = "container:Collection.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -47,9 +47,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A529E972D23CFC900618009"
-               BuildableName = "DocumentPlusUITests.xctest"
-               BlueprintName = "DocumentPlusUITests"
-               ReferencedContainer = "container:DocumentPlus.xcodeproj">
+               BuildableName = "CollectionUITests.xctest"
+               BlueprintName = "CollectionUITests"
+               ReferencedContainer = "container:Collection.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -69,9 +69,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A529E7A2D23CFC700618009"
-            BuildableName = "DocumentPlus.app"
-            BlueprintName = "DocumentPlus"
-            ReferencedContainer = "container:DocumentPlus.xcodeproj">
+            BuildableName = "Collection.app"
+            BlueprintName = "Collection"
+            ReferencedContainer = "container:Collection.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -86,9 +86,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A529E7A2D23CFC700618009"
-            BuildableName = "DocumentPlus.app"
-            BlueprintName = "DocumentPlus"
-            ReferencedContainer = "container:DocumentPlus.xcodeproj">
+            BuildableName = "Collection.app"
+            BlueprintName = "Collection"
+            ReferencedContainer = "container:Collection.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
