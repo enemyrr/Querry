@@ -18,6 +18,7 @@ struct DocumentView: View {
     @State private var selectField: Fields = .raw
     @State private var filterQuery:  String = ""
     @State private var filterOperator: FilterOperators = .eq
+    @State private var formattedDocuments: [FormattedDocument] = []
     
     var selectedTab: DatabaseTab
     
@@ -68,7 +69,7 @@ struct DocumentView: View {
             
             ScrollView {
                 LazyVStack {
-                    ForEach(documents, id: \.self) { document in
+                    ForEach(formattedDocuments, id: \.self) { document in
                         DocumentDetails(document: document)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
@@ -93,14 +94,70 @@ struct DocumentView: View {
             let queryBuilder = try instance.findQueryBuilder(from: selectedTab.name)
             var loadedDocuments: [Document] = []
             
+            // First load all documents
             for try await document in queryBuilder {
                 loadedDocuments.append(document)
             }
             
-            documents = loadedDocuments
-            instance.cacheDouments(tab: selectedTab, documents: loadedDocuments)
+            // Then format them on a background thread
+            let formatted = await formatDocuments(loadedDocuments)
+            
+            // Update UI
+            await MainActor.run {
+                self.formattedDocuments = formatted
+                instance.cacheDouments(tab: selectedTab, documents: loadedDocuments)
+            }
         } catch {
             self.error = error
         }
+    }
+    
+    private func formatDocuments(_ documents: [Document]) async -> [FormattedDocument] {
+        // Process in chunks to avoid blocking the thread for too long
+        let chunkSize = 50
+        var formattedDocs: [FormattedDocument] = []
+        
+        for chunk in stride(from: 0, to: documents.count, by: chunkSize) {
+            let end = min(chunk + chunkSize, documents.count)
+            let documentChunk = Array(documents[chunk..<end])
+            
+            let formattedChunk = documentChunk.map { document in
+                formatDocument(document)
+            }
+            
+            formattedDocs.append(contentsOf: formattedChunk)
+            
+            // Yield to other tasks periodically
+            await Task.yield()
+        }
+        
+        return formattedDocs
+    }
+    
+    private func formatDocument(_ document: Document) -> FormattedDocument {
+        let id = (document["_id"] as? ObjectId)?.hexString ?? UUID().uuidString
+        let fields = document.keys.sorted().map { key in
+            formatField(key: key, value: document[key])
+        }
+        
+        return FormattedDocument(id: id, fields: fields)
+    }
+    
+    private func formatField(key: String, value: Primitive?) -> FormattedDocument.FormattedField {
+        let formatted = Document().formatValue(value)
+        
+        var nestedFields: [FormattedDocument.FormattedField]?
+        if let doc = value as? Document {
+            nestedFields = doc.keys.sorted().map { key in
+                formatField(key: key, value: doc[key])
+            }
+        }
+        
+        return FormattedDocument.FormattedField(
+            key: key,
+            formattedValue: formatted,
+            rawValue: value ?? "nill",
+            nestedFields: nestedFields
+        )
     }
 }

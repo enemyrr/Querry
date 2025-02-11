@@ -48,7 +48,7 @@ extension View {
 
 // MARK: - Document Details
 struct DocumentDetails: View {
-    let document: Document
+    let document: FormattedDocument
     @State private var isCardHovered = false
     
     var body: some View {
@@ -58,7 +58,8 @@ struct DocumentDetails: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlColor).opacity(0.1))
-//        .cardStyle(isHovered: isCardHovered)
+        .cornerRadius(8)
+        //        .cardStyle(isHovered: isCardHovered)
         //        .overlay(HoverActionButtons(isVisible: isCardHovered), alignment: .topTrailing)
         //        .onHover { hovering in
         //            withAnimation(.easeInOut(duration: 0.2)) {
@@ -70,18 +71,16 @@ struct DocumentDetails: View {
 
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
-    let document: Document
+    let document: FormattedDocument
     
     var body: some View {
-        ForEach(document.keys, id: \.self) { key in
-            if let value = document[key] {
-                let formatted = document.formatValue(value)
-                RecursiveKeyValueRow(
-                    formattedPrimitive: formatted,
-                    key: key,
-                    value: value
-                )
-            }
+        ForEach(document.fields, id: \.key) { field in  // Changed to use fields array
+            RecursiveKeyValueRow(
+                formattedPrimitive: field.formattedValue,
+                key: field.key,
+                value: field.rawValue,
+                nestedFields: field.nestedFields
+            )
         }
     }
 }
@@ -128,7 +127,8 @@ struct ExpandableHeader: View {
 struct RecursiveKeyValueRow: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
-    let value: Primitive
+    let value: Primitive?
+    let nestedFields: [FormattedDocument.FormattedField]?
     
     var body: some View {
         Group {
@@ -136,7 +136,7 @@ struct RecursiveKeyValueRow: View {
                 ExpandableValueView(
                     formattedPrimitive: formattedPrimitive,
                     key: key,
-                    value: value
+                    nestedFields: nestedFields
                 )
             } else {
                 KeyValueRow(
@@ -192,7 +192,7 @@ struct ActionButton: View {
 struct ExpandableValueView: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
-    let value: Primitive
+    let nestedFields: [FormattedDocument.FormattedField]?
     @State private var isExpanded = false
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
@@ -217,77 +217,19 @@ struct ExpandableValueView: View {
                 }
             }
             
-            if isExpanded {
-                LazyExpandableContent(value: value)
-                    .padding(.leading, 16)
-                    .transition(.opacity)
-            }
-        }
-    }
-}
-
-// MARK: - Lazy Loading Content View
-struct LazyExpandableContent: View {
-    let value: Primitive
-    
-    var body: some View {
-        LazyVStack(alignment: .leading, spacing: 2) {
-            switch value {
-            case let array as [Primitive]:
-                ForEach(Array(array.enumerated()), id: \.offset) { index, item in
-                    LazyRow(index: String(index), item: item)
-                }
-                
-            case let doc as Document:
-                ForEach(Array(doc.keys), id: \.self) { key in
-                    if let value = doc[key] {
-                        LazyRow(index: key, item: value)
+            if isExpanded, let fields = nestedFields {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(fields, id: \.key) { field in
+                        RecursiveKeyValueRow(
+                            formattedPrimitive: field.formattedValue,
+                            key: field.key,
+                            value: field.rawValue,
+                            nestedFields: field.nestedFields
+                        )
+                        .padding(.leading, 16)
                     }
                 }
-                
-            default:
-                EmptyView()
-            }
-        }
-    }
-}
-
-// MARK: - Lazy Row Component
-struct LazyRow: View {
-    let index: String
-    let item: Primitive
-    
-    var body: some View {
-        let formatted = Document().formatValue(item)
-        RecursiveKeyValueRow(
-            formattedPrimitive: formatted,
-            key: index,
-            value: item
-        )
-    }
-}
-
-// MARK: - Memory Efficient RecursiveDocumentView
-struct RecursiveDocumentView: View {
-    let value: Primitive
-    
-    var body: some View {
-        LazyVStack(alignment: .leading, spacing: 2) {
-            switch value {
-            case let array as [Primitive]:
-                ForEach(Array(array.enumerated()), id: \.offset) { index, item in
-                    LazyRow(index: String(index), item: item)
-                }
-                
-            case let doc as Document:
-                ForEach(Array(doc.keys), id: \.self) { key in
-                    if let value = doc[key] {
-                        LazyRow(index: key, item: value)
-                    }
-                }
-                
-            default:
-                EmptyView()
+                .transition(.opacity)
             }
         }
     }
