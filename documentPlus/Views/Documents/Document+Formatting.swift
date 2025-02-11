@@ -15,8 +15,8 @@ struct FormattedPrimitive {
 }
 
 extension Document {
-    // Format a single value
     func formatValue(_ value: Primitive?) -> FormattedPrimitive {
+        print("Formattting again")
         guard let value = value else {
             return FormattedPrimitive(
                 value: "null",
@@ -56,7 +56,7 @@ extension Document {
             
         case let doc as Document:
             if doc.isArray {
-                let arrayItems = (0..<doc.count).compactMap { index in
+                _ = (0..<doc.count).compactMap { index in
                     formatValue(doc[String(index)])
                 }
                 

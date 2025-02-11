@@ -139,8 +139,6 @@ private struct ConnectionDetailsSidebar: View {
             
             ScrollView {
                 SiderbarDatabaseList()
-            }.background {
-                Color(.controlColor).opacity(0) // Ensure the scroll area has a background
             }
         }
         .background {

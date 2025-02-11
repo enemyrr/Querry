@@ -8,9 +8,15 @@ import SwiftUI
 
 struct TabBar: View {
     var instance: ConnectionInstance
+    var isSidebarVisible: Bool
     
     var body: some View {
         HStack(spacing: 0) {
+            if !isSidebarVisible {
+                Divider()
+                    .padding(.vertical, 6)
+            }
+            
             if !instance.tabs.isEmpty {
                navigationButtons
             
@@ -22,6 +28,7 @@ struct TabBar: View {
             }
             
         }
+        .padding(.leading, !isSidebarVisible ? 120 : 0)
         .frame(height: 30)
     }
     

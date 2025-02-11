@@ -10,10 +10,11 @@ import SwiftUI
 
 struct DatabaseView: View {
     var instance: ConnectionInstance
+    var isSidebarVisible: Bool
     
     var body: some View {
         VStack(spacing: 0) {
-            TabBar(instance: instance)
+            TabBar(instance: instance, isSidebarVisible: isSidebarVisible)
             
             VStack {
                 if let selectedTab = instance.selectedTab {

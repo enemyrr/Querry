@@ -57,14 +57,14 @@ struct DocumentDetails: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlColor).opacity(0.1))
-        .cardStyle(isHovered: isCardHovered)
-//        .overlay(HoverActionButtons(isVisible: isCardHovered), alignment: .topTrailing)
-//        .onHover { hovering in
-//            withAnimation(.easeInOut(duration: 0.2)) {
-//                isCardHovered = hovering
-//            }
-//        }
+        .background(Color(.controlColor).opacity(0.1))
+//        .cardStyle(isHovered: isCardHovered)
+        //        .overlay(HoverActionButtons(isVisible: isCardHovered), alignment: .topTrailing)
+        //        .onHover { hovering in
+        //            withAnimation(.easeInOut(duration: 0.2)) {
+        //                isCardHovered = hovering
+        //            }
+        //        }
     }
 }
 
@@ -81,7 +81,8 @@ struct DocumentKeyValueList: View {
                     key: key,
                     value: value
                 )
-            }        }
+            }
+        }
     }
 }
 
@@ -105,42 +106,6 @@ struct KeyValueRow: View {
     }
 }
 
-struct ExpandableValueView: View {
-    let formattedPrimitive: FormattedPrimitive
-    let key: String
-    let value: Primitive
-    @State private var isExpanded = false
-    @State private var isHoveredKey = false
-    @State private var isHoveredValue = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 2) {
-                ExpandableHeader(
-                    key: key,
-                    isExpanded: isExpanded,
-                    isHoveredKey: $isHoveredKey
-                )
-                
-                Text(formattedPrimitive.value)
-                    .monospacedStyle(color: formattedPrimitive.color)
-                    .hoverable(isHovered: $isHoveredValue)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            }
-            
-            if isExpanded {
-                RecursiveDocumentView(value: value)
-                    .padding(.leading, 16)
-            }
-        }
-    }
-}
-
 struct ExpandableHeader: View {
     let key: String
     let isExpanded: Bool
@@ -156,42 +121,6 @@ struct ExpandableHeader: View {
             Text("\(key):")
                 .monospacedStyle()
                 .hoverable(isHovered: $isHoveredKey)
-        }
-    }
-}
-
-// MARK: - Recursive Views
-struct RecursiveDocumentView: View {
-    let value: Primitive
-    
-    var body: some View {
-        Group {
-            switch value {
-            case let array as [Primitive]:
-                ForEach(Array(array.enumerated()), id: \.offset) { index, item in
-                    let formatted = Document().formatValue(item)
-                    RecursiveKeyValueRow(
-                        formattedPrimitive: formatted,
-                        key: String(index),
-                        value: item
-                    )
-                }
-                
-            case let doc as Document:
-                ForEach(Array(doc.keys), id: \.self) { key in
-                    if let value = doc[key] {
-                        let formatted = doc.formatValue(value)
-                        RecursiveKeyValueRow(
-                            formattedPrimitive: formatted,
-                            key: key,
-                            value: value
-                        )
-                    }
-                }
-                
-            default:
-                EmptyView()
-            }
         }
     }
 }
@@ -256,5 +185,110 @@ struct ActionButton: View {
                 .foregroundColor(.white)
         }
         .buttonStyle(.compactAccessory(horizontal: 6))
+    }
+}
+
+// MARK: - Optimized ExpandableValueView
+struct ExpandableValueView: View {
+    let formattedPrimitive: FormattedPrimitive
+    let key: String
+    let value: Primitive
+    @State private var isExpanded = false
+    @State private var isHoveredKey = false
+    @State private var isHoveredValue = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 2) {
+                ExpandableHeader(
+                    key: key,
+                    isExpanded: isExpanded,
+                    isHoveredKey: $isHoveredKey
+                )
+                
+                Text(formattedPrimitive.value)
+                    .monospacedStyle(color: formattedPrimitive.color)
+                    .hoverable(isHovered: $isHoveredValue)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            }
+            
+            if isExpanded {
+                LazyExpandableContent(value: value)
+                    .padding(.leading, 16)
+                    .transition(.opacity)
+            }
+        }
+    }
+}
+
+// MARK: - Lazy Loading Content View
+struct LazyExpandableContent: View {
+    let value: Primitive
+    
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 2) {
+            switch value {
+            case let array as [Primitive]:
+                ForEach(Array(array.enumerated()), id: \.offset) { index, item in
+                    LazyRow(index: String(index), item: item)
+                }
+                
+            case let doc as Document:
+                ForEach(Array(doc.keys), id: \.self) { key in
+                    if let value = doc[key] {
+                        LazyRow(index: key, item: value)
+                    }
+                }
+                
+            default:
+                EmptyView()
+            }
+        }
+    }
+}
+
+// MARK: - Lazy Row Component
+struct LazyRow: View {
+    let index: String
+    let item: Primitive
+    
+    var body: some View {
+        let formatted = Document().formatValue(item)
+        RecursiveKeyValueRow(
+            formattedPrimitive: formatted,
+            key: index,
+            value: item
+        )
+    }
+}
+
+// MARK: - Memory Efficient RecursiveDocumentView
+struct RecursiveDocumentView: View {
+    let value: Primitive
+    
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 2) {
+            switch value {
+            case let array as [Primitive]:
+                ForEach(Array(array.enumerated()), id: \.offset) { index, item in
+                    LazyRow(index: String(index), item: item)
+                }
+                
+            case let doc as Document:
+                ForEach(Array(doc.keys), id: \.self) { key in
+                    if let value = doc[key] {
+                        LazyRow(index: key, item: value)
+                    }
+                }
+                
+            default:
+                EmptyView()
+            }
+        }
     }
 }

@@ -14,23 +14,26 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     private let defaultSidebarWidth: CGFloat = 260
     @Namespace private var animation
     
+
     @AppStorage("sidebarWidth") private var sidebarWidth: Double = 260
     @State private var isResizing: Bool = false
-    @State private var isSidebarVisible: Bool = true
     @State private var previousWidth: CGFloat = 260
     @State private var dragOffset: CGFloat = 0
     
     private let sidebarContent: SidebarContent
     private let detailContent: DetailContent
     private let isFullScreenView: Bool
-    
+    @Binding var isSidebarVisible: Bool
+
     init(@ViewBuilder sidebar: () -> SidebarContent,
          @ViewBuilder detail: () -> DetailContent,
-         isFullScreenView: Bool = false
+         isFullScreenView: Bool = false,
+         isSidebarVisible: Binding<Bool>
     ) {
         self.sidebarContent = sidebar()
         self.detailContent = detail()
         self.isFullScreenView = isFullScreenView
+        _isSidebarVisible = isSidebarVisible
         
         _sidebarWidth = AppStorage(wrappedValue: defaultSidebarWidth, "sidebarWidth")
     }
@@ -49,7 +52,9 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
             ToolbarItem(placement: .navigation) {
                 Button(action: toggleSidebar) {
                     Image(systemName: "sidebar.left")
+                        .imageScale(.large)
                 }
+                .padding(.top, 6)
                 .keyboardShortcut("[", modifiers: [.command])
                 .help("Toggle Sidebar")
             }

@@ -15,6 +15,7 @@ struct MainWindow: View {
     @State private var sidebarViewModel = SidebarViewModel(connectionManager: ConnectionManager.shared)
     
     @Environment(\.modelContext) private var modelContext
+    @State private var isSidebarVisible = true
     @Query private var connections: [Connection]
     @State private var activeConnection: Connection?
     
@@ -32,13 +33,14 @@ struct MainWindow: View {
                         .environment(sidebarViewModel)
                 case .connection(_):
                     if let activeInstance = sidebarViewModel.activeInstance {
-                        DatabaseView(instance: activeInstance)
+                        DatabaseView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
                     } else {
                         ConnectionErrorView()
                     }
                 }
             },
-            isFullScreenView: sidebarViewModel.activeSidebarItem == .home
+            isFullScreenView: sidebarViewModel.activeSidebarItem == .home,
+            isSidebarVisible: $isSidebarVisible
         )
         .background(Color(.controlBackgroundColor).opacity(0.5))
     }
