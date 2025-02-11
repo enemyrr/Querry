@@ -17,15 +17,14 @@ final class ConnectionInstance: Identifiable {
     // Connection state
     var connectionStatus: ConnectionStatus = .disconnected
     var lastError: Error?
-
+    
     // UI State
     var tabs: [DatabaseTab] = []
     var selectedTab: DatabaseTab?
-    let accentColor: Color
-
+    
     // Query results cache
     private var queryCache: [String: Any] = [:]
-
+    
     // Database metadata
     var databases: [MongoDatabase] = []
     var collections: [String: [MongoCollection]] = [:]
@@ -36,20 +35,16 @@ final class ConnectionInstance: Identifiable {
                 
                 if shouldUpdate {
                     Task {
-                        if connectionStatus == .connected {
-                            print("not done")
-                            await loadCollectionsForDatabase(currentDatabase.name)
-                            databases = try await currentDatabase.pool.listDatabases()
-                        }
+                        await loadCollectionsForDatabase(currentDatabase.name)
+                        databases = try await currentDatabase.pool.listDatabases()
                     }
                 }
             }
         }
     }
-
+    
     init(connection: Connection) {
         self.connection = connection
-        self.accentColor = AccentColor.random()
     }
     
     func connect() async throws {
@@ -88,12 +83,12 @@ final class ConnectionInstance: Identifiable {
     }
     
     func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder {
-         guard let collection = database?[collectionName] else {
-             throw MongoError.collectionNotFound
-         }
-         
+        guard let collection = database?[collectionName] else {
+            throw MongoError.collectionNotFound
+        }
+        
         return collection.find()
-     }
+    }
     
     func createNewTab(name: String) {
         guard !tabs.contains(where: { $0.name == name }) else {

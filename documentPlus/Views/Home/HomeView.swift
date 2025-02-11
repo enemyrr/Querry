@@ -13,13 +13,10 @@ struct HomeView: View {
     @Environment(SidebarViewModel.self) private var sidebarViewModel
     @Query private var connections: [Connection]
     @State private var showDatabaseModal = false
-
     
-
     @Environment(\.openWindow) private var openWindow
     @State private var selectedConnectionId: PersistentIdentifier?
     
-
     var body: some View {
         VStack(alignment: .leading) {
             VStack(alignment: .leading) {
@@ -34,14 +31,15 @@ struct HomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     }
-
+                    
                     Spacer()
                     CreateConnection()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
                 .padding(.top, 10)
                 .padding(.bottom, 6)
-
+                
                 ConnectionList(
                     connections: connections,
                     selectedConnectionId: $selectedConnectionId,
@@ -53,7 +51,7 @@ struct HomeView: View {
                         sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
                     }
                 )
-
+                
                 Spacer()
             }
             .padding(20)
@@ -87,12 +85,12 @@ struct ConnectionList: View {
             HStack {
                 Text("Name")
                     .frame(width: 200, alignment: .leading)
-
+                
                 Spacer()
-
+                
                 Text("Last Opened")
                     .frame(width: 120, alignment: .leading)
-
+                
                 Text("Created")
                     .frame(width: 120, alignment: .leading)
             }
@@ -100,9 +98,9 @@ struct ConnectionList: View {
             .font(.system(size: 12))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-
+            
             Divider().padding(.bottom, 6)
-
+            
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(connections) { connection in
@@ -119,32 +117,38 @@ struct ConnectionListItem: View {
     let isSelected: Bool
     let onSelect: (Connection) -> Void
     let onOpen: (Connection) -> Void
+    @Environment(\.modelContext) private var modelContext
     @State private var isHovering = false
-
+    @State private var showEditSheet = false
+    
     var body: some View {
         HStack {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(connection.name)
-                        .foregroundStyle(.primary)
-
-                    Text("taxpool")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
+                HStack {
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text(connection.name)
+                                .foregroundStyle(.primary)
+                            
+                            EnvironmentTag(environment: connection.environment)
+                        }
+                        
+                        Text(connection.url).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
-            .frame(width: 200, alignment: .leading)
-
+            .frame(alignment: .leading)
+            
             Spacer()
-
+            
             Text(
                 Date().timeIntervalSince(connection.lastOpenedAt) < 60
-                    ? "a moment ago"
-                    : connection.lastOpenedAt.formatted(.relative(presentation: .named))
+                ? "a moment ago"
+                : connection.lastOpenedAt.formatted(.relative(presentation: .named))
             )
             .foregroundStyle(.secondary)
             .frame(width: 120, alignment: .leading)
-
+            
             Text(
                 connection.createdAt
                     .formatted(date: .abbreviated, time: .omitted)
@@ -172,6 +176,52 @@ struct ConnectionListItem: View {
         )
         .onHover { hovering in
             isHovering = hovering
+        }
+        .sheet(isPresented: $showEditSheet) {
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+                CreateConnectionForm(connection: connection)
+                    .frame(width: 500)
+            }
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                onOpen(connection)
+                connection.lastOpenedAt = Date()
+            } label: {
+                Text("Connect")
+            }
+            
+            Divider()
+            
+            Button {
+                showEditSheet.toggle()
+            } label: {
+                Text("Edit")
+            }
+            
+            Button {
+                // Show connection details
+            } label: {
+                Text("Duplicate")
+            }
+            
+            Divider()
+            
+            Button {
+                // Show connection details
+            } label: {
+                Text("Copy connection string")
+            }
+            
+            Divider()
+            Button(role: .destructive) {
+                modelContext.delete(connection)
+            } label: {
+                Text("Delete")
+            }
+            
         }
     }
 }

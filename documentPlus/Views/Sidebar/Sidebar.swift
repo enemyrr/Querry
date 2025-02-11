@@ -29,7 +29,7 @@ struct NavigationSidebar: View {
     @Environment(SidebarViewModel.self) private var sidebarViewModel
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack {
             topNavigationItems
             Spacer()
             bottomNavigationItems
@@ -52,7 +52,7 @@ struct NavigationSidebar: View {
             
             ForEach(sidebarViewModel.allInstances) { instance in
                 DatabaseIcon(
-                    color: instance.accentColor,
+                    color: instance.connection.color.color,
                     letter: instance.connection.name.prefix(1).uppercased(),
                     isSelected: sidebarViewModel.activeSidebarItem == .connection(instance.id)
                 ) {
@@ -97,7 +97,7 @@ struct NavigationSidebar: View {
             systemName: "exclamationmark.bubble.fill",
             isSelected: false
         ) {}
-        .padding(.bottom, 16)
+            .padding(.bottom, 16)
     }
 }
 
@@ -107,42 +107,48 @@ private struct ConnectionDetailsSidebar: View {
     @State private var searchText: String = ""
     
     var body: some View {
-        VStack(spacing: 0) {
-            if let instance = sidebarViewModel.activeInstance {
-                ConnectionHeader(instance: instance).padding(.bottom, 4)
-                
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 14))
+        VStack(spacing: 2) {
+            VStack(spacing: 0) {
+                if let instance = sidebarViewModel.activeInstance {
+                    ConnectionHeader(instance: instance).padding(.bottom, 6)
                     
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
+                    // Search
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14))
+                        
+                        TextField("Search", text: $searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.black.opacity(0.2))
+                    }
+                    .padding(.bottom, 10)
                     
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.black.opacity(0.2))
-                }
-                
-                DatabaseHeader(instance: instance)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
-                
-                ScrollView {
-                    SiderbarDatabaseList()
+                    DatabaseHeader(instance: instance)
                 }
             }
+            .padding(.top, 16)
+            .padding(.horizontal, 16)
+            
+            ScrollView {
+                SiderbarDatabaseList()
+            }.background {
+                Color(.controlColor).opacity(0) // Ensure the scroll area has a background
+            }
         }
-        .padding(20)
-        .padding(.vertical, 0)
         .background {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(.separator, lineWidth: 1)
+        }
+        .task(id: sidebarViewModel.activeSidebarItem.hashValue) {
+            await sidebarViewModel.loadActiveConnection()
         }
     }
 }
@@ -150,59 +156,37 @@ private struct ConnectionDetailsSidebar: View {
 // MARK: - Connection Header
 private struct ConnectionHeader: View {
     let instance: ConnectionInstance
-    @State private var isHovering = false
-    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovered = false
     
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 8) {
-                        Text(instance.connection.name).font(.system(size: 14))
-                        
-                        ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
-                        
-//                        Image(systemName: "chevron.down")
-//                            .font(.footnote)
-//                            .opacity(0.7)
-                        
-                        Spacer()
-                        Button(action: {
-                            // Implement search
-                        }) {
-                            Image(systemName: "chevron.down").foregroundStyle(.secondary)
-                        }
-                        .padding(.trailing, -8)
-                        .buttonStyle(ActionButtonStyle())
-                        .opacity(isHovering ? 1 : 0)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 12)
-//                    .background(
-//                        RoundedRectangle(cornerRadius: 8)
-//                            .fill(
-//                                (isHovering)
-//                                ? (colorScheme == .dark ? Color.black : Color.white)
-//                                    .opacity(
-//                                        isHovering ? 0.2 : 0.3
-//                                    )
-//                                : Color.clear
-//                            )
-//                    )
-                    .onHover { hovering in
-                        withAnimation(.easeOut(duration: 0.05)) {
-                            isHovering = hovering
-                        }
-                    }
+        VStack(spacing: 6) {
+            // Main content
+            HStack(alignment: .center) {
+                // Left side
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(instance.connection.name)
+                        .font(.system(size: 14, weight: .medium))
+                        .lineLimit(1)
+                    ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
+                }
                 
+                Spacer(minLength: 16)
+                
+                // Right side
+                EnvironmentTag(environment: instance.connection.environment)
+                    .opacity(isHovered ? 1 : 0.8)
             }
-            .frame(alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-//        .padding(.bottom, 8)
-//        .background(
-//               RoundedRectangle(cornerRadius: 8)
-//                   .fill(Color.black.opacity(0.2))
-//           )
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(Color(.controlColor).opacity(isHovered ? 0.15 : 0.1))
+        .cornerRadius(8)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 1))
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hover
+            }
+        }
     }
 }
 
@@ -215,13 +199,9 @@ struct DatabaseHeader: View {
     var body: some View {
         HStack {
             HStack(spacing: 2) {
-//                Image(systemName: "arrowtriangle.down.fill")
-//                    .font(.footnote)
-//                    .scaleEffect(CGSize(width: 1, height: 0.7))
-//                    .opacity(0.7)
                 HStack(spacing: 4) {
                     Text(instance.database?.name ?? "No Database")
-                        .font(.system(size: 12, weight: .semibold)) // Force unwrap NSFont
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
@@ -230,18 +210,18 @@ struct DatabaseHeader: View {
                             .font(.footnote)
                             .opacity(0.7)
                     }
-               }
+                }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(
                             (isHovering)
-                                ? (colorScheme == .dark ? Color.black : Color.white)
-                                    .opacity(
-                                        isHovering ? 0.2 : 0.3
-                                    )
-                                : Color.clear
+                            ? (colorScheme == .dark ? Color.black : Color.white)
+                                .opacity(
+                                    isHovering ? 0.2 : 0.3
+                                )
+                            : Color.clear
                         )
                 )
                 .onHover { hovering in
@@ -249,9 +229,9 @@ struct DatabaseHeader: View {
                         isHovering = hovering
                     }
                 }
-
+                
             }
-
+            
             Spacer()
             
             HStack(spacing: 4) {
@@ -262,14 +242,14 @@ struct DatabaseHeader: View {
                 }
                 .buttonStyle(ActionButtonStyle())
                 
-//                Button(action: {
-//                    // Implement search
-//                }) {
-//                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-//                }
-//                .buttonStyle(ActionButtonStyle())
+                //                Button(action: {
+                //                    // Implement search
+                //                }) {
+                //                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                //                }
+                //                .buttonStyle(ActionButtonStyle())
             }
-        }.padding(.bottom, 5)
+        }
     }
 }
 

@@ -7,36 +7,11 @@
 import SwiftUI
 
 struct ConnectionColorPicker: View {
-    @Binding var selectedColor: String
+    @Binding var selectedColor: Optional<ConnectionColor>
     @Environment(\.colorScheme) var colorScheme
     @State private var isPickerPresented = false
     @State private var isHovering = false
     @FocusState private var isFocused: Bool
-    
-    // Predefined colors with their identifiers
-    let colors: [(id: String, color: Color)] = [
-        ("white", .white),
-        ("turquoise", Color(hex: "#40E0D0")),
-        ("darkGray", Color(hex: "#505050")),
-        ("blue", Color(hex: "#007AFF")),
-        ("mint", Color(hex: "#00FFD1")),
-        ("lightBlue", Color(hex: "#87CEEB")),
-        ("lime", Color(hex: "#32CD32")),
-        ("emerald", Color(hex: "#50C878")),
-        ("indigo", Color(hex: "#4B0082")),
-        ("mauve", Color(hex: "#E0B0FF")),
-        ("purple", Color(hex: "#9932CC")),
-        ("pink", Color(hex: "#FF69B4")),
-        ("red", Color(hex: "#FF3B30")),
-        ("coral", Color(hex: "#FF4500")),
-        ("salmon", Color(hex: "#FFA07A")),
-        ("orange", Color(hex: "#FF9500")),
-        ("yellow", Color(hex: "#FFCC00")),
-        ("teal", Color(hex: "#008080"))
-    ]
-    var selectedColorOption: (id: String, color: Color)? {
-        colors.first(where: { $0.id == selectedColor })
-    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -48,16 +23,16 @@ struct ConnectionColorPicker: View {
                 isPickerPresented.toggle()
             }) {
                 HStack {
-                    if let colorOption = selectedColorOption {
+                    if let color = selectedColor {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(colorOption.color)
+                            .fill(color.color)
                             .frame(width: 16, height: 16)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
                                     .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
                             )
                         
-                        Text(colorOption.id.capitalized)
+                        Text(color.displayName)
                             .foregroundColor(.white)
                     } else {
                         Text("Select a color")
@@ -102,7 +77,7 @@ struct ConnectionColorPicker: View {
                 return .handled
             }
             .popover(isPresented: $isPickerPresented, arrowEdge: .bottom) {
-                ColorPickerPopover(selectedColor: $selectedColor, colors: colors) {
+                ColorPickerPopover(selectedColor: $selectedColor) {
                     isPickerPresented = false
                 }
             }
@@ -148,8 +123,7 @@ struct ColorButton: View {
 }
 
 struct ColorPickerPopover: View {
-    @Binding var selectedColor: String
-    let colors: [(id: String, color: Color)]
+    @Binding var selectedColor: Optional<ConnectionColor>
     let onSelect: () -> Void
     
     private let columns = Array(repeating: GridItem(.fixed(40), spacing: 8), count: 6)
@@ -164,12 +138,12 @@ struct ColorPickerPopover: View {
             
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(colors, id: \.id) { colorOption in
+                    ForEach(ConnectionColor.allCases, id: \.self) { colorOption in
                         ColorButton(
                             color: colorOption.color,
-                            isSelected: selectedColor == colorOption.id
+                            isSelected: selectedColor == colorOption
                         ) {
-                            selectedColor = colorOption.id
+                            selectedColor = colorOption
                             onSelect()
                         }
                     }
@@ -209,12 +183,70 @@ extension Color {
     }
 }
 
-// Preview
-struct ConnectionColorPicker_Previews: PreviewProvider {
-    static var previews: some View {
-        ConnectionColorPicker(selectedColor: .constant("blue"))
-            .frame(width: 300)
-            .padding()
-            .background(Color.black)
+enum ConnectionColor: String, CaseIterable, Codable {
+    case magenta
+    case turquoise
+    case darkGray
+    case blue
+    case mint
+    case lightBlue
+    case lime
+    case emerald
+    case indigo
+    case mauve
+    case purple
+    case pink
+    case red
+    case coral
+    case salmon
+    case orange
+    case yellow
+    case teal
+    
+    var color: Color {
+        switch self {
+        case .magenta: return Color(red: 236/255, green: 72/255, blue: 153/255)
+        case .turquoise: return Color(red: 45/255, green: 212/255, blue: 191/255)
+        case .darkGray: return Color(red: 80/255, green: 80/255, blue: 80/255)
+        case .blue: return Color(red: 0/255, green: 122/255, blue: 255/255)
+        case .mint: return Color(red: 34/255, green: 197/255, blue: 94/255)
+        case .lightBlue: return Color(red: 56/255, green: 189/255, blue: 248/255)
+        case .lime: return Color(red: 50/255, green: 205/255, blue: 50/255)
+        case .emerald: return Color(red: 71/255, green: 186/255, blue: 127/255)
+        case .indigo: return Color(red: 75/255, green: 0/255, blue: 130/255)
+        case .mauve: return Color(red: 224/255, green: 176/255, blue: 255/255)
+        case .purple: return Color(red: 153/255, green: 50/255, blue: 204/255)
+        case .pink: return Color(red: 255/255, green: 105/255, blue: 180/255)
+        case .red: return Color(red: 255/255, green: 59/255, blue: 48/255)
+        case .coral: return Color(red: 255/255, green: 69/255, blue: 0/255)
+        case .salmon: return Color(red: 255/255, green: 160/255, blue: 122/255)
+        case .orange: return Color(red: 255/255, green: 149/255, blue: 0/255)
+        case .yellow: return Color(red: 255/255, green: 204/255, blue: 0/255)
+        case .teal: return Color(red: 0/255, green: 128/255, blue: 128/255)
+        }
+    }
+    
+    var displayName: String {
+        switch self {
+        case .magenta: return "Magenta"
+        case .turquoise: return "Turquoise"
+        case .darkGray: return "Dark Gray"
+        case .blue: return "Blue"
+        case .mint: return "Mint"
+        case .lightBlue: return "Light Blue"
+        case .lime: return "Lime"
+        case .emerald: return "Emerald"
+        case .indigo: return "Indigo"
+        case .mauve: return "Mauve"
+        case .purple: return "Purple"
+        case .pink: return "Pink"
+        case .red: return "Red"
+        case .coral: return "Coral"
+        case .salmon: return "Salmon"
+        case .orange: return "Orange"
+        case .yellow: return "Yellow"
+        case .teal: return "Teal"
+        }
     }
 }
+

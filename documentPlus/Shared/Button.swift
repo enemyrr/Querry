@@ -20,7 +20,7 @@ struct SidebarButtonStyle: ButtonStyle {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(
                     (isActive || isHovering)
                         ? (colorScheme == .dark ? Color.black : Color.white)
@@ -176,19 +176,26 @@ struct DatabaseIcon: View {
     let isSelected: Bool
     @State private var isHovering = false
     let action: () -> Void
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         Button(action: action) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(color.opacity(
-                    (isHovering || isSelected) ? 1.0 : 0.3)
-                )
-                .frame(width: 28, height: 28)
-                .overlay(
-                    Text(letter)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                )
+            ZStack {
+                // Outer selection border
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(color, lineWidth: isSelected ? 1 : 0)
+                    .frame(width: 30, height: 30)  // Fixed outer frame
+                
+                // Main color button
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(color)
+                    .frame(width: 25, height: 25)  // Fixed inner frame
+                    .overlay(
+                        Text(letter)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white)
+                    )
+            }
         }
         .buttonStyle(PlainButtonStyle())
         .onHover { hovering in

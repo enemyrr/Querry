@@ -9,59 +9,78 @@ import SwiftUI
 
 struct ConnectionStatusBadge: View {
     let status: ConnectionStatus
-      let onRetry: () -> Void
-      
-      @State private var isAnimating = false
-      
-      var body: some View {
-          HStack(spacing: 6) {
-              Circle()
-                  .fill(statusColor.gradient)
-                  .frame(width: 6, height: 6)
-                  .shadow(color: statusColor.opacity(0.5), radius: 2)
-              
-//              Text(status.rawValue)
-//                  .font(.system(size: 11, weight: .medium))
-//                  .foregroundStyle(.secondary)
-              
-              if status == .error {
-                  Button(action: onRetry) {
-                      Image(systemName: "arrow.clockwise")
-                          .font(.system(size: 9, weight: .medium))
-                          .foregroundStyle(.secondary)
-                  }
-                  .buttonStyle(.plain)
-                  .frame(width: 16, height: 16)
-                  .background(.secondary.opacity(0.1))
-                  .clipShape(Circle())
-              }
-          }
-//          .padding(.horizontal, 8)
-          .padding(4)
-          .cornerRadius(6)
-          .onAppear {
-              startAnimationIfNeeded()
-          }
-      }
-      
-      private func startAnimationIfNeeded() {
-          if status == .error {
-              withAnimation(.easeInOut(duration: 1.0).repeatForever()) {
-                  isAnimating.toggle()
-              }
-          }
-      }
-      
-      private var statusColor: Color {
-          switch status {
-          case .connected:
-              return Color(red: 0.2, green: 0.8, blue: 0.4)
-          case .connecting:
-              return Color(red: 1.0, green: 0.6, blue: 0.0)
-          case .disconnected, .error:
-              return Color(red: 0.9, green: 0.3, blue: 0.3)
-          }
-      }
+    let onRetry: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            statusIcon
+                .foregroundStyle(statusColor)
+                .font(.caption)
+                .if(status == .connecting) { view in
+                    view.symbolEffect(.rotate.clockwise.byLayer, options: .repeat(.periodic(delay: 1)))
+                }
+            
+            Text(statusText)
+                .foregroundStyle(statusColor)
+                .font(.caption)
+            
+            if status == .error {
+                Button(action: onRetry) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 16, height: 16)
+                .background(.secondary.opacity(0.1))
+                .clipShape(Circle())
+            }
+        }
+    }
+    
+    private var statusIcon: Image {
+        switch status {
+        case .connected:
+            return Image(systemName: "server.rack")
+        case .connecting:
+            return
+                Image(systemName: "arrow.2.circlepath")
+        case .disconnected, .error:
+            return Image(systemName: "network.slash")
+        }
+    }
+    
+    private var statusText: String {
+        switch status {
+        case .connected:
+            return "Connected"
+        case .connecting:
+            return "Connecting"
+        case .disconnected:
+            return "Disconnected"
+        case .error:
+            return "Retry Connection"
+        }
+    }
+    
+    private var statusColor: Color {
+        switch status {
+        case .connected:
+            return .green
+        case .connecting:
+            return .orange
+        case .disconnected, .error:
+            return .secondary
+        }
+    }
 }
 
-
+extension View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
+    }
+}

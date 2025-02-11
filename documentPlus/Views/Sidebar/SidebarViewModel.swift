@@ -15,9 +15,6 @@ final class SidebarViewModel {
     // UI State
     var activeSidebarItem: SidebarItem = .home
     var searchText: String = ""
-    var isLoading: Bool = false
-    var error: Error?
-
     
     // Computed Properties
     var allInstances: [ConnectionInstance] {
@@ -57,14 +54,7 @@ final class SidebarViewModel {
     }
     
     func loadActiveConnection() async {
-        isLoading = true
-        do {
-            try await activeInstance?.connect()
-        } catch {
-            self.error = error
-        }
-        
-        isLoading = false
+        try? await activeInstance?.connect()
     }
 }
 

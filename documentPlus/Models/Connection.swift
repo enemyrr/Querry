@@ -25,14 +25,14 @@ enum ConnectionEnvironment: String, CaseIterable, Codable {
 final class Connection {
     var name: String
     var databaseType: DatabaseType
-    var color: Optional<String>
-    var environment: Optional<ConnectionEnvironment>
+    var color: ConnectionColor
+    var environment: ConnectionEnvironment
     var url: String
     var createdAt: Date = Date()
     var lastOpenedAt: Date = Date()
     var updatedAt: Date = Date()
     
-    init(databaseType: DatabaseType, url: String, name: String, color: Optional<String> = nil, environment: Optional<ConnectionEnvironment>) {
+    init(databaseType: DatabaseType, url: String, name: String, color: ConnectionColor, environment: ConnectionEnvironment) {
         self.name = name
         self.databaseType = databaseType
         self.url = url

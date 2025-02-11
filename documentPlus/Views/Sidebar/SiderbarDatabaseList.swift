@@ -13,67 +13,47 @@ struct SiderbarDatabaseList: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Content container
             ZStack(alignment: .top) {
                 connectionContent
-//                    .opacity(isLoading ? 0.3 : 1)
-                
-//                if isLoading {
-//                    ProgressView()
-//                        .controlSize(.small)
-//                        .padding(.top)
-//                }
             }
-//            .animation(.easeInOut(duration: 0.2), value: isLoading)
-        }
-        .task(id: sidebarViewModel.activeSidebarItem.hashValue) {
-            await sidebarViewModel.loadActiveConnection()
         }
     }
     
     private var connectionContent: some View {
         VStack(spacing: 0) {
             if let activeInstance = sidebarViewModel.activeInstance {
-                if let selectedDb = sidebarViewModel.activeInstance?.database {
+                if let selectedDb = activeInstance.database {
                     CollectionsSection(
-                        instance: activeInstance,
-                        collections: activeInstance.collections[selectedDb.name] ?? []
-                    )
-                }
-                
-                if activeInstance.collections.isEmpty {
-                    ContentUnavailableView {
-                    } description: {
-                        Text("Select a database to view collections")
+                            instance: activeInstance,
+                            collections: activeInstance.collections[selectedDb.name] ?? []
+                        ).padding(.horizontal, 16)
+                } else {
+                    if activeInstance.connectionStatus != .error {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding()
                     }
-                    .padding()
                 }
             }
             
-            if sidebarViewModel.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding()
-                }
-            
             Spacer()
         }
-//        .alert("Connection Error",
-//               isPresented: Binding(
-//                get: { sidebarViewModel.activeInstance.lastError != nil },
-//                set: { _ in sidebarViewModel.activeInstance.lastError = nil }
-//               ),
-//               presenting: sidebarViewModel.activeInstance.lastError
-//        ) { _ in
-//            Button("Retry") {
-//                Task {
-//                    await sidebarViewModel.loadActiveConnection()
-//                }
-//            }
-//            Button("Cancel", role: .cancel) {}
-//        } message: { error in
-//            Text(error.localizedDescription)
-//        }
+        .alert("Connection Error",
+               isPresented: Binding(
+                get: { sidebarViewModel.activeInstance?.lastError != nil },
+                set: { _ in sidebarViewModel.activeInstance?.lastError = nil }
+               ),
+               presenting: sidebarViewModel.activeInstance?.lastError
+        ) { _ in
+            Button("Retry") {
+                Task {
+                    await sidebarViewModel.loadActiveConnection()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
     }
 }
 

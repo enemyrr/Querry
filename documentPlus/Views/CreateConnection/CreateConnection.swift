@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
+import MongoKitten
 
 struct CreateConnection: View {
     @State private var showSheet = false
@@ -30,19 +31,49 @@ struct CreateConnection: View {
     }
 }
 
-
 struct CreateConnectionForm: View {
     @Environment(\.dismiss) var dismiss
-    @State private var uri = ""
-    @State private var name = ""
-    @State private var color = ""
-    @State private var selectedEnvironment: ConnectionEnvironment = .local
-    @State private var selectedColor: Color = .blue
     @Environment(\.modelContext) private var modelContext
     
-    private var isFormValid: Bool {
-        !uri.isEmpty && !name.isEmpty && !color.isEmpty
+    @State private var uri = ""
+    @State private var name = ""
+    @State private var color: Optional<ConnectionColor> = nil
+    @State private var selectedEnvironment: ConnectionEnvironment = .local
+    @State private var uriError: String? = nil
+    
+    private let existingConnection: Connection?
+    
+    init(connection: Connection? = nil) {
+        self.existingConnection = connection
+        _uri = State(initialValue: connection?.url ?? "")
+        _name = State(initialValue: connection?.name ?? "")
+        _color = State(initialValue: connection?.color ?? .blue)
+        _selectedEnvironment = State(initialValue: connection?.environment ?? .local)
     }
+    
+    private var isFormValid: Bool {
+        !uri.isEmpty && !name.isEmpty && uriError == nil
+    }
+    
+    private func validateMongoUri(_ uri: String) {
+        guard !uri.isEmpty else {
+            uriError = nil
+            return
+        }
+        
+        do {
+            let connectionSettings = try ConnectionSettings(uri)
+            
+            if connectionSettings.targetDatabase == nil {
+                uriError = "Include a default database name in the URI"
+            } else{
+                uriError = nil
+            }
+        } catch {
+            uriError = error.localizedDescription
+        }
+    }
+    
     
     var body: some View {
         VStack(spacing: 20) {
@@ -63,14 +94,24 @@ struct CreateConnectionForm: View {
             // Form Fields
             VStack(alignment: .leading, spacing: 16) {
                 FormField(label: "Name") {
-                    TextField("e.g production", text: $name)
+                    TextField("e.g first connection", text: $name)
                         .textFieldStyle(CustomTextFieldStyle())
                 }
                 
                 FormField(label: "URI") {
                     TextField("e.g mongodb+srv://user:password@cluster.mongodb.net/admin", text: $uri)
                         .textFieldStyle(CustomTextFieldStyle())
+                        .onChange(of: uri) { oldValue, newValue in
+                            validateMongoUri(newValue)
+                        }
+                    
+                    if let error = uriError {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
                 }
+                
             }
             .padding(20)
             .background(Color(.controlColor).opacity(0.1))
@@ -100,8 +141,8 @@ struct CreateConnectionForm: View {
                 .customMenuButtonStyle()
                 Spacer()
                 
-                Button("Connect") {
-                    createConnection()
+                Button(existingConnection != nil ? "Update" : "Connect") {
+                    saveConnection()
                 }
                 .primaryStyle()
                 .disabled(!isFormValid)
@@ -114,13 +155,24 @@ struct CreateConnectionForm: View {
         .padding(20)
     }
     
-    func createConnection() {
-        let connection = Connection(
-            databaseType: .mongodb, url: uri, name: name, environment: selectedEnvironment
-        )
-        modelContext.insert(connection)
+    private func saveConnection() {
+        if let existing = existingConnection {
+            existing.url = uri
+            existing.name = name
+            existing.color = color.unsafelyUnwrapped
+            existing.environment = selectedEnvironment
+            try? modelContext.save()
+        } else {
+            let connection = Connection(
+                databaseType: .mongodb,
+                url: uri,
+                name: name,
+                color: color.unsafelyUnwrapped,
+                environment: selectedEnvironment
+            )
+            modelContext.insert(connection)
+        }
         
-        // Close the sheet
         dismiss()
     }
 }
