@@ -20,14 +20,14 @@
 			containerPortal = 9A529E732D23CFC700618009 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9A529E7A2D23CFC700618009;
-			remoteInfo = documentPlus;
+			remoteInfo = collection;
 		};
 		9A529E992D23CFC900618009 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 9A529E732D23CFC700618009 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9A529E7A2D23CFC700618009;
-			remoteInfo = documentPlus;
+			remoteInfo = collection;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -38,19 +38,19 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		9A529E7D2D23CFC700618009 /* documentPlus */ = {
+		9A529E7D2D23CFC700618009 /* collection */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = documentPlus;
+			path = collection;
 			sourceTree = "<group>";
 		};
-		9A529E912D23CFC900618009 /* documentPlusTests */ = {
+		9A529E912D23CFC900618009 /* collectionTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = documentPlusTests;
+			path = collectionTests;
 			sourceTree = "<group>";
 		};
-		9A529E9B2D23CFC900618009 /* documentPlusUITests */ = {
+		9A529E9B2D23CFC900618009 /* collectionUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = documentPlusUITests;
+			path = collectionUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -88,9 +88,9 @@
 		9A529E722D23CFC700618009 = {
 			isa = PBXGroup;
 			children = (
-				9A529E7D2D23CFC700618009 /* documentPlus */,
-				9A529E912D23CFC900618009 /* documentPlusTests */,
-				9A529E9B2D23CFC900618009 /* documentPlusUITests */,
+				9A529E7D2D23CFC700618009 /* collection */,
+				9A529E912D23CFC900618009 /* collectionTests */,
+				9A529E9B2D23CFC900618009 /* collectionUITests */,
 				9A529E7C2D23CFC700618009 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -121,7 +121,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				9A529E7D2D23CFC700618009 /* documentPlus */,
+				9A529E7D2D23CFC700618009 /* collection */,
 			);
 			name = Collection;
 			packageProductDependencies = (
@@ -131,7 +131,7 @@
 				9AE4BF762D25281600EA996E /* MongoKitten */,
 				9A44A0BD2D2E91F900E04DC8 /* UInt128 */,
 			);
-			productName = documentPlus;
+			productName = collection;
 			productReference = 9A529E7B2D23CFC700618009 /* Collection.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -149,12 +149,12 @@
 				9A529E902D23CFC900618009 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9A529E912D23CFC900618009 /* documentPlusTests */,
+				9A529E912D23CFC900618009 /* collectionTests */,
 			);
 			name = CollectionTests;
 			packageProductDependencies = (
 			);
-			productName = documentPlusTests;
+			productName = collectionTests;
 			productReference = 9A529E8E2D23CFC900618009 /* CollectionTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -172,12 +172,12 @@
 				9A529E9A2D23CFC900618009 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9A529E9B2D23CFC900618009 /* documentPlusUITests */,
+				9A529E9B2D23CFC900618009 /* collectionUITests */,
 			);
 			name = CollectionUITests;
 			packageProductDependencies = (
 			);
-			productName = documentPlusUITests;
+			productName = collectionUITests;
 			productReference = 9A529E982D23CFC900618009 /* CollectionUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
@@ -418,18 +418,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = documentPlus/Resources/documentPlus.entitlements;
+				CODE_SIGN_ENTITLEMENTS = collection/Resources/collection.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"documentPlus/Resources/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"collection/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = DocumentPlus/Info.plist;
+				INFOPLIST_FILE = collection/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -437,7 +437,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = doc.documentPlus;
+				PRODUCT_BUNDLE_IDENTIFIER = doc.collection;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -452,18 +452,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = documentPlus/Resources/documentPlus.entitlements;
+				CODE_SIGN_ENTITLEMENTS = collection/Resources/collection.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"documentPlus/Resources/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"collection/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = DocumentPlus/Info.plist;
+				INFOPLIST_FILE = collection/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -471,7 +471,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = doc.documentPlus;
+				PRODUCT_BUNDLE_IDENTIFIER = doc.collection;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -487,9 +487,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = doc.documentPlusTests;
+				PRODUCT_BUNDLE_IDENTIFIER = doc.collectionTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -505,9 +505,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = doc.documentPlusTests;
+				PRODUCT_BUNDLE_IDENTIFIER = doc.collectionTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -522,12 +522,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
 				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = doc.documentPlusUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = doc.collectionUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = documentPlus;
+				TEST_TARGET_NAME = collection;
 			};
 			name = Debug;
 		};
@@ -538,12 +539,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
 				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = doc.documentPlusUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = doc.collectionUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = documentPlus;
+				TEST_TARGET_NAME = collection;
 			};
 			name = Release;
 		};
