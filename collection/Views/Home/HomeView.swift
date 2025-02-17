@@ -133,7 +133,7 @@ struct ConnectionListItem: View {
                             EnvironmentTag(environment: connection.environment)
                         }
                         
-                        Text(connection.url).font(.caption).foregroundStyle(.secondary)
+                        Text(connection.url).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
             }
@@ -159,7 +159,7 @@ struct ConnectionListItem: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(
                     isSelected || isHovering ? Color.black.opacity(0.3)  : Color.clear
                 )

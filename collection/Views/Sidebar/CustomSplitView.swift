@@ -46,7 +46,6 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
             
             detailContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .containerBackground(.regularMaterial, for: .window)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {

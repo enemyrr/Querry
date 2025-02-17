@@ -30,13 +30,11 @@ struct DatabaseView: View {
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .background(Color(.controlBackgroundColor).opacity(0.8))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(
+            .background {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator, lineWidth: 1)
-            )
-            .cornerRadius(10)
+            }
             .padding(8)
         }
         .padding(.top, 8)

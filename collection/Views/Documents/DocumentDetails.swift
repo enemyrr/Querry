@@ -27,7 +27,7 @@ struct HoverableText: ViewModifier {
     }
 }
 
-extension View {
+private extension View {
     func hoverable(isHovered: Binding<Bool>) -> some View {
         modifier(HoverableText(isHovered: isHovered))
     }
@@ -52,20 +52,30 @@ struct DocumentDetails: View {
     @State private var isCardHovered = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            DocumentKeyValueList(document: document)
+        ZStack(alignment: .bottomTrailing) { // Changed to ZStack
+            VStack(alignment: .leading, spacing: 2) {
+                DocumentKeyValueList(document: document)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.controlColor).opacity(0.15))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.separator, lineWidth: 1)
+            )
+            .cornerRadius(8)
+            .cardStyle(isHovered: isCardHovered)
+            
+            // Floating action buttons
+            HoverActionButtons(isVisible: isCardHovered)
+                .padding(.bottom, -4)
+                .padding(.trailing, 16)
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlColor).opacity(0.1))
-        .cornerRadius(8)
-        //        .cardStyle(isHovered: isCardHovered)
-        //        .overlay(HoverActionButtons(isVisible: isCardHovered), alignment: .topTrailing)
-        //        .onHover { hovering in
-        //            withAnimation(.easeInOut(duration: 0.2)) {
-        //                isCardHovered = hovering
-        //            }
-        //        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isCardHovered = hovering
+            }
+        }
     }
 }
 
@@ -152,39 +162,50 @@ struct RecursiveKeyValueRow: View {
 struct HoverActionButtons: View {
     let isVisible: Bool
     private let buttons: [(systemName: String, weight: Font.Weight, action: () -> Void)] = [
-        ("applepencil", .black, {}),
-        ("doc.on.doc", .regular, {}),
+        ("highlighter", .black, {}),
+        ("clipboard", .regular, {}),
+        ("document.on.document", .regular, {}),
         ("trash", .regular, {})
     ]
     
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: .zero) {
             ForEach(buttons, id: \.systemName) { button in
                 ActionButton(
                     systemName: button.systemName,
                     action: button.action,
-                    fontWeight: button.weight
+                    tooltipText: "Delete"
                 )
             }
         }
-        .opacity(isVisible ? 0.5 : 0)
-        .transition(.opacity)
-        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.thinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .opacity(isVisible ? 1 : 0)
+        .animation(.easeInOut(duration: 0.2), value: isVisible)
     }
 }
 
 struct ActionButton: View {
     let systemName: String
     let action: () -> Void
-    var fontWeight: Font.Weight = .regular
+    let tooltipText: String
     
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .fontWeight(fontWeight)
-                .foregroundColor(.white)
+                .font(.system(size: 10))
+                .fontWeight(.bold)
+                .foregroundColor(.gray)
         }
-        .buttonStyle(.compactAccessory(horizontal: 6))
+        .buttonStyle(.plain)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
     }
 }
 
@@ -218,7 +239,7 @@ struct ExpandableValueView: View {
             }
             
             if isExpanded, let fields = nestedFields {
-                LazyVStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 2) {
                     ForEach(fields, id: \.key) { field in
                         RecursiveKeyValueRow(
                             formattedPrimitive: field.formattedValue,

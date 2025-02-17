@@ -10,6 +10,7 @@ import SwiftData
 import AppKit
 import MongoKitten
 
+
 struct MainWindow: View {
     @State private var connectionManager = ConnectionManager.shared
     @State private var sidebarViewModel = SidebarViewModel(connectionManager: ConnectionManager.shared)
@@ -20,30 +21,53 @@ struct MainWindow: View {
     @State private var activeConnection: Connection?
     
     var body: some View {
-        CustomSplitView(
-            sidebar: {
-                Sidebar()
-                    .environment(sidebarViewModel)
-                    .environment(connectionManager)
-            },
-            detail: {
-                switch sidebarViewModel.activeSidebarItem {
-                case .home:
-                    HomeView()
+        ZStack {
+            VibrantBackgroundView()
+                .edgesIgnoringSafeArea(.all)
+            
+            Color(nsColor: .controlBackgroundColor)
+                .opacity(0.6)
+                .edgesIgnoringSafeArea(.all)
+            
+            CustomSplitView(
+                sidebar: {
+                    Sidebar()
                         .environment(sidebarViewModel)
-                case .connection(_):
-                    if let activeInstance = sidebarViewModel.activeInstance {
-                        DatabaseView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
-                    } else {
-                        ConnectionErrorView()
+                        .environment(connectionManager)
+                },
+                detail: {
+                    switch sidebarViewModel.activeSidebarItem {
+                    case .home:
+                        HomeView()
+                            .environment(sidebarViewModel)
+                    case .connection(_):
+                        if let activeInstance = sidebarViewModel.activeInstance {
+                            DatabaseView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
+                        } else {
+                            ConnectionErrorView()
+                        }
                     }
-                }
-            },
-            isFullScreenView: sidebarViewModel.activeSidebarItem == .home,
-            isSidebarVisible: $isSidebarVisible
-        )
-        .background(Color(.controlBackgroundColor).opacity(0.5))
+                },
+                isFullScreenView: sidebarViewModel.activeSidebarItem == .home,
+                isSidebarVisible: $isSidebarVisible
+            )
+            
+        }
+        .toolbarBackground(.hidden, for: .windowToolbar)
+        .containerBackground(.thickMaterial, for: .window)
     }
+}
+
+struct VibrantBackgroundView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover  // Matches macOS sidebar effect
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 struct ConnectionErrorView: View {

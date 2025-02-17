@@ -75,7 +75,8 @@ final class ConnectionInstance: Identifiable {
             }
             
             let dbCollections = try await database.listCollections()
-            collections[databaseName] = dbCollections
+            let sortedCollections = dbCollections.sorted { $0.name < $1.name }
+            collections[databaseName] = sortedCollections
         } catch {
             lastError = error
             collections[databaseName] = []
@@ -87,7 +88,7 @@ final class ConnectionInstance: Identifiable {
             throw MongoError.collectionNotFound
         }
         
-        return collection.find()
+        return collection.find().limit(100)
     }
     
     func createNewTab(name: String) {

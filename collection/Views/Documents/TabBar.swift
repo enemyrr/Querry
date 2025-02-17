@@ -14,15 +14,15 @@ struct TabBar: View {
         HStack(spacing: 0) {
             if !isSidebarVisible {
                 Divider()
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 4)
+                    .padding(.leading, 8)
             }
             
             if !instance.tabs.isEmpty {
                navigationButtons
             
             Divider()
-                .padding(.vertical, 6)
-                .padding(.trailing, 10)
+                .padding(.vertical, 4)
                 
                 tabScrollView
             }
@@ -56,7 +56,7 @@ struct TabBar: View {
     private var tabScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack() {
+                HStack(spacing: 4) {
                     ForEach(instance.tabs) { tab in
                         TabBarItem(
                             tab: tab.name,
@@ -79,7 +79,8 @@ struct TabBar: View {
                             handleDrop(of: sourceItem, to: tab)
                             return true
                         }
-                        
+                        .padding(.leading, instance.tabs.first?.id == tab.id ? 8 : 0)
+                        .padding(.trailing, instance.tabs.last?.id == tab.id ? 8 : 0)
                     }
                 }
             }
@@ -165,8 +166,7 @@ struct NavigationButton: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 6, height: 12)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 8)
+                .padding(8)
                 .contentShape(Rectangle())
         }
         .disabled(isDisabled)
@@ -179,42 +179,40 @@ struct TabBarItem: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
-    @State private var isHovering: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
     
     var body: some View {
         Button(action: onSelect) {
-            ZStack(alignment: .leading) {
-                // Main tab content
-                HStack {
-                    Text(tab)
-                        .foregroundColor(isSelected ? .primary : .secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 30)
-                
-                // Floating close button
-                if isHovering {
+            HStack(spacing: 10) {
+                if isSelected {
                     Button(action: onClose) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 11))
+                            .font(.system(size: 9))
                             .foregroundColor(.secondary)
                     }
-                    .buttonStyle(CloseButtonStyle())
-                    .offset(x: 8)
-                    .transition(.opacity)
+                    .buttonStyle(TabBarButtonStyle())
+                    .frame(width: 10, height: 10) // Fixed size for consistency
                 }
+                
+                Text(tab)
+                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
             }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.trailing, isSelected ? 50 : 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected || isHovering ? Color.black.opacity(0.5) : Color.black.opacity(0.2))
+                    .animation(.interactiveSpring(dampingFraction: 0.66, blendDuration: 0), value: isSelected)
+            )
+
         }
-        .buttonStyle(TabBarButtonStyle(isActive: isSelected, isHovering: isHovering))
+        .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.1)) {
+            withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
             }
         }
     }
 }
-

@@ -104,33 +104,13 @@ struct NavigationSidebar: View {
 // MARK: - ConnectionDetailsSidebar
 private struct ConnectionDetailsSidebar: View {
     @Environment(SidebarViewModel.self) private var sidebarViewModel
-    @State private var searchText: String = ""
     
     var body: some View {
         VStack(spacing: 2) {
             VStack(spacing: 0) {
                 if let instance = sidebarViewModel.activeInstance {
                     ConnectionHeader(instance: instance).padding(.bottom, 6)
-                    
-                    // Search
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 14))
-                        
-                        TextField("Search", text: $searchText)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 14))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.black.opacity(0.2))
-                    }
-                    .padding(.bottom, 10)
-                    
+                    SearchInput()
                     DatabaseHeader(instance: instance)
                 }
             }
@@ -151,10 +131,27 @@ private struct ConnectionDetailsSidebar: View {
     }
 }
 
+
 // MARK: - Connection Header
 private struct ConnectionHeader: View {
     let instance: ConnectionInstance
     @State private var isHovered = false
+    @State private var bubbleOffset = CGSize.zero
+    
+    // Get color based on connection status
+    private var statusColor: Color {
+        switch instance.connectionStatus {
+        case .connected:
+            return .green
+        case .connecting:
+            return .yellow
+        case .disconnected:
+            return .red
+        case .error:
+            return .red
+        // Add other cases as needed
+        }
+    }
     
     var body: some View {
         VStack(spacing: 6) {
@@ -177,9 +174,51 @@ private struct ConnectionHeader: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(Color(.controlColor).opacity(isHovered ? 0.15 : 0.1))
+        .background(
+            ZStack {
+                // Light base background using status color
+                statusColor.opacity(0.06)
+                
+                // Moving bubble with dynamic color
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: statusColor.opacity(0.2), location: 0),
+                                .init(color: statusColor.opacity(0.1), location: 0.5),
+                                .init(color: .clear, location: 1)
+                            ]),
+                            center: .leading,
+                            startRadius: 1,
+                            endRadius: 120
+                        )
+                    )
+                    .frame(width: 240, height: 240)
+                    .blur(radius: 30)
+                    .offset(bubbleOffset)
+                    .onAppear {
+                        withAnimation(
+                            .easeInOut(duration: 8)
+                            .repeatForever(autoreverses: true)
+                        ) {
+                            bubbleOffset = CGSize(width: 50, height: 20)
+                        }
+                        
+                        withAnimation(
+                            .easeInOut(duration: 6)
+                            .repeatForever(autoreverses: true)
+                            .delay(1)
+                        ) {
+                            bubbleOffset.height = -20
+                        }
+                    }
+            }
+        )
         .cornerRadius(8)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 8)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.3), value: instance.connectionStatus) // Animate color changes
         .onHover { hover in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovered = hover
@@ -251,3 +290,49 @@ struct DatabaseHeader: View {
     }
 }
 
+// MARK: - SearchInput
+struct SearchInput: View {
+    @Environment(SidebarViewModel.self) private var viewModel
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.gray)
+                .font(.system(size: 14))
+            
+            TextField("Search", text: Binding(
+                get: { viewModel.searchText },
+                set: { viewModel.searchText = $0 }
+            ))
+            .textFieldStyle(.plain)
+            .font(.system(size: 14))
+            .foregroundColor(.white)
+            
+            if !viewModel.searchText.isEmpty {
+                Button(action: { viewModel.searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .transition(.opacity)
+                .padding(.horizontal, 2)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.2))
+        }
+        .padding(.bottom, 10)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
+    }
+}

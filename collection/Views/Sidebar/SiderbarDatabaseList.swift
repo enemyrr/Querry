@@ -23,9 +23,15 @@ struct SiderbarDatabaseList: View {
         VStack(spacing: 0) {
             if let activeInstance = sidebarViewModel.activeInstance {
                 if let selectedDb = activeInstance.database {
+                    let filteredCollections = (activeInstance.collections[selectedDb.name] ?? [])
+                        .filter {
+                            sidebarViewModel.searchText.isEmpty ||
+                            $0.name.localizedCaseInsensitiveContains(sidebarViewModel.searchText)
+                        }
+                    
                     CollectionsSection(
                             instance: activeInstance,
-                            collections: activeInstance.collections[selectedDb.name] ?? []
+                            collections: filteredCollections
                         ).padding(.horizontal, 16)
                 } else {
                     if activeInstance.connectionStatus != .error {
