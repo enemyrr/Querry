@@ -83,12 +83,27 @@ final class ConnectionInstance: Identifiable {
         }
     }
     
+    
+    func getDocumentCount(for collectionName: String) async throws -> Int {
+        guard let collection = database?[collectionName] else {
+            throw MongoError.collectionNotFound
+        }
+        
+        do {
+            let count = try await collection.count()
+            return count
+        } catch {
+            lastError = error
+            throw error
+        }
+    }
+    
     func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder {
         guard let collection = database?[collectionName] else {
             throw MongoError.collectionNotFound
         }
         
-        return collection.find().limit(100)
+        return collection.find()
     }
     
     func createNewTab(name: String) {

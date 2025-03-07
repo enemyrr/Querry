@@ -41,21 +41,27 @@ struct SidebarButtonStyle: ButtonStyle {
 struct ActionButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+    var disableScaleEffect: Bool = false
+    var isActive: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
         }
-        .padding(5)
+        .padding(padding)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(
-                    isHovering
+                    isHovering || isActive
                         ? (colorScheme == .dark ? Color.black : Color.white)
                             .opacity(0.3)
                         : Color.clear
                 )
         )
+        .if(!disableScaleEffect) { view in
+            view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        }
         .onHover { hovering in
             isHovering = hovering
         }
@@ -64,8 +70,6 @@ struct ActionButtonStyle: ButtonStyle {
 
 
 struct TabBarButtonStyle: ButtonStyle {
-    @State private var isHovering = false
-    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -74,12 +78,9 @@ struct TabBarButtonStyle: ButtonStyle {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(
-                    Color(.controlColor).opacity(isHovering ? 0.4 : 0.2)
+                    Color(.controlColor).opacity(0.3)
                 )
         )
-        .onHover { hovering in
-            isHovering = hovering
-        }
     }
 }
 

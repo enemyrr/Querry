@@ -25,10 +25,10 @@ struct MainWindow: View {
             VibrantBackgroundView()
                 .edgesIgnoringSafeArea(.all)
             
-            Color(nsColor: .controlBackgroundColor)
-                .opacity(0.6)
+            Color(hex: 0x030303)
+                .opacity(0.3)
                 .edgesIgnoringSafeArea(.all)
-            
+
             CustomSplitView(
                 sidebar: {
                     Sidebar()
@@ -61,7 +61,7 @@ struct MainWindow: View {
 struct VibrantBackgroundView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .popover  // Matches macOS sidebar effect
+        view.material = .sidebar  // Matches macOS sidebar effect
         view.blendingMode = .behindWindow
         view.state = .active
         return view

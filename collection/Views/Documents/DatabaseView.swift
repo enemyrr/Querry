@@ -26,15 +26,11 @@ struct DatabaseView: View {
                     .id(selectedTab.id)
                 } else {
                     VStack {
-                        Text("No database selected")
+                        Text("No collection selected")
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            }
             .padding(8)
         }
         .padding(.top, 8)

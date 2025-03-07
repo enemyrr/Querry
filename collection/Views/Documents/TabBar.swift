@@ -19,10 +19,10 @@ struct TabBar: View {
             }
             
             if !instance.tabs.isEmpty {
-               navigationButtons
-            
-            Divider()
-                .padding(.vertical, 4)
+                navigationButtons
+                
+                Divider()
+                    .padding(.vertical, 4)
                 
                 tabScrollView
             }
@@ -184,29 +184,26 @@ struct TabBarItem: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 10) {
-                if isSelected {
                     Button(action: onClose) {
-                        Image(systemName: "xmark")
+                        Image(systemName: isHovering ? "xmark" : "document.fill")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(TabBarButtonStyle())
-                    .frame(width: 10, height: 10) // Fixed size for consistency
-                }
+                    .frame(width: 10, height: 10)
                 
                 Text(tab)
                     .foregroundColor(isSelected ? .primary : .secondary)
                     .lineLimit(1)
+                
+                Spacer(minLength: isSelected ? 50 : 0)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
-            .padding(.trailing, isSelected ? 50 : 6)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isSelected || isHovering ? Color.black.opacity(0.5) : Color.black.opacity(0.2))
-                    .animation(.interactiveSpring(dampingFraction: 0.66, blendDuration: 0), value: isSelected)
             )
-
         }
         .buttonStyle(.plain)
         .onHover { hovering in

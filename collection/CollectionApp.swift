@@ -28,11 +28,11 @@ struct Collection: App {
     
     var body: some Scene {
         WindowGroup("Home", id: "mainWindow") {
-                MainWindow()
-                    .onAppear {
-                        NSWindow.allowsAutomaticWindowTabbing = false
-                    }
-                
+            MainWindow()
+                .onAppear {
+                    NSWindow.allowsAutomaticWindowTabbing = false
+                }
+            
         }
         .defaultSize(width: 850, height: 650)
         .modelContainer(sharedModelContainer)

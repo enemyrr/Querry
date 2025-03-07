@@ -58,7 +58,24 @@ struct DocumentDetails: View {
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.controlColor).opacity(0.15))
+            .background(
+                ZStack {
+                    Color(.controlColor).opacity(0.15)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            .linearGradient(
+                                colors: [
+                                    Color(.controlColor).opacity(0.1),
+                                    Color(.controlColor).opacity(0.05),
+                                    .clear
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .blendMode(.plusLighter)
+                }
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator, lineWidth: 1)
@@ -66,7 +83,6 @@ struct DocumentDetails: View {
             .cornerRadius(8)
             .cardStyle(isHovered: isCardHovered)
             
-            // Floating action buttons
             HoverActionButtons(isVisible: isCardHovered)
                 .padding(.bottom, -4)
                 .padding(.trailing, 16)
@@ -178,10 +194,7 @@ struct HoverActionButtons: View {
                 )
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(.thinMaterial)
-        )
+        .modifier(GlassBackgroundStyle())
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .stroke(.separator, lineWidth: 1)

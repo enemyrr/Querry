@@ -114,8 +114,7 @@ private struct ConnectionDetailsSidebar: View {
                     DatabaseHeader(instance: instance)
                 }
             }
-            .padding(.top, 16)
-            .padding(.horizontal, 16)
+            .padding([.horizontal, .top])
             
             ScrollView {
                 SiderbarDatabaseList()
@@ -149,7 +148,6 @@ private struct ConnectionHeader: View {
             return .red
         case .error:
             return .red
-        // Add other cases as needed
         }
     }
     
@@ -160,7 +158,6 @@ private struct ConnectionHeader: View {
                 // Left side
                 VStack(alignment: .leading, spacing: 4) {
                     Text(instance.connection.name)
-                        .font(.system(size: 14, weight: .medium))
                         .lineLimit(1)
                     ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
                 }
@@ -176,8 +173,22 @@ private struct ConnectionHeader: View {
         .frame(maxWidth: .infinity)
         .background(
             ZStack {
-                // Light base background using status color
+                // Base background
                 statusColor.opacity(0.06)
+                
+                // Inner glow layer
+                Group {
+                    ForEach(0..<4) { i in
+                        RoundedRectangle(cornerRadius: 8)
+                            .inset(by: Double(i) * 0.5)
+                            .stroke(
+                                statusColor.opacity(isHovered ? 0.1 : 0.05),
+                                lineWidth: 1
+                            )
+                    }
+                }
+                .blur(radius: 4)
+                .blendMode(.plusLighter)
                 
                 // Moving bubble with dynamic color
                 Circle()
@@ -215,18 +226,21 @@ private struct ConnectionHeader: View {
             }
         )
         .cornerRadius(8)
-        .overlay(RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator, lineWidth: 1)
+        // Add inner shadow for depth
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(
+                    statusColor.opacity(isHovered ? 0.3 : 0.15))
+                .blendMode(.plusLighter)
+                .padding(1)
         )
-        .animation(.easeInOut(duration: 0.3), value: instance.connectionStatus) // Animate color changes
+        .animation(.easeInOut(duration: 0.3), value: instance.connectionStatus)
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hover
-            }
+            isHovered = hover
         }
     }
 }
-
 // MARK: - Detail Sidebar
 struct DatabaseHeader: View {
     @Environment(\.colorScheme) var colorScheme
