@@ -41,6 +41,11 @@ struct TabBar: View {
                 },
                 isDisabled: instance.selectedTab == instance.tabs.first
             )
+            .keyboardShortcut("[", modifiers: [.command, .shift])
+            .customHelp("Previous tab", position: .bottom, shortcut: KeyboardShortcut(
+                modifiers: [.command, .shift],
+                key: "["
+            ))
             
             NavigationButton(
                 icon: "chevron.right",
@@ -49,6 +54,11 @@ struct TabBar: View {
                 },
                 isDisabled: instance.selectedTab == instance.tabs.last
             )
+            .keyboardShortcut("]", modifiers: [.command, .shift])
+            .customHelp("Next tab", position: .bottom, shortcut: KeyboardShortcut(
+                modifiers: [.command, .shift],
+                key: "]"
+            ))
         }
         .padding(.horizontal, 10)
     }

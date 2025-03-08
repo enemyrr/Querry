@@ -267,7 +267,6 @@ private struct ConnectionHeader: View {
             }
         )
         .cornerRadius(8)
-        // Add inner shadow for depth
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(
@@ -333,7 +332,8 @@ struct DatabaseHeader: View {
                     Image(systemName: "plus.circle").foregroundStyle(.secondary)
                 }
                 .buttonStyle(ActionButtonStyle())
-//                
+                .customHelp("New collection", position: .top)
+//
 //                                Button(action: {
 //                                    // Implement search
 //                                }) {
@@ -388,5 +388,6 @@ struct SearchInput: View {
                 .fill(Color.black.opacity(0.2))
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
+        .keyboardShortcut("f", modifiers: [.command])
     }
 }

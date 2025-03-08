@@ -24,6 +24,11 @@ struct Pagination: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 9, bottom: 7, trailing: 9)))
+                .keyboardShortcut(.leftArrow, modifiers: .command)
+                .customHelp("Go to previous page", position: .top, shortcut: KeyboardShortcut(
+                    modifiers: [.command],
+                    key: "←"
+                ))
             }
             
             Button(action: {
@@ -45,6 +50,11 @@ struct Pagination: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 9, bottom: 7, trailing: 9)))
+                .keyboardShortcut(.rightArrow, modifiers: .command)
+                .customHelp( "Go to next page", position: .top, shortcut: KeyboardShortcut(
+                    modifiers: [.command],
+                    key: "→"
+                ))
             }
         }
     }

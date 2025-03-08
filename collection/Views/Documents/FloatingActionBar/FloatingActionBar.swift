@@ -48,6 +48,11 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+            .keyboardShortcut("p", modifiers: .command)
+            .customHelp("Filter documents", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "P"
+            ))
             
             Divider()
                 .frame(height: 22)
@@ -84,6 +89,11 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: true))
+            .keyboardShortcut(.escape, modifiers: [])
+            .customHelp("To go back", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [],
+                key: "Esc"
+            ))
             
             // Search field container
             HStack {
