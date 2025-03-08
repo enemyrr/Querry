@@ -102,22 +102,55 @@ struct NavigationSidebar: View {
 }
 
 // MARK: - ConnectionDetailsSidebar
+// MARK: - ConnectionDetailsSidebar
 private struct ConnectionDetailsSidebar: View {
     @Environment(SidebarViewModel.self) private var sidebarViewModel
+    @State private var isScrolled = false
+    @Environment(\.colorScheme) private var colorScheme
+    @Namespace private var scrollSpace
     
     var body: some View {
-        VStack(spacing: 2) {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            // Fixed header content
+            VStack {
                 if let instance = sidebarViewModel.activeInstance {
-                    ConnectionHeader(instance: instance).padding(.bottom, 6)
+                    ConnectionHeader(instance: instance)
                     SearchInput()
-                    DatabaseHeader(instance: instance)
                 }
             }
             .padding([.horizontal, .top])
             
-            ScrollView {
-                SiderbarDatabaseList()
+            // Sticky database header with conditional separator
+            if let instance = sidebarViewModel.activeInstance {
+                VStack(spacing: 0) {
+                    DatabaseHeader(instance: instance)
+                        .padding(.horizontal)
+                        .padding(.vertical, 4)
+                    
+                    SoftSeparator()
+                        .opacity(isScrolled ? 1 : 0)
+                }
+                .animation(.easeOut(duration: 0.15), value: isScrolled)
+            }
+            
+            // Scrollable content with scroll detection
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0, pinnedViews: []) {
+                        // Invisible marker view to detect when scrolled past
+                        Color.clear
+                            .frame(height: 1)
+                            .id("scrollMarker")
+                            .onAppear {
+                                isScrolled = false
+                            }
+                            .onDisappear {
+                                isScrolled = true
+                            }
+                        
+                        SiderbarDatabaseList()
+                    }
+                }
             }
         }
         .background {
@@ -127,6 +160,14 @@ private struct ConnectionDetailsSidebar: View {
         .task(id: sidebarViewModel.activeSidebarItem.hashValue) {
             await sidebarViewModel.loadActiveConnection()
         }
+    }
+}
+
+// Define a preference key to track scroll position
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
@@ -195,8 +236,8 @@ private struct ConnectionHeader: View {
                     .fill(
                         RadialGradient(
                             gradient: Gradient(stops: [
-                                .init(color: statusColor.opacity(0.2), location: 0),
-                                .init(color: statusColor.opacity(0.1), location: 0.5),
+                                .init(color: statusColor.opacity(0.4), location: 0),
+                                .init(color: statusColor.opacity(0.2), location: 0.5),
                                 .init(color: .clear, location: 1)
                             ]),
                             center: .leading,
@@ -262,10 +303,10 @@ struct DatabaseHeader: View {
                             .opacity(0.7)
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 8)
                         .fill(
                             (isHovering)
                             ? (colorScheme == .dark ? Color.black : Color.white)
@@ -285,20 +326,20 @@ struct DatabaseHeader: View {
             
             Spacer()
             
-            HStack(spacing: 4) {
+            HStack(spacing: 0) {
                 Button(action: {
                     // Implement search
                 }) {
                     Image(systemName: "plus.circle").foregroundStyle(.secondary)
                 }
                 .buttonStyle(ActionButtonStyle())
-                
-                //                Button(action: {
-                //                    // Implement search
-                //                }) {
-                //                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                //                }
-                //                .buttonStyle(ActionButtonStyle())
+//                
+//                                Button(action: {
+//                                    // Implement search
+//                                }) {
+//                                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+//                                }
+//                                .buttonStyle(ActionButtonStyle())
             }
         }
     }
@@ -346,7 +387,6 @@ struct SearchInput: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.black.opacity(0.2))
         }
-        .padding(.bottom, 10)
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
     }
 }
