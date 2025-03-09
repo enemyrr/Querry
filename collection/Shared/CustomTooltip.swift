@@ -36,7 +36,9 @@ struct CustomTooltip<TooltipContent: View>: ViewModifier {
     let tooltipContent: TooltipContent
     let delay: Double
     let position: TooltipPosition
+    let alignment: TooltipPosition?
     let shortcut: KeyboardShortcut?
+    let spacing: CGFloat
     
     @State private var isHovering = false
     @State private var showTooltip = false
@@ -46,12 +48,16 @@ struct CustomTooltip<TooltipContent: View>: ViewModifier {
         delay: Double = 0.2,
         position: TooltipPosition = .bottom,
         shortcut: KeyboardShortcut? = nil,
+        alignment: TooltipPosition? = nil,
+        spacing: CGFloat = 8,
         @ViewBuilder tooltipContent: () -> TooltipContent
     ) {
         self.tooltipContent = tooltipContent()
         self.delay = delay
         self.position = position
         self.shortcut = shortcut
+        self.alignment = alignment
+        self.spacing = spacing
     }
     
     func body(content: Content) -> some View {
@@ -81,37 +87,40 @@ struct CustomTooltip<TooltipContent: View>: ViewModifier {
                     if showTooltip, let bounds = bounds {
                         let rect = geometry[bounds]
                         
-                        if let shortcut = shortcut {
-                            // Use keyboard shortcut style tooltip
-                            KeyboardShortcutTooltip(
-                                content: tooltipContent,
-                                shortcut: shortcut
-                            )
-                            .overlay(
-                                GeometryReader { tooltipGeometry -> Color in
-                                    DispatchQueue.main.async {
-                                        self.tooltipSize = tooltipGeometry.size
+                        if rect.minX != 0 && rect.minY != 0 || rect.width > 0 && rect.height > 0 {
+                            if let shortcut = shortcut {
+                                // Use keyboard shortcut style tooltip
+                                KeyboardShortcutTooltip(
+                                    content: tooltipContent,
+                                    shortcut: shortcut
+                                )
+                                .overlay(
+                                    GeometryReader { tooltipGeometry -> Color in
+                                        DispatchQueue.main.async {
+                                            self.tooltipSize = tooltipGeometry.size
+                                        }
+                                        return Color.clear
                                     }
-                                    return Color.clear
-                                }
-                            )
-                            .position(x: positionX(hostFrame: rect), y: positionY(hostFrame: rect))
-                            .zIndex(999)
-                            .transition(.opacity)
-                        } else {
-                            // Use regular tooltip
-                            BlackTooltip(content: tooltipContent)
-                            .overlay(
-                                GeometryReader { tooltipGeometry -> Color in
-                                    DispatchQueue.main.async {
-                                        self.tooltipSize = tooltipGeometry.size
+                                )
+                                .position(x: positionX(hostFrame: rect, alignment: alignment), y: positionY(hostFrame: rect))
+                                .zIndex(1)
+                                .transition(.opacity)
+                            } else {
+                                // Use regular tooltip
+                                BlackTooltip(content: tooltipContent)
+                                .overlay(
+                                    GeometryReader { tooltipGeometry -> Color in
+                                        DispatchQueue.main.async {
+                                            self.tooltipSize = tooltipGeometry.size
+                                        }
+                                        return Color.clear
                                     }
-                                    return Color.clear
-                                }
-                            )
-                            .position(x: positionX(hostFrame: rect), y: positionY(hostFrame: rect))
-                            .zIndex(999)
-                            .transition(.opacity)
+                                )
+                                .position(x: positionX(hostFrame: rect, alignment: alignment), y: positionY(hostFrame: rect))
+                                .zIndex(1)
+                                .transition(.opacity)
+                            }
+
                         }
                     }
                 }
@@ -120,43 +129,79 @@ struct CustomTooltip<TooltipContent: View>: ViewModifier {
     }
     
     // Calculate the X position based on tooltip position and host frame
-    private func positionX(hostFrame: CGRect) -> CGFloat {
+    private func positionX(hostFrame: CGRect, alignment: TooltipPosition?) -> CGFloat {
         let hostCenterX = hostFrame.midX
-        let spacing: CGFloat = 8
         
+        // First determine base position based on tooltip position
+        let baseX: CGFloat
         switch position {
         case .top, .bottom:
-            // Center horizontally
-            return hostCenterX
+            // Base is centered horizontally by default
+            baseX = hostCenterX
             
         case .left:
             // Position to the left of the host
-            return hostFrame.minX - (tooltipSize.width / 2) - spacing
+            baseX = hostFrame.minX - (tooltipSize.width / 2) - spacing
             
         case .right:
             // Position to the right of the host
-            return hostFrame.maxX + (tooltipSize.width / 2) + spacing
+            baseX = hostFrame.maxX + (tooltipSize.width / 2) + spacing
         }
+        
+        // Then apply horizontal alignment if specified (only applies to top/bottom)
+        if position == .top || position == .bottom, let alignment = alignment {
+            switch alignment {
+            case .left:
+                // Align with left edge of host (with padding)
+                return hostFrame.minX + (tooltipSize.width / 2) + spacing/2
+            case .right:
+                // Align with right edge of host (with padding)
+                return hostFrame.maxX - (tooltipSize.width / 2) - spacing/2
+            default:
+                // For top/bottom alignments, keep centered
+                return baseX
+            }
+        }
+        
+        return baseX
     }
     
     // Calculate the Y position based on tooltip position and host frame
     private func positionY(hostFrame: CGRect) -> CGFloat {
         let hostCenterY = hostFrame.midY
-        let spacing: CGFloat = 8
         
+        // First determine base position based on tooltip position
+        let baseY: CGFloat
         switch position {
         case .left, .right:
-            // Center vertically
-            return hostCenterY
+            // Base is centered vertically by default
+            baseY = hostCenterY
             
         case .top:
             // Position above the host
-            return hostFrame.minY - (tooltipSize.height / 2) - spacing
+            baseY = hostFrame.minY - (tooltipSize.height / 2) - spacing
             
         case .bottom:
             // Position below the host
-            return hostFrame.maxY + (tooltipSize.height / 2) + spacing
+            baseY = hostFrame.maxY + (tooltipSize.height / 2) + spacing
         }
+        
+        // Then apply vertical alignment if specified (only applies to left/right)
+        if (position == .left || position == .right), let alignment = alignment {
+            switch alignment {
+            case .top:
+                // Align with top edge of host (with padding)
+                return hostFrame.minY + (tooltipSize.height / 2) + spacing/2
+            case .bottom:
+                // Align with bottom edge of host (with padding)
+                return hostFrame.maxY - (tooltipSize.height / 2) - spacing/2
+            default:
+                // For left/right alignments, keep centered
+                return baseY
+            }
+        }
+        
+        return baseY
     }
 }
 
@@ -253,14 +298,23 @@ struct BoundsPreferenceKey: PreferenceKey {
 }
 
 extension View {
-    /// Apply a custom tooltip with the specified position
+    /// Apply a custom tooltip with the specified position and spacing
     func customHelp<TooltipContent: View>(
         delay: Double = 0.2,
         position: TooltipPosition = .bottom,
         shortcut: KeyboardShortcut? = nil,
+        alignment: TooltipPosition? = nil,
+        spacing: CGFloat = 8,
         @ViewBuilder content: @escaping () -> TooltipContent
     ) -> some View {
-        self.modifier(CustomTooltip(delay: delay, position: position, shortcut: shortcut, tooltipContent: content))
+        self.modifier(CustomTooltip(
+            delay: delay,
+            position: position,
+            shortcut: shortcut,
+            alignment: alignment,
+            spacing: spacing,
+            tooltipContent: content
+        ))
     }
     
     /// Convenience version for simple text tooltips with position control
@@ -268,58 +322,19 @@ extension View {
         _ text: String,
         delay: Double = 0.2,
         position: TooltipPosition = .bottom,
-        shortcut: KeyboardShortcut? = nil
+        shortcut: KeyboardShortcut? = nil,
+        alignment: TooltipPosition? = nil,
+        spacing: CGFloat = 8
     ) -> some View {
-        self.customHelp(delay: delay, position: position, shortcut: shortcut) {
+        self.customHelp(
+            delay: delay,
+            position: position,
+            shortcut: shortcut,
+            alignment: alignment,
+            spacing: spacing
+        ) {
             Text(text)
                 .font(.system(size: 11))
         }
     }
-}
-
-// Example usage
-struct TooltipExample: View {
-    var body: some View {
-        VStack(spacing: 40) {
-            Text("Hover over buttons to see tooltips with keyboard shortcuts")
-                .font(.headline)
-                .padding(.bottom, 20)
-            
-            Button("Share") { }
-                .buttonStyle(.borderedProminent)
-                .frame(width: 120, height: 40)
-                .customHelp(
-                    "Share",
-                    position: .bottom,
-                    shortcut: KeyboardShortcut(
-                        modifiers: [.command, .shift],
-                        key: "C"
-                    )
-                )
-            
-            Button("Regular Tooltip") { }
-                .buttonStyle(.borderedProminent)
-                .frame(width: 140, height: 40)
-                .customHelp("This is a standard tooltip")
-            
-            Button("Save") { }
-                .buttonStyle(.borderedProminent)
-                .frame(width: 120, height: 40)
-                .customHelp(
-                    "Save File",
-                    position: .top,
-                    shortcut: KeyboardShortcut(
-                        modifiers: [.command],
-                        key: "S"
-                    )
-                )
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(60)
-    }
-}
-
-// Preview
-#Preview {
-    TooltipExample()
 }

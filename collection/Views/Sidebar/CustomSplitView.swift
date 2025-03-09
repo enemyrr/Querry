@@ -55,7 +55,10 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
                 }
                 .padding(.top, 6)
                 .keyboardShortcut("[", modifiers: [.command])
-                .help("Toggle Sidebar")
+                .customHelp("Toggle Sidebar", position: .bottom, shortcut: KeyboardShortcut(
+                    modifiers: [.command],
+                    key: "["
+                ))
             }
         }
     }

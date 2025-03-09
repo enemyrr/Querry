@@ -174,54 +174,6 @@ struct RecursiveKeyValueRow: View {
     }
 }
 
-// MARK: - Action Buttons
-struct HoverActionButtons: View {
-    let isVisible: Bool
-    private let buttons: [(systemName: String, weight: Font.Weight, action: () -> Void)] = [
-        ("highlighter", .black, {}),
-        ("clipboard", .regular, {}),
-        ("document.on.document", .regular, {}),
-        ("trash", .regular, {})
-    ]
-    
-    var body: some View {
-        HStack(spacing: .zero) {
-            ForEach(buttons, id: \.systemName) { button in
-                ActionButton(
-                    systemName: button.systemName,
-                    action: button.action,
-                    tooltipText: "Delete"
-                )
-            }
-        }
-        .modifier(GlassBackgroundStyle())
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(.separator, lineWidth: 1)
-        )
-        .opacity(isVisible ? 1 : 0)
-        .animation(.easeInOut(duration: 0.2), value: isVisible)
-    }
-}
-
-struct ActionButton: View {
-    let systemName: String
-    let action: () -> Void
-    let tooltipText: String
-    
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 10))
-                .fontWeight(.bold)
-                .foregroundColor(.gray)
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
-    }
-}
-
 // MARK: - Optimized ExpandableValueView
 struct ExpandableValueView: View {
     let formattedPrimitive: FormattedPrimitive

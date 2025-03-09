@@ -25,6 +25,8 @@ struct MainWindow: View {
             VibrantBackgroundView()
                 .edgesIgnoringSafeArea(.all)
             
+            // Main Background color:
+            // Replace on light theme
             Color(hex: 0x030303)
                 .opacity(0.3)
                 .edgesIgnoringSafeArea(.all)

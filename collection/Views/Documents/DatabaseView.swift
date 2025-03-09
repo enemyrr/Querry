@@ -15,6 +15,7 @@ struct DatabaseView: View {
     var body: some View {
         VStack(spacing: 0) {
             TabBar(instance: instance, isSidebarVisible: isSidebarVisible)
+                .zIndex(1)
             
             VStack {
                 if let selectedTab = instance.selectedTab {
@@ -32,9 +33,11 @@ struct DatabaseView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(8)
+            .zIndex(-1)
         }
         .padding(.top, 8)
         .ignoresSafeArea(.all)
+        .zIndex(-1)
     }
 }
 

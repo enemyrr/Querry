@@ -37,7 +37,6 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-            // Next button
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     action = ActionBar.search

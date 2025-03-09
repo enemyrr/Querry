@@ -332,14 +332,7 @@ struct DatabaseHeader: View {
                     Image(systemName: "plus.circle").foregroundStyle(.secondary)
                 }
                 .buttonStyle(ActionButtonStyle())
-                .customHelp("New collection", position: .top)
-//
-//                                Button(action: {
-//                                    // Implement search
-//                                }) {
-//                                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-//                                }
-//                                .buttonStyle(ActionButtonStyle())
+                .customHelp("New collection", position: .top, spacing: 4)
             }
         }
     }
