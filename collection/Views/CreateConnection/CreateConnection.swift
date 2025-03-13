@@ -186,6 +186,11 @@ struct VisualEffectView: NSViewRepresentable {
         view.material = material
         view.blendingMode = blendingMode
         view.state = .active
+        
+        if #available(macOS 10.14, *) {
+            view.isEmphasized = false
+        }
+        
         return view
     }
     

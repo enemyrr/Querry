@@ -36,11 +36,11 @@ struct DocumentRow: View {
     
     init(document: FormattedDocument, parentViewModel: DocumentViewModel) {
         self._viewModel = State(initialValue:
-            DocumentRowViewModel(
-                document: document,
-                connectionInstance: parentViewModel.instance,
-                collectionName: parentViewModel.selectedTab.name
-            )
+                                    DocumentRowViewModel(
+                                        document: document,
+                                        connectionInstance: parentViewModel.instance,
+                                        collectionName: parentViewModel.selectedTab.name
+                                    )
         )
         
         // Set up callback to refresh parent view
@@ -52,79 +52,91 @@ struct DocumentRow: View {
     }
     
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            VStack(alignment: .leading, spacing: 2) {
-                DocumentKeyValueList(document: viewModel.document)
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                ZStack {
-                    Color(.controlColor).opacity(0.15)
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(
-                            .linearGradient(
-                                colors: [
-                                    Color(.controlColor).opacity(0.1),
-                                    Color(.controlColor).opacity(0.05),
-                                    .clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .blendMode(.plusLighter)
-                }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .cornerRadius(8)
-            .cardStyle(isHovered: isCardHovered)
-            
-            HoverActionButtons(
-                isVisible: isCardHovered,
-                onEdit: { viewModel.editDocument() },
-                onCopy: { viewModel.copyDocumentJSON() },
-                onDelete: {
-                    Task {
-                        await viewModel.deleteDocument()
+        Group {
+            if !viewModel.isDeleted {
+                ZStack(alignment: .bottomTrailing) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        DocumentKeyValueList(document: viewModel.document)
                     }
-                },
-                onClone: { viewModel.copyDocumentJSON() },
-                showCopyFeedback: viewModel.showCopyFeedback
-            )
-        }
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isCardHovered = hovering
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        ZStack {
+                            Color(.controlColor).opacity(0.15)
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    .linearGradient(
+                                        colors: [
+                                            Color(.controlColor).opacity(0.1),
+                                            Color(.controlColor).opacity(0.05),
+                                            .clear
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .blendMode(.plusLighter)
+                        }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(.separator, lineWidth: 1)
+                    )
+                    .cornerRadius(8)
+                    .cardStyle(isHovered: isCardHovered)
+                    
+                    HoverActionButtons(
+                        isVisible: isCardHovered && !viewModel.showDeleteConfirmation,
+                        onEdit: { viewModel.editDocument() },
+                        onCopy: { viewModel.copyDocumentJSON() },
+                        onDelete: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewModel.showDeleteConfirmation = true
+                            }
+                        },
+                        onClone: { viewModel.copyDocumentJSON() },
+                        showCopyFeedback: viewModel.showCopyFeedback
+                    )
+                }
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isCardHovered = hovering
+                    }
+                }
+                .overlay(
+                    Group {
+                        if viewModel.showDeleteConfirmation {
+                            DeleteConfirmationOverlay(
+                                onCancel: {
+                                    viewModel.hideDeleteConfirmation()
+                                },
+                                onConfirm: {
+                                    Task {
+                                        await viewModel.deleteDocument()
+                                    }
+                                },
+                                isLoading: viewModel.isLoading
+                            )
+                        }
+                    }
+                )
+                .alert(
+                    "Error",
+                    isPresented: .constant(viewModel.errorMessage != nil),
+                    actions: {
+                        Button("OK") {
+                            // Clear error on dismiss
+                            // Ideally this would be handled via the ViewModel
+                        }
+                    },
+                    message: {
+                        if let errorMessage = viewModel.errorMessage {
+                            Text(errorMessage)
+                        }
+                    }
+                )
             }
         }
-        .overlay(
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.opacity(0.1))
-                }
-            }
-        )
-        .alert(
-            "Error",
-            isPresented: .constant(viewModel.errorMessage != nil),
-            actions: {
-                Button("OK") {
-                    // Clear error on dismiss
-                    // Ideally this would be handled via the ViewModel
-                }
-            },
-            message: {
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                }
-            }
-        )
     }
 }
 
@@ -254,6 +266,86 @@ struct ExpandableValueView: View {
     }
 }
 
+// MARK: - Delete confirmation
+struct DeleteConfirmationOverlay: View {
+    var onCancel: () -> Void
+    var onConfirm: () -> Void
+    var isLoading: Bool
+    
+    var body: some View {
+        ZStack {
+            VisualEffectView(material: .popover, blendingMode: .withinWindow)
+            
+            VStack(spacing: 4) {
+                Image(systemName: "trash")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.primary)
+                    .padding(.bottom, 8)
+                
+                Text("Delete Document?")
+                    .font(.headline)
+                    .fontWeight(.medium)
+                
+                Text("Warning: This operation cannot be undone")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 8)
+                
+                
+                // Action buttons
+                HStack(spacing: 12) {
+                    Button {
+                        onCancel()
+                    } label: {
+                        Text("Cancel")
+                            .font(.subheadline)
+                            .frame(minWidth: 70)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color(.separatorColor).opacity(0.4))
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .keyboardShortcut(.escape)
+                    
+                    Button {
+                        onConfirm()
+                    } label: {
+                        HStack {
+                            if isLoading {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .tint(.white)
+                            }
+                            Text("Delete")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .animation(.easeInOut(duration: 0.2), value: isLoading)
+                        .frame(minWidth: 70)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .foregroundStyle(.white)
+                        .background(isLoading ? Color.red.opacity(0.7) : Color.red)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .keyboardShortcut(.return)
+                    .disabled(isLoading)
+                }
+            }
+            .padding(20)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .cornerRadius(10)
+        .transition(.opacity)
+    }
+}
 private extension View {
     func hoverable(isHovered: Binding<Bool>) -> some View {
         modifier(HoverableText(isHovered: isHovered))

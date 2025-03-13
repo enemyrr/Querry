@@ -106,6 +106,23 @@ final class ConnectionInstance: Identifiable {
         return collection.find()
     }
     
+    func deleteDocumentBy(fromCollection collectionName: String, withId id: ObjectId) async throws {
+        guard let collection = database?[collectionName] else {
+            throw MongoError.collectionNotFound
+        }
+        
+        do {
+            // Create a filter document with the _id field matching the provided ObjectId
+            let filter: Document = ["_id": id]
+            
+            // Execute the delete operation
+            try await collection.deleteOne(where: filter)
+        } catch {
+            lastError = error
+            throw error
+        }
+    }
+    
     func createNewTab(name: String) {
         guard !tabs.contains(where: { $0.name == name }) else {
             if let existingTab = tabs.first(where: { $0.name == name }) {

@@ -22,6 +22,8 @@ class DocumentRowViewModel {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private(set) var showCopyFeedback = false
+    private(set) var isDeleted = false
+    var showDeleteConfirmation = false
     
     // Optional callback for notifying parent after operations
     var onDocumentChanged: (() -> Void)?
@@ -70,6 +72,12 @@ class DocumentRowViewModel {
         return "{\n  \"_id\": \"\(document.id)\"\n  // Other fields would be here\n}"
     }
     
+    func hideDeleteConfirmation() {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showDeleteConfirmation = false
+            }
+        }
+    
     func deleteDocument() async {
         guard let connectionInstance = connectionInstance,
               let collectionName = collectionName else {
@@ -82,17 +90,19 @@ class DocumentRowViewModel {
         
         do {
             // Parse the document ID (assuming it's an ObjectId)
-            guard let objectId = try? ObjectId(document.id) else {
+            guard let objectId = ObjectId(document.id) else {
                 errorMessage = "Invalid document ID format"
                 return
             }
             
             // Perform deletion
-//            try await connectionInstance.deleteDocument(
-//                fromCollection: collectionName,
-//                withId: objectId
-//            )
+            try await connectionInstance.deleteDocumentBy(
+                fromCollection: collectionName,
+                withId: objectId
+            )
             
+            isDeleted = true
+
             // Notify parent that a document was deleted
             onDocumentChanged?()
         } catch {
