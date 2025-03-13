@@ -44,7 +44,7 @@ struct MainWindow: View {
                             .environment(sidebarViewModel)
                     case .connection(_):
                         if let activeInstance = sidebarViewModel.activeInstance {
-                            DatabaseView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
+                            DocumentView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
                         } else {
                             ConnectionErrorView()
                         }

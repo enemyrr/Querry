@@ -27,34 +27,34 @@ struct HoverableText: ViewModifier {
     }
 }
 
-private extension View {
-    func hoverable(isHovered: Binding<Bool>) -> some View {
-        modifier(HoverableText(isHovered: isHovered))
-    }
-    
-    func monospacedStyle(color: Color = .primary) -> some View {
-        self.font(.system(.body, design: .monospaced))
-            .foregroundColor(color)
-    }
-    
-    func cardStyle(isHovered: Bool) -> some View {
-        self.overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 0)
-        )
-        .cornerRadius(10)
-    }
-}
+
 
 // MARK: - Document Details
-struct DocumentDetails: View {
-    let document: FormattedDocument
+struct DocumentRow: View {
+    @State private var viewModel: DocumentRowViewModel
     @State private var isCardHovered = false
     
+    init(document: FormattedDocument, parentViewModel: DocumentViewModel) {
+        self._viewModel = State(initialValue:
+            DocumentRowViewModel(
+                document: document,
+                connectionInstance: parentViewModel.instance,
+                collectionName: parentViewModel.selectedTab.name
+            )
+        )
+        
+        // Set up callback to refresh parent view
+        self.viewModel.onDocumentChanged = {
+            Task {
+                await parentViewModel.loadDocuments()
+            }
+        }
+    }
+    
     var body: some View {
-        ZStack(alignment: .bottomTrailing) { // Changed to ZStack
+        ZStack(alignment: .bottomTrailing) {
             VStack(alignment: .leading, spacing: 2) {
-                DocumentKeyValueList(document: document)
+                DocumentKeyValueList(document: viewModel.document)
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,15 +83,48 @@ struct DocumentDetails: View {
             .cornerRadius(8)
             .cardStyle(isHovered: isCardHovered)
             
-            HoverActionButtons(isVisible: isCardHovered)
-                .padding(.bottom, -4)
-                .padding(.trailing, 16)
+            HoverActionButtons(
+                isVisible: isCardHovered,
+                onEdit: { viewModel.editDocument() },
+                onCopy: { viewModel.copyDocumentJSON() },
+                onDelete: {
+                    Task {
+                        await viewModel.deleteDocument()
+                    }
+                },
+                onClone: { viewModel.copyDocumentJSON() },
+                showCopyFeedback: viewModel.showCopyFeedback
+            )
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isCardHovered = hovering
             }
         }
+        .overlay(
+            Group {
+                if viewModel.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.1))
+                }
+            }
+        )
+        .alert(
+            "Error",
+            isPresented: .constant(viewModel.errorMessage != nil),
+            actions: {
+                Button("OK") {
+                    // Clear error on dismiss
+                    // Ideally this would be handled via the ViewModel
+                }
+            },
+            message: {
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                }
+            }
+        )
     }
 }
 
@@ -218,5 +251,24 @@ struct ExpandableValueView: View {
                 .transition(.opacity)
             }
         }
+    }
+}
+
+private extension View {
+    func hoverable(isHovered: Binding<Bool>) -> some View {
+        modifier(HoverableText(isHovered: isHovered))
+    }
+    
+    func monospacedStyle(color: Color = .primary) -> some View {
+        self.font(.system(.body, design: .monospaced))
+            .foregroundColor(color)
+    }
+    
+    func cardStyle(isHovered: Bool) -> some View {
+        self.overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.3), lineWidth: 0)
+        )
+        .cornerRadius(10)
     }
 }

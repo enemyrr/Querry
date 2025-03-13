@@ -1,80 +1,43 @@
-import SwiftUI
-import AppKit
+//
+//  DatabaseView.swift
+//  Collection
+//
+//  Created by Fauzaan on 1/17/25.
+//
 
-struct DocumentInsight {
-    var title: String
-    var message: String
-    var actionItems: [String]
-}
+import Foundation
+import SwiftUI
 
 struct DocumentView: View {
-    @StateObject private var viewModel: DocumentViewModel
-    
-    init(instance: ConnectionInstance, selectedTab: DatabaseTab) {
-        _viewModel = StateObject(wrappedValue: DocumentViewModel(
-            instance: instance,
-            selectedTab: selectedTab
-        ))
-    }
+    var instance: ConnectionInstance
+    var isSidebarVisible: Bool
     
     var body: some View {
-        ZStack {
-            VStack {
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.formattedDocuments, id: \.self) { document in
-                            DocumentDetails(document: document)
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal)
-                        }
-                    }
-                    .padding(.top)
-                    .padding(.bottom, 24) // Space for pagination
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .task {
-                await viewModel.loadDocuments()
-            }
-            .background {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            }
+        VStack(spacing: 0) {
+            TabBar(instance: instance, isSidebarVisible: isSidebarVisible)
+                .zIndex(1)
             
             VStack {
-                StatusToast(isLoading: viewModel.isLoading)
-                    .padding(.top, 10)
-                Spacer()
-                FloatingActionBar(viewModel: viewModel)
-                    .padding(.bottom, 16)
+                if let selectedTab = instance.selectedTab {
+                    DocumentList(
+                        instance: instance,
+                        selectedTab: selectedTab
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .id(selectedTab.id)
+                } else {
+                    VStack {
+                        Text("No collection selected")
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(8)
+            .zIndex(-1)
         }
-    }
-    
-    
-    // Convert natural language to database query
-    private func convertToSearchQuery(_ naturalLanguage: String) -> String {
-        // This would use AI to convert natural language to a proper query
-        // For now, we'll just simulate some basic conversions
-        
-        if naturalLanguage.lowercased().contains("payment") && naturalLanguage.lowercased().contains("rejected") {
-            return "{ action: \"reject\", entity: \"payment-voucher\" }"
-        } else if naturalLanguage.lowercased().contains("approved") {
-            return "{ action: \"approve\" }"
-        } else if naturalLanguage.lowercased().contains("created") {
-            return "{ action: \"create\" }"
-        }
-        
-        // Default case - just use as is
-        return naturalLanguage
-    }
-    
-    // Search function
-    private func performSearch(_ query: String) {
-        Task {
-            await viewModel.loadDocuments()
-        }
+        .padding(.top, 8)
+        .ignoresSafeArea(.all)
+        .zIndex(-1)
     }
 }
-
 

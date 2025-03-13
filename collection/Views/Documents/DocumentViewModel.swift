@@ -10,8 +10,8 @@ import MongoKitten
 
 @MainActor
 class DocumentViewModel: ObservableObject {
-    private let instance: ConnectionInstance
-    private let selectedTab: DatabaseTab
+    let instance: ConnectionInstance
+    let selectedTab: DatabaseTab
     
     // Pagination state
     @Published private(set) var currentPage: Int = 1
@@ -115,7 +115,7 @@ class DocumentViewModel: ObservableObject {
             formatField(key: key, value: document[key])
         }
         
-        return FormattedDocument(id: id, fields: fields)
+        return FormattedDocument(id: id, fields: fields, rawDocument: document)
     }
     
     private func formatField(key: String, value: Primitive?) -> FormattedDocument.FormattedField {

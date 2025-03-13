@@ -1,5 +1,5 @@
 {
-  "originHash" : "8d656e347958ea9e92fbcb2799bffcacef159862c061005d1b59ac098815073d",
+  "originHash" : "b8a3faf597c0a3f56eeddf3a411348075fa95ab20986a2d9257a17b3b71a760a",
   "pins" : [
     {
       "identity" : "bson",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "9b3369164d89d37feb11bfa6405502367480fee1",
         "version" : "2.4.3"
+      }
+    },
+    {
+      "identity" : "ikigajson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/orlandos-nl/IkigaJSON.git",
+      "state" : {
+        "revision" : "e5144e9aea0f8ed8250766cf3e0415ba02955194",
+        "version" : "2.2.3"
       }
     },
     {

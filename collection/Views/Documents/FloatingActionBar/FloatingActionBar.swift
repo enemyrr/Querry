@@ -51,7 +51,7 @@ struct FloatingActionBar: View {
             .customHelp("Filter documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "P"
-            ))
+            ), spacing: 10)
             
             Divider()
                 .frame(height: 22)

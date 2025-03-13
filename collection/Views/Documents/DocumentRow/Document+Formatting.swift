@@ -112,6 +112,7 @@ extension Document {
 struct FormattedDocument: Hashable {
     let id: String
     let fields: [FormattedField]
+    let rawDocument: Document
     
     struct FormattedField: Hashable {
         let key: String
