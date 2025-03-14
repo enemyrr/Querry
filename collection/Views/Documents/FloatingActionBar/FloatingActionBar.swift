@@ -27,6 +27,7 @@ struct FloatingActionBar: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.separator, lineWidth: 1)
         )
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
     }
     
     private var mainView: some View {
@@ -57,7 +58,29 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-            // Next button
+            // Action buttons for pending operations
+            Group {
+                // Batch delete button - only show when there are documents marked for deletion
+                if viewModel.pendingActionsCount(for: .delete) > 0 {
+                    DeleteActionButton(viewModel: viewModel)
+                        .padding(.horizontal, 2)
+                    
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.vertical, 6)
+                }
+                
+                // Batch update button - only show when there are documents marked for update
+                if viewModel.pendingActionsCount(for: .update) > 0 {
+                    UpdateActionButton(viewModel: viewModel)
+                    
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.vertical, 6)
+                }
+            }
+            
+            // More options button
             Button(action: {
                 // TODO:
                 // Add an action
@@ -125,25 +148,71 @@ struct FloatingActionBar: View {
                 .hasExteriorLight(true)
         ).transition(.opacity.animation(.easeInOut(duration: 0.2)))
     }
-    
-    private var loadingView: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.2.circlepath")
-                .foregroundStyle(.green)
-//                .font(.caption)
-                .symbolEffect(.rotate.clockwise.byLayer, options: .repeat(.periodic(delay: 1)))
-            
-//            ProgressView()
-//                .controlSize(.small)
-            Text("Fetching Documents ...")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-    }
 }
 
 enum ActionBar: String, CaseIterable, Codable {
     case main = "main"
     case search = "search"
+}
+
+// MARK: - Action Buttons
+
+struct DeleteActionButton: View {
+    @ObservedObject var viewModel: DocumentViewModel
+    
+    var body: some View {
+        let deleteCount = viewModel.pendingActionsCount(for: .delete)
+        Button(action: {
+            Task {
+                await viewModel.commitPendingActions()
+            }
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: "trash")
+                    .font(.system(size: 12))
+                Text("\(deleteCount)")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.red.opacity(viewModel.isProcessingBatch ? 0.7 : 1))
+            .cornerRadius(6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isProcessingBatch)
+        .customHelp("Delete \(deleteCount) marked documents", position: .top, spacing: 8)
+        .transition(.scale.combined(with: .opacity))
+    }
+}
+
+struct UpdateActionButton: View {
+    @ObservedObject var viewModel: DocumentViewModel
+    
+    var body: some View {
+        let updateCount = viewModel.pendingActionsCount(for: .update)
+        Button(action: {
+            Task {
+                await viewModel.commitPendingActions()
+            }
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12))
+                Text("\(updateCount)")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.blue.opacity(viewModel.isProcessingBatch ? 0.7 : 1))
+            .cornerRadius(6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isProcessingBatch)
+        .customHelp("Update \(updateCount) marked documents", position: .top, spacing: 4)
+    }
 }
 

@@ -13,6 +13,7 @@ struct HoverActionButtons: View {
     let onClone: () -> Void
     let onDelete: () -> Void
     let showCopyFeedback: Bool
+    let pendingAction: DocumentViewModel.DocumentAction?
     
     init(
         isVisible: Bool,
@@ -20,7 +21,8 @@ struct HoverActionButtons: View {
         onCopy: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onClone: @escaping () -> Void,
-        showCopyFeedback: Bool = false
+        showCopyFeedback: Bool = false,
+        pendingAction: DocumentViewModel.DocumentAction? = nil
     ) {
         self.isVisible = isVisible
         self.onEdit = onEdit
@@ -28,16 +30,18 @@ struct HoverActionButtons: View {
         self.onDelete = onDelete
         self.onClone = onClone
         self.showCopyFeedback = showCopyFeedback
+        self.pendingAction = pendingAction
     }
     
     var body: some View {
         HStack(spacing: .zero) {
             ActionButton(
-                systemName: "highlighter",
+                systemName: getActionIcon(for: .update),
                 action: onEdit,
-                tooltipText: "Edit Document"
+                tooltipText: getActionTooltip(for: .update),
+                tintColor: getActionColor(for: .update)
             )
-            .customHelp("Edit Document", position: .top, spacing: 4)
+            .customHelp(getActionTooltip(for: .update), position: .top, spacing: 4)
 
             ActionButton(
                 systemName: showCopyFeedback ? "checkmark" : "clipboard",
@@ -55,11 +59,12 @@ struct HoverActionButtons: View {
 //            .customHelp("Clone Document", position: .top, spacing: 4)
 
             ActionButton(
-                systemName: "trash",
+                systemName: getActionIcon(for: .delete),
                 action: onDelete,
-                tooltipText: "Remove Document"
+                tooltipText: getActionTooltip(for: .delete),
+                tintColor: getActionColor(for: .delete)
             )
-            .customHelp("Remove Document", position: .top, alignment: .right, spacing: 4)
+            .customHelp(getActionTooltip(for: .delete), position: .top, alignment: .right, spacing: 4)
         }
         .modifier(GlassBackgroundStyle())
         .overlay(
@@ -74,33 +79,54 @@ struct HoverActionButtons: View {
 }
 
 // You'll need to update your DocumentRow to use this:
-struct DocumentRowExample: View {
-    @State private var viewModel: DocumentRowViewModel
-    @State private var isCardHovered = false
-    
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            // Your document content here
-            
-            HoverActionButtons(
-                isVisible: isCardHovered,
-                onEdit: { viewModel.editDocument() },
-                onCopy: { viewModel.copyDocumentJSON() },
-                onDelete: {
-                    Task {
-                        await viewModel.deleteDocument()
-                    }
-                },
-                onClone: {
-                    // Implement cloning functionality
-                    // For example: viewModel.cloneDocument()
-                }
-            )
-        }
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isCardHovered = hovering
+// Helper extension for action-related UI
+extension HoverActionButtons {
+    func getActionIcon(for action: DocumentViewModel.DocumentAction) -> String {
+        if pendingAction == action {
+            switch action {
+            case .delete:
+                return "trash.slash"
+            case .update:
+                return "pencil.slash"
             }
+        } else {
+            switch action {
+            case .delete:
+                return "trash"
+            case .update:
+                return "pencil"
+            }
+        }
+    }
+    
+    func getActionTooltip(for action: DocumentViewModel.DocumentAction) -> String {
+        if pendingAction == action {
+            switch action {
+            case .delete:
+                return "Unmark for Deletion"
+            case .update:
+                return "Unmark for Update"
+            }
+        } else {
+            switch action {
+            case .delete:
+                return "Mark for Deletion"
+            case .update:
+                return "Mark for Update"
+            }
+        }
+    }
+    
+    func getActionColor(for action: DocumentViewModel.DocumentAction) -> Color {
+        if pendingAction == action {
+            switch action {
+            case .delete:
+                return .red
+            case .update:
+                return .blue
+            }
+        } else {
+            return .gray
         }
     }
 }
@@ -109,14 +135,24 @@ struct ActionButton: View {
     let systemName: String
     let action: () -> Void
     let tooltipText: String
+    let tintColor: Color
+    
+    init(systemName: String, action: @escaping () -> Void, tooltipText: String, tintColor: Color = .gray) {
+        self.systemName = systemName
+        self.action = action
+        self.tooltipText = tooltipText
+        self.tintColor = tintColor
+    }
     
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 10))
                 .fontWeight(.bold)
-                .foregroundColor(.gray)
+                .foregroundColor(tintColor)
                 .frame(height: 16)
+                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+ 
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 5)

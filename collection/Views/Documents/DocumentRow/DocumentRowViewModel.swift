@@ -23,10 +23,10 @@ class DocumentRowViewModel {
     private(set) var errorMessage: String?
     private(set) var showCopyFeedback = false
     private(set) var isDeleted = false
-    var showDeleteConfirmation = false
+    private(set) var pendingAction: DocumentViewModel.DocumentAction? = nil
     
     // Optional callback for notifying parent after operations
-    var onDocumentChanged: (() -> Void)?
+    var onDocumentChanged: ((DocumentViewModel.DocumentAction?) -> Void)?
     
     init(document: FormattedDocument, connectionInstance: ConnectionInstance? = nil, collectionName: String? = nil) {
         self.document = document
@@ -72,16 +72,43 @@ class DocumentRowViewModel {
         return "{\n  \"_id\": \"\(document.id)\"\n  // Other fields would be here\n}"
     }
     
-    func hideDeleteConfirmation() {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showDeleteConfirmation = false
-            }
-        }
+    // Removed hideActionConfirmation method as it's no longer needed
     
-    func deleteDocument() async {
+    func setPendingAction(_ action: DocumentViewModel.DocumentAction?) {
+        // If the same action is already set, toggle it off (remove it)
+        if pendingAction == action {
+            pendingAction = nil
+        } else {
+            pendingAction = action
+        }
+        
+        // Notify parent about the action change
+        onDocumentChanged?(pendingAction)
+    }
+    
+    func clearPendingAction() {
+        pendingAction = nil
+        
+        // Notify parent that action was cleared
+        onDocumentChanged?(nil)
+    }
+    
+    func togglePendingAction(_ action: DocumentViewModel.DocumentAction) {
+        if pendingAction == action {
+            pendingAction = nil
+        } else {
+            pendingAction = action
+        }
+        
+        // Notify parent about the action change
+        onDocumentChanged?(pendingAction)
+    }
+    
+    func executeAction() async {
         guard let connectionInstance = connectionInstance,
-              let collectionName = collectionName else {
-            errorMessage = "Cannot delete document: connection information missing"
+              let collectionName = collectionName,
+              let action = pendingAction else {
+            errorMessage = "Cannot execute action: missing information"
             return
         }
         
@@ -95,18 +122,29 @@ class DocumentRowViewModel {
                 return
             }
             
-            // Perform deletion
-            try await connectionInstance.deleteDocumentBy(
-                fromCollection: collectionName,
-                withId: objectId
-            )
+            switch action {
+            case .delete:
+                // Perform deletion
+                try await connectionInstance.deleteDocumentBy(
+                    fromCollection: collectionName,
+                    withId: objectId
+                )
+                isDeleted = true
+                
+            case .update:
+                // Placeholder for update functionality
+                // Will be implemented in the future
+                errorMessage = "Update functionality not yet implemented"
+                return
+            }
             
-            isDeleted = true
+            // Clear the pending action after successful execution
+            pendingAction = nil
 
-            // Notify parent that a document was deleted
-            onDocumentChanged?()
+            // Notify parent that the action was executed
+            onDocumentChanged?(nil)
         } catch {
-            errorMessage = "Failed to delete document: \(error.localizedDescription)"
+            errorMessage = "Failed to execute \(action) action: \(error.localizedDescription)"
         }
     }
     

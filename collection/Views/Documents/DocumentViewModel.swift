@@ -27,6 +27,23 @@ class DocumentViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var error: Error?
     @Published var filterText = "" // Add this
+    @Published var actionBarUpdateTrigger = UUID()
+    
+    // Action tracking
+    enum DocumentAction: String, CaseIterable {
+        case delete
+        case update
+        // Add more actions in the future as needed
+    }
+    
+    struct PendingDocumentAction {
+        let documentId: String
+        let action: DocumentAction
+        var updateData: [String: Any]? // For update actions
+    }
+    
+    @Published private(set) var pendingActions: [PendingDocumentAction] = []
+    @Published private(set) var isProcessingBatch = false
     
     init(instance: ConnectionInstance, selectedTab: DatabaseTab) {
         self.instance = instance
@@ -66,6 +83,7 @@ class DocumentViewModel: ObservableObject {
     func nextPage() {
         if currentPage < totalPages {
             currentPage += 1
+            updatePendingActionsState()
             Task {
                 await loadDocuments()
             }
@@ -75,6 +93,7 @@ class DocumentViewModel: ObservableObject {
     func previousPage() {
         if currentPage > 1 {
             currentPage -= 1
+            updatePendingActionsState()
             Task {
                 await loadDocuments()
             }
@@ -136,5 +155,113 @@ class DocumentViewModel: ObservableObject {
         )
     }
     
+    func updatePendingActionsState() {
+        actionBarUpdateTrigger = UUID()
+    }
+    
     func updateFilteredDocuments() {}
+    
+    // MARK: - Document Action Methods
+    
+    func addPendingAction(documentId: String, action: DocumentAction, updateData: [String: Any]? = nil) {
+        // Use DispatchQueue.main.async to avoid publishing changes during view updates
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Remove any existing actions for this document first
+            self.removePendingActionsInternal(for: documentId)
+            
+            // Add the new action
+            let pendingAction = PendingDocumentAction(
+                documentId: documentId,
+                action: action,
+                updateData: updateData
+            )
+            self.pendingActions.append(pendingAction)
+        }
+    }
+    
+    func removePendingActions(for documentId: String) {
+        // Use DispatchQueue.main.async to avoid publishing changes during view updates
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.removePendingActionsInternal(for: documentId)
+        }
+    }
+    
+    // Internal helper method to avoid code duplication
+    private func removePendingActionsInternal(for documentId: String) {
+        pendingActions.removeAll { $0.documentId == documentId }
+        updatePendingActionsState()
+    }
+    
+    func hasPendingAction(documentId: String, action: DocumentAction? = nil) -> Bool {
+        if let action = action {
+            return pendingActions.contains { $0.documentId == documentId && $0.action == action }
+        } else {
+            return pendingActions.contains { $0.documentId == documentId }
+        }
+    }
+    
+    func clearAllPendingActions() {
+        // Use DispatchQueue.main.async to avoid publishing changes during view updates
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.pendingActions.removeAll()
+        }
+    }
+    
+    func pendingActionsCount(for action: DocumentAction? = nil) -> Int {
+        if let action = action {
+            return pendingActions.filter { $0.action == action }.count
+        } else {
+            return pendingActions.count
+        }
+    }
+    
+    func commitPendingActions() async {
+        guard !pendingActions.isEmpty else { return }
+        
+        isProcessingBatch = true
+        defer { isProcessingBatch = false }
+        
+        var failedActions: [PendingDocumentAction] = []
+        
+        // Group actions by type for batch processing
+        let deleteActions = pendingActions.filter { $0.action == .delete }
+        let updateActions = pendingActions.filter { $0.action == .update }
+        
+        // Process deletions
+        for action in deleteActions {
+            do {
+                // Parse the document ID (assuming it's an ObjectId)
+                guard let objectId = ObjectId(action.documentId) else {
+                    failedActions.append(action)
+                    continue
+                }
+                
+                // Perform deletion
+                try await instance.deleteDocumentBy(
+                    fromCollection: selectedTab.name,
+                    withId: objectId
+                )
+            } catch {
+                failedActions.append(action)
+                self.error = error
+            }
+        }
+        
+        // Process updates (placeholder for future implementation)
+        for action in updateActions {
+            // Implement update logic when needed
+            // This is a placeholder for future functionality
+            failedActions.append(action)
+        }
+        
+        // Keep only the failed actions
+        pendingActions = failedActions
+        
+        // Reload documents to reflect changes
+        await loadDocuments()
+    }
 }

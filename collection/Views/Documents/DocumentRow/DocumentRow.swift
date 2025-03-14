@@ -43,10 +43,21 @@ struct DocumentRow: View {
                                     )
         )
         
-        // Set up callback to refresh parent view
-        self.viewModel.onDocumentChanged = {
-            Task {
-                await parentViewModel.loadDocuments()
+        // Set up callback to refresh parent view and update action tracking
+        self.viewModel.onDocumentChanged = { [document] action in
+            // Update the parent view model's tracking of document actions
+            if let action = action {
+                parentViewModel.addPendingAction(documentId: document.id, action: action)
+            } else {
+                parentViewModel.removePendingActions(for: document.id)
+            }
+        }
+        
+        // Initialize action state from parent view model
+        for action in DocumentViewModel.DocumentAction.allCases {
+            if parentViewModel.hasPendingAction(documentId: document.id, action: action) {
+                self.viewModel.setPendingAction(action)
+                break
             }
         }
     }
@@ -80,22 +91,44 @@ struct DocumentRow: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(.separator, lineWidth: 1)
+                            .stroke(Color.clear, lineWidth: 1)
+                    )
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(
+                                viewModel.pendingAction == .delete ?
+                                    Color.red.opacity(0.7) :
+                                    viewModel.pendingAction == .update ?
+                                        Color.orange.opacity(0.7) :
+                                        Color(.separatorColor),
+                                lineWidth: 1
+                            )
+                            .shadow(
+                                color: viewModel.pendingAction == .delete ?
+                                    Color.red.opacity(0.8) :
+                                    viewModel.pendingAction == .update ?
+                                        Color.orange.opacity(0.8) :
+                                        Color.clear,
+                                radius: 3,
+                                x: 0,
+                                y: 0
+                            )
                     )
                     .cornerRadius(8)
                     .cardStyle(isHovered: isCardHovered)
                     
                     HoverActionButtons(
-                        isVisible: isCardHovered && !viewModel.showDeleteConfirmation,
-                        onEdit: { viewModel.editDocument() },
+                        isVisible: isCardHovered,
+                        onEdit: { 
+                            viewModel.setPendingAction(.update)
+                        },
                         onCopy: { viewModel.copyDocumentJSON() },
                         onDelete: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                viewModel.showDeleteConfirmation = true
-                            }
+                            viewModel.setPendingAction(.delete)
                         },
                         onClone: { viewModel.copyDocumentJSON() },
-                        showCopyFeedback: viewModel.showCopyFeedback
+                        showCopyFeedback: viewModel.showCopyFeedback,
+                        pendingAction: viewModel.pendingAction
                     )
                 }
                 .onHover { hovering in
@@ -103,23 +136,7 @@ struct DocumentRow: View {
                         isCardHovered = hovering
                     }
                 }
-                .overlay(
-                    Group {
-                        if viewModel.showDeleteConfirmation {
-                            DeleteConfirmationOverlay(
-                                onCancel: {
-                                    viewModel.hideDeleteConfirmation()
-                                },
-                                onConfirm: {
-                                    Task {
-                                        await viewModel.deleteDocument()
-                                    }
-                                },
-                                isLoading: viewModel.isLoading
-                            )
-                        }
-                    }
-                )
+                // Removed action confirmation overlay for immediate actions
                 .alert(
                     "Error",
                     isPresented: .constant(viewModel.errorMessage != nil),
@@ -266,27 +283,29 @@ struct ExpandableValueView: View {
     }
 }
 
-// MARK: - Delete confirmation
-struct DeleteConfirmationOverlay: View {
+// MARK: - Action confirmation
+struct ActionConfirmationOverlay: View {
     var onCancel: () -> Void
     var onConfirm: () -> Void
     var isLoading: Bool
+    var action: DocumentViewModel.DocumentAction?
+    var hasExistingAction: Bool
     
     var body: some View {
         ZStack {
             VisualEffectView(material: .popover, blendingMode: .withinWindow)
             
             VStack(spacing: 4) {
-                Image(systemName: "trash")
+                Image(systemName: actionIcon)
                     .font(.system(size: 20))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(actionColor)
                     .padding(.bottom, 8)
                 
-                Text("Delete Document?")
+                Text(titleText)
                     .font(.headline)
                     .fontWeight(.medium)
                 
-                Text("Warning: This operation cannot be undone")
+                Text(descriptionText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 8)
@@ -318,7 +337,7 @@ struct DeleteConfirmationOverlay: View {
                                     .controlSize(.mini)
                                     .tint(.white)
                             }
-                            Text("Delete")
+                            Text(hasExistingAction ? "Unmark" : "Mark")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                         }
@@ -327,7 +346,7 @@ struct DeleteConfirmationOverlay: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .foregroundStyle(.white)
-                        .background(isLoading ? Color.red.opacity(0.7) : Color.red)
+                        .background(isLoading ? actionColor.opacity(0.7) : actionColor)
                         .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
@@ -344,6 +363,54 @@ struct DeleteConfirmationOverlay: View {
         )
         .cornerRadius(10)
         .transition(.opacity)
+    }
+    
+    private var actionIcon: String {
+        switch action {
+        case .delete:
+            return "trash"
+        case .update:
+            return "pencil"
+        case .none:
+            return "questionmark.circle"
+        }
+    }
+    
+    private var actionColor: Color {
+        switch action {
+        case .delete:
+            return .red
+        case .update:
+            return .blue
+        case .none:
+            return .gray
+        }
+    }
+    
+    private var titleText: String {
+        guard let action = action else { return "Action?" }
+        
+        switch action {
+        case .delete:
+            return hasExistingAction ? "Unmark from Deletion?" : "Mark for Deletion?"
+        case .update:
+            return hasExistingAction ? "Unmark from Update?" : "Mark for Update?"
+        }
+    }
+    
+    private var descriptionText: String {
+        guard let action = action else { return "Choose an action for this document" }
+        
+        switch action {
+        case .delete:
+            return hasExistingAction ? 
+                "This will remove the document from the deletion queue" : 
+                "This will mark the document for deletion"
+        case .update:
+            return hasExistingAction ? 
+                "This will remove the document from the update queue" : 
+                "This will mark the document for update"
+        }
     }
 }
 private extension View {

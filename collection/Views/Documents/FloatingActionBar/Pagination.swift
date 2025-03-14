@@ -29,6 +29,7 @@ struct Pagination: View {
                     modifiers: [.command],
                     key: "←"
                 ))
+                .transition(.scale.combined(with: .opacity))
             }
             
             Button(action: {
@@ -55,6 +56,7 @@ struct Pagination: View {
                     modifiers: [.command],
                     key: "→"
                 ))
+                .transition(.scale.combined(with: .opacity))
             }
         }
     }
