@@ -162,7 +162,6 @@ class DocumentViewModel: ObservableObject {
     func updateFilteredDocuments() {}
     
     // MARK: - Document Action Methods
-    
     func addPendingAction(documentId: String, action: DocumentAction, updateData: [String: Any]? = nil) {
         // Use DispatchQueue.main.async to avoid publishing changes during view updates
         DispatchQueue.main.async { [weak self] in

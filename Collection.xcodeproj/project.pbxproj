@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9A44A0BE2D2E91F900E04DC8 /* UInt128 in Frameworks */ = {isa = PBXBuildFile; productRef = 9A44A0BD2D2E91F900E04DC8 /* UInt128 */; };
+		9A8CF55C2D83EC61007307E3 /* AIProxy in Frameworks */ = {isa = PBXBuildFile; productRef = 9A8CF55B2D83EC61007307E3 /* AIProxy */; };
 		9AE4BF712D25281600EA996E /* Meow in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF702D25281600EA996E /* Meow */; };
 		9AE4BF732D25281600EA996E /* MongoClient in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF722D25281600EA996E /* MongoClient */; };
 		9AE4BF752D25281600EA996E /* MongoCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF742D25281600EA996E /* MongoCore */; };
@@ -63,6 +64,7 @@
 				9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */,
 				9A44A0BE2D2E91F900E04DC8 /* UInt128 in Frameworks */,
 				9AE4BF712D25281600EA996E /* Meow in Frameworks */,
+				9A8CF55C2D83EC61007307E3 /* AIProxy in Frameworks */,
 				9AE4BF732D25281600EA996E /* MongoClient in Frameworks */,
 				9AE4BF752D25281600EA996E /* MongoCore in Frameworks */,
 			);
@@ -130,6 +132,7 @@
 				9AE4BF742D25281600EA996E /* MongoCore */,
 				9AE4BF762D25281600EA996E /* MongoKitten */,
 				9A44A0BD2D2E91F900E04DC8 /* UInt128 */,
+				9A8CF55B2D83EC61007307E3 /* AIProxy */,
 			);
 			productName = collection;
 			productReference = 9A529E7B2D23CFC700618009 /* Collection.app */;
@@ -217,6 +220,7 @@
 			packageReferences = (
 				9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */,
 				9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */,
+				9A8CF55A2D83EC61007307E3 /* XCRemoteSwiftPackageReference "AIProxySwift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -420,7 +424,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = collection/Resources/collection.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -454,7 +458,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = collection/Resources/collection.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -599,6 +603,14 @@
 				minimumVersion = 3.2.0;
 			};
 		};
+		9A8CF55A2D83EC61007307E3 /* XCRemoteSwiftPackageReference "AIProxySwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/lzell/AIProxySwift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.75.2;
+			};
+		};
 		9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/orlandos-nl/MongoKitten.git";
@@ -614,6 +626,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */;
 			productName = UInt128;
+		};
+		9A8CF55B2D83EC61007307E3 /* AIProxy */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9A8CF55A2D83EC61007307E3 /* XCRemoteSwiftPackageReference "AIProxySwift" */;
+			productName = AIProxy;
 		};
 		9AE4BF702D25281600EA996E /* Meow */ = {
 			isa = XCSwiftPackageProductDependency;

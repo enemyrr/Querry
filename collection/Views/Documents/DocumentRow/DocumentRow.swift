@@ -105,11 +105,11 @@ struct DocumentRow: View {
                             )
                             .shadow(
                                 color: viewModel.pendingAction == .delete ?
-                                    Color.red.opacity(0.8) :
+                                    Color.red :
                                     viewModel.pendingAction == .update ?
                                         Color.orange.opacity(0.8) :
                                         Color.clear,
-                                radius: 3,
+                                radius: 4,
                                 x: 0,
                                 y: 0
                             )

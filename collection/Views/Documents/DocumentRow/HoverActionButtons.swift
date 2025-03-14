@@ -66,6 +66,7 @@ struct HoverActionButtons: View {
             )
             .customHelp(getActionTooltip(for: .delete), position: .top, alignment: .right, spacing: 4)
         }
+        .padding(3)
         .modifier(GlassBackgroundStyle())
         .overlay(
             RoundedRectangle(cornerRadius: 6)
@@ -73,7 +74,7 @@ struct HoverActionButtons: View {
         )
         .opacity(isVisible ? 1 : 0)
         .animation(.easeInOut(duration: 0.2), value: isVisible)
-        .padding(.bottom, -4)
+        .padding(.bottom, -6)
         .padding(.trailing, 16)
     }
 }
@@ -87,14 +88,14 @@ extension HoverActionButtons {
             case .delete:
                 return "trash.slash"
             case .update:
-                return "pencil.slash"
+                return "pencil.line"
             }
         } else {
             switch action {
             case .delete:
                 return "trash"
             case .update:
-                return "pencil"
+                return "pencil.line"
             }
         }
     }
@@ -136,6 +137,7 @@ struct ActionButton: View {
     let action: () -> Void
     let tooltipText: String
     let tintColor: Color
+    @Environment(\.colorScheme) var colorScheme
     
     init(systemName: String, action: @escaping () -> Void, tooltipText: String, tintColor: Color = .gray) {
         self.systemName = systemName
@@ -150,13 +152,12 @@ struct ActionButton: View {
                 .font(.system(size: 10))
                 .fontWeight(.bold)
                 .foregroundColor(tintColor)
-                .frame(height: 16)
+//                .frame(width: 16, height: 16) // Fixed square frame that's larger
+//                .contentShape(Rectangle()) // Ensure entire area is clickable
                 .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
  
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .buttonStyle(HoverActionButtonStyle())
     }
 }
 

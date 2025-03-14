@@ -106,12 +106,11 @@ struct IconButton: View {
             ZStack {
                 // Outer selection border
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(.gray).opacity(0.4), lineWidth: isSelected ? 1 : 0)
+                    .stroke(Color(.white).opacity(0.2), lineWidth: isSelected ? 1 : 0)
                     .frame(width: 30, height: 30)  // Fixed outer frame
                 
-                // Main color button
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color(.gray).opacity(0.4) : .clear)
+                    .fill(isSelected ? Color(.white).opacity(0.2) : .clear)
                     .frame(width: 25, height: 25)  // Fixed inner frame
                     .overlay(
                         Image(systemName: systemName)
@@ -300,6 +299,33 @@ struct CustomMenuButtonStyle: ButtonStyle {
                     : Color.clear
                 )
         )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct HoverActionButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .frame(width: 12, height: 12)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering
+                        ? (colorScheme == .dark ? Color.black : Color.white)
+                            .opacity(0.3)
+                        : Color.clear
+                )
+        )
+        .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
         .onHover { hovering in
             isHovering = hovering
         }
