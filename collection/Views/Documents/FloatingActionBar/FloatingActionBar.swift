@@ -76,8 +76,16 @@ struct FloatingActionBar: View {
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
                 if viewModel.pendingActionsCount(for: .delete) > 0 {
-                    DeleteActionButton(viewModel: viewModel)
-                        .padding(.horizontal, 2)
+                    DeleteActionButton(
+                        deleteCount: viewModel.pendingActionsCount(for: .delete),
+                        isProcessingBatch: viewModel.isProcessingBatch,
+                        onDelete: {
+                            Task {
+                                await viewModel.commitPendingActions()
+                            }
+                        }
+                    )
+                    .padding(.horizontal, 2)
                     
                     Divider()
                         .frame(height: 22)
@@ -86,7 +94,15 @@ struct FloatingActionBar: View {
                 
                 // Batch update button - only show when there are documents marked for update
                 if viewModel.pendingActionsCount(for: .update) > 0 {
-                    UpdateActionButton(viewModel: viewModel)
+                    UpdateActionButton(
+                        updateCount: viewModel.pendingActionsCount(for: .update),
+                        isProcessingBatch: viewModel.isProcessingBatch,
+                        onUpdate: {
+                            Task {
+                                await viewModel.commitPendingActions()
+                            }
+                        }
+                    )
                     
                     Divider()
                         .frame(height: 22)
@@ -349,50 +365,38 @@ extension FloatingActionBar {
 // MARK: - Action Buttons
 
 struct DeleteActionButton: View {
-    @ObservedObject var viewModel: DocumentViewModel
+    let deleteCount: Int
+    let isProcessingBatch: Bool
+    let onDelete: () -> Void
     
     var body: some View {
-        HStack{}
-//        let deleteCount = viewModel.pendingActionsCount(for: .delete)
-//        Button(action: {
-//            Task {
-//                await viewModel.commitPendingActions()
-//            }
-//        }) {
-//            HStack(spacing: 4) {
-//                Image(systemName: "trash")
-//                    .font(.system(size: 12))
-////                Text("\(deleteCount)")
-////                    .font(.system(size: 12, weight: .medium))
-//            }
-//            .foregroundColor(.white)
-//            .padding(.horizontal, 10)
-//            .padding(.vertical, 6)
-//            .background(Color.red.opacity(viewModel.isProcessingBatch ? 0.7 : 1))
-//            .cornerRadius(6)
-//            .contentShape(Rectangle())
-//        }
-//        .buttonStyle(.plain)
-//        .disabled(viewModel.isProcessingBatch)
-////        .customHelp("Delete \(deleteCount) marked documents", position: .top, spacing: 8)
-//        .transition(.scale.combined(with: .opacity))
+        Button(action: onDelete) {
+            HStack(spacing: 4) {
+                Image(systemName: "trash")
+                    .font(.system(size: 12))
+                Text("\(deleteCount)")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
+            .cornerRadius(6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isProcessingBatch)
+        .transition(.scale.combined(with: .opacity))
     }
 }
 
 struct UpdateActionButton: View {
-    @ObservedObject var viewModel: DocumentViewModel
-    
-    init(viewModel: DocumentViewModel) {
-        self._viewModel = ObservedObject(wrappedValue: viewModel)
-    }
+    let updateCount: Int
+    let isProcessingBatch: Bool
+    let onUpdate: () -> Void
     
     var body: some View {
-        let updateCount = viewModel.pendingActionsCount(for: .update)
-        Button(action: {
-            Task {
-                await viewModel.commitPendingActions()
-            }
-        }) {
+        Button(action: onUpdate) {
             HStack(spacing: 4) {
                 Image(systemName: "pencil")
                     .font(.system(size: 12))
@@ -402,12 +406,12 @@ struct UpdateActionButton: View {
             .foregroundColor(.white)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.blue.opacity(viewModel.isProcessingBatch ? 0.7 : 1))
+            .background(Color.blue.opacity(isProcessingBatch ? 0.7 : 1))
             .cornerRadius(6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isProcessingBatch)
+        .disabled(isProcessingBatch)
         .customHelp("Update \(updateCount) marked documents", position: .top, spacing: 4)
     }
 }

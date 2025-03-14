@@ -240,8 +240,108 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "351"
             endingLineNumber = "351"
-            landmarkName = "DeleteActionButton"
-            landmarkType = "14">
+            landmarkName = "submitAIRequest()"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - 2f1f927075100b68"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "property wrapper backing initializer of Collection.DeleteActionButton.viewModel : Collection.DocumentViewModel"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/collection/collection/collection/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "0"
+                  endingLineNumber = "0">
+               </Location>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - 336094654579df8d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Collection.DeleteActionButton.viewModel.getter : Collection.DocumentViewModel"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/collection/collection/collection/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "0"
+                  endingLineNumber = "0">
+               </Location>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - 8877302941f27979"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Collection.DeleteActionButton.viewModel.setter : Collection.DocumentViewModel"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/collection/collection/collection/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "352"
+                  endingLineNumber = "352">
+               </Location>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - ce68dcc5ed16d68"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Collection.DeleteActionButton.viewModel.modify : Collection.DocumentViewModel"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/collection/collection/collection/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "352"
+                  endingLineNumber = "352">
+               </Location>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - 1251675a141b5473"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Collection.DeleteActionButton.viewModel.modify : Collection.DocumentViewModel with unmangled suffix &quot;.resume.0&quot;"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///%3Ccompiler-generated%3E"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "0"
+                  endingLineNumber = "0">
+               </Location>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - ccc51ea036ac963e"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Collection.DeleteActionButton.$viewModel.getter : SwiftUI.ObservedObject&lt;Collection.DocumentViewModel&gt;.Wrapper"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/collection/collection/collection/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "352"
+                  endingLineNumber = "352">
+               </Location>
+               <Location
+                  uuid = "BB14999F-2828-43B3-A282-ACD1B395E7B9 - c0bd2558126d413d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #2 @Swift.MainActor @Sendable () -&gt; () in closure #1 () async -&gt; () in Collection.FloatingActionBar.submitAIRequest() -&gt; ()"
+                  moduleName = "Collection.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/collection/collection/collection/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "351"
+                  endingLineNumber = "351">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
