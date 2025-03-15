@@ -16,7 +16,6 @@ struct DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var queryState: QueryState
     var documents: [Document] = []
 
-    
     init(name: String, type: TabType, queryState: QueryState) {
            self.id = UUID()
            self.name = name
