@@ -14,7 +14,7 @@ struct QueryEditor: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
             // Show content if we have either a derived filter or an AI query result
-            if !documentViewModel.aiQueryResult.isEmpty {
+            if !viewModel.aiQueryResult.isEmpty {
                 VStack {
                     if !viewModel.isFullQueryEditorOpen {
                         filterSyntaxView()
@@ -81,7 +81,7 @@ struct QueryEditor: View {
     // Function to display filter syntax with highlighting
     private func filterSyntaxView() -> some View {
         // Determine which filter to use - prefer AI result if available
-        let filterToUse = documentViewModel.aiQueryResult
+        let filterToUse = viewModel.aiQueryResult
         
         // Parse filter into highlighted components
         let components = viewModel.parseFilterComponents(filterToUse)
