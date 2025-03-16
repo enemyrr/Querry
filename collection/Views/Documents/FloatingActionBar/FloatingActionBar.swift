@@ -13,13 +13,13 @@ struct FloatingActionBar: View {
     @StateObject private var searchQueryViewModel: SearchQueryViewModel
     
     init(viewModel: DocumentViewModel) {
-            self._viewModel = ObservedObject(wrappedValue: viewModel)
-            self._searchQueryViewModel = StateObject(wrappedValue: SearchQueryViewModel(documentViewModel: viewModel))
-        }
+        self._viewModel = ObservedObject(wrappedValue: viewModel)
+        self._searchQueryViewModel = StateObject(wrappedValue: SearchQueryViewModel(documentViewModel: viewModel))
+    }
 
     var body: some View {
         VStack {
-            QueryEditor(viewModel: searchQueryViewModel)
+            QueryEditor(viewModel: searchQueryViewModel, documentViewModel: viewModel)
             
             HStack {
                 switch viewModel.action {

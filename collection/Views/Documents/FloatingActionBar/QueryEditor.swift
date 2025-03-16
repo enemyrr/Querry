@@ -9,13 +9,15 @@ import SwiftUI
 
 struct QueryEditor: View {
     @ObservedObject var viewModel: SearchQueryViewModel
+    @ObservedObject var documentViewModel: DocumentViewModel
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
-            if !viewModel.derivedFilter.isEmpty {
+            // Show content if we have either a derived filter or an AI query result
+            if !documentViewModel.aiQueryResult.isEmpty {
                 VStack {
                     if !viewModel.isFullQueryEditorOpen {
-                        filterSyntaxView(filter: viewModel.derivedFilter)
+                        filterSyntaxView()
                             .onTapGesture {
                                 viewModel.toggleFullQueryEditor()
                             }
@@ -35,7 +37,7 @@ struct QueryEditor: View {
                 if !viewModel.isFullQueryEditorOpen {
                     Spacer()
                     HStack(spacing: 4) {
-                        Text("\(viewModel.matchingDocumentsCount) documents").font(.caption)
+                        Text("\(documentViewModel.totalItems) documents").font(.caption)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 6)
                             .modifier(GlassBackgroundStyle(cornerRadius: 6))
@@ -77,18 +79,23 @@ struct QueryEditor: View {
     }
     
     // Function to display filter syntax with highlighting
-    private func filterSyntaxView(filter: String) -> some View {
-        // Parse filter into highlighted components using the ViewModel
-        let components = viewModel.parseFilterComponents(filter)
+    private func filterSyntaxView() -> some View {
+        // Determine which filter to use - prefer AI result if available
+        let filterToUse = documentViewModel.aiQueryResult
+        
+        // Parse filter into highlighted components
+        let components = viewModel.parseFilterComponents(filterToUse)
         
         return HStack(spacing: 2) {
             Image(systemName: "curlybraces.square.fill")
                 .font(.caption)
                 .padding(.trailing, 8)
+            
             ForEach(components) { component in
                 Text(component.text)
                     .font(.caption)
                     .foregroundColor(component.color)
+                    .lineLimit(1)
             }
         }
     }

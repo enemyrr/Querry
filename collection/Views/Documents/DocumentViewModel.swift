@@ -272,6 +272,7 @@ class DocumentViewModel: ObservableObject {
     // MARK: - AI Request Methods
     @Published var erorrs: String?
     @Published var isAILoading: Bool = false
+    @Published var aiQueryResult: String = ""
     
     func submitAIRequest(search: String) async {
         guard !search.isEmpty else { return }
@@ -289,7 +290,7 @@ class DocumentViewModel: ObservableObject {
                 sampleDocument = document
             }
             
-            let response = try await openAIService.chatCompletionRequest(body: .init(
+            let stream = try await openAIService.streamingChatCompletionRequest(body: .init(
                 model: "gpt-4o-mini",
                 messages: [
                     .user(content: .text(search)),
@@ -298,15 +299,37 @@ class DocumentViewModel: ObservableObject {
                 responseFormat: .jsonObject
             ))
             
-            await MainActor.run {
-                isAILoading = false
+            // Use a local variable to collect the streaming content
+            var fullQueryString = ""
+            
+            // Process the stream
+            for try await chunk in stream {
+                if let chunkContent = chunk.choices.first?.delta.content {
+                    // Update the local variable
+                    fullQueryString += chunkContent
+                    
+                    // Safely update the published property on the main thread
+                    await MainActor.run { [weak self] in
+                        self?.aiQueryResult = fullQueryString
+                    }
+                }
             }
             
-            if let queryString = response.choices.first?.message.content {
-                NSLog(queryString)
-                let result = try convertJSONWithSpecialTypes(queryString)
+            // All stream processing is complete at this point
+            // Now process the final result on the main thread
+            if !fullQueryString.isEmpty {
+                NSLog(fullQueryString)
+                
+                // Convert and load documents - this doesn't directly update UI
+                let result = try convertJSONWithSpecialTypes(fullQueryString)
                 await loadDocuments(filter: result)
             }
+            
+            // Finally, update loading state on the main thread
+            await MainActor.run { [weak self] in
+                self?.isAILoading = false
+            }
+            
         } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
             await MainActor.run {
                 erorrs = "Error: Received \(statusCode) status code with response body: \(responseBody)"
