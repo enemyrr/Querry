@@ -12,21 +12,26 @@ struct FloatingActionBar: View {
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        HStack {
-            switch viewModel.action {
-            case .main:
-                mainView
-            case .search:
-                AISearchView(viewModel: viewModel)
+        VStack {
+            QueryEditor(viewModel: viewModel)
+            
+            HStack {
+                switch viewModel.action {
+                case .main:
+                    mainView
+                case .search:
+                    AISearchView(viewModel: viewModel)
+                }
             }
+            .modifier(GlassBackgroundStyle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(.separator, lineWidth: 1)
+            )
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
         }
-        .modifier(GlassBackgroundStyle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator, lineWidth: 1)
-        )
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
     }
+    
     
     private var mainView: some View {
         HStack(spacing: 5) {

@@ -21,7 +21,7 @@ class DocumentViewModel: ObservableObject {
     @Published private(set) var totalItems: Int = 0
     
     // UI States
-    @Published var action: ActionBar = ActionBar.main
+    @Published var action: ActionBar = ActionBar.search
     
     // Computed property for total pages
     var totalPages: Int {
