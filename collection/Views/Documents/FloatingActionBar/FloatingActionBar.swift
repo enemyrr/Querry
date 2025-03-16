@@ -10,17 +10,23 @@ import SwiftUI
 struct FloatingActionBar: View {
     @ObservedObject var viewModel: DocumentViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @StateObject private var searchQueryViewModel: SearchQueryViewModel
     
+    init(viewModel: DocumentViewModel) {
+            self._viewModel = ObservedObject(wrappedValue: viewModel)
+            self._searchQueryViewModel = StateObject(wrappedValue: SearchQueryViewModel(documentViewModel: viewModel))
+        }
+
     var body: some View {
         VStack {
-            QueryEditor(viewModel: viewModel)
+            QueryEditor(viewModel: searchQueryViewModel)
             
             HStack {
                 switch viewModel.action {
                 case .main:
                     mainView
                 case .search:
-                    AISearchView(viewModel: viewModel)
+                    AISearchView(viewModel: searchQueryViewModel)
                 }
             }
             .modifier(GlassBackgroundStyle(cornerRadius: 8))
