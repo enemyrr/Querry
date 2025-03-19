@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import LanguageSupport
 
 struct QueryEditor: View {
     @ObservedObject var viewModel: SearchQueryViewModel
     @ObservedObject var documentViewModel: DocumentViewModel
+    @State private var position: CodeEditor.Position = CodeEditor.Position()
+    @State private var messages: Set<TextLocated<Message>> = Set()
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -28,9 +31,9 @@ struct QueryEditor: View {
                 .padding(.vertical, 4)
                 .padding(.horizontal, 6)
                 .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.isFullQueryEditorOpen)
-                .modifier(GlassBackgroundStyle(cornerRadius: 8))
+                .modifier(GlassBackgroundStyle(cornerRadius: viewModel.isFullQueryEditorOpen ? 10 : 8))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: viewModel.isFullQueryEditorOpen ? 10 : 8)
                         .stroke(.separator, lineWidth: 1)
                 )
                 
@@ -46,56 +49,79 @@ struct QueryEditor: View {
                                     .stroke(.separator, lineWidth: 1)
                             )
                         
-                        Button(action: {
-                            viewModel.executeQuery()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "play.fill")
-                                    .font(.caption)
-                                
-                            }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(
-                                        Color.black.opacity(0.3)
-                                    )
-                            )
-                            .modifier(GlassBackgroundStyle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(.separator, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isProcessing)
+//                        Button(action: {
+//                            viewModel.executeQuery()
+//                        }) {
+//                            HStack(spacing: 6) {
+//                                Image(systemName: "play.fill")
+//                                    .font(.caption)
+//                                
+//                            }
+//                            .padding(.vertical, 6)
+//                            .padding(.horizontal, 8)
+//                            .background(
+//                                RoundedRectangle(cornerRadius: 6)
+//                                    .fill(
+//                                        Color.black.opacity(0.3)
+//                                    )
+//                            )
+//                            .modifier(GlassBackgroundStyle(cornerRadius: 6))
+//                            .overlay(
+//                                RoundedRectangle(cornerRadius: 6)
+//                                    .stroke(.separator, lineWidth: 1)
+//                            )
+//                        }
+//                        .buttonStyle(.plain)
+//                        .disabled(viewModel.isProcessing)
                     }
                 }
             }
         }
-        .padding(.bottom, viewModel.isFullQueryEditorOpen ? -12 : 0)
-        .frame(maxWidth: viewModel.isFullQueryEditorOpen ? 750 : 450)
     }
     
     // Function to display filter syntax with highlighting
     private func filterSyntaxView() -> some View {
-        // Determine which filter to use - prefer AI result if available
-        let filterToUse = viewModel.aiQueryResult
-        
-        // Parse filter into highlighted components
-        let components = viewModel.parseFilterComponents(filterToUse)
+        let singleLineText = viewModel.aiQueryResult
+            .replacingOccurrences(of: "\n", with: "")  // Remove all newlines completely
+            .replacingOccurrences(of: "\t", with: "")  // Remove all tabs completely
+            // Handle spaces around brackets and punctuation - specific order matters
+            .replacingOccurrences(of: " {", with: "{")
+            .replacingOccurrences(of: "{ ", with: "{")
+            .replacingOccurrences(of: " }", with: "}")
+            .replacingOccurrences(of: "} ", with: "}")
+            .replacingOccurrences(of: " [", with: "[")
+            .replacingOccurrences(of: "[ ", with: "[")
+            .replacingOccurrences(of: " ]", with: "]")
+            .replacingOccurrences(of: "] ", with: "]")
+            .replacingOccurrences(of: " :", with: ": ")
+            .replacingOccurrences(of: " ,", with: ", ")
+            // Only collapse multiple spaces between words/values after handling brackets
+            .replacingOccurrences(of: "  +", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
         
         return HStack(spacing: 2) {
             Image(systemName: "curlybraces.square.fill")
                 .font(.caption)
                 .padding(.trailing, 8)
             
-            ForEach(components) { component in
-                Text(component.text)
-                    .font(.caption)
-                    .foregroundColor(component.color)
-                    .lineLimit(1)
+            ScrollViewReader { scrollProxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(singleLineText)
+                        .font(.caption.monospaced())
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+                        .id("endOfText") // Assign an ID to scroll to
+                }
+                .onChange(of: viewModel.aiQueryResult) { _, _ in
+                    // Scroll to the end whenever the aiQueryResult changes
+                    withAnimation {
+                        scrollProxy.scrollTo("endOfText", anchor: .trailing)
+                    }
+                }
+                .onAppear {
+                    // Scroll to the end when the view first appears
+                    scrollProxy.scrollTo("endOfText", anchor: .trailing)
+                }
             }
         }
     }
@@ -142,56 +168,18 @@ struct QueryEditor: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding()
-            
-            // SQL Editor area
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("1")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .frame(width: 30, alignment: .trailing)
-                        .padding(.trailing, 8)
-                    
-                    Group {
-                        Text("SELECT ")
-                            .foregroundColor(.blue)
-                        Text("*")
-                            .foregroundColor(.purple)
-                        Text(" FROM ")
-                            .foregroundColor(.blue)
-                        Text("ANALYTICS.PROD.ORDER_DETAILS")
-                            .foregroundColor(.green)
-                        Text(" WHERE ")
-                            .foregroundColor(.blue)
-                        Text("ORDER_ID")
-                            .foregroundColor(.primary)
-                        Text(" = ")
-                            .foregroundColor(.purple)
-                        Text("1")
-                            .foregroundColor(.orange)
-                        Text(";")
-                            .foregroundColor(.primary)
-                    }
-                    .font(.system(.body, design: .monospaced))
-                    
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-                
-                // Add additional rows as needed
-                HStack {
-                    Text("2")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .frame(width: 30, alignment: .trailing)
-                        .padding(.trailing, 8)
-                    
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-            }
             .padding([.top, .horizontal, .bottom])
+            
+
+            CodeEditor(text: $viewModel.aiQueryResult, position: $position, messages: $messages, language: .sqlite(), layout: .init(showMinimap: false, wrapText: true))
+                .environment(\.codeEditorTheme, Theme.defaultDark)
+//                .background(Color(.white).opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 1)
+                )
+                .cornerRadius(10)
+                .frame(height: 120)
         }
     }
 }

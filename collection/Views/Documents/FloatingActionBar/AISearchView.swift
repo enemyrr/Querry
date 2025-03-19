@@ -50,6 +50,9 @@ struct AISearchView: View {
                     Text(viewModel.processingStage.description + animationDots)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                              .id("processing-\(viewModel.processingStage.description)")
+                              .animation(.easeInOut(duration: 0.3), value: viewModel.processingStage)
                 } else {
                     TextField("Tell collection what to find (e.g. fruits: \"Apple\")...", text: $viewModel.search)
                         .focusSection()
@@ -63,10 +66,12 @@ struct AISearchView: View {
                                 isSearchFocused = true
                             }
                         }
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.3), value: viewModel.isProcessing)
                 }
             }
-            .frame(maxWidth: 400)
             .padding(.vertical, 8)
+            .animation(.easeInOut, value: viewModel.isProcessing)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
@@ -88,8 +93,10 @@ struct AISearchView: View {
         // Save original query for potential future use
         originalQuery = viewModel.search
         
-        // Submit the query - the ViewModel now handles all the stages
-        viewModel.processNaturalLanguageQuery()
+        // Submit the query - the ViewModel handles all the stages
+        Task {
+            await viewModel.processNaturalLanguageQuery(search: viewModel.search)
+        }
         isSearchFocused = false
     }
     

@@ -1,5 +1,5 @@
 {
-  "originHash" : "ad77288f7382c9e827dc1bf6c01c38b2a4cc76694a80dd4519bcce23f732aee4",
+  "originHash" : "c82922715c6a60f822db32b69210210edbe27c17901e52c2d08ea37143743162",
   "pins" : [
     {
       "identity" : "aiproxyswift",
@@ -20,6 +20,15 @@
       }
     },
     {
+      "identity" : "codeeditorview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mchakravarty/CodeEditorView.git",
+      "state" : {
+        "revision" : "2b532411ae79520b973f1647e7ed51a6678d1188",
+        "version" : "0.15.3"
+      }
+    },
+    {
       "identity" : "dnsclient",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/orlandos-nl/DNSClient.git",
@@ -35,6 +44,15 @@
       "state" : {
         "revision" : "e403140d7b59c8ba0c2b00f552933d28470d3a6e",
         "version" : "7.9.9"
+      }
+    },
+    {
+      "identity" : "rearrange",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ChimeHQ/Rearrange.git",
+      "state" : {
+        "revision" : "5ff7f3363f7a08f77e0d761e38e6add31c2136e1",
+        "version" : "1.8.1"
       }
     },
     {

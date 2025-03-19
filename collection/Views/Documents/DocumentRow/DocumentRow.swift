@@ -413,7 +413,7 @@ struct ActionConfirmationOverlay: View {
         }
     }
 }
-private extension View {
+extension View {
     func hoverable(isHovered: Binding<Bool>) -> some View {
         modifier(HoverableText(isHovered: isHovered))
     }

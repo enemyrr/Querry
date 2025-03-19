@@ -13,6 +13,8 @@
 		9AE4BF732D25281600EA996E /* MongoClient in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF722D25281600EA996E /* MongoClient */; };
 		9AE4BF752D25281600EA996E /* MongoCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF742D25281600EA996E /* MongoCore */; };
 		9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF762D25281600EA996E /* MongoKitten */; };
+		9AF175BD2D895D7200351A82 /* CodeEditorView in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF175BC2D895D7200351A82 /* CodeEditorView */; };
+		9AF175BF2D895DB500351A82 /* LanguageSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF175BE2D895DB500351A82 /* LanguageSupport */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,11 +63,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9AF175BF2D895DB500351A82 /* LanguageSupport in Frameworks */,
 				9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */,
 				9A44A0BE2D2E91F900E04DC8 /* UInt128 in Frameworks */,
 				9AE4BF712D25281600EA996E /* Meow in Frameworks */,
 				9A8CF55C2D83EC61007307E3 /* AIProxy in Frameworks */,
 				9AE4BF732D25281600EA996E /* MongoClient in Frameworks */,
+				9AF175BD2D895D7200351A82 /* CodeEditorView in Frameworks */,
 				9AE4BF752D25281600EA996E /* MongoCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -133,6 +137,8 @@
 				9AE4BF762D25281600EA996E /* MongoKitten */,
 				9A44A0BD2D2E91F900E04DC8 /* UInt128 */,
 				9A8CF55B2D83EC61007307E3 /* AIProxy */,
+				9AF175BC2D895D7200351A82 /* CodeEditorView */,
+				9AF175BE2D895DB500351A82 /* LanguageSupport */,
 			);
 			productName = collection;
 			productReference = 9A529E7B2D23CFC700618009 /* Collection.app */;
@@ -221,6 +227,7 @@
 				9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */,
 				9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */,
 				9A8CF55A2D83EC61007307E3 /* XCRemoteSwiftPackageReference "AIProxySwift" */,
+				9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -619,6 +626,14 @@
 				minimumVersion = 7.9.9;
 			};
 		};
+		9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mchakravarty/CodeEditorView.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.15.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -651,6 +666,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */;
 			productName = MongoKitten;
+		};
+		9AF175BC2D895D7200351A82 /* CodeEditorView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
+			productName = CodeEditorView;
+		};
+		9AF175BE2D895DB500351A82 /* LanguageSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
+			productName = LanguageSupport;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

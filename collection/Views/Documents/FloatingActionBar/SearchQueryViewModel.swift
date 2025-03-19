@@ -23,7 +23,7 @@ public enum ProcessingStage: Int {
         case .idle:
             return ""
         case .writingQuery:
-            return "Writing MongoDB query"
+            return "Writing query"
         case .fetchingData:
             return "Fetching data"
         }
@@ -36,12 +36,26 @@ class SearchQueryViewModel: ObservableObject {
     private let documentViewModel: DocumentViewModel
     
     // AI Query results
-    @Published var aiQueryResult: String = ""
+    @Published var aiQueryResult: String = """
+{
+    "workspace": {
+        "$eq": "some_workspace_id"
+    },
+    "action": {
+        "$in": [
+            "create",
+            "update"
+        ]
+    },
+    "createdAt": {
+        "$gte": {
+            "$date": "2023-01-01T00:00:00Z"
+        }
+    }
+}
+"""
     
     // MARK: - Shared Properties
-    
-    /// The derived technical filter from natural language query
-    @Published var derivedFilter: String = ""
     
     /// Flag indicating if processing is in progress
     @Published var isProcessing: Bool = false
@@ -105,52 +119,7 @@ class SearchQueryViewModel: ObservableObject {
         }
     }
     
-    func processNaturalLanguageQuery() {
-        guard !search.isEmpty && !isProcessing else { return }
-        
-        isProcessing = true
-        
-        // Start with writing query stage
-        Task { @MainActor in
-            processingStage = .writingQuery
-        }
-        
-        Task {
-            do {
-                // First stage: Writing MongoDB query
-                try await Task.sleep(for: .milliseconds(800))
-                derivedFilter = extractTechnicalFilter(from: search)
-                try await Task.sleep(for: .milliseconds(200))
-                
-                // Second stage: Fetching data
-                await MainActor.run { [weak self] in
-                    guard let self = self else { return }
-                    self.processingStage = .fetchingData
-                    if !self.derivedFilter.isEmpty {
-                        withAnimation {
-                            self.showFilterView = true
-                        }
-                    }
-                }
-                
-                // Submit AI request directly
-                await submitAIRequest(search: search)
-                
-                // Processing complete
-                await MainActor.run { [weak self] in
-                    guard let self = self else { return }
-                    self.isProcessing = false
-                    self.processingStage = .idle
-                }
-            } catch {
-                await MainActor.run { [weak self] in
-                    self?.isProcessing = false
-                    self?.processingStage = .idle
-                }
-                print("Error during query processing: \(error)")
-            }
-        }
-    }
+
     
     func submitDirectFilter() {
         guard !search.isEmpty && !isProcessing else { return }
@@ -160,7 +129,7 @@ class SearchQueryViewModel: ObservableObject {
         
         Task {
             do {
-                derivedFilter = search
+                // Use the search directly as a filter
                 try await Task.sleep(for: .milliseconds(600))
                 
                 await MainActor.run { [weak self] in
@@ -192,12 +161,13 @@ class SearchQueryViewModel: ObservableObject {
     // MARK: - AI Request Methods
     
     /// Submits a natural language query to AI service and processes the result
-    func submitAIRequest(search: String) async {
+    func processNaturalLanguageQuery(search: String) async {
         guard !search.isEmpty else { return }
         
-        // Update processing stage to fetching data
+        // Update processing stage to writing query
         await MainActor.run { [weak self] in
-            self?.processingStage = .fetchingData
+            self?.isProcessing = true
+            self?.processingStage = .writingQuery
         }
         
         do {
@@ -240,8 +210,20 @@ class SearchQueryViewModel: ObservableObject {
             // All stream processing is complete at this point
             // Now process the final result on the main thread
             if !fullQueryString.isEmpty {
+                // Update processing stage to fetching data
+                await MainActor.run { [weak self] in
+                    self?.processingStage = .fetchingData
+                }
+                
                 let result = try convertJSONWithSpecialTypes(fullQueryString)
                 await documentViewModel.loadDocuments(filter: result)
+                
+                // Reset processing state and clear search field
+                await MainActor.run { [weak self] in
+                    self?.isProcessing = false
+                    self?.processingStage = .idle
+                    self?.search = ""
+                }
             }
             
         } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
@@ -396,35 +378,5 @@ class SearchQueryViewModel: ObservableObject {
                 print("Error during query execution: \(error)")
             }
         }
-    }
-    
-    /// Parse filter into components for syntax highlighting
-    func parseFilterComponents(_ filter: String) -> [FilterComponent] {
-        var components: [FilterComponent] = []
-        
-        let words = filter.split(separator: " ")
-        for (index, word) in words.enumerated() {
-            let text = String(word)
-            
-            if ["AND", "OR", "NOT"].contains(text.uppercased()) {
-                components.append(FilterComponent(id: index, text: text, color: .blue))
-            } else if ["=", ">", "<", ">=", "<=", "!=", "CONTAINS", "IN"].contains(text.uppercased()) {
-                components.append(FilterComponent(id: index, text: text, color: .purple))
-            } else if text.hasPrefix("'") && text.hasSuffix("'") {
-                components.append(FilterComponent(id: index, text: text, color: .green))
-            } else if let _ = Double(text) {
-                components.append(FilterComponent(id: index, text: text, color: .orange))
-            } else if ["true", "false"].contains(text.lowercased()) {
-                components.append(FilterComponent(id: index, text: text, color: .orange))
-            } else {
-                components.append(FilterComponent(id: index, text: text, color: .primary))
-            }
-            
-            if index < words.count - 1 {
-                components.append(FilterComponent(id: index + 1000, text: " ", color: .primary))
-            }
-        }
-        
-        return components
     }
 }

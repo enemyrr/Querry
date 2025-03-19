@@ -12,39 +12,41 @@ struct DocumentList: View {
     }
     
     var body: some View {
-        ZStack {
-            VStack {
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.formattedDocuments, id: \.self) { document in
-                            DocumentRow(
-                                document: document,
-                                parentViewModel: viewModel
-                            )
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal)
+        GeometryReader { geometry in
+            ZStack {
+                VStack {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(viewModel.formattedDocuments, id: \.self) { document in
+                                DocumentRow(
+                                    document: document,
+                                    parentViewModel: viewModel
+                                )
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal)
+                            }
                         }
+                        .padding(.top)
+                        .padding(.bottom, 24) // Space for pagination
                     }
-                    .padding(.top)
-                    .padding(.bottom, 24) // Space for pagination
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .task {
-                await viewModel.loadDocuments()
-            }
-            .background {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            }
-            
-            VStack {
-                StatusToast(isLoading: viewModel.isLoading)
-                    .padding(.top, 10)
-                Spacer()
-                FloatingActionBar(viewModel: viewModel)
-                    .padding(.bottom, 16)
-            }
+                .task {
+                    await viewModel.loadDocuments()
+                }
+                .background {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 1)
+                }
+                
+                VStack {
+                    StatusToast(isLoading: viewModel.isLoading)
+                        .padding(.top, 10)
+                    Spacer()
+                    FloatingActionBar(viewModel: viewModel, screenWidth: geometry.size.width)
+                        .padding(.bottom, 16)
+                }
+            }.frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
     

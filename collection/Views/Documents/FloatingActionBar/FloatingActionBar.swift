@@ -8,18 +8,24 @@
 import SwiftUI
 
 struct FloatingActionBar: View {
+    let screenWidth: CGFloat
     @ObservedObject var viewModel: DocumentViewModel
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var searchQueryViewModel: SearchQueryViewModel
     
-    init(viewModel: DocumentViewModel) {
+    init(viewModel: DocumentViewModel, screenWidth: CGFloat) {
         self._viewModel = ObservedObject(wrappedValue: viewModel)
         self._searchQueryViewModel = StateObject(wrappedValue: SearchQueryViewModel(documentViewModel: viewModel))
+        self.screenWidth = screenWidth
     }
 
     var body: some View {
         VStack {
-            QueryEditor(viewModel: searchQueryViewModel, documentViewModel: viewModel)
+            if viewModel.action == .search {
+                QueryEditor(viewModel: searchQueryViewModel, documentViewModel: viewModel)
+                    .padding(.bottom, searchQueryViewModel.isFullQueryEditorOpen ? -12 : 0)
+                    .frame(width: screenWidth * (searchQueryViewModel.isFullQueryEditorOpen ? 0.9 : 0.6))
+            }
             
             HStack {
                 switch viewModel.action {
@@ -27,6 +33,7 @@ struct FloatingActionBar: View {
                     mainView
                 case .search:
                     AISearchView(viewModel: searchQueryViewModel)
+                        .frame(width: screenWidth * 0.6)
                 }
             }
             .modifier(GlassBackgroundStyle(cornerRadius: 8))

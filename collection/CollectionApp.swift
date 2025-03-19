@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct Collection: App {
+struct Pluk: App {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.scenePhase) private var scenePhase
     
