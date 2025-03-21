@@ -5,6 +5,7 @@
 //  Created by Fauzaan on 3/4/25.
 //
 
+// TODO: High CPU USAGE: FIX THIS 
 import SwiftUI
 import AppKit
 import Combine
@@ -111,6 +112,7 @@ struct IntelligenceUIPlatterView: View {
             // Then start the color animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 withAnimation(.linear(duration: 2).repeatForever(autoreverses: true)) {
+                    print("animte")
                     animateGradient.toggle()
                 }
             }

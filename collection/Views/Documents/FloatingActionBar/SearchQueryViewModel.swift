@@ -54,6 +54,7 @@ class SearchQueryViewModel: ObservableObject {
     }
 }
 """
+    @Published var lastQuery: String = ""
     
     // MARK: - Shared Properties
     
@@ -168,6 +169,7 @@ class SearchQueryViewModel: ObservableObject {
         await MainActor.run { [weak self] in
             self?.isProcessing = true
             self?.processingStage = .writingQuery
+            self?.lastQuery = search
         }
         
         do {
@@ -181,7 +183,7 @@ class SearchQueryViewModel: ObservableObject {
             if let document = await documentViewModel.formattedDocuments.first?.rawDocument {
                 sampleDocument = document
             }
-            
+        
             let stream = try await openAIService.streamingChatCompletionRequest(body: .init(
                 model: "gpt-4o-mini",
                 messages: [
@@ -201,7 +203,7 @@ class SearchQueryViewModel: ObservableObject {
                     fullQueryString += chunkContent
                     
                     // Safely update the published property on the main thread
-                    await MainActor.run { [weak self] in
+                    await MainActor.run { [weak self]in
                         self?.aiQueryResult = fullQueryString
                     }
                 }
@@ -323,6 +325,7 @@ class SearchQueryViewModel: ObservableObject {
         showSuggestions = !suggestions.isEmpty
     }
     
+    
     private func extractTechnicalFilter(from query: String) -> String {
         let lowercasedQuery = query.lowercased()
         
@@ -342,12 +345,26 @@ class SearchQueryViewModel: ObservableObject {
     }
     
     // MARK: - Query Editor Methods
-    
-    /// Toggle the full query editor view
-    func toggleFullQueryEditor() {
+    /// Close the full query editor view with animation
+    func closeFullQueryEditor() {
         Task { @MainActor in
-            withAnimation(.spring(response: 0.15)) {
-                isFullQueryEditorOpen.toggle()
+            // Only perform animation if the editor is currently open
+            if isFullQueryEditorOpen {
+                withAnimation(.spring(response: 0.15)) {
+                    isFullQueryEditorOpen = false
+                }
+            }
+        }
+    }
+    
+    /// Open the full query editor view with animation
+    func openFullQueryEditor() {
+        Task { @MainActor in
+            // Only perform animation if the editor is currently open
+            if !isFullQueryEditorOpen {
+                withAnimation(.spring(response: 0.15)) {
+                    isFullQueryEditorOpen = true
+                }
             }
         }
     }

@@ -23,7 +23,7 @@ struct FloatingActionBar: View {
         VStack {
             if viewModel.action == .search {
                 QueryEditor(viewModel: searchQueryViewModel, documentViewModel: viewModel)
-                    .padding(.bottom, searchQueryViewModel.isFullQueryEditorOpen ? -12 : 0)
+                    .padding(.bottom, searchQueryViewModel.isFullQueryEditorOpen ? -12 : -2)
                     .frame(width: screenWidth * (searchQueryViewModel.isFullQueryEditorOpen ? 0.9 : 0.6))
             }
             
@@ -32,7 +32,7 @@ struct FloatingActionBar: View {
                 case .main:
                     mainView
                 case .search:
-                    AISearchView(viewModel: searchQueryViewModel)
+                    AISearchView(viewModel: searchQueryViewModel, documentViewModel: viewModel)
                         .frame(width: screenWidth * 0.6)
                 }
             }

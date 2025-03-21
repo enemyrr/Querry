@@ -15,6 +15,7 @@
 		9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */ = {isa = PBXBuildFile; productRef = 9AE4BF762D25281600EA996E /* MongoKitten */; };
 		9AF175BD2D895D7200351A82 /* CodeEditorView in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF175BC2D895D7200351A82 /* CodeEditorView */; };
 		9AF175BF2D895DB500351A82 /* LanguageSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF175BE2D895DB500351A82 /* LanguageSupport */; };
+		9AF1769A2D8B0FEC00351A82 /* OnTapOutsideGesture in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +65,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9AF175BF2D895DB500351A82 /* LanguageSupport in Frameworks */,
+				9AF1769A2D8B0FEC00351A82 /* OnTapOutsideGesture in Frameworks */,
 				9AE4BF772D25281600EA996E /* MongoKitten in Frameworks */,
 				9A44A0BE2D2E91F900E04DC8 /* UInt128 in Frameworks */,
 				9AE4BF712D25281600EA996E /* Meow in Frameworks */,
@@ -139,6 +141,7 @@
 				9A8CF55B2D83EC61007307E3 /* AIProxy */,
 				9AF175BC2D895D7200351A82 /* CodeEditorView */,
 				9AF175BE2D895DB500351A82 /* LanguageSupport */,
+				9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */,
 			);
 			productName = collection;
 			productReference = 9A529E7B2D23CFC700618009 /* Collection.app */;
@@ -228,6 +231,7 @@
 				9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */,
 				9A8CF55A2D83EC61007307E3 /* XCRemoteSwiftPackageReference "AIProxySwift" */,
 				9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */,
+				9AF176982D8B0FEC00351A82 /* XCRemoteSwiftPackageReference "OnTapOutsideGesture" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -634,6 +638,14 @@
 				minimumVersion = 0.15.3;
 			};
 		};
+		9AF176982D8B0FEC00351A82 /* XCRemoteSwiftPackageReference "OnTapOutsideGesture" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kuglee/OnTapOutsideGesture.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -676,6 +688,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
 			productName = LanguageSupport;
+		};
+		9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9AF176982D8B0FEC00351A82 /* XCRemoteSwiftPackageReference "OnTapOutsideGesture" */;
+			productName = OnTapOutsideGesture;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

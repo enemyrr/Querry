@@ -14,6 +14,7 @@ import Combine
 struct AISearchView: View {
     // Shared search/query view model
     @ObservedObject var viewModel: SearchQueryViewModel
+    @ObservedObject var documentViewModel: DocumentViewModel
     
     // Focus state for the search field
     @FocusState private var isSearchFocused: Bool
@@ -25,8 +26,9 @@ struct AISearchView: View {
     @State private var animationTimer: Timer? = nil
     @State private var animationDots: String = ""
     
-    init(viewModel: SearchQueryViewModel) {
+    init(viewModel: SearchQueryViewModel, documentViewModel: DocumentViewModel) {
         self.viewModel = viewModel
+        self.documentViewModel = documentViewModel
     }
     
     var body: some View {
@@ -54,7 +56,7 @@ struct AISearchView: View {
                               .id("processing-\(viewModel.processingStage.description)")
                               .animation(.easeInOut(duration: 0.3), value: viewModel.processingStage)
                 } else {
-                    TextField("Tell collection what to find (e.g. fruits: \"Apple\")...", text: $viewModel.search)
+                    TextField("Tell Pluk what to find (e.g. fruits: \"Apple\")...", text: $viewModel.search)
                         .focusSection()
                         .focused($isSearchFocused)
                         .textFieldStyle(.plain)
@@ -72,10 +74,55 @@ struct AISearchView: View {
             }
             .padding(.vertical, 8)
             .animation(.easeInOut, value: viewModel.isProcessing)
+            
+            Divider()
+                .frame(height: 22)
+                .padding(.vertical, 6)
+            PaginationMinimal(viewModel: documentViewModel)
+            
+//            HStack(spacing: 0) {
+//               Button(action: {
+//                withAnimation(.spring(response: 0.3)) {
+//                    documentViewModel.previousPage()
+//                }
+//            }) {
+//                Image(systemName: "chevron.left")
+//                    .foregroundColor(.white)
+//                    .font(.system(size: 14))
+//                    .contentShape(Rectangle())
+//            }
+//            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 9, bottom: 7, trailing: 9)))
+//            .keyboardShortcut(.leftArrow, modifiers: .command)
+//            .customHelp("Go to previous page", position: .top, shortcut: KeyboardShortcut(
+//                modifiers: [.command],
+//                key: "←"
+//            ))
+//            .transition(.scale.combined(with: .opacity))
+//            
+//            Button(action: {
+//                withAnimation(.spring(response: 0.3)) {
+//                    documentViewModel.nextPage()
+//                }
+//            }) {
+//                Image(systemName: "chevron.right")
+//                    .foregroundColor(.white)
+//                    .font(.system(size: 14))
+//                    .contentShape(Rectangle())
+//            }
+//            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 9, bottom: 7, trailing: 9)))
+//            .keyboardShortcut(.rightArrow, modifiers: .command)
+//            .customHelp( "Go to next page", position: .top, shortcut: KeyboardShortcut(
+//                modifiers: [.command],
+//                key: "→"
+//            ))
+//            .transition(.scale.combined(with: .opacity)) 
+//            }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(IntelligenceUIPlatterView())
+        .background(
+            IntelligenceUIPlatterView()
+        )
         .onReceive(viewModel.$isProcessing) { isProcessing in
             if isProcessing {
                 startProcessingAnimation()
