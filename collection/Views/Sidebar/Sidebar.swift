@@ -61,7 +61,7 @@ struct NavigationSidebar: View {
                 .contextMenu {
                     Button(role: .destructive) {
                         Task {
-                            sidebarViewModel.disconnectConnectionInstance(instance.id)
+                            await sidebarViewModel.disconnectConnectionInstance(instance.id)
                         }
                     } label: {
                         Label("Disconnect", systemImage: "xmark.circle.fill")
@@ -101,7 +101,6 @@ struct NavigationSidebar: View {
     }
 }
 
-// MARK: - ConnectionDetailsSidebar
 // MARK: - ConnectionDetailsSidebar
 private struct ConnectionDetailsSidebar: View {
     @Environment(SidebarViewModel.self) private var sidebarViewModel
@@ -200,7 +199,15 @@ private struct ConnectionHeader: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(instance.connection.name)
                         .lineLimit(1)
-                    ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
+                    
+                    HStack {
+                        ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
+                        
+                        if let connectionVersion = instance.connectionVersion {
+                            Divider().frame(height: 10)
+                            Text("MongoDB \(connectionVersion)").font(.caption)
+                                .foregroundStyle(.secondary)
+                        }                    }
                 }
                 
                 Spacer(minLength: 16)

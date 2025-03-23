@@ -5,15 +5,14 @@
 //  Created by Fauzaan on 3/4/25.
 //
 
-// TODO: High CPU USAGE: FIX THIS 
 import SwiftUI
 import AppKit
-import Combine
 
 struct IntelligenceUIPlatterView: View {
     @State private var animateGradient = false
     @State private var glowIntensity: CGFloat = 0
     @State private var bloomSizes: [CGFloat] = [0, 0, 0, 0]
+    @State private var isAnimating = false
     
     private let colors1: [Color] = [.orange, .yellow, .blue, .purple, .pink]
     private let colors2: [Color] = [.pink, .purple, .orange, .yellow, .blue]
@@ -28,12 +27,7 @@ struct IntelligenceUIPlatterView: View {
     
     var body: some View {
         ZStack {
-            // Main content with glass background
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.clear)
-                .modifier(GlassBackgroundStyle(cornerRadius: 6))
-            
-            // Base border that will always be visible - reduced to 1 as requested
+            // Base border that will always be visible
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
@@ -45,8 +39,8 @@ struct IntelligenceUIPlatterView: View {
                 )
                 .opacity(glowIntensity)
             
-            // Multiple bloom effects from different corners - adjusted lineWidth to 1
-            ForEach(0..<4) { i in
+            // Multiple bloom effects from different corners
+            ForEach(0..<1) { i in
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(
                         RadialGradient(
@@ -60,10 +54,10 @@ struct IntelligenceUIPlatterView: View {
                         ),
                         lineWidth: 1
                     )
-                    .opacity(0.6) // Slightly reduced opacity
+                    .opacity(0.6)
             }
-            
-            // Outer glow layer - making it more faded
+        
+                        // Outer glow layer
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
@@ -71,10 +65,12 @@ struct IntelligenceUIPlatterView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 2 // Reduced from 3
+                    lineWidth: 2
                 )
-                .blur(radius: 3.5) // Slightly increased blur
-                .opacity(0.35 * glowIntensity) // Reduced opacity for a more faded look
+                .blur(radius: 3.5)
+                .opacity(0.35 * glowIntensity)
+//                 Add drawing group to optimize compositing
+                .drawingGroup()
         }
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -84,38 +80,56 @@ struct IntelligenceUIPlatterView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 2 // Reduced from 3
+                    lineWidth: 2
                 )
-                .blur(radius: 4) // Increased blur
-                .opacity(0.25 * glowIntensity) // Further reduced opacity for a subtle effect
+                .blur(radius: 4)
+                .opacity(0.25 * glowIntensity)
+                // Add drawing group to optimize compositing
+                .drawingGroup()
         )
+        // Apply drawing group to entire view to optimize rendering
+        .drawingGroup()
         .onAppear {
-            // Animate the blooms with slightly different timing
-            withAnimation(.easeOut(duration: 0.8)) {
-                glowIntensity = 1.0
-            }
-            
-            // Sequence the bloom animations for an organic feel
-            withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
-                bloomSizes[0] = 1.0
-            }
-            withAnimation(.easeOut(duration: 0.7).delay(0.2)) {
-                bloomSizes[1] = 1.0
-            }
-            withAnimation(.easeOut(duration: 0.5).delay(0.15)) {
-                bloomSizes[2] = 1.0
-            }
-            withAnimation(.easeOut(duration: 0.65).delay(0.25)) {
-                bloomSizes[3] = 1.0
-            }
-            
-            // Then start the color animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                withAnimation(.linear(duration: 2).repeatForever(autoreverses: true)) {
-                    print("animte")
-                    animateGradient.toggle()
-                }
-            }
+            startOptimizedAnimations()
+        }
+        .onDisappear {
+            isAnimating = false
+        }
+    }
+    
+    private func startOptimizedAnimations() {
+        isAnimating = true
+        
+        // Initial animations (one-time)
+        withAnimation(.easeOut(duration: 0.8)) {
+            glowIntensity = 1.0
+        }
+        
+        // Sequence the bloom animations
+        withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
+            bloomSizes[0] = 1.0
+        }
+        withAnimation(.easeOut(duration: 0.7).delay(0.3)) {
+            bloomSizes[1] = 1.0
+        }
+        
+        // Start the optimized color animation cycle
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            self.animateGradientWithTimer()
+        }
+    }
+    
+    private func animateGradientWithTimer() {
+        guard isAnimating else { return }
+        
+        // Perform the animation with a normal animation instead of repeatForever
+        withAnimation(.easeInOut(duration: 2.0)) {
+            animateGradient.toggle()
+        }
+        
+        // Schedule the next animation with a timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            self.animateGradientWithTimer()
         }
     }
 }

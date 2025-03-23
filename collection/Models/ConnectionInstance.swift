@@ -7,6 +7,7 @@
 
 import Foundation
 import MongoKitten
+import MongoCore
 import SwiftUI
 import AIProxy
 
@@ -16,7 +17,8 @@ final class ConnectionInstance: Identifiable {
     let connection: Connection
     
     // Connection state
-    var connectionStatus: ConnectionStatus = .disconnected
+    var connectionStatus: ConnectionStatus = .connecting
+    var connectionVersion: String?
     var lastError: Error?
     
     // UI State
@@ -56,6 +58,13 @@ final class ConnectionInstance: Identifiable {
         do {
             self.database = try await MongoDatabase.connect(to: connection.url)
             connectionStatus = .connected
+            
+            if let database = self.database {
+                do {
+                    let buildInfo = try await database.getBuildInfo()
+                    connectionVersion = buildInfo.version
+                }
+            }
             lastError = nil
         } catch {
             lastError = error
@@ -151,7 +160,25 @@ final class ConnectionInstance: Identifiable {
             tabs[index].documents = documents
         }
     }
+    
+    func getMongoDBVersion(from database: MongoDatabase) async throws -> BuildInfo {
+        // Get the connection pool from the database
+        let connection = try await database.pool.next(for: .basic)
+        
+        // Execute the command against the admin database
+        let buildInfo = try await connection.executeCodable(
+            [ "buildInfo": 1 ],
+            decodeAs: BuildInfo.self,
+            namespace: .administrativeCommand,
+            sessionId: connection.implicitSessionId,
+            traceLabel: "getMongoDBVersion"
+        )
+        
+        return buildInfo
+    }
 }
+
+
 
 enum ConnectionStatus: String {
     case connected = "Connected"

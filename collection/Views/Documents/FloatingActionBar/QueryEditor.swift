@@ -20,11 +20,11 @@ struct QueryEditor: View {
             if !viewModel.lastQuery.isEmpty {
                 VStack {
                     if !viewModel.isFullQueryEditorOpen {
-                            filterSyntaxView()
-                                .onTapGesture {
-                                    viewModel.openFullQueryEditor()
-                                }
-
+                        filterSyntaxView()
+                            .onTapGesture {
+                                viewModel.openFullQueryEditor()
+                            }
+                        
                     } else {
                         fullQueryEditorView()
                             .onTapOutsideGesture {
@@ -42,27 +42,20 @@ struct QueryEditor: View {
                     RoundedRectangle(cornerRadius: viewModel.isFullQueryEditorOpen ? 10 : 6)
                         .stroke(.separator, lineWidth: 1)
                 )
-//                .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
                 
-                if !viewModel.isFullQueryEditorOpen {
-//                    Pagination(viewModel: documentViewModel)
-//                        .modifier(GlassBackgroundStyle(cornerRadius: 8))
-//                        .overlay(
-//                            RoundedRectangle(cornerRadius: 8)
-//                                .stroke(.separator, lineWidth: 1)
-//                        )
-
-                        Spacer()
-                        Text("\(documentViewModel.totalItems) documents").font(.footnote)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 6)
-                            .modifier(GlassBackgroundStyle(cornerRadius: 6))
-                            .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(.separator, lineWidth: 1)
-                            )
-                }
+            }
+            
+            if !viewModel.isFullQueryEditorOpen {
+                Spacer()
+                Text("\(documentViewModel.totalItems) documents").font(.footnote)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .modifier(GlassBackgroundStyle(cornerRadius: 6))
+                    .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(.separator, lineWidth: 1)
+                    )
             }
         }
     }

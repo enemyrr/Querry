@@ -26,7 +26,12 @@ final class ConnectionManager {
     }
     
     var activeConnectionInstance: ConnectionInstance? {
-        connectionInstances.first { $0.id == activeConnectionInstanceId }
+        guard !connectionInstances.isEmpty, let activeId = activeConnectionInstanceId else {
+            return nil
+        }
+        
+        // Find the instance with matching ID
+        return connectionInstances.first { $0.id == activeId }
     }
     
     @discardableResult
@@ -44,8 +49,22 @@ final class ConnectionManager {
         return newInstance.id
     }
     
-    func removeConnectionInstance(_ instanceId: UUID) {
-        connectionInstances.removeAll(where: { $0.id == instanceId })
+    func removeConnectionInstance(_ instanceId: UUID) async {
+        // First perform any cleanup needed on the instance
+        if let instanceToDisconnect = getInstance(instanceId) {
+            // Properly disconnect
+            if instanceToDisconnect.connectionStatus == .connected,
+               let db = instanceToDisconnect.database,
+               let cluster = db.pool as? MongoCluster {
+                do {
+                    await cluster.disconnect()
+                    instanceToDisconnect.connectionStatus = .disconnected
+                }
+            }
+            
+            // Now remove from the array
+            connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
+        }
     }
     
     func getInstance(_ instanceId: UUID) -> ConnectionInstance? {
@@ -58,10 +77,5 @@ final class ConnectionManager {
         } catch {
             print("Connection failed: \(error)")
         }
-    }
-    
-    func disconnect() {
-        activeConnectionInstance?.connectionStatus = .disconnected
-        activeConnectionInstanceId = nil
     }
 }

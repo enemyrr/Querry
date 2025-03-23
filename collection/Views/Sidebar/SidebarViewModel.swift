@@ -41,8 +41,8 @@ final class SidebarViewModel {
         return connectionManager.createNewConnectionInstance(for: connection)
     }
     
-    func disconnectConnectionInstance(_ instanceId: UUID) {
-        connectionManager.removeConnectionInstance(instanceId)
+    func disconnectConnectionInstance(_ instanceId: UUID) async {
+        await connectionManager.removeConnectionInstance(instanceId)
         
         if connectionManager.activeConnectionInstanceId == instanceId {
             if let firstActiveInstance = connectionManager.connectionInstances.last {

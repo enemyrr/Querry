@@ -74,7 +74,6 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-            // Action buttons for pending operations
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
                 if viewModel.pendingActionsCount(for: .delete) > 0 {

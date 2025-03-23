@@ -78,45 +78,8 @@ struct AISearchView: View {
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
-            PaginationMinimal(viewModel: documentViewModel)
             
-//            HStack(spacing: 0) {
-//               Button(action: {
-//                withAnimation(.spring(response: 0.3)) {
-//                    documentViewModel.previousPage()
-//                }
-//            }) {
-//                Image(systemName: "chevron.left")
-//                    .foregroundColor(.white)
-//                    .font(.system(size: 14))
-//                    .contentShape(Rectangle())
-//            }
-//            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 9, bottom: 7, trailing: 9)))
-//            .keyboardShortcut(.leftArrow, modifiers: .command)
-//            .customHelp("Go to previous page", position: .top, shortcut: KeyboardShortcut(
-//                modifiers: [.command],
-//                key: "←"
-//            ))
-//            .transition(.scale.combined(with: .opacity))
-//            
-//            Button(action: {
-//                withAnimation(.spring(response: 0.3)) {
-//                    documentViewModel.nextPage()
-//                }
-//            }) {
-//                Image(systemName: "chevron.right")
-//                    .foregroundColor(.white)
-//                    .font(.system(size: 14))
-//                    .contentShape(Rectangle())
-//            }
-//            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 9, bottom: 7, trailing: 9)))
-//            .keyboardShortcut(.rightArrow, modifiers: .command)
-//            .customHelp( "Go to next page", position: .top, shortcut: KeyboardShortcut(
-//                modifiers: [.command],
-//                key: "→"
-//            ))
-//            .transition(.scale.combined(with: .opacity)) 
-//            }
+            PaginationMinimal(viewModel: documentViewModel)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
