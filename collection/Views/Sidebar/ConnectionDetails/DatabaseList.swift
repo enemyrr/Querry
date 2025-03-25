@@ -8,7 +8,7 @@
 import SwiftUI
 import MongoKitten
 
-struct SiderbarDatabaseList: View {
+struct DatabaseList: View {
     @Environment(SidebarViewModel.self) private var sidebarViewModel
     
     var body: some View {
@@ -99,7 +99,10 @@ struct CollectionsSection: View {
                 )
             }) {
                 HStack {
-                    Image(systemName: "tablecells")
+//                    Image(systemName: "tablecells")
+//                        .opacity(0.7)
+                    
+                    Image(systemName: "folder")
                         .opacity(0.7)
                     Text(collection.name)
                     Spacer()

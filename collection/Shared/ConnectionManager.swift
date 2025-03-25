@@ -49,22 +49,30 @@ final class ConnectionManager {
         return newInstance.id
     }
     
-    func removeConnectionInstance(_ instanceId: UUID) async {
+    func removeConnectionInstance(_ instanceId: UUID) async -> Bool {
         // First perform any cleanup needed on the instance
         if let instanceToDisconnect = getInstance(instanceId) {
             // Properly disconnect
-            if instanceToDisconnect.connectionStatus == .connected,
-               let db = instanceToDisconnect.database,
-               let cluster = db.pool as? MongoCluster {
-                do {
-                    await cluster.disconnect()
-                    instanceToDisconnect.connectionStatus = .disconnected
-                }
-            }
+            let instanceStatus = await disconnectDBInstance(instanceToDisconnect)
             
             // Now remove from the array
+            let connectionToBeRemoved = connectionInstances.filter { $0.id ==  instanceToDisconnect.id }.first
             connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
+            
+            return connectionToBeRemoved != nil
         }
+        
+        return false
+    }
+    
+    func disconnectDBInstance(_ instance: ConnectionInstance) async -> ConnectionStatus {
+        guard instance.connectionStatus == .connected else { return .error }
+        guard let db = instance.database, let cluster = db.pool as? MongoCluster else { return .error }
+        
+        await cluster.disconnect()
+        instance.connectionStatus = .disconnected
+        
+        return instance.connectionStatus
     }
     
     func getInstance(_ instanceId: UUID) -> ConnectionInstance? {

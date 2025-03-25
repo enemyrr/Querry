@@ -25,7 +25,7 @@ final class SidebarViewModel {
         connectionManager.activeConnectionInstance
     }
     
-    init(connectionManager: ConnectionManager) {
+    init(connectionManager: ConnectionManager) { // TODO: - Protocol of ConncetionManagerProtocol for Dependecy Injection testing
         self.connectionManager = connectionManager
     }
     
@@ -42,14 +42,12 @@ final class SidebarViewModel {
     }
     
     func disconnectConnectionInstance(_ instanceId: UUID) async {
-        await connectionManager.removeConnectionInstance(instanceId)
+        guard await connectionManager.removeConnectionInstance(instanceId) else { return }
         
-        if connectionManager.activeConnectionInstanceId == instanceId {
-            if let firstActiveInstance = connectionManager.connectionInstances.last {
-                changeActiveSidebarItem(.connection(firstActiveInstance.id))
-            } else {
-                changeActiveSidebarItem(.home)
-            }
+        if let lastActiveConnection = connectionManager.connectionInstances.last {
+            changeActiveSidebarItem(.connection(lastActiveConnection.id))
+        } else {
+            changeActiveSidebarItem(.home)
         }
     }
     

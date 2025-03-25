@@ -45,7 +45,7 @@ struct CustomTooltip<TooltipContent: View>: ViewModifier {
     @State private var tooltipSize: CGSize = .zero
     
     init(
-        delay: Double = 0.2,
+        delay: Double = 1,
         position: TooltipPosition = .bottom,
         shortcut: KeyboardShortcut? = nil,
         alignment: TooltipPosition? = nil,
@@ -300,7 +300,7 @@ struct BoundsPreferenceKey: PreferenceKey {
 extension View {
     /// Apply a custom tooltip with the specified position and spacing
     func customHelp<TooltipContent: View>(
-        delay: Double = 0.5,
+        delay: Double = 1,
         position: TooltipPosition = .bottom,
         shortcut: KeyboardShortcut? = nil,
         alignment: TooltipPosition? = nil,
@@ -320,7 +320,7 @@ extension View {
     /// Convenience version for simple text tooltips with position control
     func customHelp(
         _ text: String,
-        delay: Double = 0.5,
+        delay: Double = 1,
         position: TooltipPosition = .bottom,
         shortcut: KeyboardShortcut? = nil,
         alignment: TooltipPosition? = nil,

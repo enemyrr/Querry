@@ -33,21 +33,33 @@ final class ConnectionInstance: Identifiable {
     var collections: [String: [MongoCollection]] = [:]
     var database: MongoDatabase? {
         didSet {
-            if let currentDatabase = database {
-                let shouldUpdate = oldValue == nil || currentDatabase.name != oldValue?.name
-                
-                if shouldUpdate {
-                    Task {
-                        await loadCollectionsForDatabase(currentDatabase.name)
-                        databases = try await currentDatabase.pool.listDatabases()
-                    }
-                }
-            }
+            Task { await processDatabaseCollections(previousDatabase: oldValue) }
         }
     }
     
     init(connection: Connection) {
         self.connection = connection
+    }
+    
+    deinit {
+        print("ConnectionInstance deinit: \(connection.name) with ID: \(id)")
+    }
+    
+    func processDatabaseCollections(previousDatabase: MongoDatabase?) async {
+        guard let currentDatabase = database else { return }
+        
+        let shouldUpdate = previousDatabase == nil || currentDatabase.name != previousDatabase?.name
+        
+        if shouldUpdate {
+            Task {
+                await loadCollectionsForDatabase(currentDatabase.name)
+                let result = try await currentDatabase.pool.listDatabases()
+                
+                return await MainActor.run {
+                    databases = result
+                }
+            }
+        }
     }
     
     func connect() async throws {

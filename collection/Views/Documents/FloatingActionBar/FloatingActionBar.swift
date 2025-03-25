@@ -64,10 +64,10 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .keyboardShortcut("p", modifiers: .command)
+            .keyboardShortcut("f", modifiers: .command)
             .customHelp("Filter documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
-                key: "P"
+                key: "f"
             ), spacing: 10)
             
             Divider()

@@ -55,10 +55,10 @@ struct DocumentRow: View {
         
         // Initialize action state from parent view model
         for action in DocumentViewModel.DocumentAction.allCases {
-            if parentViewModel.hasPendingAction(documentId: document.id, action: action) {
-                self.viewModel.setPendingAction(action)
-                break
-            }
+//            if parentViewModel.hasPendingAction(documentId: document.id, action: action) {
+//                self.viewModel.setPendingAction(action)
+//                break
+//            }
         }
     }
     

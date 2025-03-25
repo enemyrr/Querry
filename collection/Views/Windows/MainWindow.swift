@@ -12,13 +12,16 @@ import MongoKitten
 
 
 struct MainWindow: View {
-    @State private var connectionManager = ConnectionManager.shared
-    @State private var sidebarViewModel = SidebarViewModel(connectionManager: ConnectionManager.shared)
+    @State private var sidebarViewModel: SidebarViewModel
     
     @Environment(\.modelContext) private var modelContext
     @State private var isSidebarVisible = true
     @Query private var connections: [Connection]
     @State private var activeConnection: Connection?
+    
+    init() {
+        _sidebarViewModel = State(wrappedValue: SidebarViewModel(connectionManager: ConnectionManager.shared))
+    }
     
     var body: some View {
         ZStack {
@@ -33,9 +36,8 @@ struct MainWindow: View {
 
             CustomSplitView(
                 sidebar: {
-                    Sidebar()
+                    Sidebar() // TODO:  - Do not pass shared instances on Env Space. Shared istances are GLOBAL CONSTANT variables depends on the App life cycle
                         .environment(sidebarViewModel)
-                        .environment(connectionManager)
                 },
                 detail: {
                     switch sidebarViewModel.activeSidebarItem {
@@ -57,6 +59,9 @@ struct MainWindow: View {
         }
         .toolbarBackground(.hidden, for: .windowToolbar)
         .containerBackground(.thickMaterial, for: .window)
+        .onAppear {
+            _ = ConnectionManager.shared
+        }
     }
 }
 

@@ -10,7 +10,7 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
-    @Environment(SidebarViewModel.self) private var sidebarViewModel
+    @Environment(SidebarViewModel.self) private var model
     @Query private var connections: [Connection]
     @State private var showDatabaseModal = false
     
@@ -22,7 +22,7 @@ struct HomeView: View {
             VStack(alignment: .leading) {
                 HStack {
                     VStack(alignment: .leading) {
-                        Text("My Collections")
+                        Text("My Workspace")
                             .font(.title)
                             .fontWeight(.semibold)
                         Text(
@@ -47,8 +47,8 @@ struct HomeView: View {
                         selectedConnectionId = connection.persistentModelID
                     },
                     onOpen: { connection in
-                        let instanceId = sidebarViewModel.createNewConnectionInstance(for: connection)
-                        sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
+                        let instanceId = model.createNewConnectionInstance(for: connection)
+                        model.changeActiveSidebarItem(.connection(instanceId))
                     }
                 )
                 
@@ -181,8 +181,9 @@ struct ConnectionListItem: View {
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                     .ignoresSafeArea()
-                CreateConnectionForm(connection: connection)
-                    .frame(width: 500)
+                
+                CreateConnectionForm(connectionId: connection.persistentModelID)
+                            .frame(width: 500)
             }
         }
         .contextMenu {

@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 import MongoKitten
+import SwiftData
 
 struct CreateConnection: View {
     @State private var showSheet = false
@@ -41,14 +42,15 @@ struct CreateConnectionForm: View {
     @State private var selectedEnvironment: ConnectionEnvironment = .local
     @State private var uriError: String? = nil
     
-    private let existingConnection: Connection?
+    private let connectionId: PersistentIdentifier?
     
-    init(connection: Connection? = nil) {
-        self.existingConnection = connection
-        _uri = State(initialValue: connection?.url ?? "")
-        _name = State(initialValue: connection?.name ?? "")
-        _color = State(initialValue: connection?.color ?? .blue)
-        _selectedEnvironment = State(initialValue: connection?.environment ?? .local)
+    init(connectionId: PersistentIdentifier? = nil) {
+        self.connectionId = connectionId
+        
+        _uri = State(initialValue: "")
+        _name = State(initialValue: "")
+        _color = State(initialValue: .blue)
+        _selectedEnvironment = State(initialValue: .local)
     }
     
     private var isFormValid: Bool {
@@ -141,7 +143,7 @@ struct CreateConnectionForm: View {
                 .customMenuButtonStyle()
                 Spacer()
                 
-                Button(existingConnection != nil ? "Update" : "Connect") {
+                Button(connectionId != nil ? "Update" : "Connect") {
                     saveConnection()
                 }
                 .primaryStyle()
@@ -152,11 +154,40 @@ struct CreateConnectionForm: View {
             .padding(.horizontal, 10)
             .padding(.top, 10)
         }
+        .onAppear {
+//                    loadConnectionData()
+                }
         .padding(20)
     }
     
+    private func loadConnectionData() {
+            guard let id = connectionId else { return }
+            
+            do {
+                let connection = try modelContext.fetch(
+                    FetchDescriptor<Connection>(
+                        predicate: #Predicate { $0.persistentModelID == id }
+                    )
+                ).first
+                
+                if let connection = connection {
+                    uri = connection.url
+                    name = connection.name
+                    color = connection.color
+                    selectedEnvironment = connection.environment
+                }
+            } catch {
+                print("Error loading connection: \(error)")
+            }
+        }
+    
     private func saveConnection() {
-        if let existing = existingConnection {
+        if let id = connectionId,
+           let existing = try? modelContext.fetch(
+                FetchDescriptor<Connection>(
+                    predicate: #Predicate { $0.persistentModelID == id }
+                )
+            ).first {
             existing.url = uri
             existing.name = name
             existing.color = color.unsafelyUnwrapped
