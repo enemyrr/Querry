@@ -5,153 +5,94 @@
 //  Created by Fauzaan on 12/31/24.
 //
 import SwiftUI
-import SwiftData
 import MongoKitten
-
-// MARK: - Common Styles and Modifiers
-struct HoverableText: ViewModifier {
-    @Binding var isHovered: Bool
-    
-    func body(content: Content) -> some View {
-        content
-            .padding(.horizontal, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(isHovered ? Color.gray.opacity(0.2) : Color.clear)
-            )
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    isHovered = hovering
-                }
-            }
-    }
-}
-
-
+import SwiftData
 
 // MARK: - Document Details
 struct DocumentRow: View {
-    @State private var viewModel: DocumentRowViewModel
+    var viewModel: DocumentRowViewModel
     @State private var isCardHovered = false
-    
-    init(document: FormattedDocument, parentViewModel: DocumentViewModel) {
-        self._viewModel = State(initialValue:
-                                    DocumentRowViewModel(
-                                        document: document,
-                                        connectionInstance: parentViewModel.instance,
-                                        collectionName: parentViewModel.selectedTab.name
-                                    )
-        )
-        
-        // Set up callback to refresh parent view and update action tracking
-        self.viewModel.onDocumentChanged = { [document] action in
-            // Update the parent view model's tracking of document actions
-            if let action = action {
-                parentViewModel.addPendingAction(documentId: document.id, action: action)
-            } else {
-                parentViewModel.removePendingActions(for: document.id)
-            }
-        }
-        
-        // Initialize action state from parent view model
-        for action in DocumentViewModel.DocumentAction.allCases {
-//            if parentViewModel.hasPendingAction(documentId: document.id, action: action) {
-//                self.viewModel.setPendingAction(action)
-//                break
-//            }
-        }
-    }
     
     var body: some View {
         Group {
-            if !viewModel.isDeleted {
-                ZStack(alignment: .bottomTrailing) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        DocumentKeyValueList(document: viewModel.document)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        ZStack {
-                            Color(.controlColor).opacity(0.15)
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(
-                                    .linearGradient(
-                                        colors: [
-                                            Color(.controlColor).opacity(0.1),
-                                            Color(.controlColor).opacity(0.05),
-                                            .clear
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
+            ZStack(alignment: .bottomTrailing) {
+                VStack(alignment: .leading, spacing: 2) {
+                    DocumentKeyValueList(viewModel: viewModel)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    ZStack {
+                        Color(.controlColor).opacity(0.15)
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                .linearGradient(
+                                    colors: [
+                                        Color(.controlColor).opacity(0.1),
+                                        Color(.controlColor).opacity(0.05),
+                                        .clear,
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
                                 )
-                                .blendMode(.plusLighter)
-                        }
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.clear, lineWidth: 1)
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(
-                                viewModel.pendingAction == .delete ?
-                                    Color.red.opacity(0.7) :
-                                    viewModel.pendingAction == .update ?
-                                        Color.orange.opacity(0.7) :
-                                        Color(.separatorColor),
-                                lineWidth: 1
                             )
-                            .shadow(
-                                color: viewModel.pendingAction == .delete ?
-                                    Color.red :
-                                    viewModel.pendingAction == .update ?
-                                        Color.orange.opacity(0.8) :
-                                        Color.clear,
-                                radius: 4,
-                                x: 0,
-                                y: 0
-                            )
-                    )
-                    .cornerRadius(8)
-                    .cardStyle(isHovered: isCardHovered)
-                    
-                    HoverActionButtons(
-                        isVisible: isCardHovered,
-                        onEdit: { 
-                            viewModel.setPendingAction(.update)
-                        },
-                        onCopy: { viewModel.copyDocumentJSON() },
-                        onDelete: {
-                            viewModel.setPendingAction(.delete)
-                        },
-                        onClone: { viewModel.copyDocumentJSON() },
-                        showCopyFeedback: viewModel.showCopyFeedback,
-                        pendingAction: viewModel.pendingAction
-                    )
-                }
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isCardHovered = hovering
-                    }
-                }
-                // Removed action confirmation overlay for immediate actions
-                .alert(
-                    "Error",
-                    isPresented: .constant(viewModel.errorMessage != nil),
-                    actions: {
-                        Button("OK") {
-                            // Clear error on dismiss
-                            // Ideally this would be handled via the ViewModel
-                        }
-                    },
-                    message: {
-                        if let errorMessage = viewModel.errorMessage {
-                            Text(errorMessage)
-                        }
+                            .blendMode(.plusLighter)
                     }
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.clear, lineWidth: 1)
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(
+                            viewModel.getPendingAction()
+                            == .delete
+                            ? Color.red.opacity(0.7)
+                            : viewModel.getPendingAction()
+                            == .update
+                            ? Color.orange.opacity(0.7)
+                            : Color(.separatorColor),
+                            lineWidth: 1
+                        )
+                        .shadow(
+                            color: viewModel.getPendingAction()
+                            == .delete
+                            ? Color.red
+                            : viewModel.getPendingAction()
+                            == .update
+                            ? Color.orange.opacity(0.8)
+                            : Color.clear,
+                            radius: 4,
+                            x: 0,
+                            y: 0
+                        )
+                )
+                .cornerRadius(8)
+                .cardStyle(isHovered: isCardHovered)
+                
+                HoverActionButtons(
+                    isVisible: isCardHovered,
+                    onEdit: {
+                        viewModel.togglePendingAction(.update)
+                    },
+                    onCopy: {
+                        viewModel.copyDocumentJSON()
+                    },
+                    onDelete: {
+                        viewModel.togglePendingAction(.delete)
+                    },
+                    onClone: {
+                        viewModel.copyDocumentJSON()
+                    },
+                    showCopyFeedback: viewModel.showCopyFeedback,
+                    pendingAction: viewModel.getPendingAction()
+                )
+            }
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isCardHovered = hovering
+                }
             }
         }
     }
@@ -159,17 +100,37 @@ struct DocumentRow: View {
 
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
-    let document: FormattedDocument
+    var viewModel: DocumentRowViewModel
     
     var body: some View {
-        ForEach(document.fields, id: \.key) { field in  // Changed to use fields array
+        ForEach(viewModel.document.fields, id: \.key) { field in
             RecursiveKeyValueRow(
                 formattedPrimitive: field.formattedValue,
                 key: field.key,
                 value: field.rawValue,
-                nestedFields: field.nestedFields
+                nestedFields: field.nestedFields,
+                isEditing: viewModel.getPendingAction() == .update,
+                editingValue: bindingForKey(field.key)
             )
         }
+    }
+    
+    private func bindingForKey(_ key: String) -> Binding<String> {
+        return Binding(
+            get: {
+                return formattedValueFor(key: key)
+            },
+            set: { newValue in
+                viewModel.updateField(key: key, value: newValue)
+            }
+        )
+    }
+    
+    private func formattedValueFor(key: String) -> String {
+        if let field = viewModel.document.fields.first(where: { $0.key == key }) {
+            return field.formattedValue.value
+        }
+        return ""
     }
 }
 
@@ -177,21 +138,52 @@ struct DocumentKeyValueList: View {
 struct KeyValueRow: View {
     let key: String
     let formattedValue: FormattedPrimitive
+    var isEditing: Bool
+    @Binding var editingValue: String
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
+    @FocusState private var focusedField: String?
     
     var body: some View {
-        HStack(spacing: 2) {
-            Text("\(key):")
-                .monospacedStyle()
-                .hoverable(isHovered: $isHoveredKey)
+        HStack(alignment: .top, spacing: 2) {
+            HStack(spacing: 0) {
+                Text("\(key)")
+                    .monospacedStyle()
+                    .textSelection(.enabled)
+                
+                Text(":")
+                    .monospacedStyle()
+            }
+            .hoverable(isHovered: $isHoveredKey)
             
-            Text(formattedValue.value)
-                .monospacedStyle(color: formattedValue.color)
-                .hoverable(isHovered: $isHoveredValue)
+            if isEditing {
+                HStack(alignment: .top) {
+                    TextField("", text: $editingValue, axis: .vertical)
+                        .monospacedStyle(color: formattedValue.color)
+                        .padding(.horizontal, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.black.opacity(0.2))
+                                .opacity(focusedField == key ? 1 : 0)
+                        )
+                        .focused($focusedField, equals: key)
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...10)
+                    
+                    Text(formattedValue.type)
+                        .monospacedStyle(color: Color(.gray).opacity(0.5))
+                        .frame(width: 80, alignment: .leading)
+                }
+            } else {
+                Text(formattedValue.value)
+                    .monospacedStyle(color: formattedValue.color)
+                    .hoverable(isHovered: $isHoveredValue)
+                    .textSelection(.enabled)
+            }
         }
     }
 }
+
 
 struct ExpandableHeader: View {
     let key: String
@@ -217,6 +209,9 @@ struct RecursiveKeyValueRow: View {
     let key: String
     let value: Primitive?
     let nestedFields: [FormattedDocument.FormattedField]?
+    var isEditing: Bool
+    @Binding var editingValue: String
+    @State private var nestedEditingValues: [String: String] = [:]
     
     var body: some View {
         Group {
@@ -224,12 +219,16 @@ struct RecursiveKeyValueRow: View {
                 ExpandableValueView(
                     formattedPrimitive: formattedPrimitive,
                     key: key,
-                    nestedFields: nestedFields
+                    nestedFields: nestedFields,
+                    isEditing: isEditing,
+                    editingValue: $editingValue
                 )
             } else {
                 KeyValueRow(
                     key: key,
-                    formattedValue: formattedPrimitive
+                    formattedValue: formattedPrimitive,
+                    isEditing: isEditing,
+                    editingValue: $editingValue
                 )
             }
         }
@@ -241,9 +240,12 @@ struct ExpandableValueView: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
     let nestedFields: [FormattedDocument.FormattedField]?
+    var isEditing: Bool
+    @Binding var editingValue: String
     @State private var isExpanded = false
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
+    @State private var nestedEditingValues: [String: String] = [:]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -254,9 +256,16 @@ struct ExpandableValueView: View {
                     isHoveredKey: $isHoveredKey
                 )
                 
-                Text(formattedPrimitive.value)
-                    .monospacedStyle(color: formattedPrimitive.color)
-                    .hoverable(isHovered: $isHoveredValue)
+                if isEditing {
+                    TextField("", text: $editingValue)
+                        .monospacedStyle(color: formattedPrimitive.color)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .frame(maxWidth: 300)
+                } else {
+                    Text(formattedPrimitive.value)
+                        .monospacedStyle(color: formattedPrimitive.color)
+                        .hoverable(isHovered: $isHoveredValue)
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -272,7 +281,9 @@ struct ExpandableValueView: View {
                             formattedPrimitive: field.formattedValue,
                             key: field.key,
                             value: field.rawValue,
-                            nestedFields: field.nestedFields
+                            nestedFields: field.nestedFields,
+                            isEditing: isEditing,
+                            editingValue: bindingForNestedKey(field.key)
                         )
                         .padding(.leading, 16)
                     }
@@ -281,138 +292,45 @@ struct ExpandableValueView: View {
             }
         }
     }
+    
+    private func bindingForNestedKey(_ key: String) -> Binding<String> {
+        return Binding(
+            get: {
+                return nestedEditingValues[key]
+                ?? (fields?.first(where: { $0.key == key })?.formattedValue
+                    .value ?? "")
+            },
+            set: { newValue in
+                nestedEditingValues[key] = newValue
+            }
+        )
+    }
+    
+    private var fields: [FormattedDocument.FormattedField]? {
+        return nestedFields
+    }
+}
+
+// MARK: - Common Styles and Modifiers
+struct HoverableText: ViewModifier {
+    @Binding var isHovered: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isHovered ? Color.gray.opacity(0.2) : Color.clear)
+            )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovered = hovering
+                }
+            }
+    }
 }
 
 // MARK: - Action confirmation
-struct ActionConfirmationOverlay: View {
-    var onCancel: () -> Void
-    var onConfirm: () -> Void
-    var isLoading: Bool
-    var action: DocumentViewModel.DocumentAction?
-    var hasExistingAction: Bool
-    
-    var body: some View {
-        ZStack {
-            VisualEffectView(material: .popover, blendingMode: .withinWindow)
-            
-            VStack(spacing: 4) {
-                Image(systemName: actionIcon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(actionColor)
-                    .padding(.bottom, 8)
-                
-                Text(titleText)
-                    .font(.headline)
-                    .fontWeight(.medium)
-                
-                Text(descriptionText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 8)
-                
-                
-                // Action buttons
-                HStack(spacing: 12) {
-                    Button {
-                        onCancel()
-                    } label: {
-                        Text("Cancel")
-                            .font(.subheadline)
-                            .frame(minWidth: 70)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color(.separatorColor).opacity(0.4))
-                            .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .keyboardShortcut(.escape)
-                    
-                    Button {
-                        onConfirm()
-                    } label: {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                    .tint(.white)
-                            }
-                            Text(hasExistingAction ? "Unmark" : "Mark")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        }
-                        .animation(.easeInOut(duration: 0.2), value: isLoading)
-                        .frame(minWidth: 70)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .foregroundStyle(.white)
-                        .background(isLoading ? actionColor.opacity(0.7) : actionColor)
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(.plain)
-                    .contentShape(Rectangle())
-                    .keyboardShortcut(.return)
-                    .disabled(isLoading)
-                }
-            }
-            .padding(20)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(.separator, lineWidth: 1)
-        )
-        .cornerRadius(10)
-        .transition(.opacity)
-    }
-    
-    private var actionIcon: String {
-        switch action {
-        case .delete:
-            return "trash"
-        case .update:
-            return "pencil"
-        case .none:
-            return "questionmark.circle"
-        }
-    }
-    
-    private var actionColor: Color {
-        switch action {
-        case .delete:
-            return .red
-        case .update:
-            return .blue
-        case .none:
-            return .gray
-        }
-    }
-    
-    private var titleText: String {
-        guard let action = action else { return "Action?" }
-        
-        switch action {
-        case .delete:
-            return hasExistingAction ? "Unmark from Deletion?" : "Mark for Deletion?"
-        case .update:
-            return hasExistingAction ? "Unmark from Update?" : "Mark for Update?"
-        }
-    }
-    
-    private var descriptionText: String {
-        guard let action = action else { return "Choose an action for this document" }
-        
-        switch action {
-        case .delete:
-            return hasExistingAction ? 
-                "This will remove the document from the deletion queue" : 
-                "This will mark the document for deletion"
-        case .update:
-            return hasExistingAction ? 
-                "This will remove the document from the update queue" : 
-                "This will mark the document for update"
-        }
-    }
-}
 extension View {
     func hoverable(isHovered: Binding<Bool>) -> some View {
         modifier(HoverableText(isHovered: isHovered))

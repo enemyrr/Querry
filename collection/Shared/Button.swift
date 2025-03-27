@@ -104,6 +104,10 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
+                Color.clear
+                    .frame(width: 40, height: 30)
+                    .contentShape(Rectangle())
+                
                 // Outer selection border
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color(.white).opacity(0.2), lineWidth: isSelected ? 1 : 0)

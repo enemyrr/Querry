@@ -9,7 +9,7 @@ import SwiftUI
 import MongoKitten
 
 struct DatabaseList: View {
-    @Environment(SidebarViewModel.self) private var sidebarViewModel
+    var viewModel: SidebarViewModel
     
     var body: some View {
         VStack(spacing: 0) {
@@ -21,12 +21,12 @@ struct DatabaseList: View {
     
     private var connectionContent: some View {
         VStack(spacing: 0) {
-            if let activeInstance = sidebarViewModel.activeInstance {
+            if let activeInstance = viewModel.activeInstance {
                 if let selectedDb = activeInstance.database {
                     let filteredCollections = (activeInstance.collections[selectedDb.name] ?? [])
                         .filter {
-                            sidebarViewModel.searchText.isEmpty ||
-                            $0.name.localizedCaseInsensitiveContains(sidebarViewModel.searchText)
+                            viewModel.searchText.isEmpty ||
+                            $0.name.localizedCaseInsensitiveContains(viewModel.searchText)
                         }
                     
                     CollectionsSection(
@@ -46,14 +46,14 @@ struct DatabaseList: View {
         }
         .alert("Connection Error",
                isPresented: Binding(
-                get: { sidebarViewModel.activeInstance?.lastError != nil },
-                set: { _ in sidebarViewModel.activeInstance?.lastError = nil }
+                get: { viewModel.activeInstance?.lastError != nil },
+                set: { _ in viewModel.activeInstance?.lastError = nil }
                ),
-               presenting: sidebarViewModel.activeInstance?.lastError
+               presenting: viewModel.activeInstance?.lastError
         ) { _ in
             Button("Retry") {
                 Task {
-                    await sidebarViewModel.loadActiveConnection()
+                    await viewModel.loadActiveConnection()
                 }
             }
             Button("Cancel", role: .cancel) {}

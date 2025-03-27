@@ -37,7 +37,7 @@ struct TabBar: View {
             NavigationButton(
                 icon: "chevron.left",
                 action: {
-                    previousTab((instance.selectedTab ?? instance.tabs.first)!)
+                    instance.previousTab((instance.selectedTab ?? instance.tabs.first)!)
                 },
                 isDisabled: instance.selectedTab == instance.tabs.first
             )
@@ -50,7 +50,7 @@ struct TabBar: View {
             NavigationButton(
                 icon: "chevron.right",
                 action: {
-                    nextTab((instance.selectedTab ?? instance.tabs.first)!)
+                    instance.nextTab((instance.selectedTab ?? instance.tabs.first)!)
                 },
                 isDisabled: instance.selectedTab == instance.tabs.last
             )
@@ -72,30 +72,16 @@ struct TabBar: View {
                             tab: tab.name,
                             isSelected: instance.selectedTab?.name == tab.name,
                             onSelect: {
-                                selectTab(tab)
+                                instance.selectTab(tab)
                             },
                             onClose: {
-                                removeTab(tab)
+                                instance.removeTab(tab)
                             }
                         )
-                        .id(tab.id)
-                        .draggable(tab) {
-                            Text(tab.name)
-                                .padding(7)
-                                .background(Color(NSColor.systemFill))
-                        }
-                        .dropDestination(for: DatabaseTab.self) { tabs, _ in
-                            guard let sourceItem = tabs.first else { return false }
-                            handleDrop(of: sourceItem, to: tab)
-                            return true
-                        }
                         .padding(.leading, instance.tabs.first?.id == tab.id ? 8 : 0)
                         .padding(.trailing, instance.tabs.last?.id == tab.id ? 8 : 0)
                     }
                 }
-            }
-            .onChange(of: instance.tabs) { oldValue, newValue in
-                handleTabsChange(oldValue: oldValue, newValue: newValue, proxy: proxy)
             }
             .onChange(of: instance.selectedTab) { _, newValue in
                 if let tab = newValue {
@@ -103,63 +89,6 @@ struct TabBar: View {
                         proxy.scrollTo(tab.id, anchor: .trailing)
                     }
                 }
-            }
-        }
-    }
-    
-    private func handleTabsChange(oldValue: [DatabaseTab], newValue: [DatabaseTab], proxy: ScrollViewProxy) {
-        if newValue.count > oldValue.count {
-            if let lastTab = instance.tabs.last {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectTab(lastTab)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func handleDrop(of sourceTab: DatabaseTab, to destinationTab: DatabaseTab) {
-        guard let sourceIndex = instance.tabs.firstIndex(where: {
-            $0.id == sourceTab.id
-        }),
-              
-                let destinationIndex = instance.tabs.firstIndex(where: {
-                    $0.id == destinationTab.id
-                }),
-              
-                sourceIndex != destinationIndex else { return }
-        
-        
-        instance.tabs.swapAt(sourceIndex, destinationIndex)
-    }
-    
-    private func nextTab(_ currentTab: DatabaseTab) {
-        if let currentIndex = instance.tabs.firstIndex(where: { $0.id == currentTab.id }),
-           currentIndex < instance.tabs.count - 1 {
-            instance.selectedTab = instance.tabs[currentIndex + 1]
-        }
-    }
-    
-    private func previousTab(_ currentTab: DatabaseTab) {
-        if let currentIndex = instance.tabs.firstIndex(where: { $0.id == currentTab.id }),
-           currentIndex > 0 {
-            instance.selectedTab = instance.tabs[currentIndex - 1]
-        }
-    }
-    
-    private func selectTab(_ tab: DatabaseTab) {
-        instance.selectedTab = tab
-    }
-    
-    private func removeTab(_ tab: DatabaseTab) {
-        if instance.tabs.count > 0 {
-            instance.tabs.removeAll { $0.id == tab.id }
-            
-            if let firstTab = instance.tabs.first {
-                instance.selectedTab = firstTab
-            } else {
-                instance.selectedTab = nil
             }
         }
     }

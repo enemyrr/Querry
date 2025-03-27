@@ -10,35 +10,55 @@ import Observation
 import MongoKitten
 
 // MARK: - DocumentRowViewModel
-@Observable
-class DocumentRowViewModel {
-    // Document data
-    private(set) var document: FormattedDocument
-    private let connectionInstance: ConnectionInstance?
-    private let collectionName: String?
+@Observable class DocumentRowViewModel {
+    let document: FormattedDocument
+    let documentListViewModel: DocumentListModel
     
+    var updatedDocument: Document
+
     // UI state
-    private(set) var isExpanded = false
-    private(set) var isLoading = false
-    private(set) var errorMessage: String?
-    private(set) var showCopyFeedback = false
-    private(set) var isDeleted = false
-    private(set) var pendingAction: DocumentViewModel.DocumentAction? = nil
+    @ObservationIgnored private var isExpanded = false
+    @ObservationIgnored private var isLoading = false
+    @ObservationIgnored private var errorMessage: String?
+    var isDeleted = false
     
-    // Optional callback for notifying parent after operations
-    var onDocumentChanged: ((DocumentViewModel.DocumentAction?) -> Void)?
-    
-    init(document: FormattedDocument, connectionInstance: ConnectionInstance? = nil, collectionName: String? = nil) {
+    init(document: FormattedDocument, documentListViewModel: DocumentListModel) {
         self.document = document
-        self.connectionInstance = connectionInstance
-        self.collectionName = collectionName
+        self.documentListViewModel = documentListViewModel
+        self.updatedDocument = document.rawDocument
     }
     
     // MARK: - User Actions
     
+    func togglePendingAction(_ action: DocumentAction?) {
+           // Check current state from the source of truth
+           let currentAction = getPendingAction()
+           
+           if currentAction == action {
+               // Remove the action if it's the same (toggle off)
+               documentListViewModel.removePendingActions(for: document.id)
+           } else {
+               // Set the new action
+               documentListViewModel.addPendingAction(documentId: document.id, action: action ?? .update, updateData: updatedDocument)
+           }
+       }
+    
     func toggleExpanded() {
         isExpanded.toggle()
     }
+    
+    // MARK: - Hover actions
+    var showCopyFeedback = false
+    
+    func getPendingAction() -> DocumentAction? {
+           if documentListViewModel.hasPendingAction(documentId: document.id, action: .delete) {
+               return .delete
+           } else if documentListViewModel.hasPendingAction(documentId: document.id, action: .update) {
+               return .update
+           }
+           return nil
+       }
+       
     
     func copyDocumentJSON() {
         do {
@@ -66,90 +86,51 @@ class DocumentRowViewModel {
         }
     }
     
-    private func createJSONString() -> String {
-        // Implement JSON formatting logic here
-        // This is a simplified example
-        return "{\n  \"_id\": \"\(document.id)\"\n  // Other fields would be here\n}"
+    func updateField(key: String, value: String) {
+        var documentCopy = document.rawDocument
+        documentCopy[key] = value
+        documentListViewModel.updatePendingActionData(for: document.id, updateData: documentCopy)
     }
     
-    // Removed hideActionConfirmation method as it's no longer needed
-    
-    func setPendingAction(_ action: DocumentViewModel.DocumentAction?) {
-        // If the same action is already set, toggle it off (remove it)
-        if pendingAction == action {
-            pendingAction = nil
-        } else {
-            pendingAction = action
+    private func getOriginalType(for key: String) -> Primitive? {
+        if let field = document.fields.first(where: { $0.key == key }) {
+            return field.rawValue
         }
-        
-        // Notify parent about the action change
-        onDocumentChanged?(pendingAction)
+        return nil
     }
     
-    func clearPendingAction() {
-        pendingAction = nil
+    private func convertStringToPrimitive(_ string: String, matchingType original: Primitive?) -> Primitive? {
+        guard let original = original else { return string }
         
-        // Notify parent that action was cleared
-        onDocumentChanged?(nil)
-    }
-    
-    func togglePendingAction(_ action: DocumentViewModel.DocumentAction) {
-        if pendingAction == action {
-            pendingAction = nil
-        } else {
-            pendingAction = action
+        switch original {
+        case is Int32:
+            return Int32(string)
+        case is Int:
+            return Int(string)
+        case is Double:
+            return Double(string)
+        case is Bool:
+            return string.lowercased() == "true"
+        case is Date:
+            // Simple date parsing - you might need a more sophisticated approach
+            let formatter = ISO8601DateFormatter()
+            return formatter.date(from: string) ?? Date()
+        case is ObjectId:
+            return ObjectId(string)
+        default:
+            return string
         }
-        
-        // Notify parent about the action change
-        onDocumentChanged?(pendingAction)
     }
-    
-    func executeAction() async {
-        guard let connectionInstance = connectionInstance,
-              let collectionName = collectionName,
-              let action = pendingAction else {
-            errorMessage = "Cannot execute action: missing information"
-            return
-        }
-        
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            // Parse the document ID (assuming it's an ObjectId)
-            guard let objectId = ObjectId(document.id) else {
-                errorMessage = "Invalid document ID format"
-                return
-            }
-            
-            switch action {
-            case .delete:
-                // Perform deletion
-                try await connectionInstance.deleteDocumentBy(
-                    fromCollection: collectionName,
-                    withId: objectId
-                )
-                isDeleted = true
-                
-            case .update:
-                // Placeholder for update functionality
-                // Will be implemented in the future
-                errorMessage = "Update functionality not yet implemented"
-                return
-            }
-            
-            // Clear the pending action after successful execution
-            pendingAction = nil
+}
 
-            // Notify parent that the action was executed
-            onDocumentChanged?(nil)
-        } catch {
-            errorMessage = "Failed to execute \(action) action: \(error.localizedDescription)"
-        }
-    }
-    
-    func editDocument() {
-        // This would navigate to edit view or trigger edit mode
-        // Implementation depends on your navigation architecture
-    }
+
+public enum DocumentAction: String, CaseIterable {
+    case delete
+    case update
+}
+
+public struct PendingDocumentAction {
+    let documentId: String
+    let action: DocumentAction
+    var updateData: [String: Any]?
 }

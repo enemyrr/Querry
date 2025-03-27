@@ -8,9 +8,8 @@
 import SwiftUI
 import MongoKitten
 
-@Observable
-final class SidebarViewModel {
-    private let connectionManager: ConnectionManager
+@Observable final class SidebarViewModel {
+    @ObservationIgnored private let connectionManager: ConnectionManager
     
     // UI State
     var activeSidebarItem: SidebarItem = .home
@@ -20,7 +19,6 @@ final class SidebarViewModel {
     var allInstances: [ConnectionInstance] {
         connectionManager.connectionInstances
     }
-    
     var activeInstance: ConnectionInstance? {
         connectionManager.activeConnectionInstance
     }
@@ -42,7 +40,7 @@ final class SidebarViewModel {
     }
     
     func disconnectConnectionInstance(_ instanceId: UUID) async {
-        guard await connectionManager.removeConnectionInstance(instanceId) else { return }
+        await connectionManager.removeConnectionInstance(instanceId)
         
         if let lastActiveConnection = connectionManager.connectionInstances.last {
             changeActiveSidebarItem(.connection(lastActiveConnection.id))

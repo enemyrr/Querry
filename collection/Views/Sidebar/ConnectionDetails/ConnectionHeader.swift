@@ -8,13 +8,17 @@ import SwiftUI
 
 // MARK: - Connection Header
 struct ConnectionHeader: View {
-    let instance: ConnectionInstance
+    let name: String
+    let status: ConnectionStatus
+    let version: String?
+    let environment: ConnectionEnvironment
+    
     @State private var isHovered = false
     @State private var bubbleOffset = CGSize.zero
     
     // Get color based on connection status
     private var statusColor: Color {
-        switch instance.connectionStatus {
+        switch status {
         case .connected:
             return .green
         case .connecting:
@@ -32,16 +36,16 @@ struct ConnectionHeader: View {
             HStack(alignment: .center) {
                 // Left side
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(instance.connection.name)
+                    Text(name)
                         .font(.system(size: 12))
                         .lineLimit(1)
                     
                     HStack {
-                        ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
+                        ConnectionStatusBadge(status: status, onRetry: {})
                         
-                        if let connectionVersion = instance.connectionVersion {
+                        if let version = version {
                             Divider().frame(height: 10)
-                            Text("MongoDB \(connectionVersion)").font(.caption)
+                            Text("MongoDB \(version)").font(.caption)
                                 .foregroundStyle(.secondary)
                         }                    }
                 }
@@ -49,7 +53,7 @@ struct ConnectionHeader: View {
                 Spacer(minLength: 16)
                 
                 // Right side
-                EnvironmentTag(environment: instance.connection.environment)
+                EnvironmentTag(environment: environment)
                     .opacity(isHovered ? 1 : 0.8)
             }
         }
@@ -117,7 +121,7 @@ struct ConnectionHeader: View {
                 .blendMode(.plusLighter)
                 .padding(1)
         )
-        .animation(.easeInOut(duration: 0.3), value: instance.connectionStatus)
+        .animation(.easeInOut(duration: 0.3), value: status)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
             isHovered = hover

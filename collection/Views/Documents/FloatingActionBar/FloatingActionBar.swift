@@ -9,20 +9,20 @@ import SwiftUI
 
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
-    @ObservedObject var viewModel: DocumentViewModel
+    var viewModel: DocumentListModel
     @Environment(\.colorScheme) private var colorScheme
-    @StateObject private var searchQueryViewModel: SearchQueryViewModel
+    @State private var searchQueryViewModel: SearchQueryViewModel
     
-    init(viewModel: DocumentViewModel, screenWidth: CGFloat) {
-        self._viewModel = ObservedObject(wrappedValue: viewModel)
-        self._searchQueryViewModel = StateObject(wrappedValue: SearchQueryViewModel(documentViewModel: viewModel))
+    init(viewModel: DocumentListModel, screenWidth: CGFloat) {
+        self.viewModel = viewModel
+        self.searchQueryViewModel = SearchQueryViewModel(DocumentListModel: viewModel)
         self.screenWidth = screenWidth
     }
 
     var body: some View {
         VStack {
             if viewModel.action == .search {
-                QueryEditor(viewModel: searchQueryViewModel, documentViewModel: viewModel)
+                QueryEditor(viewModel: searchQueryViewModel, DocumentListModel: viewModel)
                     .padding(.bottom, searchQueryViewModel.isFullQueryEditorOpen ? -12 : -2)
                     .frame(width: screenWidth * (searchQueryViewModel.isFullQueryEditorOpen ? 0.9 : 0.6))
             }
@@ -32,7 +32,7 @@ struct FloatingActionBar: View {
                 case .main:
                     mainView
                 case .search:
-                    AISearchView(viewModel: searchQueryViewModel, documentViewModel: viewModel)
+                    AISearchView(viewModel: searchQueryViewModel, DocumentListModel: viewModel)
                         .frame(width: screenWidth * 0.6)
                 }
             }
@@ -67,7 +67,7 @@ struct FloatingActionBar: View {
             .keyboardShortcut("f", modifiers: .command)
             .customHelp("Filter documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
-                key: "f"
+                key: "F"
             ), spacing: 10)
             
             Divider()
@@ -156,6 +156,11 @@ struct DeleteActionButton: View {
         .buttonStyle(.plain)
         .disabled(isProcessingBatch)
         .transition(.scale.combined(with: .opacity))
+        .keyboardShortcut("s", modifiers: .command)
+        .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
+            modifiers: [.command],
+            key: "S"
+        ), spacing: 10)
     }
 }
 
@@ -166,22 +171,27 @@ struct UpdateActionButton: View {
     
     var body: some View {
         Button(action: onUpdate) {
-            HStack(spacing: 4) {
-                Image(systemName: "pencil")
+            HStack(alignment: .bottom,spacing: 4) {
+                Image(systemName: "square.and.arrow.down")
                     .font(.system(size: 12))
                 Text("\(updateCount)")
                     .font(.system(size: 12, weight: .medium))
             }
             .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(Color.blue.opacity(isProcessingBatch ? 0.7 : 1))
             .cornerRadius(6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isProcessingBatch)
-        .customHelp("Update \(updateCount) marked documents", position: .top, spacing: 4)
+        .transition(.scale.combined(with: .opacity))
+        .keyboardShortcut("s", modifiers: .command)
+        .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
+            modifiers: [.command],
+            key: "S"
+        ), spacing: 10)
     }
 }
 

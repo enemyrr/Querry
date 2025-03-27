@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct Pagination: View {
-    @ObservedObject var viewModel: DocumentViewModel
+    var viewModel: DocumentListModel
     
     var body: some View {
         HStack(spacing: 0) {
@@ -63,7 +63,7 @@ struct Pagination: View {
 }
 
 struct PaginationMinimal: View {
-    @ObservedObject var viewModel: DocumentViewModel
+    var viewModel: DocumentListModel
     
     var body: some View {
         HStack(spacing: 0) {

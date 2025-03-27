@@ -13,7 +13,7 @@ struct HoverActionButtons: View {
     let onClone: () -> Void
     let onDelete: () -> Void
     let showCopyFeedback: Bool
-    let pendingAction: DocumentViewModel.DocumentAction?
+    let pendingAction: DocumentAction?
     
     init(
         isVisible: Bool,
@@ -22,7 +22,7 @@ struct HoverActionButtons: View {
         onDelete: @escaping () -> Void,
         onClone: @escaping () -> Void,
         showCopyFeedback: Bool = false,
-        pendingAction: DocumentViewModel.DocumentAction? = nil
+        pendingAction: DocumentAction? = nil
     ) {
         self.isVisible = isVisible
         self.onEdit = onEdit
@@ -82,7 +82,7 @@ struct HoverActionButtons: View {
 // You'll need to update your DocumentRow to use this:
 // Helper extension for action-related UI
 extension HoverActionButtons {
-    func getActionIcon(for action: DocumentViewModel.DocumentAction) -> String {
+    func getActionIcon(for action: DocumentAction) -> String {
         if pendingAction == action {
             switch action {
             case .delete:
@@ -100,7 +100,7 @@ extension HoverActionButtons {
         }
     }
     
-    func getActionTooltip(for action: DocumentViewModel.DocumentAction) -> String {
+    func getActionTooltip(for action: DocumentAction) -> String {
         if pendingAction == action {
             switch action {
             case .delete:
@@ -118,7 +118,7 @@ extension HoverActionButtons {
         }
     }
     
-    func getActionColor(for action: DocumentViewModel.DocumentAction) -> Color {
+    func getActionColor(for action: DocumentAction) -> Color {
         if pendingAction == action {
             switch action {
             case .delete:

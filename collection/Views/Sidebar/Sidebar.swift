@@ -8,15 +8,16 @@ import SwiftUI
 import MongoKitten
 
 struct Sidebar: View {
-    @Environment(SidebarViewModel.self) var model
+    @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     
     var body: some View {
         HStack(spacing: 0) {
-            NavigationSidebar(model: model)
+            NavigationSidebar(model: viewModel)
                 .frame(width: 50)
             
-            if model.activeSidebarItem != .home {
-                ConnectionDetailsSidebar(model: model)
+            if viewModel.activeSidebarItem != .home {
+                ConnectionDetailsSidebar()
+                    .environment(viewModel)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

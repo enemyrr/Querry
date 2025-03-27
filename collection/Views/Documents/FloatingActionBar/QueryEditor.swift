@@ -10,8 +10,8 @@ import LanguageSupport
 import OnTapOutsideGesture
 
 struct QueryEditor: View {
-    @ObservedObject var viewModel: SearchQueryViewModel
-    @ObservedObject var documentViewModel: DocumentViewModel
+    var viewModel: SearchQueryViewModel
+    var DocumentListModel: DocumentListModel
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = Set()
     
@@ -47,7 +47,7 @@ struct QueryEditor: View {
             
             if !viewModel.isFullQueryEditorOpen {
                 Spacer()
-                Text("\(documentViewModel.totalItems) documents").font(.footnote)
+                Text("\(DocumentListModel.totalItems) documents").font(.footnote)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 6)
                     .modifier(GlassBackgroundStyle(cornerRadius: 6))
@@ -115,15 +115,18 @@ struct QueryEditor: View {
             }
             .padding([.top, .horizontal, .bottom], 12)
             
-            CodeEditor(text: $viewModel.aiQueryResult, position: $position, messages: $messages, language: .sqlite(), layout: .init(showMinimap: false, wrapText: true))
-                .environment(\.codeEditorTheme, Theme.defaultDark)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.separator, lineWidth: 1)
-                )
-                .padding(.bottom, 2)
-                .cornerRadius(10)
-                .frame(height: 120)
+            CodeEditor(   text: Binding<String>(
+                get: { viewModel.aiQueryResult },
+                set: { viewModel.aiQueryResult = $0 }
+            ), position: $position, messages: $messages, language: .sqlite(), layout: .init(showMinimap: false, wrapText: true))
+            .environment(\.codeEditorTheme, Theme.defaultDark)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.separator, lineWidth: 1)
+            )
+            .padding(.bottom, 2)
+            .cornerRadius(10)
+            .frame(height: 120)
         }
     }
 }

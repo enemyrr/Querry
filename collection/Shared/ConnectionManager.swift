@@ -49,20 +49,15 @@ final class ConnectionManager {
         return newInstance.id
     }
     
-    func removeConnectionInstance(_ instanceId: UUID) async -> Bool {
+    func removeConnectionInstance(_ instanceId: UUID) async {
         // First perform any cleanup needed on the instance
         if let instanceToDisconnect = getInstance(instanceId) {
             // Properly disconnect
             let instanceStatus = await disconnectDBInstance(instanceToDisconnect)
             
             // Now remove from the array
-            let connectionToBeRemoved = connectionInstances.filter { $0.id ==  instanceToDisconnect.id }.first
             connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
-            
-            return connectionToBeRemoved != nil
         }
-        
-        return false
     }
     
     func disconnectDBInstance(_ instance: ConnectionInstance) async -> ConnectionStatus {

@@ -72,9 +72,10 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
                        max(minSidebarWidth, min(sidebarWidth + dragOffset, maxSidebarWidth)) : finalSidebarWidth)
                 .padding(.trailing, isFullScreenView ? -8 : 0)
             
-            if (!isFullScreenView) {
-                resizeHandle
-            }
+            // TODO: Enable when stable
+//            if (!isFullScreenView) {
+//                resizeHandle
+//            }
         }
         .transition(.move(edge: .leading).combined(with: .opacity))
         .matchedGeometryEffect(id: "sidebar", in: animation)

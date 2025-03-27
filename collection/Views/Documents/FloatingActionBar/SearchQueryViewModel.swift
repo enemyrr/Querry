@@ -11,7 +11,6 @@ import Combine
 import MongoKitten
 
 // MARK: - Processing Stage Enum
-
 /// Represents the different stages of query processing
 public enum ProcessingStage: Int {
     case idle = 0
@@ -31,12 +30,12 @@ public enum ProcessingStage: Int {
 }
 
 /// A shared ViewModel that handles both AI-powered search and query editing functionality
-class SearchQueryViewModel: ObservableObject {
+@Observable class SearchQueryViewModel {
     // Document ViewModel reference
-    private let documentViewModel: DocumentViewModel
+    private let DocumentListModel: DocumentListModel
     
     // AI Query results
-    @Published var aiQueryResult: String = """
+    var aiQueryResult: String = """
 {
     "workspace": {
         "$eq": "some_workspace_id"
@@ -54,60 +53,60 @@ class SearchQueryViewModel: ObservableObject {
     }
 }
 """
-    @Published var lastQuery: String = ""
+    var lastQuery: String = ""
     
     // MARK: - Shared Properties
     
     /// Flag indicating if processing is in progress
-    @Published var isProcessing: Bool = false
+    var isProcessing: Bool = false
     
     /// Current processing stage
-    @Published var processingStage: ProcessingStage = .idle
+    var processingStage: ProcessingStage = .idle
     
     /// Flag to show/hide the filter view
-    @Published var showFilterView: Bool = false
+    var showFilterView: Bool = false
     
     // MARK: - AI Search Properties
     
     /// The natural language search query input by the user
-    @Published var search: String = ""
+    var search: String = ""
     
     /// The editable version of the filter for manual adjustments
-    @Published var editableFilter: String = ""
+    var editableFilter: String = ""
     
     /// Flag to show/hide search suggestions
-    @Published var showSuggestions: Bool = false
+    var showSuggestions: Bool = false
     
     /// Available filter suggestions based on current input
-    @Published var filterSuggestions: [FilterSuggestion] = []
+    var filterSuggestions: [FilterSuggestion] = []
     
     // MARK: - Query Editor Properties
     
     /// Flag to show the full query editor
-    @Published var isFullQueryEditorOpen: Bool = false
+    var isFullQueryEditorOpen: Bool = false
     
     /// The number of documents matching the current query
-    @Published var matchingDocumentsCount: Int = 0
+    var matchingDocumentsCount: Int = 0
     
     /// The time the query took to execute
-    @Published var queryExecutionTime: String = "0s"
+    var queryExecutionTime: String = "0s"
     
     /// The last time the query was executed
-    @Published var lastQueryTime: String = ""
+    var lastQueryTime: String = ""
     
     // Private cancellables set
     private var cancellables = Set<AnyCancellable>()
     
-    init(documentViewModel: DocumentViewModel) {
-        self.documentViewModel = documentViewModel
+    init(DocumentListModel: DocumentListModel) {
+        self.DocumentListModel = DocumentListModel
         
         // Setup search text monitoring
-        $search
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .sink { [weak self] text in
-                self?.updateFilterSuggestions(for: text)
-            }
-            .store(in: &cancellables)
+//        $search
+//            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+//            .sink { [weak self] text in
+//                self?.updateFilterSuggestions(for: text)
+//            }
+//            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
@@ -115,7 +114,7 @@ class SearchQueryViewModel: ObservableObject {
     func goBack() {
         Task { @MainActor in
             withAnimation(.spring(response: 0.3)) {
-                documentViewModel.action = ActionBar.main
+                DocumentListModel.action = ActionBar.main
             }
         }
     }
@@ -180,7 +179,7 @@ class SearchQueryViewModel: ObservableObject {
             
             // Get a sample document for the AI to understand the schema
             var sampleDocument = Document()
-            if let document = await documentViewModel.formattedDocuments.first?.rawDocument {
+            if let document = DocumentListModel.formattedDocuments.first?.rawDocument {
                 sampleDocument = document
             }
         
@@ -218,7 +217,7 @@ class SearchQueryViewModel: ObservableObject {
                 }
                 
                 let result = try convertJSONWithSpecialTypes(fullQueryString)
-                await documentViewModel.loadDocuments(filter: result)
+                await DocumentListModel.loadDocuments(filter: result)
                 
                 // Reset processing state and clear search field
                 await MainActor.run { [weak self] in

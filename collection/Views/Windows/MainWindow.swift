@@ -10,18 +10,13 @@ import SwiftData
 import AppKit
 import MongoKitten
 
-
 struct MainWindow: View {
-    @State private var sidebarViewModel: SidebarViewModel
+    @State private var viewModel = SidebarViewModel(connectionManager: ConnectionManager.shared)
     
     @Environment(\.modelContext) private var modelContext
     @State private var isSidebarVisible = true
     @Query private var connections: [Connection]
     @State private var activeConnection: Connection?
-    
-    init() {
-        _sidebarViewModel = State(wrappedValue: SidebarViewModel(connectionManager: ConnectionManager.shared))
-    }
     
     var body: some View {
         ZStack {
@@ -36,23 +31,23 @@ struct MainWindow: View {
 
             CustomSplitView(
                 sidebar: {
-                    Sidebar() // TODO:  - Do not pass shared instances on Env Space. Shared istances are GLOBAL CONSTANT variables depends on the App life cycle
-                        .environment(sidebarViewModel)
+                    Sidebar()
+                        .environment(viewModel)
                 },
                 detail: {
-                    switch sidebarViewModel.activeSidebarItem {
+                    switch viewModel.activeSidebarItem {
                     case .home:
                         HomeView()
-                            .environment(sidebarViewModel)
+                            .environment(viewModel)
                     case .connection(_):
-                        if let activeInstance = sidebarViewModel.activeInstance {
+                        if let activeInstance = viewModel.activeInstance {
                             DocumentView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
                         } else {
                             ConnectionErrorView()
                         }
                     }
                 },
-                isFullScreenView: sidebarViewModel.activeSidebarItem == .home,
+                isFullScreenView: viewModel.activeSidebarItem == .home,
                 isSidebarVisible: $isSidebarVisible
             )
             

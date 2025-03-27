@@ -1,5 +1,5 @@
 //
-//  DocumentViewModel.swift
+//  DocumentListModel.swift
 //  Collection
 //
 //  Created by Fauzaan on 2/19/25.
@@ -10,66 +10,62 @@ import MongoKitten
 import AIProxy
 import SwiftUI
 
-@MainActor
-class DocumentViewModel: ObservableObject {
+@Observable class DocumentListModel {
     let instance: ConnectionInstance
     let selectedTab: DatabaseTab
     
     // Pagination state
-    @Published private(set) var currentPage: Int = 1
-    @Published private(set) var itemsPerPage: Int = 25
-    @Published private(set) var totalItems: Int = 0
+    private(set) var currentPage: Int = 1
+    @ObservationIgnored private(set) var itemsPerPage: Int = 25
+    private(set) var totalItems: Int = 0
     
     // UI States
-    @Published var action: ActionBar = ActionBar.main
+    var action: ActionBar = ActionBar.main
     
     // Computed property for total pages
     var totalPages: Int {
         return max(1, Int(ceil(Double(totalItems) / Double(itemsPerPage))))
     }
     
-    @Published private(set) var formattedDocuments: [FormattedDocument] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var error: Error?
-    @Published var filterText = "" // Add this
-    @Published var actionBarUpdateTrigger = UUID()
-    
-    // Action tracking
-    enum DocumentAction: String, CaseIterable {
-        case delete
-        case update
-        // Add more actions in the future as needed
-    }
+    private(set) var formattedDocuments: [FormattedDocument] = []
+    private(set) var isLoading = false
+    private(set) var error: Error?
+    var filterText = "" // Add this
+    var actionBarUpdateTrigger = UUID()
     
     struct PendingDocumentAction {
         let documentId: String
         let action: DocumentAction
-        var updateData: [String: Any]? // For update actions
+        var updateData: Document?
     }
     
-    @Published private(set) var pendingActions: [PendingDocumentAction] = []
-    @Published private(set) var isProcessingBatch = false
-    
-    // AI-related properties (accessible to SearchQueryViewModel)
-    @Published var isAILoading: Bool = false
+    var pendingActions: [PendingDocumentAction] = []
+    @ObservationIgnored private(set) var isProcessingBatch = false
     
     init(instance: ConnectionInstance, selectedTab: DatabaseTab) {
         self.instance = instance
         self.selectedTab = selectedTab
     }
     
+    // MARK: - Documents
     func loadDocuments(filter: Document = [:]) async {
-        isLoading = true
-        defer { isLoading = false }
+        // Start loading indicator
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer {
+            // Ensure loading indicator is turned off on main thread
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
-            // First get the total count for pagination
-            totalItems = try await instance.getDocumentCount(for: selectedTab.name)
-            
-            // Calculate skip based on current page
+            // Perform database operations on background thread
+            let count = try await instance.getDocumentCount(for: selectedTab.name)
             let skip = (currentPage - 1) * itemsPerPage
             
-            // Get query builder with filter (if provided) and apply pagination
             let queryBuilder = try instance.findQueryBuilder(from: selectedTab.name, filter: filter)
                 .skip(skip)
                 .limit(itemsPerPage)
@@ -80,39 +76,19 @@ class DocumentViewModel: ObservableObject {
                 loadedDocuments.append(document)
             }
             
+            // Format documents (can remain on background thread)
             let formatted = await formatDocuments(loadedDocuments)
-            self.formattedDocuments = formatted
-            instance.cacheDouments(tab: selectedTab, documents: loadedDocuments)
+            
+            // Update UI state on main thread
+            await MainActor.run {
+                self.totalItems = count
+                self.formattedDocuments = formatted
+                instance.cacheDouments(tab: selectedTab, documents: loadedDocuments)
+            }
         } catch {
-            self.error = error
-        }
-    }
-    
-    func nextPage() {
-        if currentPage < totalPages {
-            currentPage += 1
-            updatePendingActionsState()
-            Task {
-                await loadDocuments()
-            }
-        }
-    }
-    
-    func previousPage() {
-        if currentPage > 1 {
-            currentPage -= 1
-            updatePendingActionsState()
-            Task {
-                await loadDocuments()
-            }
-        }
-    }
-    
-    func goToPage(_ page: Int) {
-        if page >= 1 && page <= totalPages {
-            currentPage = page
-            Task {
-                await loadDocuments()
+            // Handle error on main thread
+            await MainActor.run {
+                self.error = error
             }
         }
     }
@@ -163,6 +139,37 @@ class DocumentViewModel: ObservableObject {
         )
     }
     
+    // MARK: - Pagination
+    func nextPage() {
+        if currentPage < totalPages {
+            currentPage += 1
+            updatePendingActionsState()
+            Task {
+                await loadDocuments()
+            }
+        }
+    }
+    
+    func previousPage() {
+        if currentPage > 1 {
+            currentPage -= 1
+            updatePendingActionsState()
+            Task {
+                await loadDocuments()
+            }
+        }
+    }
+    
+    func goToPage(_ page: Int) {
+        if page >= 1 && page <= totalPages {
+            currentPage = page
+            Task {
+                await loadDocuments()
+            }
+        }
+    }
+
+    
     func updatePendingActionsState() {
         actionBarUpdateTrigger = UUID()
     }
@@ -170,7 +177,7 @@ class DocumentViewModel: ObservableObject {
     func updateFilteredDocuments() {}
     
     // MARK: - Document Action Methods
-    func addPendingAction(documentId: String, action: DocumentAction, updateData: [String: Any]? = nil) {
+    func addPendingAction(documentId: String, action: DocumentAction, updateData: Document? = nil) {
         // Use DispatchQueue.main.async to avoid publishing changes during view updates
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -193,6 +200,18 @@ class DocumentViewModel: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.removePendingActionsInternal(for: documentId)
+        }
+    }
+    
+    func updatePendingActionData(for documentId: String, updateData: Document) {
+        // Use DispatchQueue.main.async to avoid publishing changes during view updates
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Find the index of the existing pending action for this document
+            if let index = self.pendingActions.firstIndex(where: { $0.documentId == documentId }) {
+                self.pendingActions[index].updateData = updateData
+            }
         }
     }
     
@@ -252,21 +271,42 @@ class DocumentViewModel: ObservableObject {
                     fromCollection: selectedTab.name,
                     withId: objectId
                 )
+                
+                removePendingActions(for: action.documentId)
             } catch {
                 failedActions.append(action)
                 self.error = error
             }
         }
         
-        // Process updates (placeholder for future implementation)
         for action in updateActions {
-            // Implement update logic when needed
-            // This is a placeholder for future functionality
-            failedActions.append(action)
-        }
-        
-        // Keep only the failed actions
-        pendingActions = failedActions
+              do {
+                  // Parse the document ID
+                  guard let objectId = ObjectId(action.documentId) else {
+                      failedActions.append(action)
+                      continue
+                  }
+                  
+                  // Check if we have update data
+                  guard let updateData = action.updateData else {
+                      failedActions.append(action)
+                      continue
+                  }
+                  
+                  
+                  // Perform update
+                  try await instance.updateDocument(
+                    fromCollection: selectedTab.name,
+                    withId: objectId,
+                    withData: updateData
+                  )
+                  
+                  removePendingActions(for: action.documentId)
+              } catch {
+                  failedActions.append(action)
+                  self.error = error
+              }
+          }
         
         // Reload documents to reflect changes
         await loadDocuments()

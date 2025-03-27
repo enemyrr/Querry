@@ -9,19 +9,26 @@ import SwiftUI
 
 // MARK: - ConnectionDetailsSidebar
 struct ConnectionDetailsSidebar: View {
-    var model: SidebarViewModel
+    @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var isScrolled = false
-    @Environment(\.colorScheme) private var colorScheme
     @Namespace private var scrollSpace
     
     var body: some View {
         VStack(spacing: 0) {
-            if let instance = model.activeInstance {
-                ConnectionHeader(instance: instance)
+            if let instance = viewModel.activeInstance {
+                ConnectionHeader(
+                    name: instance.connection.name,
+                    status: instance.connectionStatus,
+                    version: instance.connectionVersion,
+                    environment: instance.connection.environment)
                 
                 VStack(spacing: 0) {
-                    DatabaseHeader(instance: instance)
+                    DatabaseHeader(
+                        viewModel: viewModel,
+                        database: instance.database
+                    )
                         .padding(.horizontal)
                         .padding(.vertical, 4)
                     
@@ -46,7 +53,7 @@ struct ConnectionDetailsSidebar: View {
                                 isScrolled = true
                             }
                         
-                        DatabaseList()
+                        DatabaseList(viewModel: viewModel)
                     }
                 }
             }
@@ -55,8 +62,8 @@ struct ConnectionDetailsSidebar: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(.separator, lineWidth: 1)
         }
-        .task(id: model.activeSidebarItem.hashValue) {
-            await model.loadActiveConnection()
+        .task(id: viewModel.activeSidebarItem.hashValue) {
+            await viewModel.loadActiveConnection()
         }
     }
 }

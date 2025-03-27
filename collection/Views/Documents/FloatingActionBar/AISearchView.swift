@@ -12,9 +12,8 @@ import Combine
 // MARK: - View
 
 struct AISearchView: View {
-    // Shared search/query view model
-    @ObservedObject var viewModel: SearchQueryViewModel
-    @ObservedObject var documentViewModel: DocumentViewModel
+    @Bindable var viewModel: SearchQueryViewModel
+    var DocumentListModel: DocumentListModel
     
     // Focus state for the search field
     @FocusState private var isSearchFocused: Bool
@@ -25,11 +24,6 @@ struct AISearchView: View {
     // Animation timer
     @State private var animationTimer: Timer? = nil
     @State private var animationDots: String = ""
-    
-    init(viewModel: SearchQueryViewModel, documentViewModel: DocumentViewModel) {
-        self.viewModel = viewModel
-        self.documentViewModel = documentViewModel
-    }
     
     var body: some View {
         HStack(spacing: 8) {
@@ -79,14 +73,14 @@ struct AISearchView: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-            PaginationMinimal(viewModel: documentViewModel)
+            PaginationMinimal(viewModel: DocumentListModel)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(
             IntelligenceUIPlatterView()
         )
-        .onReceive(viewModel.$isProcessing) { isProcessing in
+        .onChange(of: viewModel.isProcessing) { _, isProcessing in
             if isProcessing {
                 startProcessingAnimation()
             } else {
@@ -96,7 +90,6 @@ struct AISearchView: View {
     }
     
     // MARK: - Private Methods
-    
     private func submitQuery() {
         guard !viewModel.search.isEmpty else { return }
         

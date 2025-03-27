@@ -6,20 +6,24 @@
 //
 
 import SwiftUI
+import SwiftUI
+import MongoKitten
 
 // MARK: - Database List
 struct DatabaseHeader: View {
     @Environment(\.colorScheme) var colorScheme
-    var instance: ConnectionInstance
     @State private var isHovering = false
-    
+    var viewModel: SidebarViewModel
+    var database: MongoDatabase?
+
     var body: some View {
         VStack {
-            SearchInput()
+            SearchInput(viewModel: viewModel)
+            
             HStack {
                 HStack(spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(instance.database?.name ?? "No Database")
+                        Text(database?.name ?? "No Database")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -71,7 +75,8 @@ struct DatabaseHeader: View {
 
 // MARK: - SearchInput
 private struct SearchInput: View {
-    @Environment(SidebarViewModel.self) private var viewModel
+    var viewModel: SidebarViewModel
+    @State private var localSearchText: String = ""
     @FocusState private var isSearchFocused: Bool
     
     var body: some View {

@@ -2,13 +2,13 @@ import SwiftUI
 import AppKit
 
 struct DocumentList: View {
-    @StateObject private var viewModel: DocumentViewModel
+    @State private var viewModel: DocumentListModel
     
     init(instance: ConnectionInstance, selectedTab: DatabaseTab) {
-        self._viewModel = StateObject(wrappedValue: DocumentViewModel(
+        self.viewModel = DocumentListModel(
             instance: instance,
             selectedTab: selectedTab
-        ))
+        )
     }
     
     var body: some View {
@@ -19,15 +19,16 @@ struct DocumentList: View {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.formattedDocuments, id: \.self) { document in
                                 DocumentRow(
-                                    document: document,
-                                    parentViewModel: viewModel
+                                    viewModel: DocumentRowViewModel(
+                                        document: document,
+                                        documentListViewModel: viewModel)
                                 )
                                 .frame(maxWidth: .infinity)
                                 .padding(.horizontal)
                             }
                         }
                         .padding(.top)
-                        .padding(.bottom, 24) // Space for pagination
+                        .padding(.bottom, 24) // Space for Floating Action bar
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }

@@ -11,8 +11,7 @@ import MongoCore
 import SwiftUI
 import AIProxy
 
-@Observable
-final class ConnectionInstance: Identifiable {
+@Observable class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
     
@@ -25,9 +24,6 @@ final class ConnectionInstance: Identifiable {
     var tabs: [DatabaseTab] = []
     var selectedTab: DatabaseTab?
     
-    // Query results cache
-    private var queryCache: [String: Any] = [:]
-    
     // Database metadata
     var databases: [MongoDatabase] = []
     var collections: [String: [MongoCollection]] = [:]
@@ -39,10 +35,6 @@ final class ConnectionInstance: Identifiable {
     
     init(connection: Connection) {
         self.connection = connection
-    }
-    
-    deinit {
-        print("ConnectionInstance deinit: \(connection.name) with ID: \(id)")
     }
     
     func processDatabaseCollections(previousDatabase: MongoDatabase?) async {
@@ -153,19 +145,22 @@ final class ConnectionInstance: Identifiable {
         }
     }
     
-    func createNewTab(name: String) {
-        guard !tabs.contains(where: { $0.name == name }) else {
-            if let existingTab = tabs.first(where: { $0.name == name }) {
-                selectedTab = existingTab
-            }
-            return
+    func updateDocument(fromCollection collectionName: String, withId id: ObjectId, withData: Document) async throws {
+        guard let collection = database?[collectionName] else {
+            throw MongoError.collectionNotFound
         }
         
-        let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle)
-        tabs.append(newTab)
-        selectedTab = newTab
+        
+        
+        do {
+            // Execute the update operation
+            let result = try await collection.updateOne(where: ["_id": id], to: withData)
+            print(withData["message"])
+        } catch {
+            lastError = error
+            throw error
+        }
     }
-    
     
     func cacheDouments(tab: DatabaseTab, documents: [Document]) {
         if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
@@ -187,6 +182,55 @@ final class ConnectionInstance: Identifiable {
         )
         
         return buildInfo
+    }
+    
+    // MARK: - Pagination actions
+    func createNewTab(name: String) {
+        if let existingTab = tabs.first(where: { $0.name == name }) {
+            selectedTab = existingTab
+            return
+        }
+        
+        let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle)
+        tabs.append(newTab)
+        selectedTab = newTab
+    }
+    
+    func removeTab(_ tab: DatabaseTab) {
+        guard !tabs.isEmpty else { return }
+        
+        if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
+            // Determine which tab to select after removal
+            let newSelectedIndex = max(0, index - 1)
+            
+            // Remove the tab
+            tabs.remove(at: index)
+            
+            // Select the previous tab if possible, otherwise the first available
+            if !tabs.isEmpty {
+                selectedTab = tabs[newSelectedIndex]
+            } else {
+                selectedTab = nil
+            }
+        }
+    }
+    
+    func selectTab(_ tab: DatabaseTab) {
+        selectedTab = tab
+    }
+    
+   func nextTab(_ currentTab: DatabaseTab) {
+        if let currentIndex = tabs.firstIndex(where: { $0.id == currentTab.id }),
+           currentIndex < tabs.count - 1 {
+            selectedTab = tabs[currentIndex + 1]
+        }
+    }
+    
+    func previousTab(_ currentTab: DatabaseTab) {
+        if let currentIndex = tabs.firstIndex(where: { $0.id == currentTab.id }),
+           currentIndex > 0 {
+            selectedTab = tabs[currentIndex - 1]
+        }
     }
 }
 

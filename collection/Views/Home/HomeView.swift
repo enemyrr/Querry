@@ -10,11 +10,9 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
-    @Environment(SidebarViewModel.self) private var model
+    @Environment(SidebarViewModel.self) private var viewModel
     @Query private var connections: [Connection]
     @State private var showDatabaseModal = false
-    
-    @Environment(\.openWindow) private var openWindow
     @State private var selectedConnectionId: PersistentIdentifier?
     
     var body: some View {
@@ -47,8 +45,8 @@ struct HomeView: View {
                         selectedConnectionId = connection.persistentModelID
                     },
                     onOpen: { connection in
-                        let instanceId = model.createNewConnectionInstance(for: connection)
-                        model.changeActiveSidebarItem(.connection(instanceId))
+                        let instanceId = viewModel.createNewConnectionInstance(for: connection)
+                        viewModel.changeActiveSidebarItem(.connection(instanceId))
                     }
                 )
                 

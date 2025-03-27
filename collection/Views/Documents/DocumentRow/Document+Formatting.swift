@@ -12,6 +12,7 @@ struct FormattedPrimitive {
     let value: String
     let color: Color
     let isExpandable: Bool
+    let type: String
 }
 
 extension Document {
@@ -20,7 +21,8 @@ extension Document {
             return FormattedPrimitive(
                 value: "null",
                 color: .gray,
-                isExpandable: false
+                isExpandable: false,
+                type: "Null"
             )
         }
         
@@ -29,28 +31,32 @@ extension Document {
             return FormattedPrimitive(
                 value: "ObjectId('\(objectId.hexString)')",
                 color: .orange,
-                isExpandable: false
+                isExpandable: false,
+                type: "ObjectId"
             )
             
         case let array as [Primitive]:
             return FormattedPrimitive(
                 value: "Array (\(array.count))",
                 color: .gray,
-                isExpandable: !array.isEmpty
+                isExpandable: !array.isEmpty,
+                type: "Array"
             )
             
         case let date as Date:
             return FormattedPrimitive(
                 value: date.ISO8601Format(),
                 color: .blue,
-                isExpandable: false
+                isExpandable: false,
+                type: "Date"
             )
             
         case let bool as Bool:
             return FormattedPrimitive(
                 value: bool.description,
                 color: .green,
-                isExpandable: false
+                isExpandable: false,
+                type: "Boolean"
             )
             
         case let doc as Document:
@@ -62,13 +68,15 @@ extension Document {
                 return FormattedPrimitive(
                     value: "Array (\(doc.count))",
                     color: .gray,
-                    isExpandable: !doc.isEmpty
+                    isExpandable: !doc.isEmpty,
+                    type: "Array"
                 )
             } else {
                 return FormattedPrimitive(
                     value: "Object",
                     color: .white.opacity(0.5),
-                    isExpandable: !doc.isEmpty
+                    isExpandable: !doc.isEmpty,
+                    type: "Array"
                 )
             }
             
@@ -76,7 +84,8 @@ extension Document {
             return FormattedPrimitive(
                 value: "\"\(string)\"",
                 color: Color(red: 97/255, green: 193/255, blue: 119/255),
-                isExpandable: false
+                isExpandable: false,
+                type: "String"
             )
             
         case let number as Int: return numberFormatted(number, value: value)
@@ -87,13 +96,15 @@ extension Document {
             return FormattedPrimitive(
                 value: String(describing: number.toString),
                 color: .blue,
-                isExpandable: false
+                isExpandable: false,
+                type: "Number"
             )
         default:
             return FormattedPrimitive(
                 value: String(describing: value),
                 color: .white,
-                isExpandable: false
+                isExpandable: false,
+                type: "String"
             )
         }
     }
@@ -102,7 +113,8 @@ extension Document {
         return FormattedPrimitive(
             value: String(describing: number),
             color: .blue,
-            isExpandable: false
+            isExpandable: false,
+            type: "Number"
         )
     }
     
