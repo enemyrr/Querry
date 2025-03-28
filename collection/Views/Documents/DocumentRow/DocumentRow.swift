@@ -17,7 +17,15 @@ struct DocumentRow: View {
         Group {
             ZStack(alignment: .bottomTrailing) {
                 VStack(alignment: .leading, spacing: 2) {
-                    DocumentKeyValueList(viewModel: viewModel)
+                    let isEditing = viewModel.getPendingAction() == .update
+                    DocumentKeyValueList(
+                        fields: viewModel.document.fields,
+                        isEditing: isEditing,
+                        onUpdateField: { key, value in
+                            viewModel.updateField(key: key, value: value)
+                        }
+                    )
+                    .id(viewModel.document.hashValue)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -72,7 +80,7 @@ struct DocumentRow: View {
                 .cardStyle(isHovered: isCardHovered)
                 
                 HoverActionButtons(
-                    isVisible: isCardHovered,
+                    isVisible: isCardHovered || viewModel.getPendingAction() == .update,
                     onEdit: {
                         viewModel.togglePendingAction(.update)
                     },
@@ -86,7 +94,15 @@ struct DocumentRow: View {
                         viewModel.copyDocumentJSON()
                     },
                     showCopyFeedback: viewModel.showCopyFeedback,
-                    pendingAction: viewModel.getPendingAction()
+                    pendingAction: viewModel.getPendingAction(),
+                    onSave: {
+                        Task {
+                            await viewModel.documentListViewModel.commitPendingActions()
+                        }
+                    },
+                    onCancel: {
+                          viewModel.togglePendingAction(.update)
+                    }
                 )
             }
             .onHover { hovering in
@@ -100,38 +116,55 @@ struct DocumentRow: View {
 
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
-    var viewModel: DocumentRowViewModel
+    var fields: [FormattedDocument.FormattedField]
+    var isEditing: Bool
+    var onUpdateField: (String, String) -> Void
+    var onCancelEdit: (() -> Void)?
+    
+    @State private var editedValues: [String: String] = [:]
     
     var body: some View {
-        ForEach(viewModel.document.fields, id: \.key) { field in
+        ForEach(fields, id: \.key) { field in
             RecursiveKeyValueRow(
                 formattedPrimitive: field.formattedValue,
                 key: field.key,
                 value: field.rawValue,
                 nestedFields: field.nestedFields,
-                isEditing: viewModel.getPendingAction() == .update,
-                editingValue: bindingForKey(field.key)
+                isEditing: isEditing,
+                editingValue: bindingForKey(field.key, field.formattedValue)
             )
         }
+        .onChange(of: isEditing) { oldValue, newValue in
+                    // When switching from editing to non-editing mode, check if this was a cancel
+                    if oldValue == true && newValue == false && onCancelEdit != nil {
+                        // Reset all edited values
+                        editedValues = [:]
+                    }
+                }
     }
     
-    private func bindingForKey(_ key: String) -> Binding<String> {
+    private func bindingForKey(_ key: String, _ value: FormattedPrimitive) -> Binding<String> {
         return Binding(
             get: {
-                return formattedValueFor(key: key)
+                editedValues[key] ?? value.value
             },
             set: { newValue in
-                viewModel.updateField(key: key, value: newValue)
+                editedValues[key] = newValue
+                onUpdateField(key, newValue)
             }
         )
     }
     
     private func formattedValueFor(key: String) -> String {
-        if let field = viewModel.document.fields.first(where: { $0.key == key }) {
+        if let field = fields.first(where: { $0.key == key }) {
             return field.formattedValue.value
         }
         return ""
     }
+    
+        func resetEditedValues() {
+            editedValues = [:]
+        }
 }
 
 // MARK: - Key-Value Views

@@ -46,6 +46,8 @@ struct FloatingActionBar: View {
     }
     
     
+    @State private var isLoading = false
+
     private var mainView: some View {
         HStack(spacing: 5) {
             Pagination(viewModel: viewModel)
@@ -54,6 +56,34 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
+
+            Button(action: {
+                isLoading = true // Start loading state
+                Task {
+                    await viewModel.loadDocuments()
+                    isLoading = false // End loading state
+                }
+            }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 14))
+                    .contentShape(Rectangle())
+                    .symbolEffect(
+                        .rotate,
+                        value: isLoading
+                    )
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+            .keyboardShortcut("r", modifiers: .command)
+            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "R"
+            ), spacing: 10)
+            
+            Divider()
+                .frame(height: 22)
+                .padding(.vertical, 6)
+            
+
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     viewModel.action = ActionBar.search
@@ -69,10 +99,6 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "F"
             ), spacing: 10)
-            
-            Divider()
-                .frame(height: 22)
-                .padding(.vertical, 6)
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
@@ -94,7 +120,7 @@ struct FloatingActionBar: View {
                 }
                 
                 // Batch update button - only show when there are documents marked for update
-                if viewModel.pendingActionsCount(for: .update) > 0 {
+                if viewModel.pendingActionsCount(for: .update) > 1 {
                     UpdateActionButton(
                         updateCount: viewModel.pendingActionsCount(for: .update),
                         isProcessingBatch: viewModel.isProcessingBatch,
@@ -111,16 +137,18 @@ struct FloatingActionBar: View {
                 }
             }
             
+
+            
             // More options button
-            Button(action: {
-                // TODO:
-                // Add an action
-            }) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 14))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
+//            Button(action: {
+//                // TODO:
+//                // Add an action
+//            }) {
+//                Image(systemName: "ellipsis")
+//                    .font(.system(size: 14))
+//                    .contentShape(Rectangle())
+//            }
+//            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
@@ -141,9 +169,19 @@ struct DeleteActionButton: View {
     var body: some View {
         Button(action: onDelete) {
             HStack(spacing: 4) {
-                Image(systemName: "trash")
-                    .font(.system(size: 12))
-                Text("\(deleteCount)")
+                if isProcessingBatch {
+                    // Display a loading indicator when processing
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 16, height: 16)
+                        .tint(.white)
+                } else {
+                    // Display trash icon when not processing
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                }
+                
+                Text(isProcessingBatch ? "Deleting..." : "\(deleteCount)")
                     .font(.system(size: 12, weight: .medium))
             }
             .foregroundColor(.white)
@@ -171,16 +209,26 @@ struct UpdateActionButton: View {
     
     var body: some View {
         Button(action: onUpdate) {
-            HStack(alignment: .bottom,spacing: 4) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.system(size: 12))
-                Text("\(updateCount)")
-                    .font(.system(size: 12, weight: .medium))
+            HStack(alignment: .bottom, spacing: 4) {
+                if isProcessingBatch {
+                    // Display a loading indicator when processing
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 16, height: 16)
+                        .tint(.white)
+                } else {
+                    // Display save icon when not processing
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 12))
+                    
+                    Text("\(updateCount)")
+                        .font(.system(size: 12, weight: .medium))
+                }
             }
             .foregroundColor(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.blue.opacity(isProcessingBatch ? 0.7 : 1))
+            .background(Color.blue.opacity(isProcessingBatch ? 0.8 : 1))
             .cornerRadius(6)
             .contentShape(Rectangle())
         }
@@ -194,4 +242,3 @@ struct UpdateActionButton: View {
         ), spacing: 10)
     }
 }
-

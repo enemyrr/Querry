@@ -14,6 +14,9 @@ struct HoverActionButtons: View {
     let onDelete: () -> Void
     let showCopyFeedback: Bool
     let pendingAction: DocumentAction?
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.colorScheme) var colorScheme
     
     init(
         isVisible: Bool,
@@ -22,7 +25,9 @@ struct HoverActionButtons: View {
         onDelete: @escaping () -> Void,
         onClone: @escaping () -> Void,
         showCopyFeedback: Bool = false,
-        pendingAction: DocumentAction? = nil
+        pendingAction: DocumentAction? = nil,
+        onSave: @escaping () -> Void = {},
+        onCancel: @escaping () -> Void = {}
     ) {
         self.isVisible = isVisible
         self.onEdit = onEdit
@@ -31,17 +36,52 @@ struct HoverActionButtons: View {
         self.onClone = onClone
         self.showCopyFeedback = showCopyFeedback
         self.pendingAction = pendingAction
+        self.onSave = onSave
+        self.onCancel = onCancel
     }
     
     var body: some View {
         HStack(spacing: .zero) {
-            ActionButton(
-                systemName: getActionIcon(for: .update),
-                action: onEdit,
-                tooltipText: getActionTooltip(for: .update),
-                tintColor: getActionColor(for: .update)
-            )
-            .customHelp(getActionTooltip(for: .update), position: .top, spacing: 4)
+            if pendingAction == .update {
+                Button(action: onSave) {
+                    Text("Save")
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                }
+                .buttonStyle(HoverActionButtonStyleText())
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            colorScheme == .dark ? Color.black : Color.white)
+                                    .opacity(0.3)
+                )
+                .padding(.trailing, 4)
+                .keyboardShortcut("s", modifiers: .command)
+                .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
+                    modifiers: [.command],
+                    key: "S"
+                ), spacing: 4)
+
+                
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                        .tint(.red)
+                }
+                .buttonStyle(HoverActionButtonStyleText())
+
+                Divider().frame(height: 12).padding(.horizontal, 4)
+                
+            } else {
+                ActionButton(
+                    systemName: getActionIcon(for: .update),
+                    action: onEdit,
+                    tooltipText: getActionTooltip(for: .update),
+                    tintColor: getActionColor(for: .update)
+                )
+                .customHelp(getActionTooltip(for: .update), position: .top, spacing: 4)
+            }
 
             ActionButton(
                 systemName: showCopyFeedback ? "checkmark" : "clipboard",
@@ -74,6 +114,7 @@ struct HoverActionButtons: View {
         )
         .opacity(isVisible ? 1 : 0)
         .animation(.easeInOut(duration: 0.2), value: isVisible)
+        .animation(.easeInOut(duration: 0.2), value: pendingAction == .update)
         .padding(.bottom, -6)
         .padding(.trailing, 16)
     }
@@ -152,8 +193,6 @@ struct ActionButton: View {
                 .font(.system(size: 10))
                 .fontWeight(.bold)
                 .foregroundColor(tintColor)
-//                .frame(width: 16, height: 16) // Fixed square frame that's larger
-//                .contentShape(Rectangle()) // Ensure entire area is clickable
                 .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
  
         }

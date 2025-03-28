@@ -23,10 +23,12 @@ struct DocumentList: View {
                                         document: document,
                                         documentListViewModel: viewModel)
                                 )
+                                .transition(.opacity)
                                 .frame(maxWidth: .infinity)
                                 .padding(.horizontal)
                             }
                         }
+                        .id("\(viewModel.lastFetchTimestamp)")
                         .padding(.top)
                         .padding(.bottom, 24) // Space for Floating Action bar
                     }

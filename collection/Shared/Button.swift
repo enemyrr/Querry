@@ -336,6 +336,33 @@ struct HoverActionButtonStyle: ButtonStyle {
     }
 }
 
+struct HoverActionButtonStyleText: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .frame(height: 12)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering
+                        ? (colorScheme == .dark ? Color.black : Color.white)
+                            .opacity(0.3)
+                        : Color.clear
+                )
+        )
+        .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 extension Button {
     func primaryStyle() -> some View {
         self.buttonStyle(PrimaryButtonStyle())

@@ -43,10 +43,6 @@ import MongoKitten
            }
        }
     
-    func toggleExpanded() {
-        isExpanded.toggle()
-    }
-    
     // MARK: - Hover actions
     var showCopyFeedback = false
     
@@ -56,7 +52,8 @@ import MongoKitten
            } else if documentListViewModel.hasPendingAction(documentId: document.id, action: .update) {
                return .update
            }
-           return nil
+        
+        return nil
        }
        
     

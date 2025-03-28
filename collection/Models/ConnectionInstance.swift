@@ -150,19 +150,15 @@ import AIProxy
             throw MongoError.collectionNotFound
         }
         
-        
-        
         do {
-            // Execute the update operation
-            let result = try await collection.updateOne(where: ["_id": id], to: withData)
-            print(withData["message"])
+            try await collection.updateOne(where: ["_id": id], to: withData)
         } catch {
             lastError = error
             throw error
         }
     }
     
-    func cacheDouments(tab: DatabaseTab, documents: [Document]) {
+    func storeDocumentsForTab(tab: DatabaseTab, documents: [Document]) {
         if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
             tabs[index].documents = documents
         }

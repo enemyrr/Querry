@@ -14,6 +14,8 @@ import SwiftUI
     let instance: ConnectionInstance
     let selectedTab: DatabaseTab
     
+    var lastFetchTimestamp: Date = Date()
+    
     // Pagination state
     private(set) var currentPage: Int = 1
     @ObservationIgnored private(set) var itemsPerPage: Int = 25
@@ -40,7 +42,7 @@ import SwiftUI
     }
     
     var pendingActions: [PendingDocumentAction] = []
-    @ObservationIgnored private(set) var isProcessingBatch = false
+    private(set) var isProcessingBatch = false
     
     init(instance: ConnectionInstance, selectedTab: DatabaseTab) {
         self.instance = instance
@@ -70,20 +72,25 @@ import SwiftUI
                 .skip(skip)
                 .limit(itemsPerPage)
             
-            var loadedDocuments: [Document] = []
-            
+            // Create and populate the documents array
+            var documents: [Document] = []
             for try await document in queryBuilder {
-                loadedDocuments.append(document)
+                documents.append(document)
             }
             
             // Format documents (can remain on background thread)
-            let formatted = await formatDocuments(loadedDocuments)
+            let formatted = await formatDocuments(documents)
+            
+            // Create a copy of documents to safely pass to the MainActor
+            let documentsCopy = documents
+            
             
             // Update UI state on main thread
             await MainActor.run {
                 self.totalItems = count
                 self.formattedDocuments = formatted
-                instance.cacheDouments(tab: selectedTab, documents: loadedDocuments)
+                self.lastFetchTimestamp = Date()
+                instance.storeDocumentsForTab(tab: selectedTab, documents: documentsCopy)
             }
         } catch {
             // Handle error on main thread
@@ -300,8 +307,6 @@ import SwiftUI
                     withId: objectId,
                     withData: updateData
                   )
-                  
-                  removePendingActions(for: action.documentId)
               } catch {
                   failedActions.append(action)
                   self.error = error
@@ -310,5 +315,9 @@ import SwiftUI
         
         // Reload documents to reflect changes
         await loadDocuments()
+        
+        await MainActor.run {
+            self.pendingActions.removeAll()
+        }
     }
 }
