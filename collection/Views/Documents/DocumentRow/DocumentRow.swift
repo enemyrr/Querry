@@ -111,6 +111,12 @@ struct DocumentRow: View {
                 }
             }
         }
+        .simultaneousGesture(
+            TapGesture(count: 2)
+                .onEnded {
+                    viewModel.togglePendingAction(.update)
+                }
+        )
     }
 }
 

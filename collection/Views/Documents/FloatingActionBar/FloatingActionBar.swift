@@ -18,7 +18,7 @@ struct FloatingActionBar: View {
         self.searchQueryViewModel = SearchQueryViewModel(DocumentListModel: viewModel)
         self.screenWidth = screenWidth
     }
-
+    
     var body: some View {
         VStack {
             if viewModel.action == .search {
@@ -47,7 +47,7 @@ struct FloatingActionBar: View {
     
     
     @State private var isLoading = false
-
+    
     private var mainView: some View {
         HStack(spacing: 5) {
             Pagination(viewModel: viewModel)
@@ -56,7 +56,7 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-
+            
             Button(action: {
                 isLoading = true // Start loading state
                 Task {
@@ -78,12 +78,51 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "R"
             ), spacing: 10)
+
+            Group {
+                // Batch delete button - only show when there are documents marked for deletion
+                if viewModel.pendingActionsCount(for: .delete) > 0 {
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.vertical, 6)
+
+                    DeleteActionButton(
+                        deleteCount: viewModel.pendingActionsCount(for: .delete),
+                        isProcessingBatch: viewModel.isProcessingBatch,
+                        onDelete: {
+                            Task {
+                                await viewModel.commitPendingActions()
+                            }
+                        }
+                    )
+                    .padding(.horizontal, 2)
+                }
+                
+                // Batch update button - only show when there are documents marked for update
+                if viewModel.pendingActionsCount(for: .update) > 1 {
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.vertical, 6)
+                    
+                    UpdateActionButton(
+                        updateCount: viewModel.pendingActionsCount(for: .update),
+                        isProcessingBatch: viewModel.isProcessingBatch,
+                        onUpdate: {
+                            Task {
+                                await viewModel.commitPendingActions()
+                            }
+                        }
+                    )
+                }
+                
+            }
+            
             
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-
+            
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     viewModel.action = ActionBar.search
@@ -100,55 +139,19 @@ struct FloatingActionBar: View {
                 key: "F"
             ), spacing: 10)
             
-            Group {
-                // Batch delete button - only show when there are documents marked for deletion
-                if viewModel.pendingActionsCount(for: .delete) > 0 {
-                    DeleteActionButton(
-                        deleteCount: viewModel.pendingActionsCount(for: .delete),
-                        isProcessingBatch: viewModel.isProcessingBatch,
-                        onDelete: {
-                            Task {
-                                await viewModel.commitPendingActions()
-                            }
-                        }
-                    )
-                    .padding(.horizontal, 2)
-                    
-                    Divider()
-                        .frame(height: 22)
-                        .padding(.vertical, 6)
-                }
-                
-                // Batch update button - only show when there are documents marked for update
-                if viewModel.pendingActionsCount(for: .update) > 1 {
-                    UpdateActionButton(
-                        updateCount: viewModel.pendingActionsCount(for: .update),
-                        isProcessingBatch: viewModel.isProcessingBatch,
-                        onUpdate: {
-                            Task {
-                                await viewModel.commitPendingActions()
-                            }
-                        }
-                    )
-                    
-                    Divider()
-                        .frame(height: 22)
-                        .padding(.vertical, 6)
-                }
-            }
             
-
+            
             
             // More options button
-//            Button(action: {
-//                // TODO:
-//                // Add an action
-//            }) {
-//                Image(systemName: "ellipsis")
-//                    .font(.system(size: 14))
-//                    .contentShape(Rectangle())
-//            }
-//            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
+            //            Button(action: {
+            //                // TODO:
+            //                // Add an action
+            //            }) {
+            //                Image(systemName: "ellipsis")
+            //                    .font(.system(size: 14))
+            //                    .contentShape(Rectangle())
+            //            }
+            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
@@ -183,6 +186,7 @@ struct DeleteActionButton: View {
                 
                 Text(isProcessingBatch ? "Deleting..." : "\(deleteCount)")
                     .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
             }
             .foregroundColor(.white)
             .padding(.horizontal, 10)
@@ -194,6 +198,7 @@ struct DeleteActionButton: View {
         .buttonStyle(.plain)
         .disabled(isProcessingBatch)
         .transition(.scale.combined(with: .opacity))
+        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
         .keyboardShortcut("s", modifiers: .command)
         .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
             modifiers: [.command],
@@ -218,7 +223,7 @@ struct UpdateActionButton: View {
                         .tint(.white)
                 } else {
                     // Display save icon when not processing
-                    Image(systemName: "square.and.arrow.down")
+                    Image(systemName: "icloud.and.arrow.up.fill")
                         .font(.system(size: 12))
                     
                     Text("\(updateCount)")
@@ -228,12 +233,13 @@ struct UpdateActionButton: View {
             .foregroundColor(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.blue.opacity(isProcessingBatch ? 0.8 : 1))
+            .background(Color.orange.opacity(isProcessingBatch ? 0.8 : 1))
             .cornerRadius(6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isProcessingBatch)
+        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
         .transition(.scale.combined(with: .opacity))
         .keyboardShortcut("s", modifiers: .command)
         .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(

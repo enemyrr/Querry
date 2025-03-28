@@ -52,31 +52,6 @@ struct DocumentList: View {
             }.frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
-    
-    
-    // Convert natural language to database query
-    private func convertToSearchQuery(_ naturalLanguage: String) -> String {
-        // This would use AI to convert natural language to a proper query
-        // For now, we'll just simulate some basic conversions
-        
-        if naturalLanguage.lowercased().contains("payment") && naturalLanguage.lowercased().contains("rejected") {
-            return "{ action: \"reject\", entity: \"payment-voucher\" }"
-        } else if naturalLanguage.lowercased().contains("approved") {
-            return "{ action: \"approve\" }"
-        } else if naturalLanguage.lowercased().contains("created") {
-            return "{ action: \"create\" }"
-        }
-        
-        // Default case - just use as is
-        return naturalLanguage
-    }
-    
-    // Search function
-    private func performSearch(_ query: String) {
-        Task {
-            await viewModel.loadDocuments()
-        }
-    }
 }
 
 
