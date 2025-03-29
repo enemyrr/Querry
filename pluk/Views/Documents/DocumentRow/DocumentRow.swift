@@ -101,7 +101,7 @@ struct DocumentRow: View {
                         }
                     },
                     onCancel: {
-                          viewModel.togglePendingAction(.update)
+                        viewModel.togglePendingAction(.update)
                     }
                 )
             }
@@ -130,29 +130,30 @@ struct DocumentKeyValueList: View {
     @State private var editedValues: [String: String] = [:]
     
     var body: some View {
-        ForEach(fields, id: \.key) { field in
+        ForEach(Array(fields.enumerated()), id: \.element.key) { index, field in
             RecursiveKeyValueRow(
                 formattedPrimitive: field.formattedValue,
                 key: field.key,
                 value: field.rawValue,
                 nestedFields: field.nestedFields,
                 isEditing: isEditing,
-                editingValue: bindingForKey(field.key, field.formattedValue)
+                editingValue: bindingForKey(field.key, field.formattedValue),
+                indexNumber: index + 1
             )
         }
         .onChange(of: isEditing) { oldValue, newValue in
-                    // When switching from editing to non-editing mode, check if this was a cancel
-                    if oldValue == true && newValue == false && onCancelEdit != nil {
-                        // Reset all edited values
-                        editedValues = [:]
-                    }
-                }
+            // When switching from editing to non-editing mode, check if this was a cancel
+            if oldValue == true && newValue == false && onCancelEdit != nil {
+                // Reset all edited values
+                editedValues = [:]
+            }
+        }
     }
     
     private func bindingForKey(_ key: String, _ value: FormattedPrimitive) -> Binding<String> {
         return Binding(
             get: {
-                editedValues[key] ?? value.value
+                cleanQuotedString(editedValues[key] ?? value.value)
             },
             set: { newValue in
                 editedValues[key] = newValue
@@ -168,9 +169,22 @@ struct DocumentKeyValueList: View {
         return ""
     }
     
-        func resetEditedValues() {
-            editedValues = [:]
+    func resetEditedValues() {
+        editedValues = [:]
+    }
+    
+    
+    private func cleanQuotedString(_ string: String) -> String {
+        // Check if the string starts with " and ends with "
+        if string.hasPrefix("\"") && string.hasSuffix("\"") && string.count >= 2 {
+            // Remove the first and last character (the quotes)
+            let startIndex = string.index(string.startIndex, offsetBy: 1)
+            let endIndex = string.index(string.endIndex, offsetBy: -1)
+            return String(string[startIndex..<endIndex])
         }
+        
+        return string
+    }
 }
 
 // MARK: - Key-Value Views
@@ -179,12 +193,26 @@ struct KeyValueRow: View {
     let formattedValue: FormattedPrimitive
     var isEditing: Bool
     @Binding var editingValue: String
+    var indexNumber: Int?
+    
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
     @FocusState private var focusedField: String?
     
     var body: some View {
         HStack(alignment: .top, spacing: 2) {
+            if let index = indexNumber {
+                   Text("\(index).")
+                       .monospacedStyle(color: .secondary)
+                       .frame(width: isEditing ? 25 : 0, alignment: .trailing) // Zero width when not editing
+                       .lineLimit(1)
+                       .opacity(isEditing ? 1 : 0)
+                       .offset(x: isEditing ? 0 : -15) // Slide from left
+                       .padding(.trailing, isEditing ? 2 : 0)
+                       .layoutPriority(isEditing ? 1 : 0) // Only claim space when editing
+                       .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isEditing)
+               }
+            
             HStack(spacing: 0) {
                 Text("\(key)")
                     .monospacedStyle()
@@ -250,6 +278,8 @@ struct RecursiveKeyValueRow: View {
     let nestedFields: [FormattedDocument.FormattedField]?
     var isEditing: Bool
     @Binding var editingValue: String
+    var indexNumber: Int? = nil
+    
     @State private var nestedEditingValues: [String: String] = [:]
     
     var body: some View {
@@ -260,14 +290,16 @@ struct RecursiveKeyValueRow: View {
                     key: key,
                     nestedFields: nestedFields,
                     isEditing: isEditing,
-                    editingValue: $editingValue
+                    editingValue: $editingValue,
+                    indexNumber: indexNumber
                 )
             } else {
                 KeyValueRow(
                     key: key,
                     formattedValue: formattedPrimitive,
                     isEditing: isEditing,
-                    editingValue: $editingValue
+                    editingValue: $editingValue,
+                    indexNumber: indexNumber
                 )
             }
         }
@@ -281,6 +313,8 @@ struct ExpandableValueView: View {
     let nestedFields: [FormattedDocument.FormattedField]?
     var isEditing: Bool
     @Binding var editingValue: String
+    var indexNumber: Int? = nil
+    
     @State private var isExpanded = false
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
@@ -295,16 +329,9 @@ struct ExpandableValueView: View {
                     isHoveredKey: $isHoveredKey
                 )
                 
-                if isEditing {
-                    TextField("", text: $editingValue)
-                        .monospacedStyle(color: formattedPrimitive.color)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .frame(maxWidth: 300)
-                } else {
-                    Text(formattedPrimitive.value)
-                        .monospacedStyle(color: formattedPrimitive.color)
-                        .hoverable(isHovered: $isHoveredValue)
-                }
+                Text(formattedPrimitive.value)
+                    .monospacedStyle(color: formattedPrimitive.color)
+                    .hoverable(isHovered: $isHoveredValue)
             }
             .contentShape(Rectangle())
             .onTapGesture {

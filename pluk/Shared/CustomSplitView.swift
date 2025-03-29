@@ -11,7 +11,7 @@ import AppKit
 struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     private let minSidebarWidth: CGFloat = 200
     private let maxSidebarWidth: CGFloat = 400
-    private let defaultSidebarWidth: CGFloat = 260
+    private let defaultSidebarWidth: CGFloat = 350
     @Namespace private var animation
     
 
@@ -65,7 +65,7 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     
     private var sidebarContainer: some View {
         ZStack(alignment: .trailing) {
-            let finalSidebarWidth = isFullScreenView ? 50 : sidebarWidth
+            let finalSidebarWidth = isFullScreenView ? 50 : defaultSidebarWidth
             
             sidebarContent
                 .frame(width: isResizing ?

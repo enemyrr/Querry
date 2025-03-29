@@ -88,10 +88,10 @@ extension Document {
                 type: "String"
             )
             
-        case let number as Int: return numberFormatted(number, value: value)
-        case let number as Int32: return numberFormatted(number, value: value)
-        case let number as Int64: return numberFormatted(number, value: value)
-        case let number as Double: return numberFormatted(number, value: value)
+        case let number as Int: return numberFormatted(number, value: value, type: "Int")
+        case let number as Int32: return numberFormatted(number, value: value, type: "Int32")
+        case let number as Int64: return numberFormatted(number, value: value, type: "Int64")
+        case let number as Double: return numberFormatted(number, value: value, type: "Double")
         case let number as BSON.Decimal128:
             return FormattedPrimitive(
                 value: String(describing: number.toString),
@@ -109,15 +109,14 @@ extension Document {
         }
     }
     
-    private func numberFormatted(_ number: Any, value: Primitive) -> FormattedPrimitive {
+    private func numberFormatted(_ number: Any, value: Primitive, type: String) -> FormattedPrimitive {
         return FormattedPrimitive(
             value: String(describing: number),
             color: .blue,
             isExpandable: false,
-            type: "Number"
+            type: type
         )
     }
-    
 }
 
 

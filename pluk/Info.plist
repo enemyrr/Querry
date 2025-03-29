@@ -5,7 +5,7 @@
 	<key>CFBundleURLTypes</key>
 	<array/>
 	<key>Preferred default scene session role</key>
-	<string>WelcomeScreen</string>
+	<string>MainWindow</string>
 	<key>UIApplicationSceneManifest</key>
 	<false/>
 	<key>com.apple.security.network.client</key>

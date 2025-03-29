@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A529E7A2D23CFC700618009"
-               BuildableName = "Collection.app"
-               BlueprintName = "Collection"
-               ReferencedContainer = "container:Collection.xcodeproj">
+               BuildableName = "pluk.app"
+               BlueprintName = "pluk"
+               ReferencedContainer = "container:pluk.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -36,9 +36,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A529E8D2D23CFC900618009"
-               BuildableName = "CollectionTests.xctest"
-               BlueprintName = "CollectionTests"
-               ReferencedContainer = "container:Collection.xcodeproj">
+               BuildableName = "plukTests.xctest"
+               BlueprintName = "plukTests"
+               ReferencedContainer = "container:pluk.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -47,9 +47,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A529E972D23CFC900618009"
-               BuildableName = "CollectionUITests.xctest"
-               BlueprintName = "CollectionUITests"
-               ReferencedContainer = "container:Collection.xcodeproj">
+               BuildableName = "plukUITests.xctest"
+               BlueprintName = "plukUITests"
+               ReferencedContainer = "container:pluk.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -69,9 +69,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A529E7A2D23CFC700618009"
-            BuildableName = "Collection.app"
-            BlueprintName = "Collection"
-            ReferencedContainer = "container:Collection.xcodeproj">
+            BuildableName = "pluk.app"
+            BlueprintName = "pluk"
+            ReferencedContainer = "container:pluk.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
@@ -105,9 +105,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A529E7A2D23CFC700618009"
-            BuildableName = "Collection.app"
-            BlueprintName = "Collection"
-            ReferencedContainer = "container:Collection.xcodeproj">
+            BuildableName = "pluk.app"
+            BlueprintName = "pluk"
+            ReferencedContainer = "container:pluk.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
