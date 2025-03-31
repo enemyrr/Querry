@@ -36,9 +36,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		9A529E7B2D23CFC700618009 /* pluk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pluk.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9A529E8E2D23CFC900618009 /* plukTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = plukTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9A529E982D23CFC900618009 /* plukUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = plukUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A529E7B2D23CFC700618009 /* Pluk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pluk.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A529E8E2D23CFC900618009 /* PlukTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlukTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A529E982D23CFC900618009 /* PlukUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlukUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -106,9 +106,9 @@
 		9A529E7C2D23CFC700618009 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9A529E7B2D23CFC700618009 /* pluk.app */,
-				9A529E8E2D23CFC900618009 /* plukTests.xctest */,
-				9A529E982D23CFC900618009 /* plukUITests.xctest */,
+				9A529E7B2D23CFC700618009 /* Pluk.app */,
+				9A529E8E2D23CFC900618009 /* PlukTests.xctest */,
+				9A529E982D23CFC900618009 /* PlukUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,9 +116,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9A529E7A2D23CFC700618009 /* pluk */ = {
+		9A529E7A2D23CFC700618009 /* Pluk */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "pluk" */;
+			buildConfigurationList = 9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "Pluk" */;
 			buildPhases = (
 				9A529E772D23CFC700618009 /* Sources */,
 				9A529E782D23CFC700618009 /* Frameworks */,
@@ -131,7 +131,7 @@
 			fileSystemSynchronizedGroups = (
 				9A529E7D2D23CFC700618009 /* pluk */,
 			);
-			name = pluk;
+			name = Pluk;
 			packageProductDependencies = (
 				9AE4BF702D25281600EA996E /* Meow */,
 				9AE4BF722D25281600EA996E /* MongoClient */,
@@ -144,12 +144,12 @@
 				9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */,
 			);
 			productName = collection;
-			productReference = 9A529E7B2D23CFC700618009 /* pluk.app */;
+			productReference = 9A529E7B2D23CFC700618009 /* Pluk.app */;
 			productType = "com.apple.product-type.application";
 		};
-		9A529E8D2D23CFC900618009 /* plukTests */ = {
+		9A529E8D2D23CFC900618009 /* PlukTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "plukTests" */;
+			buildConfigurationList = 9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "PlukTests" */;
 			buildPhases = (
 				9A529E8A2D23CFC900618009 /* Sources */,
 				9A529E8B2D23CFC900618009 /* Frameworks */,
@@ -163,16 +163,16 @@
 			fileSystemSynchronizedGroups = (
 				9A529E912D23CFC900618009 /* plukTests */,
 			);
-			name = plukTests;
+			name = PlukTests;
 			packageProductDependencies = (
 			);
 			productName = collectionTests;
-			productReference = 9A529E8E2D23CFC900618009 /* plukTests.xctest */;
+			productReference = 9A529E8E2D23CFC900618009 /* PlukTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		9A529E972D23CFC900618009 /* plukUITests */ = {
+		9A529E972D23CFC900618009 /* PlukUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "plukUITests" */;
+			buildConfigurationList = 9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "PlukUITests" */;
 			buildPhases = (
 				9A529E942D23CFC900618009 /* Sources */,
 				9A529E952D23CFC900618009 /* Frameworks */,
@@ -186,11 +186,11 @@
 			fileSystemSynchronizedGroups = (
 				9A529E9B2D23CFC900618009 /* plukUITests */,
 			);
-			name = plukUITests;
+			name = PlukUITests;
 			packageProductDependencies = (
 			);
 			productName = collectionUITests;
-			productReference = 9A529E982D23CFC900618009 /* plukUITests.xctest */;
+			productReference = 9A529E982D23CFC900618009 /* PlukUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -217,7 +217,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 9A529E762D23CFC700618009 /* Build configuration list for PBXProject "pluk" */;
+			buildConfigurationList = 9A529E762D23CFC700618009 /* Build configuration list for PBXProject "Pluk" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -238,9 +238,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9A529E7A2D23CFC700618009 /* pluk */,
-				9A529E8D2D23CFC900618009 /* plukTests */,
-				9A529E972D23CFC900618009 /* plukUITests */,
+				9A529E7A2D23CFC700618009 /* Pluk */,
+				9A529E8D2D23CFC900618009 /* PlukTests */,
+				9A529E972D23CFC900618009 /* PlukUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -296,12 +296,12 @@
 /* Begin PBXTargetDependency section */
 		9A529E902D23CFC900618009 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9A529E7A2D23CFC700618009 /* pluk */;
+			target = 9A529E7A2D23CFC700618009 /* Pluk */;
 			targetProxy = 9A529E8F2D23CFC900618009 /* PBXContainerItemProxy */;
 		};
 		9A529E9A2D23CFC900618009 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9A529E7A2D23CFC700618009 /* pluk */;
+			target = 9A529E7A2D23CFC700618009 /* Pluk */;
 			targetProxy = 9A529E992D23CFC900618009 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -513,7 +513,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pluk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/pluk";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pluk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pluk";
 			};
 			name = Debug;
 		};
@@ -531,7 +531,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pluk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/pluk";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pluk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pluk";
 			};
 			name = Release;
 		};
@@ -572,7 +572,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9A529E762D23CFC700618009 /* Build configuration list for PBXProject "pluk" */ = {
+		9A529E762D23CFC700618009 /* Build configuration list for PBXProject "Pluk" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA02D23CFC900618009 /* Debug */,
@@ -581,7 +581,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "pluk" */ = {
+		9A529EA22D23CFC900618009 /* Build configuration list for PBXNativeTarget "Pluk" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA32D23CFC900618009 /* Debug */,
@@ -590,7 +590,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "plukTests" */ = {
+		9A529EA52D23CFC900618009 /* Build configuration list for PBXNativeTarget "PlukTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA62D23CFC900618009 /* Debug */,
@@ -599,7 +599,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "plukUITests" */ = {
+		9A529EA82D23CFC900618009 /* Build configuration list for PBXNativeTarget "PlukUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9A529EA92D23CFC900618009 /* Debug */,

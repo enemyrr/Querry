@@ -654,8 +654,7 @@ final class CodeView: NSTextView {
     self.documentVisibleBox = documentVisibleBox
 
     maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-
-
+      
     // This is needed to redo layout of the minimap once all the views are laid out.
     // FIXME: Unfortunately, this comes with a visible delay, though.
     Task { @MainActor in

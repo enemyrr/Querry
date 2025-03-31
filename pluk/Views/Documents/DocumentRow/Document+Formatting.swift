@@ -29,7 +29,7 @@ extension Document {
         switch value {
         case let objectId as ObjectId:
             return FormattedPrimitive(
-                value: "ObjectId('\(objectId.hexString)')",
+                value: "ObjectId(\"\(objectId.hexString)\")",
                 color: .orange,
                 isExpandable: false,
                 type: "ObjectId"
@@ -38,15 +38,56 @@ extension Document {
         case let array as [Primitive]:
             return FormattedPrimitive(
                 value: "Array (\(array.count))",
-                color: .gray,
+                color: .secondary,
                 isExpandable: !array.isEmpty,
                 type: "Array"
+            )
+            
+        case is Null:
+            return FormattedPrimitive(
+                value: "null",
+                color: .gray,
+                isExpandable: false,
+                type: "Null"
+            )
+            
+        case let value as Timestamp:
+            return FormattedPrimitive(
+                value: "\(value)",
+                color: .purple,
+                isExpandable: false,
+                type: "Timestamp"
+            )
+            
+        case let value as JavaScriptCode:
+            return FormattedPrimitive(
+                value: "\(value)",
+                color: .cyan,
+                isExpandable: false,
+                type: "Timestamp"
+            )
+            
+        case let binary as Binary:
+            if binary.subType == .uuid {
+                return FormattedPrimitive(
+                    value: extractUUIDFromBinary(binary)?.uuidString ?? "Invalid UUID",
+                    color: .cyan,
+                    isExpandable: false,
+                    type: "UUID"
+                )
+            }
+            
+            return FormattedPrimitive(
+                value: "Binary.createFromBase64(\(binary.data.base64EncodedString()),  \(binary.subType))",
+                color: .cyan,
+                isExpandable: false,
+                type: "Date"
             )
             
         case let date as Date:
             return FormattedPrimitive(
                 value: date.ISO8601Format(),
-                color: .blue,
+                color: .purple,
                 isExpandable: false,
                 type: "Date"
             )
@@ -67,14 +108,14 @@ extension Document {
                 
                 return FormattedPrimitive(
                     value: "Array (\(doc.count))",
-                    color: .gray,
+                    color: .secondary,
                     isExpandable: !doc.isEmpty,
                     type: "Array"
                 )
             } else {
                 return FormattedPrimitive(
                     value: "Object",
-                    color: .white.opacity(0.5),
+                    color: .secondary,
                     isExpandable: !doc.isEmpty,
                     type: "Array"
                 )
@@ -83,7 +124,7 @@ extension Document {
         case let string as String:
             return FormattedPrimitive(
                 value: "\"\(string)\"",
-                color: Color(red: 97/255, green: 193/255, blue: 119/255),
+                color: .green,
                 isExpandable: false,
                 type: "String"
             )
@@ -116,6 +157,23 @@ extension Document {
             isExpandable: false,
             type: type
         )
+    }
+    
+    func extractUUIDFromBinary(_ binary: Binary) -> UUID? {
+        guard binary.subType == .uuid, binary.count == 16 else {
+            return nil
+        }
+        
+        return binary.storage.withUnsafeReadableBytes { buffer in
+            guard buffer.count == 16 else { return nil }
+            let bytes = buffer.bindMemory(to: UInt8.self)
+            return UUID(uuid: (
+                bytes[0], bytes[1], bytes[2], bytes[3],
+                bytes[4], bytes[5], bytes[6], bytes[7],
+                bytes[8], bytes[9], bytes[10], bytes[11],
+                bytes[12], bytes[13], bytes[14], bytes[15]
+            ))
+        }
     }
 }
 
@@ -151,3 +209,18 @@ struct FormattedDocument: Hashable {
         return lhs.id == rhs.id
     }
 }
+
+extension Binary.SubType {
+    public static func == (lhs: Binary.SubType, rhs: Binary.SubType) -> Bool {
+        switch (lhs, rhs) {
+        case (.generic, .generic), (.function, .function), (.uuid, .uuid), (.md5, .md5):
+            return true
+        case (.userDefined(let lhsByte), .userDefined(let rhsByte)):
+            return lhsByte == rhsByte
+        default:
+            return false
+        }
+    }
+}
+
+

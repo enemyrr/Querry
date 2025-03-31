@@ -14,18 +14,18 @@ struct DocumentRow: View {
     @State private var isCardHovered = false
     
     var body: some View {
+        let pendingAction = viewModel.getPendingAction()
+        
         Group {
             ZStack(alignment: .bottomTrailing) {
                 VStack(alignment: .leading, spacing: 2) {
-                    let isEditing = viewModel.getPendingAction() == .update
-                    DocumentKeyValueList(
-                        fields: viewModel.document.fields,
-                        isEditing: isEditing,
-                        onUpdateField: { key, value in
-                            viewModel.updateField(key: key, value: value)
-                        }
-                    )
-                    .id(viewModel.document.hashValue)
+                    if pendingAction != .update {
+                        DocumentKeyValueList(
+                            fields: viewModel.document.fields
+                        )
+                    } else {
+                        DocumentEditView(viewModel: viewModel)
+                    }
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -53,34 +53,30 @@ struct DocumentRow: View {
                 )
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(
-                            viewModel.getPendingAction()
-                            == .delete
-                            ? Color.red.opacity(0.7)
-                            : viewModel.getPendingAction()
-                            == .update
-                            ? Color.orange.opacity(0.7)
-                            : Color(.separatorColor),
-                            lineWidth: 1
-                        )
-                        .shadow(
-                            color: viewModel.getPendingAction()
-                            == .delete
-                            ? Color.red
-                            : viewModel.getPendingAction()
-                            == .update
-                            ? Color.orange.opacity(0.8)
-                            : Color.clear,
-                            radius: 4,
-                            x: 0,
-                            y: 0
-                        )
+                        .stroke(pendingAction == .delete
+                                ? Color.red.opacity(0.7)
+                                : pendingAction
+                                == .update
+                                ? Color.orange.opacity(0.7)
+                                : Color(.separatorColor),
+                                lineWidth: 1
+                               )
+                        .shadow(color: pendingAction == .delete
+                                ? Color.red
+                                : pendingAction
+                                == .update
+                                ? Color.orange.opacity(0.8)
+                                : Color.clear,
+                                radius: 4,
+                                x: 0,
+                                y: 0
+                               )
                 )
                 .cornerRadius(8)
                 .cardStyle(isHovered: isCardHovered)
                 
                 HoverActionButtons(
-                    isVisible: isCardHovered || viewModel.getPendingAction() == .update,
+                    isVisible: isCardHovered || pendingAction == .update,
                     onEdit: {
                         viewModel.togglePendingAction(.update)
                     },
@@ -111,6 +107,7 @@ struct DocumentRow: View {
                 }
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pendingAction)
         .simultaneousGesture(
             TapGesture(count: 2)
                 .onEnded {
@@ -123,67 +120,20 @@ struct DocumentRow: View {
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
     var fields: [FormattedDocument.FormattedField]
-    var isEditing: Bool
-    var onUpdateField: (String, String) -> Void
-    var onCancelEdit: (() -> Void)?
-    
-    @State private var editedValues: [String: String] = [:]
     
     var body: some View {
-        ForEach(Array(fields.enumerated()), id: \.element.key) { index, field in
-            RecursiveKeyValueRow(
-                formattedPrimitive: field.formattedValue,
-                key: field.key,
-                value: field.rawValue,
-                nestedFields: field.nestedFields,
-                isEditing: isEditing,
-                editingValue: bindingForKey(field.key, field.formattedValue),
-                indexNumber: index + 1
-            )
-        }
-        .onChange(of: isEditing) { oldValue, newValue in
-            // When switching from editing to non-editing mode, check if this was a cancel
-            if oldValue == true && newValue == false && onCancelEdit != nil {
-                // Reset all edited values
-                editedValues = [:]
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(fields, id: \.key) { field in
+                RecursiveKeyValueRow(
+                    formattedPrimitive: field.formattedValue,
+                    key: field.key,
+                    value: field.rawValue,
+                    nestedFields: field.nestedFields
+                )
+                .fixedSize(horizontal: false, vertical: true)
+                .drawingGroup()
             }
         }
-    }
-    
-    private func bindingForKey(_ key: String, _ value: FormattedPrimitive) -> Binding<String> {
-        return Binding(
-            get: {
-                cleanQuotedString(editedValues[key] ?? value.value)
-            },
-            set: { newValue in
-                editedValues[key] = newValue
-                onUpdateField(key, newValue)
-            }
-        )
-    }
-    
-    private func formattedValueFor(key: String) -> String {
-        if let field = fields.first(where: { $0.key == key }) {
-            return field.formattedValue.value
-        }
-        return ""
-    }
-    
-    func resetEditedValues() {
-        editedValues = [:]
-    }
-    
-    
-    private func cleanQuotedString(_ string: String) -> String {
-        // Check if the string starts with " and ends with "
-        if string.hasPrefix("\"") && string.hasSuffix("\"") && string.count >= 2 {
-            // Remove the first and last character (the quotes)
-            let startIndex = string.index(string.startIndex, offsetBy: 1)
-            let endIndex = string.index(string.endIndex, offsetBy: -1)
-            return String(string[startIndex..<endIndex])
-        }
-        
-        return string
     }
 }
 
@@ -191,71 +141,63 @@ struct DocumentKeyValueList: View {
 struct KeyValueRow: View {
     let key: String
     let formattedValue: FormattedPrimitive
-    var isEditing: Bool
-    @Binding var editingValue: String
-    var indexNumber: Int?
+    
+    // Static font for better performance
+    private static let monoFont = Font.system(.body, design: .monospaced)
     
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
-    @FocusState private var focusedField: String?
     
     var body: some View {
         HStack(alignment: .top, spacing: 2) {
-            if let index = indexNumber {
-                   Text("\(index).")
-                       .monospacedStyle(color: .secondary)
-                       .frame(width: isEditing ? 25 : 0, alignment: .trailing) // Zero width when not editing
-                       .lineLimit(1)
-                       .opacity(isEditing ? 1 : 0)
-                       .offset(x: isEditing ? 0 : -15) // Slide from left
-                       .padding(.trailing, isEditing ? 2 : 0)
-                       .layoutPriority(isEditing ? 1 : 0) // Only claim space when editing
-                       .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isEditing)
-               }
-            
+            // Key section
             HStack(spacing: 0) {
-                Text("\(key)")
-                    .monospacedStyle()
+                Text(key)
+                    .font(Self.monoFont)
+                    .foregroundColor(.primary)
                     .textSelection(.enabled)
                 
                 Text(":")
-                    .monospacedStyle()
+                    .font(Self.monoFont)
+                    .foregroundColor(.primary)
             }
-            .hoverable(isHovered: $isHoveredKey)
-            
-            if isEditing {
-                HStack(alignment: .top) {
-                    TextField("", text: $editingValue, axis: .vertical)
-                        .monospacedStyle(color: formattedValue.color)
-                        .padding(.horizontal, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.black.opacity(0.2))
-                                .opacity(focusedField == key ? 1 : 0)
-                        )
-                        .focused($focusedField, equals: key)
-                        .textFieldStyle(.plain)
-                        .lineLimit(1...10)
-                    
-                    Text(formattedValue.type)
-                        .monospacedStyle(color: Color(.gray).opacity(0.5))
-                        .frame(width: 80, alignment: .leading)
+            .padding(.horizontal, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isHoveredKey ? Color.gray.opacity(0.2) : Color.clear)
+            )
+            .onHover { hovering in
+                if isHoveredKey != hovering {
+                    isHoveredKey = hovering
                 }
-            } else {
-                Text(formattedValue.value)
-                    .monospacedStyle(color: formattedValue.color)
-                    .hoverable(isHovered: $isHoveredValue)
-                    .textSelection(.enabled)
             }
+            
+            Text(formattedValue.value)
+                .font(Self.monoFont)
+                .foregroundColor(formattedValue.color)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isHoveredValue ? Color.gray.opacity(0.2) : Color.clear)
+                )
+                .onHover { hovering in
+                    if isHoveredValue != hovering {
+                        isHoveredValue = hovering
+                    }
+                }
+                .textSelection(.enabled)
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
-
 
 struct ExpandableHeader: View {
     let key: String
     let isExpanded: Bool
     @Binding var isHoveredKey: Bool
+    
+    // Static font for better performance
+    private static let monoFont = Font.system(.body, design: .monospaced)
     
     var body: some View {
         HStack(spacing: 4) {
@@ -265,8 +207,13 @@ struct ExpandableHeader: View {
                 .padding(.leading, 4)
             
             Text("\(key):")
-                .monospacedStyle()
-                .hoverable(isHovered: $isHoveredKey)
+                .font(Self.monoFont)
+                .foregroundColor(.primary)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isHoveredKey ? Color.gray.opacity(0.2) : Color.clear)
+                )
         }
     }
 }
@@ -276,11 +223,6 @@ struct RecursiveKeyValueRow: View {
     let key: String
     let value: Primitive?
     let nestedFields: [FormattedDocument.FormattedField]?
-    var isEditing: Bool
-    @Binding var editingValue: String
-    var indexNumber: Int? = nil
-    
-    @State private var nestedEditingValues: [String: String] = [:]
     
     var body: some View {
         Group {
@@ -288,18 +230,12 @@ struct RecursiveKeyValueRow: View {
                 ExpandableValueView(
                     formattedPrimitive: formattedPrimitive,
                     key: key,
-                    nestedFields: nestedFields,
-                    isEditing: isEditing,
-                    editingValue: $editingValue,
-                    indexNumber: indexNumber
+                    nestedFields: nestedFields
                 )
             } else {
                 KeyValueRow(
                     key: key,
-                    formattedValue: formattedPrimitive,
-                    isEditing: isEditing,
-                    editingValue: $editingValue,
-                    indexNumber: indexNumber
+                    formattedValue: formattedPrimitive
                 )
             }
         }
@@ -311,27 +247,38 @@ struct ExpandableValueView: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
     let nestedFields: [FormattedDocument.FormattedField]?
-    var isEditing: Bool
-    @Binding var editingValue: String
-    var indexNumber: Int? = nil
+    
+    private static let monoFont = Font.system(.body, design: .monospaced)
     
     @State private var isExpanded = false
     @State private var isHoveredKey = false
     @State private var isHoveredValue = false
-    @State private var nestedEditingValues: [String: String] = [:]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
+            // Header row with toggle
             HStack(spacing: 2) {
+                // Expandable header
                 ExpandableHeader(
                     key: key,
                     isExpanded: isExpanded,
                     isHoveredKey: $isHoveredKey
                 )
                 
+                // Value display
                 Text(formattedPrimitive.value)
-                    .monospacedStyle(color: formattedPrimitive.color)
-                    .hoverable(isHovered: $isHoveredValue)
+                    .font(Self.monoFont)
+                    .foregroundColor(formattedPrimitive.color)
+                    .padding(.horizontal, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(isHoveredValue ? Color.gray.opacity(0.2) : Color.clear)
+                    )
+                    .onHover { hovering in
+                        if isHoveredValue != hovering {
+                            isHoveredValue = hovering
+                        }
+                    }
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -340,6 +287,7 @@ struct ExpandableValueView: View {
                 }
             }
             
+            // Nested fields - only create when expanded
             if isExpanded, let fields = nestedFields {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(fields, id: \.key) { field in
@@ -347,33 +295,15 @@ struct ExpandableValueView: View {
                             formattedPrimitive: field.formattedValue,
                             key: field.key,
                             value: field.rawValue,
-                            nestedFields: field.nestedFields,
-                            isEditing: isEditing,
-                            editingValue: bindingForNestedKey(field.key)
+                            nestedFields: field.nestedFields
                         )
                         .padding(.leading, 16)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .transition(.opacity)
             }
         }
-    }
-    
-    private func bindingForNestedKey(_ key: String) -> Binding<String> {
-        return Binding(
-            get: {
-                return nestedEditingValues[key]
-                ?? (fields?.first(where: { $0.key == key })?.formattedValue
-                    .value ?? "")
-            },
-            set: { newValue in
-                nestedEditingValues[key] = newValue
-            }
-        )
-    }
-    
-    private var fields: [FormattedDocument.FormattedField]? {
-        return nestedFields
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -389,7 +319,7 @@ struct HoverableText: ViewModifier {
                     .fill(isHovered ? Color.gray.opacity(0.2) : Color.clear)
             )
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) {
+                if isHovered != hovering {
                     isHovered = hovering
                 }
             }

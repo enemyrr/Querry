@@ -25,6 +25,19 @@ struct TabBar: View {
                     .padding(.vertical, 4)
                 
                 tabScrollView
+                
+                    .background(
+                        Button(action: {
+                            if let selectedTab = instance.selectedTab {
+                                instance.removeTab(selectedTab)
+                            }
+                        }) {
+                            EmptyView()
+                        }
+                            .keyboardShortcut("w", modifiers: [.command])
+                            .opacity(0)
+                            .accessibilityHidden(true)
+                    )
             }
             
         }

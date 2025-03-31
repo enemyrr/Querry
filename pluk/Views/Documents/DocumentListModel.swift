@@ -120,12 +120,15 @@ import SwiftUI
     }
     
     private func formatDocument(_ document: Document) -> FormattedDocument {
-        let id = (document["_id"] as? ObjectId)?.hexString ?? UUID().uuidString
-        let fields = document.keys.sorted().map { key in
-            formatField(key: key, value: document[key])
+        guard let id = document["_id"] as? ObjectId else {
+            return FormattedDocument(id: "", fields: [], rawDocument: document)
         }
         
-        return FormattedDocument(id: id, fields: fields, rawDocument: document)
+        let fields = document.keys.map { key in
+            formatField(key: key, value: document[key])
+        }
+            
+        return FormattedDocument(id: id.hexString, fields: fields, rawDocument: document)
     }
     
     private func formatField(key: String, value: Primitive?) -> FormattedDocument.FormattedField {
@@ -133,7 +136,7 @@ import SwiftUI
         
         var nestedFields: [FormattedDocument.FormattedField]?
         if let doc = value as? Document {
-            nestedFields = doc.keys.sorted().map { key in
+            nestedFields = doc.keys.map { key in
                 formatField(key: key, value: doc[key])
             }
         }
