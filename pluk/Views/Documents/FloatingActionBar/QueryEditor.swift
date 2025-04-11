@@ -115,11 +115,12 @@ struct QueryEditor: View {
             }
             .padding([.top, .horizontal, .bottom], 12)
             
-            CodeEditor(   text: Binding<String>(
+            CodeEditor(text: Binding<String>(
                 get: { viewModel.aiQueryResult },
                 set: { viewModel.aiQueryResult = $0 }
-            ), position: $position, messages: $messages, language: .sqlite(), layout: .init(showMinimap: false, wrapText: true))
+            ), position: $position, messages: $messages, language: .mongodb())
             .environment(\.codeEditorTheme, Theme.defaultDark)
+            .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator, lineWidth: 1)

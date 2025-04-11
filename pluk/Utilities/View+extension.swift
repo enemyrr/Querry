@@ -16,3 +16,18 @@ extension View {
         }
     }
 }
+
+extension View {
+    @ViewBuilder
+    func `if`<TrueContent: View, FalseContent: View>(
+        _ condition: Bool,
+        @ViewBuilder then trueContent: (Self) -> TrueContent,
+        @ViewBuilder else falseContent: (Self) -> FalseContent
+    ) -> some View {
+        if condition {
+            trueContent(self)
+        } else {
+            falseContent(self)
+        }
+    }
+}

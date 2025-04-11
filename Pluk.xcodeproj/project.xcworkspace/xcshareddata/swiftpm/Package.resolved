@@ -1,5 +1,5 @@
 {
-  "originHash" : "43f5b8b80e5128bd79c96e60109787153354319150afffc6bf27ce83a5bcf392",
+  "originHash" : "d297d037b38827bea10ac90d73c9574d2e3240e48c6dbe55efad166a0119626e",
   "pins" : [
     {
       "identity" : "aiproxyswift",
@@ -161,6 +161,15 @@
       "state" : {
         "revision" : "f32052e906fd125936fef2d16e3ad284d50d68ed",
         "version" : "3.2.0"
+      }
+    },
+    {
+      "identity" : "yyjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ibireme/yyjson.git",
+      "state" : {
+        "revision" : "9ddba001a4ea88e93b46932e5c5b87b222e19a5f",
+        "version" : "0.10.0"
       }
     }
   ],

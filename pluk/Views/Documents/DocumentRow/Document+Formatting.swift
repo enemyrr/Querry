@@ -64,7 +64,7 @@ extension Document {
                 value: "\(value)",
                 color: .cyan,
                 isExpandable: false,
-                type: "Timestamp"
+                type: "JavaScriptCode"
             )
             
         case let binary as Binary:
@@ -73,7 +73,7 @@ extension Document {
                     value: extractUUIDFromBinary(binary)?.uuidString ?? "Invalid UUID",
                     color: .cyan,
                     isExpandable: false,
-                    type: "UUID"
+                    type: "Binary"
                 )
             }
             
@@ -81,7 +81,7 @@ extension Document {
                 value: "Binary.createFromBase64(\(binary.data.base64EncodedString()),  \(binary.subType))",
                 color: .cyan,
                 isExpandable: false,
-                type: "Date"
+                type: "Binary"
             )
             
         case let date as Date:
@@ -131,7 +131,6 @@ extension Document {
             
         case let number as Int: return numberFormatted(number, value: value, type: "Int")
         case let number as Int32: return numberFormatted(number, value: value, type: "Int32")
-        case let number as Int64: return numberFormatted(number, value: value, type: "Int64")
         case let number as Double: return numberFormatted(number, value: value, type: "Double")
         case let number as BSON.Decimal128:
             return FormattedPrimitive(

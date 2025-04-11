@@ -7,9 +7,7 @@
 
 import Combine
 import SwiftUI
-
 import Rearrange
-
 import LanguageSupport
 
 
@@ -51,10 +49,7 @@ public struct CodeEditor {
   }
 
   let language:            LanguageConfiguration
-  let layout:              LayoutConfiguration?
   let breakUndoCoalescing: PassthroughSubject<(), Never>?
-  let setActionsParam:     SetActions?
-  let setInfoParam:        SetInfo?
 
   @Binding private var text:     String
   @Binding private var position: Position
@@ -66,48 +61,9 @@ public struct CodeEditor {
   @Environment(\.codeEditorSetInfo)                  private var setInfo
 
   // Values passed as parameters using the deprecated initialiser have got priority for backwards-campatibility.
-  var definitiveLayout: LayoutConfiguration { return layout ?? layoutConfiguration }
-  var definitiveSetActions: SetActions { return setActionsParam ?? setActions }
-  var definitiveSetInfo: SetInfo { return setInfoParam ?? setInfo }
-
-  /// Creates a fully configured code editor.
-  ///
-  /// - Parameters:
-  ///   - text: Binding to the edited text.
-  ///   - position: Binding to the current edit position.
-  ///   - messages: Binding to the messages reported at the appropriate lines of the edited text. NB: Messages
-  ///               processing and display is relatively expensive. Hence, there should only be a limited number of
-  ///               simultaneous messages and they shouldn't change too frequently.
-  ///   - language: Language configuration for highlighting and similar.
-  ///   - layout: Layout configuration determining the visible elements of the editor view.
-  ///   - breakUndoCoalescing: Trigger indicating when to break undo coalescing to avoid coalescing undos across
-  ///       saves.
-  ///   - setActions: Callback that lets the code editor update the context about the available code editing actions.
-  ///       Some actions can be temporarily unavailable and the context can use that, e.g., to enable and disable
-  ///       corresponding menu or toolbar options.
-  ///   - setInfo: Callback that lets the code editor update the context about informational aspects of the current
-  ///       editor state, such as the current line and column position of the insertion point. In contrast to
-  ///       `position`, this is summarised information suitable for consumption by the user.
-  ///
-  @available(*, deprecated, message: "Use environment values for 'layout', 'breakUndoCoalescing', 'setActions', and 'setInfo")
-  public init(text:                Binding<String>,
-              position:            Binding<Position>,
-              messages:            Binding<Set<TextLocated<Message>>>,
-              language:            LanguageConfiguration = .none,
-              layout:              LayoutConfiguration = .standard,
-              breakUndoCoalescing: PassthroughSubject<(), Never>? = nil,
-              setActions:          ((Actions) -> Void)? = nil,
-              setInfo:             ((Info) -> Void)? = nil)
-  {
-    self._text               = text
-    self._position           = position
-    self._messages           = messages
-    self.language            = language
-    self.layout              = layout
-    self.breakUndoCoalescing = breakUndoCoalescing
-    self.setActionsParam     = setActions.flatMap{ SetActions($0) }
-    self.setInfoParam        = setInfo.flatMap{ SetInfo($0) }
-  }
+  var definitiveLayout: LayoutConfiguration { return layoutConfiguration }
+  var definitiveSetActions: SetActions { return setActions  }
+  var definitiveSetInfo: SetInfo { return setInfo  }
 
   /// Creates a fully configured code editor.
   ///
@@ -131,10 +87,7 @@ public struct CodeEditor {
     self._position           = position
     self._messages           = messages
     self.language            = language
-    self.layout              = nil
     self.breakUndoCoalescing = breakUndoCoalescing
-    self.setActionsParam     = nil
-    self.setInfoParam        = nil
   }
 
   public class _Coordinator {
@@ -202,59 +155,47 @@ extension CodeEditor {
   ///
   public struct LayoutConfiguration: Equatable, RawRepresentable {
 
-    /// Show the minimap.
-    ///
-    public var showMinimap: Bool
-
     /// Determines whether line of text may extend beyond the width of the text area or are getting wrapped.
     ///
     public var wrapText: Bool
 
+    /// Controls whether the height should adjust dynamically based on content.
+    public var dynamicHeight: Bool
+      
     /// Creates a layout configuration.
     ///
     /// - Parameters:
-    ///   - showMinimap: Whether to show the minimap if possible. It may not be possible on all supported OSes.
     ///   - wrapText: Whether lines of text may extend beyond the width of the text area or are getting wrapped.
     ///
-    public init(showMinimap: Bool, wrapText: Bool) {
-      self.showMinimap = showMinimap
+      public init(wrapText: Bool, dynamicHeight: Bool = false) {
       self.wrapText    = wrapText
+      self.dynamicHeight = dynamicHeight
     }
 
-    public static let standard = LayoutConfiguration(showMinimap: true, wrapText: true)
+    public static let standard = LayoutConfiguration(wrapText: true)
 
     // MARK: For 'RawRepresentable'
 
-    public var rawValue: String { "\(showMinimap ? "t" : "f")\(wrapText ? "t" : "f")" }
+    public var rawValue: String { "\(wrapText ? "t" : "f")" }
 
     public init?(rawValue: String) {
       guard rawValue.count == 2
       else { return nil }
 
-      self.showMinimap = rawValue[rawValue.startIndex] == "t"
       self.wrapText    = rawValue[rawValue.index(after: rawValue.startIndex)] == "t"
+        
+        if rawValue.count > 2 {
+            self.dynamicHeight = rawValue[rawValue.index(rawValue.startIndex, offsetBy: 2)] == "t"
+        } else {
+            self.dynamicHeight = false
+        }
     }
   }
 }
 
-#if canImport(SwiftUI, _version: 6)
 extension EnvironmentValues {
-
   @Entry public var codeEditorLayoutConfiguration: CodeEditor.LayoutConfiguration = .standard
 }
-#else
-public struct CodeEditorLayoutConfiguration: EnvironmentKey {
-  public static var defaultValue: CodeEditor.LayoutConfiguration = .standard
-}
-
-extension EnvironmentValues {
-
-  public var codeEditorLayoutConfiguration: CodeEditor.LayoutConfiguration {
-    get { self[CodeEditorLayoutConfiguration.self] }
-    set { self[CodeEditorLayoutConfiguration.self] = newValue }
-  }
-}
-#endif
 
 
 // MARK: Indentation configuration
@@ -360,27 +301,11 @@ extension CodeEditor {
   }
 }
 
-#if canImport(SwiftUI, _version: 6)
 extension EnvironmentValues {
-
   @Entry public var codeEditorIndentationConfiguration: CodeEditor.IndentationConfiguration = .standard
 }
-#else
-public struct CodeEditorIndentationConfiguration: EnvironmentKey {
-  public static var defaultValue: CodeEditor.IndentationConfiguration = .standard
-}
 
-extension EnvironmentValues {
-
-  public var codeEditorIndentationConfiguration: CodeEditor.IndentationConfiguration {
-    get { self[CodeEditorIndentationConfiguration.self] }
-    set { self[CodeEditorIndentationConfiguration.self] = newValue }
-  }
-}
-#endif
-
-
-// MARK: Code actions
+// MARK: - Code actions
 
 extension CodeEditor {
 
@@ -430,24 +355,9 @@ extension CodeEditor {
   }
 }
 
-#if canImport(SwiftUI, _version: 6)
 extension EnvironmentValues {
-
   @Entry public var codeEditorSetActions: CodeEditor.SetActions = .ignore
 }
-#else
-public struct CodeEditorSetActions: EnvironmentKey {
-  public static var defaultValue: CodeEditor.SetActions = .ignore
-}
-
-extension EnvironmentValues {
-
-  public var codeEditorSetActions: CodeEditor.SetActions {
-    get { self[CodeEditorSetActions.self] }
-    set { self[CodeEditorSetActions.self] = newValue }
-  }
-}
-#endif
 
 
 // MARK: Editor state information
@@ -480,7 +390,7 @@ extension CodeEditor {
 
       // NB: Internal as `LineMap` is internal.
       init(selections: [NSRange], with lineMap: LineMap<LineInfo>) {
-        if let range = selections.first,
+          if let range = selections.first,
            selections.count == 1,
            let line    = lineMap.lineOf(index: range.location),
            let oneLine = lineMap.lookup(line: line)
@@ -537,167 +447,10 @@ extension CodeEditor {
   }
 }
 
-#if canImport(SwiftUI, _version: 6)
 extension EnvironmentValues {
 
   @Entry public var codeEditorSetInfo: CodeEditor.SetInfo = .ignore
 }
-#else
-public struct CodeEditorSetInfo: EnvironmentKey {
-  public static var defaultValue: CodeEditor.SetInfo = .ignore
-}
-
-extension EnvironmentValues {
-
-  public var codeEditorSetInfo: CodeEditor.SetInfo {
-    get { self[CodeEditorSetInfo.self] }
-    set { self[CodeEditorSetInfo.self] = newValue }
-  }
-}
-#endif
-
-
-#if os(iOS) || os(visionOS)
-
-// MARK: -
-// MARK: UIKit version
-
-extension CodeEditor: UIViewRepresentable {
-
-  public func makeUIView(context: Context) -> UITextView {
-
-    // We pass this function down into `CodeStorageDelegate` to facilitate updates to the `text` binding. For details,
-    // see [Note Propagating text changes into SwiftUI].
-    func setText(_ text: String) {
-      guard !context.coordinator.updatingView else { return }
-
-      // NB: Don't use `self.text` here as the closure will capture it without an option to update it when the view
-      //     gets updated with a new 'text' bdining.
-      if context.coordinator.text != text { context.coordinator.text = text }    }
-
-    context.coordinator.updatingView = true
-    defer {
-      context.coordinator.updatingView = false
-    }
-
-    let codeView = CodeView(frame: CGRect(x: 0, y: 0, width: 100, height: 40),
-                            with: language,
-                            viewLayout: definitiveLayout,
-                            indentation: indentationConfiguration,
-                            theme: context.environment.codeEditorTheme,
-                            setText: setText(_:),
-                            setMessages: { messages = $0 })
-
-    // NB: We are not setting `codeView.text` here. That will happen via `updateUIView(:)`.
-    // This implies that we must take care to not report that initial updates as a change to any connected language
-    // service.
-    if let codeStorageDelegate = codeView.optCodeStorage?.delegate as? CodeStorageDelegate {
-      codeStorageDelegate.skipNextChangeNotificationToLanguageService = true
-    }
-
-    if let delegate = codeView.delegate as? CodeViewDelegate {
-
-      delegate.textDidChange      = context.coordinator.textDidChange
-      delegate.selectionDidChange = { textView in
-        selectionDidChange(textView)
-        context.coordinator.selectionDidChange(textView)
-      }
-      delegate.didScroll = context.coordinator.scrollPositionDidChange
-
-    }
-    codeView.selectedRange = position.selections.first ?? .zero
-
-    codeView.verticalScrollPosition = position.verticalScrollPosition
-
-    // Report the initial message set
-    DispatchQueue.main.async { codeView.update(messages: messages) }
-
-    // Set the initial actions
-    //
-    // NB: It is important that the actions don't capture the code view strongly.
-    context.coordinator.actions = Actions(info: { [weak codeView] in codeView?.infoAction() })
-
-    return codeView
-  }
-
-  public func updateUIView(_ textView: UITextView, context: Context) {
-    guard let codeView = textView as? CodeView else { return }
-    context.coordinator.updatingView = true
-    defer {
-      context.coordinator.updatingView = false
-    }
-
-    let theme     = context.environment.codeEditorTheme,
-        selection = position.selections.first ?? .zero
-
-    context.coordinator.updateBindings(text: $text,
-                                       position: $position,
-                                       setAction: definitiveSetActions,
-                                       setInfo: definitiveSetInfo)
-    if codeView.lastMessages != messages { codeView.update(messages: messages) }
-    if text != codeView.text {  // Hoping for the string comparison fast path...
-
-      if language.languageService !== codeView.language.languageService {
-        (codeView.optCodeStorage?.delegate as? CodeStorageDelegate)?.skipNextChangeNotificationToLanguageService = true
-      }
-      codeView.text = text
-//      // FIXME: Stupid hack to force redrawing when the language doesn't change. (A language change already forces
-//      // FIXME: redrawing.)
-//      if language == codeView.language {
-//        Task { @MainActor in
-//          codeView.font = theme.font
-//        }
-//      }
-
-    }
-    if selection != codeView.selectedRange {
-      codeView.selectedRange = selection
-      if let codeStorageDelegate = codeView.optCodeStorage?.delegate as? CodeStorageDelegate
-      {
-        context.coordinator.info.selectionSummary = Info.SelectionSummary(selections: position.selections,
-                                                                          with: codeStorageDelegate.lineMap)
-      }
-    }
-    if abs(position.verticalScrollPosition - textView.verticalScrollPosition) > 0.0001 {
-      textView.verticalScrollPosition = position.verticalScrollPosition
-    }
-    if theme.id != codeView.theme.id { codeView.theme = theme }
-    if definitiveLayout != codeView.viewLayout { codeView.viewLayout = definitiveLayout }
-    if indentationConfiguration != codeView.indentation { codeView.indentation = indentationConfiguration }
-    // Equality on language configurations implies the same name and the same language service.
-    if language != codeView.language {
-      codeView.language                 = language
-      context.coordinator.info.language = language.name
-    }
-  }
-
-  public func makeCoordinator() -> Coordinator {
-    return Coordinator(text: $text, position: $position, setAction: definitiveSetActions, setInfo: definitiveSetInfo)
-  }
-
-  public final class Coordinator: _Coordinator {
-
-    // Update of `self.text` happens in `CodeStorageDelegate` — see [Note Propagating text changes into SwiftUI].
-    func textDidChange(_ textView: UITextView) { }
-
-    func selectionDidChange(_ textView: UITextView) {
-      guard !updatingView else { return }
-
-      let newValue = [textView.selectedRange]
-      if self.position.selections != newValue { self.position.selections = newValue }
-    }
-
-    func scrollPositionDidChange(_ scrollView: UIScrollView) {
-      guard !updatingView else { return }
-
-      if abs(position.verticalScrollPosition - scrollView.verticalScrollPosition) > 0.0001 {
-        position.verticalScrollPosition = scrollView.verticalScrollPosition
-      }
-    }
-  }
-}
-
-#elseif os(macOS)
 
 // MARK: -
 // MARK: AppKit version
@@ -728,6 +481,7 @@ extension CodeEditor: NSViewRepresentable {
     scrollView.hasHorizontalRuler  = false
     scrollView.autoresizingMask    = [.width, .height]
       
+      
     // Set up text view with gutter
     let codeView = CodeView(frame: CGRect(x: 0, y: 0, width: 100, height: 40),
                             with: language,
@@ -739,7 +493,7 @@ extension CodeEditor: NSViewRepresentable {
     codeView.isVerticallyResizable   = true
     codeView.isHorizontallyResizable = false
     codeView.autoresizingMask        = .width
-
+      
     context.coordinator.info.language = language.name
 
     scrollView.drawsBackground = false
@@ -863,6 +617,40 @@ extension CodeEditor: NSViewRepresentable {
                                                                           with: codeStorageDelegate.lineMap)
       }
     }
+      
+    // Only apply dynamic height adjustment if requested through the layout configuration
+    if definitiveLayout.dynamicHeight {
+        if let codeStorageDelegate = codeView.optCodeStorage?.delegate as? CodeStorageDelegate {
+            let lineCount = codeStorageDelegate.lineMap.lines.count
+            let lineHeight = codeView.font?.lineHeight ?? 14
+            
+            let calculatedHeight = CGFloat(lineCount) * lineHeight
+            let minHeight: CGFloat = 100
+            let finalHeight = max(calculatedHeight, minHeight)
+            // Find and update the existing height constraint
+            if let heightConstraint = scrollView.constraints.first(where: {
+                $0.firstAttribute == .height &&
+                $0.secondItem == nil
+            }) {
+                // Update existing constraint
+                heightConstraint.constant = finalHeight
+            } else {
+                // Create new constraint if none exists
+                scrollView.translatesAutoresizingMaskIntoConstraints = false
+                let heightConstraint = NSLayoutConstraint(
+                    item: scrollView,
+                    attribute: .height,
+                    relatedBy: .equal,
+                    toItem: nil,
+                    attribute: .notAnAttribute,
+                    multiplier: 1,
+                    constant: finalHeight
+                )
+                heightConstraint.isActive = true
+            }
+        }
+    }
+      
     if abs(position.verticalScrollPosition - scrollView.verticalScrollPosition) > 0.0001 {
       scrollView.verticalScrollPosition = position.verticalScrollPosition
     }
@@ -935,8 +723,6 @@ extension CodeEditor: NSViewRepresentable {
     }
   }
 }
-
-#endif
 
 
 // MARK: -

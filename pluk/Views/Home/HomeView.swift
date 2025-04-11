@@ -78,6 +78,7 @@ struct ConnectionList: View {
     let onSelect: (Connection) -> Void
     let onOpen: (Connection) -> Void
     
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {

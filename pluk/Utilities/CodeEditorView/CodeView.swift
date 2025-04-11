@@ -50,327 +50,6 @@ struct MessageInfo {
 typealias MessageViews = [LineInfo.MessageBundle.ID: MessageInfo]
 
 
-#if os(iOS) || os(visionOS)
-
-// MARK: -
-// MARK: UIKit version
-
-/// `UITextView` with a gutter
-///
-final class CodeView: UITextView {
-
-  // Delegates
-  fileprivate var codeViewDelegate:                     CodeViewDelegate?
-  fileprivate var codeStorageDelegate:                  CodeStorageDelegate
-  fileprivate let minimapTextLayoutManagerDelegate      = MinimapTextLayoutManagerDelegate()
-
-  // Subviews
-  var gutterView:               GutterView?
-  var currentLineHighlightView: CodeBackgroundHighlightView?
-  var minimapView:              UITextView?
-  var minimapGutterView:        GutterView?
-  var documentVisibleBox:       UIView?
-  var minimapDividerView:       UIView?
-
-  // Notification observer
-  private var textDidChangeObserver: NSObjectProtocol?
-
-  /// Contains the line on which the insertion point was located, the last time the selection range got set (if the
-  /// selection was an insertion point at all; i.e., it's length was 0).
-  ///
-  var oldLastLineOfInsertionPoint: Int? = 1
-
-  /// The current highlighting theme
-  ///
-  @Invalidating(.layout, .display)
-  var theme: Theme = .defaultLight {
-    didSet {
-      font                                  = theme.font
-      backgroundColor                       = theme.backgroundColour
-      tintColor                             = theme.tintColour
-      (textStorage as? CodeStorage)?.theme  = theme
-      gutterView?.theme                     = theme
-      currentLineHighlightView?.color       = theme.currentLineColour
-      minimapView?.backgroundColor          = theme.backgroundColour
-      minimapGutterView?.theme              = theme
-      documentVisibleBox?.backgroundColor   = theme.textColour.withAlphaComponent(0.1)
-    }
-  }
-
-  /// The current language configuration.
-  ///
-  /// We keep track of it here to enable us to spot changes during processing of view updates.
-  ///
-  @Invalidating(.layout, .display)
-  var language: LanguageConfiguration = .none {
-    didSet {
-      if let codeStorage = optCodeStorage,
-         oldValue.name != language.name || (oldValue.languageService != nil) != (language.languageService != nil)
-      {
-        Task { @MainActor in
-          try await codeStorageDelegate.change(language: language, for: codeStorage)
-          // FIXME: This is an awful kludge to get the code view to redraw with the new highlighting. Emitting
-          //        `codeStorage.edited(:range:changeInLength)` doesn't seem to work reliably.
-          Task { @MainActor in
-            font = theme.font
-          }
-        }
-      }
-    }
-  }
-
-  /// The current view layout.
-  ///
-  @Invalidating(.layout)
-  var viewLayout: CodeEditor.LayoutConfiguration = .standard
-
-  /// The current indentation configuration.
-  ///
-  var indentation: CodeEditor.IndentationConfiguration = .standard
-
-  /// Hook to propagate message sets upwards in the view hierarchy.
-  ///
-  let setMessages: (Set<TextLocated<Message>>) -> Void
-
-  /// This is the last reported set of `messages`. New message sets can come from the context or from a language server.
-  ///
-  var lastMessages: Set<TextLocated<Message>> = Set()
-
-  /// Keeps track of the set of message views.
-  ///
-  var messageViews: MessageViews = [:]
-
-  /// Designated initializer for code views with a gutter.
-  ///
-  init(frame: CGRect, 
-       with language: LanguageConfiguration,
-       viewLayout: CodeEditor.LayoutConfiguration,
-       indentation: CodeEditor.IndentationConfiguration,
-       theme: Theme,
-       setText: @escaping (String) -> Void,
-       setMessages: @escaping (Set<TextLocated<Message>>) -> Void)
-  {
-
-    self.theme       = theme
-    self.language    = language
-    self.viewLayout  = viewLayout
-    self.indentation = indentation
-    self.setMessages = setMessages
-
-    // Use custom components that are gutter-aware and support code-specific editing actions and highlighting.
-    let textLayoutManager  = NSTextLayoutManager(),
-        codeContainer      = CodeContainer(size: frame.size),
-        codeStorage        = CodeStorage(theme: theme),
-        textContentStorage = CodeContentStorage()
-    textLayoutManager.textContainer = codeContainer
-    textContentStorage.addTextLayoutManager(textLayoutManager)
-    textContentStorage.primaryTextLayoutManager = textLayoutManager
-    textContentStorage.textStorage              = codeStorage
-
-    codeStorageDelegate = CodeStorageDelegate(with: language, setText: setText)
-
-    super.init(frame: frame, textContainer: codeContainer)
-    codeContainer.textView = self
-
-    textLayoutManager.renderingAttributesValidator = { (textLayoutManager, layoutFragment) in
-      guard let textContentStorage = textLayoutManager.textContentManager as? NSTextContentStorage else { return }
-      codeStorage.setHighlightingAttributes(for: textContentStorage.range(for: layoutFragment.rangeInElement),
-                                            in: textLayoutManager)
-    }
-
-    // We can't do this — see [Note NSTextViewportLayoutControllerDelegate].
-    //
-    //    if let systemDelegate = codeLayoutManager.textViewportLayoutController.delegate {
-    //      let codeViewportLayoutControllerDelegate = CodeViewportLayoutControllerDelegate(systemDelegate: systemDelegate,
-    //                                                                                      codeView: self)
-    //      self.codeViewportLayoutControllerDelegate               = codeViewportLayoutControllerDelegate
-    //      codeLayoutManager.textViewportLayoutController.delegate = codeViewportLayoutControllerDelegate
-    //    }
-
-    // Set basic display and input properties
-    font                   = theme.font
-    backgroundColor        = theme.backgroundColour
-    tintColor              = theme.tintColour
-    autocapitalizationType = .none
-    autocorrectionType     = .no
-    spellCheckingType      = .no
-    smartQuotesType        = .no
-    smartDashesType        = .no
-    smartInsertDeleteType  = .no
-
-    // Line wrapping
-    textContainerInset                  = .zero
-    textContainer.widthTracksTextView  = false   // we need to be able to control the size (see `tile()`)
-    textContainer.heightTracksTextView = false
-    textContainer.lineBreakMode        = .byWordWrapping
-
-    // Add the view delegate
-    codeViewDelegate = CodeViewDelegate(codeView: self)
-    delegate         = codeViewDelegate
-
-    // Add a text storage delegate that maintains a line map
-    codeStorage.delegate = codeStorageDelegate
-
-    // Add a gutter view
-    let gutterView  = GutterView(frame: .zero,
-                                 textView: self, 
-                                 codeStorage: codeStorage,
-                                 theme: theme,
-                                 getMessageViews: { [weak self] in self?.messageViews ?? [:] },
-                                 isMinimapGutter: false)
-    gutterView.autoresizingMask  = []
-    self.gutterView              = gutterView
-    addSubview(gutterView)
-
-    let currentLineHighlightView = CodeBackgroundHighlightView(color: theme.currentLineColour)
-    self.currentLineHighlightView = currentLineHighlightView
-    addBackgroundSubview(currentLineHighlightView)
-
-    // Create the minimap with its own gutter, but sharing the code storage with the code view
-    //
-    let minimapView        = MinimapView(),
-        minimapGutterView  = GutterView(frame: CGRect.zero,
-                                        textView: minimapView,
-                                        codeStorage: codeStorage,
-                                        theme: theme,
-                                        getMessageViews: { [weak self] in self?.messageViews ?? [:] },
-                                        isMinimapGutter: true),
-        minimapDividerView = UIView()
-    minimapView.codeView = self
-
-    minimapDividerView.backgroundColor = .separator
-    self.minimapDividerView            = minimapDividerView
-    addSubview(minimapDividerView)
-
-    // We register the text layout manager of the minimap view as a secondary layout manager of the code view's text
-    // content storage, so that code view and minimap use the same content.
-    minimapView.textLayoutManager?.replace(textContentStorage)
-    textContentStorage.primaryTextLayoutManager = textLayoutManager
-    minimapView.textLayoutManager?.renderingAttributesValidator = { (minimapLayoutManager, layoutFragment) in
-      guard let textContentStorage = minimapLayoutManager.textContentManager as? NSTextContentStorage else { return }
-      codeStorage.setHighlightingAttributes(for: textContentStorage.range(for: layoutFragment.rangeInElement),
-                                            in: minimapLayoutManager)
-    }
-    minimapView.textLayoutManager?.delegate = minimapTextLayoutManagerDelegate
-
-    minimapView.isScrollEnabled                    = false
-    minimapView.backgroundColor                    = theme.backgroundColour
-    minimapView.tintColor                          = theme.tintColour
-    minimapView.isEditable                         = false
-    minimapView.isSelectable                       = false
-    minimapView.textContainerInset                 = .zero
-    minimapView.textContainer.widthTracksTextView  = false    // we need to be able to control the size (see `tile()`)
-    minimapView.textContainer.heightTracksTextView = true
-    minimapView.textContainer.lineBreakMode        = .byWordWrapping
-    self.minimapView = minimapView
-    addSubview(minimapView)
-
-    minimapView.addSubview(minimapGutterView)
-    self.minimapGutterView = minimapGutterView
-
-    let documentVisibleBox = UIView()
-    documentVisibleBox.backgroundColor = theme.textColour.withAlphaComponent(0.1)
-    minimapView.addSubview(documentVisibleBox)
-    self.documentVisibleBox = documentVisibleBox
-
-    // We need to check whether we need to look up completions or cancel a running completion process after every text
-    // change. We also need to remove evicted message views.
-    textDidChangeObserver
-      = NotificationCenter.default.addObserver(forName: UITextView.textDidChangeNotification, 
-                                               object: self,
-                                               queue: .main){ [weak self] _ in
-
-        self?.invalidateMessageViews(withIDs: self!.codeStorageDelegate.lastInvalidatedMessageIDs)
-        self?.gutterView?.invalidateGutter()
-        self?.minimapGutterView?.invalidateGutter()
-      }
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
-
-  deinit {
-    if let observer = textDidChangeObserver { NotificationCenter.default.removeObserver(observer) }
-  }
-
-  // NB: Trying to do tiling and minimap adjusting on specific events, instead of here, leads to lots of tricky corner
-  //     case.
-  override func layoutSubviews() {
-    tile()
-    adjustScrollPositionOfMinimap()
-    super.layoutSubviews()
-    gutterView?.setNeedsDisplay()
-    minimapGutterView?.setNeedsDisplay()
-  }
-}
-
-final class CodeViewDelegate: NSObject, UITextViewDelegate {
-
-  // Hooks for events
-  //
-  var textDidChange:      ((UITextView) -> ())?
-  var selectionDidChange: ((UITextView) -> ())?
-  var didScroll:          ((UIScrollView) -> ())?
-
-  /// Caching the last set selected range.
-  ///
-  var oldSelectedRange: NSRange
-
-  init(codeView: CodeView) {
-    oldSelectedRange = codeView.selectedRange
-  }
-
-  // MARK: -
-  // MARK: UITextViewDelegate protocol
-
-  func textViewDidChange(_ textView: UITextView) { textDidChange?(textView) }
-
-  func textViewDidChangeSelection(_ textView: UITextView) {
-    guard let codeView = textView as? CodeView else { return }
-
-    selectionDidChange?(textView)
-
-    codeView.updateBackgroundFor(oldSelection: oldSelectedRange, newSelection: codeView.selectedRange)
-    oldSelectedRange = textView.selectedRange
-  }
-
-  func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    guard let codeView = scrollView as? CodeView else { return }
-
-    didScroll?(scrollView)
-
-    codeView.gutterView?.invalidateGutter()
-    codeView.adjustScrollPositionOfMinimap()
-  }
-}
-
-/// Custom view for background highlights.
-///
-final class CodeBackgroundHighlightView: UIView {
-  
-  /// The background colour displayed by this view.
-  ///
-  var color: UIColor {
-    get { backgroundColor ?? .clear }
-    set { backgroundColor = newValue }
-  }
-
-  init(color: UIColor) {
-    super.init(frame: .zero)
-    self.color = color
-  }
-  
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
-}
-
-
-#elseif os(macOS)
-
 // MARK: -
 // MARK: AppKit version
 
@@ -761,7 +440,6 @@ final class CodeView: NSTextView {
 
   override func layout() {
     tile()
-    adjustScrollPositionOfMinimap()
     super.layout()
     gutterView?.needsDisplay        = true
     minimapGutterView?.needsDisplay = true
@@ -835,9 +513,6 @@ final class CodeBackgroundHighlightView: NSBox {
     fatalError("init(coder:) has not been implemented")
   }
 }
-
-
-#endif
 
 
 // MARK: -
@@ -1032,46 +707,18 @@ extension CodeView {
         minimapExtras        = minimapGutterWidth + dividerWidth,
         gutterWithPadding    = gutterWidth + lineFragmentPadding,
         visibleWidth         = documentVisibleRect.width,
-        widthWithoutGutters  = if viewLayout.showMinimap { visibleWidth - gutterWithPadding - minimapExtras  }
-                               else { visibleWidth - gutterWithPadding },
-        compositeFontWidth   = if viewLayout.showMinimap { fontWidth + minimapFontWidth  } else { fontWidth },
+        widthWithoutGutters  = visibleWidth - gutterWithPadding,
+        compositeFontWidth   = fontWidth,
         numberOfCharacters   = widthWithoutGutters / compositeFontWidth,
-        codeViewWidth        = if viewLayout.showMinimap { gutterWithPadding + ceil(numberOfCharacters * fontWidth) }
-                               else { visibleWidth },
+        codeViewWidth        = visibleWidth,
         minimapWidth         = visibleWidth - codeViewWidth,
         minimapX             = floor(visibleWidth - minimapWidth),
         minimapExclusionPath = OSBezierPath(rect: minimapGutterRect),
         minimapDividerRect   = CGRect(x: minimapX - dividerWidth, y: 0, width: dividerWidth, height: minimumHeight).integral
 
-    minimapDividerView?.isHidden = !viewLayout.showMinimap
-    minimapView?.isHidden        = !viewLayout.showMinimap
-    if let minimapViewFrame = minimapView?.frame,
-       viewLayout.showMinimap
-    {
-
-      if minimapDividerView?.frame != minimapDividerRect { minimapDividerView?.frame = minimapDividerRect }
-      if minimapViewFrame.origin.x != minimapX || minimapViewFrame.width != minimapWidth {
-
-        minimapView?.frame       = CGRect(x: minimapX,
-                                          y: minimapViewFrame.minY,
-                                          width: minimapWidth,
-                                          height: minimapViewFrame.height)
-        minimapGutterView?.frame = minimapGutterRect
-#if os(macOS)
-        minimapView?.minSize     = CGSize(width: minimapFontWidth, height: visibleRect.height)
-#endif
-
-      }
-    }
-
-#if os(iOS) || os(visionOS)
-    showsHorizontalScrollIndicator = !viewLayout.wrapText
-    if viewLayout.wrapText && frame.size.width != visibleWidth { frame.size.width = visibleWidth }  // don't update frames in vain
-#elseif os(macOS)
     enclosingScrollView?.hasHorizontalScroller = !viewLayout.wrapText
     isHorizontallyResizable                    = !viewLayout.wrapText
     if !isHorizontallyResizable && frame.size.width != visibleWidth { frame.size.width = visibleWidth }  // don't update frames in vain
-#endif
 
     // Set the text container area of the main text view to reach up to the minimap
     // NB: We use the `excess` width to capture the slack that arises when the window width admits a fractional
@@ -1083,15 +730,9 @@ extension CodeView {
     }
 
     codeContainer.lineFragmentPadding = lineFragmentPadding
-#if os(macOS)
     if textContainerInset.width != gutterWidth {
       textContainerInset = CGSize(width: gutterWidth, height: 0)
     }
-#elseif os(iOS) || os(visionOS)
-    if textContainerInset.left != gutterWidth {
-      textContainerInset = UIEdgeInsets(top: 0, left: gutterWidth, bottom: 0, right: 0)
-    }
-#endif
 
     // Set the width of the text container for the minimap just like that for the code view as the layout engine works
     // on the original code view metrics. (Only after the layout is done, we scale it down to the size of the minimap.)
@@ -1111,61 +752,6 @@ extension CodeView {
       updateCurrentLineHighlight(for: textLocation)
     }
     updateMessageLineHighlights()
-  }
-
-
-  // MARK: Scrolling
-
-  /// Sets the scrolling position of the minimap in dependence of the scroll position of the main code view.
-  ///
-  func adjustScrollPositionOfMinimap() {
-    guard viewLayout.showMinimap,
-          let minimapTextLayoutManager = minimapView?.textLayoutManager
-    else { return }
-
-    textLayoutManager?.ensureLayout(for: textLayoutManager!.documentRange)
-    minimapTextLayoutManager.ensureLayout(for: minimapTextLayoutManager.documentRange)
-
-    // NB: We don't use `minimapView?.contentSize.height`, because it is too large if the code doesn't fill the whole
-    //     visible portion of the minimap view. Moreover, even for the code view, `contentSize` may not yet have been
-    //     adjusted, whereas we know that the layout is complete (as we ensure that above).
-    guard let codeHeight
-                = optTextLayoutManager?.textLayoutFragmentExtent(for: optTextLayoutManager!.documentRange)?.height,
-          let minimapHeight
-                = minimapTextLayoutManager.textLayoutFragmentExtent(for: minimapTextLayoutManager.documentRange)?.height
-    else { return }
-
-    let visibleHeight = documentVisibleRect.size.height
-
-#if os(iOS) || os(visionOS)
-    // We need to force the scroll view (superclass of `UITextView`) to accomodate the whole content without scrolling
-    // and to extent over the whole visible height. (On macOS, the latter is enforced by setting `minSize` in `tile()`.)
-    let minimapMinimalHeight = max(minimapHeight, documentVisibleRect.height)
-    if let currentHeight = minimapView?.frame.size.height,
-       minimapMinimalHeight > currentHeight
-    {
-      minimapView?.frame.size.height = minimapMinimalHeight
-    }
-#endif
-
-    let scrollFactor: CGFloat = if minimapHeight < visibleHeight || codeHeight <= visibleHeight { 1 }
-                                else { 1 - (minimapHeight - visibleHeight) / (codeHeight - visibleHeight) }
-
-    // We box the positioning of the minimap at the top and the bottom of the code view (with the `max` and `min`
-    // expessions. This is necessary as the minimap will otherwise be partially cut off by the enclosing clip view.
-    // To get Xcode-like behaviour, where the minimap sticks to the top, it being a floating view is not sufficient.
-    let newOriginY = floor(min(max(documentVisibleRect.origin.y * scrollFactor, 0),
-                               codeHeight - minimapHeight))
-    if minimapView?.frame.origin.y != newOriginY { minimapView?.frame.origin.y = newOriginY }  // don't update frames in vain
-
-    let heightRatio: CGFloat = if codeHeight <= minimapHeight { 1 } else { minimapHeight / codeHeight }
-    let minimapVisibleY      = documentVisibleRect.origin.y * heightRatio,
-        minimapVisibleHeight = visibleHeight * heightRatio,
-        documentVisibleFrame = CGRect(x: 0,
-                                      y: minimapVisibleY,
-                                      width: minimapView?.bounds.size.width ?? 0,
-                                      height: minimapVisibleHeight).integral
-    if documentVisibleBox?.frame != documentVisibleFrame { documentVisibleBox?.frame = documentVisibleFrame }  // don't update frames in vain
   }
 
 

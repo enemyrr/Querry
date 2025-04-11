@@ -309,6 +309,63 @@ struct CustomMenuButtonStyle: ButtonStyle {
     }
 }
 
+struct OutlineButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.2)
+                    : Color.clear
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct DistructiveButtonStyleText: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(.vertical, 7)
+        .padding(.horizontal, 11)
+        .cornerRadius(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    isHovering
+                        ? (colorScheme == .dark ? Color.black : Color.white)
+                            .opacity(0.3)
+                        : Color.clear
+                )
+        )
+        .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 struct HoverActionButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false

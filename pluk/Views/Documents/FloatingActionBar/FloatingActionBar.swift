@@ -12,6 +12,7 @@ struct FloatingActionBar: View {
     var viewModel: DocumentListModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var searchQueryViewModel: SearchQueryViewModel
+    @State private var showCreateDocumentSheet: Bool = false
     
     init(viewModel: DocumentListModel, screenWidth: CGFloat) {
         self.viewModel = viewModel
@@ -27,6 +28,12 @@ struct FloatingActionBar: View {
                     .frame(width: screenWidth * (searchQueryViewModel.isFullQueryEditorOpen ? 0.9 : 0.6))
             }
             
+            if showCreateDocumentSheet {
+                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $showCreateDocumentSheet)
+                    .padding(.bottom,  -5)
+                    .frame(width: screenWidth * (0.9))
+            }
+            
             HStack {
                 switch viewModel.action {
                 case .main:
@@ -34,6 +41,8 @@ struct FloatingActionBar: View {
                 case .search:
                     AISearchView(viewModel: searchQueryViewModel, DocumentListModel: viewModel)
                         .frame(width: screenWidth * 0.6)
+                default:
+                    mainView
                 }
             }
             .modifier(GlassBackgroundStyle(cornerRadius: 8))
@@ -117,6 +126,26 @@ struct FloatingActionBar: View {
                 
             }
             
+            Divider()
+                .frame(height: 22)
+                .padding(.vertical, 6)
+            
+            Button(action: {
+                withAnimation(.spring(response: 0.3)) {
+                    showCreateDocumentSheet.toggle()
+                }
+            }) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 14))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: showCreateDocumentSheet))
+            .keyboardShortcut("n", modifiers: .command)
+//            .customHelp("Create documents", position: .top, shortcut: KeyboardShortcut(
+//                modifiers: [.command],
+//                key: "N"
+//            ), spacing: 10)
+            
             
             Divider()
                 .frame(height: 22)
@@ -161,6 +190,7 @@ struct FloatingActionBar: View {
 enum ActionBar: String, CaseIterable, Codable {
     case main = "main"
     case search = "search"
+    case create = "create"
 }
 
 // MARK: - Action Buttons

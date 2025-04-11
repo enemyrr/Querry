@@ -53,7 +53,6 @@ struct MainWindow: View {
             
         }
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .containerBackground(.thickMaterial, for: .window)
         .onAppear {
             _ = ConnectionManager.shared
         }

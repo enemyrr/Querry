@@ -35,35 +35,79 @@ struct BSON2JSONSerializer {
     }
     
     func primitiveValue(_ value: Primitive) -> String {
-        // TODO: numberLong etc.. extendedJSON
         switch value {
         case let objectId as ObjectId:
-            return "ObjectId(\"\(objectId.hexString)\")"
+            return "{ \"$oid\": \"\(objectId.hexString)\" }"
+            
         case let int as Int:
             return String(int)
-        case let int as Int32:
-            return String(int)
+            
+        case let int32 as Int32:
+            return String(int32)
+            
         case let double as Double:
             return String(double)
+            
+        case let decimal as Decimal128:
+            return "{ \"$numberDecimal\": \"\(decimal.toString)\" }"
+            
         case let string as String:
             return escapedString(string)
+            
         case let bool as Bool:
             return bool ? "true" : "false"
+            
         case is Null:
             return "null"
+            
         case let binary as Binary:
-            return "BinData(\(binary.subType.identifier), \"\(binary.data.base64EncodedString())\")"
+            return "{ \"$binary\": { \"base64\": \"\(binary.data.base64EncodedString())\", \"subType\": \"\(String(format: "%02x", binary.subType.identifier))\" } }"
+            
         case let date as Date:
-            if #available(macOS 12.0, iOS 15, *) {
-                return "Date(\"\(date.ISO8601Format())\")"
-            } else {
-                return "Date(\"\(ISO8601DateFormatter().string(from: date))\")"
-            }
+            return "{ \"$date\": \"\(date.ISO8601Format())\" }"
+            
+        case let timestamp as Timestamp:
+            return "{ \"$timestamp\": { \"t\": \(timestamp.timestamp), \"i\": \(timestamp.increment) } }"
+            
+        case let regex as RegularExpression:
+            return "\"/\(regex.pattern)/\(regex.options)\""
+            
+        case is MinKey:
+            return "{ \"$minKey\": 1 }"
+            
+        case is MaxKey:
+            return "{ \"$maxKey\": 1 }"
+//            
+//        case let code as CodeWithScope:
+//            return "{ \"$code\": \"\(escapedString(code.code))\" }"
+//            
+//        case let dbRef as DBRef:
+//            return "{ \"$ref\": \"\(escapedString(dbRef.collection))\", \"$id\": \(primitiveValue(dbRef.id)) }"
+//            
+//        case let uuid as UUID:
+//            let uuidData = withUnsafeBytes(of: uuid.uuid) { Data($0) }
+//            return "{ \"$binary\": { \"base64\": \"\(uuidData.base64EncodedString())\", \"subType\": \"04\" } }"
+//            
+//        case let geoJSON as GeoJSON:
+//            // This would need a more complex implementation based on your GeoJSON type
+//            return formatGeoJSON(geoJSON)
+            
         default:
-            return "unsupportedtype"
+            return "\"unsupported_type\""
         }
     }
-    
+
+    // Helper function to format GeoJSON - implementation would depend on your GeoJSON structure
+//    private func formatGeoJSON(_ geoJSON: GeoJSON) -> String {
+//        // This is a simplified example - actual implementation would need to handle different GeoJSON types
+//        let jsonEncoder = JSONEncoder()
+//        if let data = try? jsonEncoder.encode(geoJSON),
+//           let jsonString = String(data: data, encoding: .utf8) {
+//            return jsonString
+//        }
+//        return "{ \"type\": \"unknown_geojson\" }"
+//    }
+
     func serializeValue(_ value: Primitive, forKey key: String, comma: Bool, padding: Int) -> String {
         let comma = comma ? "," : ""
         if let document = value as? Document {

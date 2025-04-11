@@ -38,7 +38,7 @@ import SwiftUI
     struct PendingDocumentAction {
         let documentId: String
         let action: DocumentAction
-        var updateData: Document?
+        var updateData: String?
     }
     
     var pendingActions: [PendingDocumentAction] = []
@@ -187,7 +187,7 @@ import SwiftUI
     func updateFilteredDocuments() {}
     
     // MARK: - Document Action Methods
-    func addPendingAction(documentId: String, action: DocumentAction, updateData: Document? = nil) {
+    func addPendingAction(documentId: String, action: DocumentAction) {
         // Use DispatchQueue.main.async to avoid publishing changes during view updates
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -198,8 +198,7 @@ import SwiftUI
             // Add the new action
             let pendingAction = PendingDocumentAction(
                 documentId: documentId,
-                action: action,
-                updateData: updateData
+                action: action
             )
             self.pendingActions.append(pendingAction)
         }
@@ -213,15 +212,9 @@ import SwiftUI
         }
     }
     
-    func updatePendingActionData(for documentId: String, updateData: Document) {
-        // Use DispatchQueue.main.async to avoid publishing changes during view updates
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Find the index of the existing pending action for this document
-            if let index = self.pendingActions.firstIndex(where: { $0.documentId == documentId }) {
-                self.pendingActions[index].updateData = updateData
-            }
+    func updatePendingActionData(for documentId: String, updateData: String) {
+        if let index = self.pendingActions.firstIndex(where: { $0.documentId == documentId }) {
+            self.pendingActions[index].updateData = updateData
         }
     }
     

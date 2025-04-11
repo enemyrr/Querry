@@ -145,15 +145,39 @@ import AIProxy
         }
     }
     
-    func updateDocument(fromCollection collectionName: String, withId id: ObjectId, withData: Document) async throws {
+    func updateDocument(fromCollection collectionName: String, withId id: ObjectId, withData: String) async throws {
         guard let collection = database?[collectionName] else {
             throw MongoError.collectionNotFound
         }
         
         do {
-            try await collection.updateOne(where: ["_id": id], to: withData)
+            let documentToUpdate = try Document(fromJSON: withData)
+            let updateResult = try await collection.updateOne(where: ["_id": id], to: documentToUpdate)
+            if updateResult.updatedCount == 0 {
+                throw MongoError.invalidData
+            }
         } catch {
             lastError = error
+            throw error
+        }
+    }
+    
+    
+    func createDocument(withDocument: Document) async throws {
+        guard let collectionName = selectedTab?.name else {
+            throw MongoError.collectionNotFound
+        }
+        
+        guard let collection = database?[collectionName] else {
+            throw MongoError.collectionNotFound
+        }
+        
+        do {
+            let createResult = try await collection.insert(withDocument)
+            if createResult.insertCount == 0 {
+                throw MongoError.invalidData
+            }
+        } catch {
             throw error
         }
     }
@@ -238,3 +262,4 @@ enum ConnectionStatus: String {
     case disconnected = "Disconnected"
     case error = "Error"
 }
+

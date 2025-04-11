@@ -58,9 +58,9 @@ struct ConnectionDetailsSidebar: View {
                 }
             }
         }
-        .background {
+        .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .stroke(.separator, lineWidth: 1)
+                .stroke(.separator)
         }
         .task(id: viewModel.activeSidebarItem.hashValue) {
             await viewModel.loadActiveConnection()

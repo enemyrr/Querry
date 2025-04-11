@@ -10,24 +10,25 @@ import SwiftData
 
 // MARK: - Document Details
 struct DocumentRow: View {
-    var viewModel: DocumentRowViewModel
+    @State var viewModel: DocumentRowViewModel
     @State private var isCardHovered = false
     
     var body: some View {
         let pendingAction = viewModel.getPendingAction()
+        let showActionButton = isCardHovered || pendingAction == .update
         
         Group {
             ZStack(alignment: .bottomTrailing) {
                 VStack(alignment: .leading, spacing: 2) {
-                    if pendingAction != .update {
+                    if pendingAction == .update {
+                        DocumentEditView(viewModel: viewModel)
+                    } else {
                         DocumentKeyValueList(
                             fields: viewModel.document.fields
                         )
-                    } else {
-                        DocumentEditView(viewModel: viewModel)
+                        .padding()
                     }
                 }
-                .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     ZStack {
@@ -76,7 +77,7 @@ struct DocumentRow: View {
                 .cardStyle(isHovered: isCardHovered)
                 
                 HoverActionButtons(
-                    isVisible: isCardHovered || pendingAction == .update,
+                    isVisible: showActionButton,
                     onEdit: {
                         viewModel.togglePendingAction(.update)
                     },

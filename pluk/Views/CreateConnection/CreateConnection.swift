@@ -155,7 +155,7 @@ struct CreateConnectionForm: View {
             .padding(.top, 10)
         }
         .onAppear {
-//                    loadConnectionData()
+                    loadConnectionData()
                 }
         .padding(20)
     }
