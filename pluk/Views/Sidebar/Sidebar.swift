@@ -51,7 +51,7 @@ struct NavigationSidebar: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, -6)
             
-            ForEach(model.allInstances) { instance in
+            ForEach(model.connections) { instance in
                 let instanceId = instance.id
                 
                 DatabaseIcon(

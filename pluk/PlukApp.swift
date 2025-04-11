@@ -10,9 +10,6 @@ import SwiftData
 
 @main
 struct Pluk: App {
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.scenePhase) private var scenePhase
-    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Connection.self,

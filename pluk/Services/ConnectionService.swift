@@ -10,8 +10,8 @@ import MongoKitten
 import SwiftUI
 
 @Observable
-final class ConnectionManager {
-    static let shared = ConnectionManager()
+class ConnectionService {
+    static let shared = ConnectionService()
     
     // Store all connection instances
     private(set) var connectionInstances: [ConnectionInstance] = []

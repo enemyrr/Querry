@@ -9,40 +9,45 @@ import SwiftUI
 import MongoKitten
 
 @Observable final class SidebarViewModel {
-    @ObservationIgnored private let connectionManager: ConnectionManager
+    private let connectionService: ConnectionService
+    
+    enum SidebarItem: Hashable {
+        case home
+        case connection(UUID)
+    }
     
     // UI State
     var activeSidebarItem: SidebarItem = .home
     var searchText: String = ""
     
     // Computed Properties
-    var allInstances: [ConnectionInstance] {
-        connectionManager.connectionInstances
+    var connections: [ConnectionInstance] {
+        connectionService.connectionInstances
     }
-    var activeInstance: ConnectionInstance? {
-        connectionManager.activeConnectionInstance
+    var activeConnection: ConnectionInstance? {
+        connectionService.activeConnectionInstance
     }
-    
-    init(connectionManager: ConnectionManager) { // TODO: - Protocol of ConncetionManagerProtocol for Dependecy Injection testing
-        self.connectionManager = connectionManager
+
+    init(connectionService: ConnectionService = .shared) {
+        self.connectionService = connectionService
     }
     
     // Actions
     func changeActiveSidebarItem(_ item: SidebarItem) {
         activeSidebarItem = item
         if case .connection(let instanceId) = item {
-            connectionManager.activeConnectionInstanceId = instanceId
+            connectionService.activeConnectionInstanceId = instanceId
         }
     }
     
     func createNewConnectionInstance(for connection: Connection) -> UUID {
-        return connectionManager.createNewConnectionInstance(for: connection)
+        return connectionService.createNewConnectionInstance(for: connection)
     }
     
     func disconnectConnectionInstance(_ instanceId: UUID) async {
-        await connectionManager.removeConnectionInstance(instanceId)
+        await connectionService.removeConnectionInstance(instanceId)
         
-        if let lastActiveConnection = connectionManager.connectionInstances.last {
+        if let lastActiveConnection = connectionService.connectionInstances.last {
             changeActiveSidebarItem(.connection(lastActiveConnection.id))
         } else {
             changeActiveSidebarItem(.home)
@@ -50,16 +55,6 @@ import MongoKitten
     }
     
     func loadActiveConnection() async {
-        try? await activeInstance?.connect()
+        try? await activeConnection?.connect()
     }
-}
-
-enum SidebarItem: Hashable {
-    case home
-    case connection(UUID)
-}
-
-enum SidebarTab: Equatable {
-    case connections
-    case connection_details
 }

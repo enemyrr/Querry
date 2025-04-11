@@ -11,12 +11,9 @@ import AppKit
 import MongoKitten
 
 struct MainWindow: View {
-    @State private var viewModel = SidebarViewModel(connectionManager: ConnectionManager.shared)
-    
+    @State private var appViewModel = AppViewModel()
+    @State private var sidebarViewModel = SidebarViewModel()
     @Environment(\.modelContext) private var modelContext
-    @State private var isSidebarVisible = true
-    @Query private var connections: [Connection]
-    @State private var activeConnection: Connection?
     
     var body: some View {
         ZStack {
@@ -32,30 +29,27 @@ struct MainWindow: View {
             CustomSplitView(
                 sidebar: {
                     Sidebar()
-                        .environment(viewModel)
                 },
                 detail: {
-                    switch viewModel.activeSidebarItem {
+                    switch sidebarViewModel.activeSidebarItem {
                     case .home:
                         HomeView()
-                            .environment(viewModel)
                     case .connection(_):
-                        if let activeInstance = viewModel.activeInstance {
-                            DocumentView(instance: activeInstance, isSidebarVisible: isSidebarVisible)
+                        if let activeConnection = sidebarViewModel.activeConnection {
+                            DocumentView(instance: activeConnection)
                         } else {
                             ConnectionErrorView()
                         }
                     }
                 },
-                isFullScreenView: viewModel.activeSidebarItem == .home,
-                isSidebarVisible: $isSidebarVisible
+                isFullScreenView: sidebarViewModel.activeSidebarItem == .home,
+                isSidebarVisible: $appViewModel.isSidebarVisible
             )
             
         }
+        .environment(appViewModel)
+        .environment(sidebarViewModel)
         .toolbarBackground(.hidden, for: .windowToolbar)
-        .onAppear {
-            _ = ConnectionManager.shared
-        }
     }
 }
 

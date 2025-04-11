@@ -14,27 +14,42 @@ import AIProxy
 @Observable class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
+    private var databaseService: DatabaseService?
     
+    var collections: [String: [MongoCollection]] = [:]
+    var databases: [MongoDatabase] = []
+    var database: MongoDatabase? {
+        didSet {
+            if let db = database {
+                databaseService = DatabaseService(database: db)
+                Task { await processDatabaseCollections(previousDatabase: oldValue) }
+            }
+        }
+    }
+
     // Connection state
     var connectionStatus: ConnectionStatus = .connecting
     var connectionVersion: String?
     var lastError: Error?
     
+    var documentViewModels: [UUID: DocumentListModel] = [:]
+    
     // UI State
     var tabs: [DatabaseTab] = []
     var selectedTab: DatabaseTab?
     
-    // Database metadata
-    var databases: [MongoDatabase] = []
-    var collections: [String: [MongoCollection]] = [:]
-    var database: MongoDatabase? {
-        didSet {
-            Task { await processDatabaseCollections(previousDatabase: oldValue) }
-        }
-    }
-    
     init(connection: Connection) {
         self.connection = connection
+    }
+    
+    func viewModel(for tab: DatabaseTab) -> DocumentListModel {
+        if let existing = documentViewModels[tab.id] {
+            return existing
+        } else {
+            let newModel = DocumentListModel(instance: self, databaseService: databaseService)
+            documentViewModels[tab.id] = newModel
+            return newModel
+        }
     }
     
     func processDatabaseCollections(previousDatabase: MongoDatabase?) async {
@@ -43,13 +58,17 @@ import AIProxy
         let shouldUpdate = previousDatabase == nil || currentDatabase.name != previousDatabase?.name
         
         if shouldUpdate {
-            Task {
-                await loadCollectionsForDatabase(currentDatabase.name)
-                let result = try await currentDatabase.pool.listDatabases()
+            do {
+                let collections = try await databaseService?.listCollections()
+                self.collections[currentDatabase.name] = collections
                 
-                return await MainActor.run {
-                    databases = result
+                let result = try await currentDatabase.pool.listDatabases()
+                await MainActor.run {
+                    self.databases = result
                 }
+            } catch {
+                lastError = error
+                collections[currentDatabase.name] = []
             }
         }
     }
@@ -63,9 +82,9 @@ import AIProxy
             self.database = try await MongoDatabase.connect(to: connection.url)
             connectionStatus = .connected
             
-            if let database = self.database {
+            if let databaseService = self.databaseService {
                 do {
-                    let buildInfo = try await database.getBuildInfo()
+                    let buildInfo = try await databaseService.getBuildInfo()
                     connectionVersion = buildInfo.version
                 }
             }
@@ -182,11 +201,6 @@ import AIProxy
         }
     }
     
-    func storeDocumentsForTab(tab: DatabaseTab, documents: [Document]) {
-        if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
-            tabs[index].documents = documents
-        }
-    }
     
     func getMongoDBVersion(from database: MongoDatabase) async throws -> BuildInfo {
         // Get the connection pool from the database
@@ -204,7 +218,7 @@ import AIProxy
         return buildInfo
     }
     
-    // MARK: - Pagination actions
+    // MARK: - Tab Management
     func createNewTab(name: String) {
         if let existingTab = tabs.first(where: { $0.name == name }) {
             selectedTab = existingTab
@@ -220,13 +234,9 @@ import AIProxy
         guard !tabs.isEmpty else { return }
         
         if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
-            // Determine which tab to select after removal
             let newSelectedIndex = max(0, index - 1)
-            
-            // Remove the tab
             tabs.remove(at: index)
             
-            // Select the previous tab if possible, otherwise the first available
             if !tabs.isEmpty {
                 selectedTab = tabs[newSelectedIndex]
             } else {
@@ -239,7 +249,7 @@ import AIProxy
         selectedTab = tab
     }
     
-   func nextTab(_ currentTab: DatabaseTab) {
+    func nextTab(_ currentTab: DatabaseTab) {
         if let currentIndex = tabs.firstIndex(where: { $0.id == currentTab.id }),
            currentIndex < tabs.count - 1 {
             selectedTab = tabs[currentIndex + 1]
@@ -253,8 +263,6 @@ import AIProxy
         }
     }
 }
-
-
 
 enum ConnectionStatus: String {
     case connected = "Connected"

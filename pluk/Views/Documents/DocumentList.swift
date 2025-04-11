@@ -4,11 +4,8 @@ import AppKit
 struct DocumentList: View {
     @State private var viewModel: DocumentListModel
     
-    init(instance: ConnectionInstance, selectedTab: DatabaseTab) {
-        self.viewModel = DocumentListModel(
-            instance: instance,
-            selectedTab: selectedTab
-        )
+    init(viewModel: DocumentListModel) {
+        self._viewModel = State(wrappedValue: viewModel)
     }
     
     var body: some View {

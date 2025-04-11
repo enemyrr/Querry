@@ -10,25 +10,20 @@ import SwiftUI
 
 struct DocumentView: View {
     var instance: ConnectionInstance
-    var isSidebarVisible: Bool
     
     var body: some View {
         VStack(spacing: 0) {
-            TabBar(instance: instance, isSidebarVisible: isSidebarVisible)
+            TabBar(instance: instance)
                 .zIndex(1)
             
             VStack {
                 if let selectedTab = instance.selectedTab {
-                    DocumentList(
-                        instance: instance,
-                        selectedTab: selectedTab
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .id(selectedTab.id)
+                    DocumentList(viewModel: instance.viewModel(for: selectedTab))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .id(selectedTab.id)
                 } else {
-                    VStack {
-                        Text("No collection selected")
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Text("No collection selected")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

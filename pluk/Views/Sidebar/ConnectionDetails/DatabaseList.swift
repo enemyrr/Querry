@@ -21,20 +21,20 @@ struct DatabaseList: View {
     
     private var connectionContent: some View {
         VStack(spacing: 0) {
-            if let activeInstance = viewModel.activeInstance {
-                if let selectedDb = activeInstance.database {
-                    let filteredCollections = (activeInstance.collections[selectedDb.name] ?? [])
+            if let activeConnection = viewModel.activeConnection {
+                if let selectedDb = activeConnection.database {
+                    let filteredCollections = (activeConnection.collections[selectedDb.name] ?? [])
                         .filter {
                             viewModel.searchText.isEmpty ||
                             $0.name.localizedCaseInsensitiveContains(viewModel.searchText)
                         }
                     
                     CollectionsSection(
-                            instance: activeInstance,
+                            instance: activeConnection,
                             collections: filteredCollections
                         ).padding(.horizontal, 16)
                 } else {
-                    if activeInstance.connectionStatus != .error {
+                    if activeConnection.connectionStatus != .error {
                         ProgressView()
                             .controlSize(.small)
                             .padding()
@@ -46,10 +46,10 @@ struct DatabaseList: View {
         }
         .alert("Connection Error",
                isPresented: Binding(
-                get: { viewModel.activeInstance?.lastError != nil },
-                set: { _ in viewModel.activeInstance?.lastError = nil }
+                get: { viewModel.activeConnection?.lastError != nil },
+                set: { _ in viewModel.activeConnection?.lastError = nil }
                ),
-               presenting: viewModel.activeInstance?.lastError
+               presenting: viewModel.activeConnection?.lastError
         ) { _ in
             Button("Retry") {
                 Task {

@@ -7,12 +7,12 @@
 import SwiftUI
 
 struct TabBar: View {
+    @Environment(AppViewModel.self) private var appViewModel
     var instance: ConnectionInstance
-    var isSidebarVisible: Bool
     
     var body: some View {
         HStack(spacing: 0) {
-            if !isSidebarVisible {
+            if !appViewModel.isSidebarVisible {
                 Divider()
                     .padding(.vertical, 4)
                     .padding(.leading, 8)
@@ -41,7 +41,7 @@ struct TabBar: View {
             }
             
         }
-        .padding(.leading, !isSidebarVisible ? 120 : 0)
+        .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
         .frame(height: 30)
     }
     
@@ -136,13 +136,13 @@ struct TabBarItem: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 10) {
-                    Button(action: onClose) {
-                        Image(systemName: isHovering ? "xmark" : "document.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(TabBarButtonStyle())
-                    .frame(width: 10, height: 10)
+                Button(action: onClose) {
+                    Image(systemName: isHovering ? "xmark" : "document.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(TabBarButtonStyle())
+                .frame(width: 10, height: 10)
                 
                 Text(tab)
                     .foregroundColor(isSelected ? .primary : .secondary)

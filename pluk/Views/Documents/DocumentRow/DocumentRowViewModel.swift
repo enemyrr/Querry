@@ -102,5 +102,5 @@ public enum DocumentAction: String, CaseIterable {
 public struct PendingDocumentAction {
     let documentId: String
     let action: DocumentAction
-    var updateData: [String: Any]?
+    var updateData: String?
 }

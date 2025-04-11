@@ -17,7 +17,7 @@ struct ConnectionDetailsSidebar: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            if let instance = viewModel.activeInstance {
+            if let instance = viewModel.activeConnection {
                 ConnectionHeader(
                     name: instance.connection.name,
                     status: instance.connectionStatus,
