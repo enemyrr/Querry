@@ -132,7 +132,6 @@ struct DocumentKeyValueList: View {
                     nestedFields: field.nestedFields
                 )
                 .fixedSize(horizontal: false, vertical: true)
-                .drawingGroup()
             }
         }
     }
@@ -143,7 +142,6 @@ struct KeyValueRow: View {
     let key: String
     let formattedValue: FormattedPrimitive
     
-    // Static font for better performance
     private static let monoFont = Font.system(.body, design: .monospaced)
     
     @State private var isHoveredKey = false
@@ -215,6 +213,9 @@ struct ExpandableHeader: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(isHoveredKey ? Color.gray.opacity(0.2) : Color.clear)
                 )
+                .onHover { hovering in
+                    isHoveredKey = hovering
+                }
         }
     }
 }

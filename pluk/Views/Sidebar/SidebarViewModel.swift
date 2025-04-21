@@ -54,6 +54,14 @@ import MongoKitten
         }
     }
     
+    func createCollection(withName: String) async throws {
+        guard let activeConnection = activeConnection else {
+            return
+        }
+        
+        try await activeConnection.createCollection(withName: withName)
+    }
+    
     func loadActiveConnection() async {
         try? await activeConnection?.connect()
     }

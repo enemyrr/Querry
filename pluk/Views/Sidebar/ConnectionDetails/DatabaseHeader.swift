@@ -58,13 +58,9 @@ struct DatabaseHeader: View {
                 Spacer()
                 
                 HStack(spacing: 0) {
-                    Button(action: {
-                        // Implement search
-                    }) {
-                        Image(systemName: "plus.circle").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(ActionButtonStyle())
-                    .customHelp("New collection", position: .top, spacing: 4)
+                    CreateTable(
+                        viewModel: viewModel
+                    )
                 }
             }
 
@@ -129,7 +125,8 @@ private struct SearchInput: View {
             }
             
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 8)
+        .padding(.trailing, 6)
         .padding(.vertical, 6)
         .background {
             RoundedRectangle(cornerRadius: 8)
@@ -142,8 +139,8 @@ private struct SearchInput: View {
             Button("") {
                 isSearchFocused = true
             }
-                .keyboardShortcut("k", modifiers: [.command])
-                .opacity(0)
+            .keyboardShortcut("k", modifiers: [.command])
+            .opacity(0)
         )
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
     }

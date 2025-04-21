@@ -32,33 +32,22 @@ public enum ProcessingStage: Int {
 /// A shared ViewModel that handles both AI-powered search and query editing functionality
 @Observable class SearchQueryViewModel {
     // Document ViewModel reference
-    private let DocumentListModel: DocumentListModel
+    private let documentListModel: DocumentListModel
     
+    var defaultQuery: String = """
+{
+    
+}
+"""
     // AI Query results
     var aiQueryResult: String = """
 {
-    "workspace": {
-        "$eq": "some_workspace_id"
-    },
-    "action": {
-        "$in": [
-            "create",
-            "update"
-        ]
-    },
-    "createdAt": {
-        "$gte": {
-            "$date": "2023-01-01T00:00:00Z"
-        }
-    }
+    
 }
 """
     var lastQuery: String = ""
     
     // MARK: - Shared Properties
-    
-    /// Flag indicating if processing is in progress
-    var isProcessing: Bool = false
     
     /// Current processing stage
     var processingStage: ProcessingStage = .idle
@@ -83,7 +72,7 @@ public enum ProcessingStage: Int {
     // MARK: - Query Editor Properties
     
     /// Flag to show the full query editor
-    var isFullQueryEditorOpen: Bool = false
+    var showFilterQueryEditor: Bool = false
     
     /// The number of documents matching the current query
     var matchingDocumentsCount: Int = 0
@@ -97,8 +86,8 @@ public enum ProcessingStage: Int {
     // Private cancellables set
     private var cancellables = Set<AnyCancellable>()
     
-    init(DocumentListModel: DocumentListModel) {
-        self.DocumentListModel = DocumentListModel
+    init(documentListModel: DocumentListModel) {
+        self.documentListModel = documentListModel
         
         // Setup search text monitoring
 //        $search
@@ -114,7 +103,7 @@ public enum ProcessingStage: Int {
     func goBack() {
         Task { @MainActor in
             withAnimation(.spring(response: 0.3)) {
-                DocumentListModel.action = ActionBar.main
+                documentListModel.action = ActionBar.main
             }
         }
     }
@@ -122,9 +111,8 @@ public enum ProcessingStage: Int {
 
     
     func submitDirectFilter() {
-        guard !search.isEmpty && !isProcessing else { return }
+        guard !search.isEmpty && processingStage != .idle else { return }
         
-        isProcessing = true
         showSuggestions = false
         
         Task {
@@ -133,29 +121,15 @@ public enum ProcessingStage: Int {
                 try await Task.sleep(for: .milliseconds(600))
                 
                 await MainActor.run { [weak self] in
-                    self?.isProcessing = false
+                    self?.processingStage = .idle
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.isProcessing = false
+                    self?.processingStage = .idle
                 }
                 print("Error during filter submission: \(error)")
             }
         }
-    }
-    
-    func insertSuggestion(_ suggestion: FilterSuggestion) {
-        if search.hasSuffix(" ") {
-            search += suggestion.text
-        } else {
-            search += " " + suggestion.text
-        }
-        
-        if ["author", "date", "extension", "shared"].contains(suggestion.text.lowercased()) {
-            search += " = "
-        }
-        
-        showSuggestions = false
     }
     
     // MARK: - AI Request Methods
@@ -166,12 +140,15 @@ public enum ProcessingStage: Int {
         
         // Update processing stage to writing query
         await MainActor.run { [weak self] in
-            self?.isProcessing = true
             self?.processingStage = .writingQuery
             self?.lastQuery = search
         }
         
         do {
+            await MainActor.run { [weak self] in
+                self?.aiQueryResult = ""
+            }
+            
             let openAIService = AIProxy.openAIService(
                 partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",
                 serviceURL: "https://api.aiproxy.pro/4c1638f9/2f62a0df"
@@ -179,12 +156,12 @@ public enum ProcessingStage: Int {
             
             // Get a sample document for the AI to understand the schema
             var sampleDocument = Document()
-            if let document = DocumentListModel.formattedDocuments.first?.rawDocument {
+            if let document = documentListModel.formattedDocuments.first?.rawDocument {
                 sampleDocument = document
             }
         
             let stream = try await openAIService.streamingChatCompletionRequest(body: .init(
-                model: "gpt-4o-mini",
+                model: "gpt-4.1-mini",
                 messages: [
                     .user(content: .text(search)),
                     .system(content: .text("You are a MongoDB query assistant. Your primary task is to convert natural language user queries into valid MongoDB filter queries in JSON format.\n\nCore Responsibilities:\n- Convert the user query into a MongoDB JSON filter query.\n- Return ONLY the MongoDB query in JSON format without explanation.\n- Optimize the query for best performance.\n- Support all MongoDB operators and query features.\n\n# MongoDB Schema Reference\n\n\(sampleDocument.keys.map { "\($0): \(type(of: sampleDocument[$0]!))" }.joined(separator: "\n"))\n\n# Output Format\n\n- Return ONLY the MongoDB query in JSON format.\n- Do not include any explanation, preamble, or commentary.\n- Format the query for readability with proper indentation.\n- One-line queries are acceptable for simple filters.\n\n# Examples\n\n**Example 1:**\n\n- **Input:** Find all users where age is greater than 30\n- **Output:**\n  ```json\n  {\n    \"age\": { \"$gt\": 30 }\n  }\n  ```\n\n**Example 2:**\n\n- **Input:** Get documents where status is active and created date is in the last week\n- **Output:**\n  ```json\n  {\n    \"status\": \"active\",\n    \"createdAt\": { \"$gt\": { \"$date\": \"2025-03-08T00:00:00Z\" } }\n  }\n  ```\n\n**Example 3:**\n\n- **Input:** Show me customers from New York or California with at least 5 orders\n- **Output:**\n  ```json\n  {\n    \"$and\": [\n      { \"$or\": [\n        { \"state\": \"New York\" },\n        { \"state\": \"California\" }\n      ]},\n      { \"orderCount\": { \"$gte\": 5 }\n    ]\n  }\n  ```\n\n# Notes\n\n- NEVER provide explanations or ask clarifying questions.\n- NEVER describe what the query does.\n- When user input is ambiguous, make reasonable assumptions about field names and data types.\n- Use appropriate MongoDB operators ($eq, $gt, $lt, $in, etc.) based on the query requirements."))
@@ -198,13 +175,13 @@ public enum ProcessingStage: Int {
             // Process the stream
             for try await chunk in stream {
                 if let chunkContent = chunk.choices.first?.delta.content {
-                    // Update the local variable
-                    fullQueryString += chunkContent
-                    
-                    // Safely update the published property on the main thread
-                    await MainActor.run { [weak self]in
-                        self?.aiQueryResult = fullQueryString
+                    // Update the UI immediately with each new chunk
+                    await MainActor.run { [weak self, chunkContent] in
+                        self?.aiQueryResult += chunkContent
                     }
+                    
+                    // Also update our local copy
+                    fullQueryString += chunkContent
                 }
             }
             
@@ -217,26 +194,27 @@ public enum ProcessingStage: Int {
                 }
                 
                 let result = try convertJSONWithSpecialTypes(fullQueryString)
-                await DocumentListModel.loadDocuments(filter: result)
+                await documentListModel.loadDocuments(filter: result)
                 
                 // Reset processing state and clear search field
                 await MainActor.run { [weak self] in
-                    self?.isProcessing = false
-                    self?.processingStage = .idle
                     self?.search = ""
+                    
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.10))
+                        self?.processingStage = .idle
+                    }
                 }
             }
             
         } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
             await MainActor.run { [weak self] in
                 print("Error: Received \(statusCode) status code with response body: \(responseBody)")
-                self?.isProcessing = false
                 self?.processingStage = .idle
             }
         } catch {
             await MainActor.run { [weak self] in
                 print("Error: Could not create Message: \(error.localizedDescription)")
-                self?.isProcessing = false
                 self?.processingStage = .idle
             }
         }
@@ -324,6 +302,13 @@ public enum ProcessingStage: Int {
         showSuggestions = !suggestions.isEmpty
     }
     
+    func clearQuery() {
+        self.aiQueryResult = defaultQuery
+        Task {
+            await documentListModel.loadDocuments()
+        }
+    }
+    
     
     private func extractTechnicalFilter(from query: String) -> String {
         let lowercasedQuery = query.lowercased()
@@ -348,9 +333,9 @@ public enum ProcessingStage: Int {
     func closeFullQueryEditor() {
         Task { @MainActor in
             // Only perform animation if the editor is currently open
-            if isFullQueryEditorOpen {
+            if showFilterQueryEditor {
                 withAnimation(.spring(response: 0.15)) {
-                    isFullQueryEditorOpen = false
+                    showFilterQueryEditor = false
                 }
             }
         }
@@ -360,9 +345,9 @@ public enum ProcessingStage: Int {
     func openFullQueryEditor() {
         Task { @MainActor in
             // Only perform animation if the editor is currently open
-            if !isFullQueryEditorOpen {
+            if !showFilterQueryEditor {
                 withAnimation(.spring(response: 0.15)) {
-                    isFullQueryEditorOpen = true
+                    showFilterQueryEditor = true
                 }
             }
         }
@@ -370,26 +355,34 @@ public enum ProcessingStage: Int {
     
     /// Execute the current query and update results
     func executeQuery() {
-        guard !isProcessing else { return }
+        guard processingStage == .idle else { return }
         
-        isProcessing = true
+        processingStage = .fetchingData
         
         Task {
             do {
-                // Simulate query execution
-                try await Task.sleep(for: .milliseconds(600))
+                if aiQueryResult.isEmpty {
+                    await documentListModel.loadDocuments()
+                } else {
+                    // Attempt to parse the JSON to ensure it's valid
+                    guard let document = try? Document(fromJSON: aiQueryResult) else {
+                        throw MongoError.invalidData
+                    }
+                    
+                    await documentListModel.loadDocuments(filter: document)
+                }
                 
-                // Update query stats
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
+                    processingStage = .idle
+                    // TODO: things to get real data
                     self.matchingDocumentsCount = 2 // This would be the actual count from the query
                     self.queryExecutionTime = "0s"
                     self.lastQueryTime = "just now"
-                    self.isProcessing = false
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.isProcessing = false
+                    self?.processingStage = .idle
                 }
                 print("Error during query execution: \(error)")
             }

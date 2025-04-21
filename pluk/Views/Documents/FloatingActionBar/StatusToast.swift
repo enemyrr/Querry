@@ -211,3 +211,35 @@ struct PulsingCircleAdvanced: View {
         }
     }
 }
+
+struct StatusCircle: View {
+    var color: Color = .green
+    
+    var body: some View {
+        ZStack {
+            // Background circle
+            Circle()
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: color.opacity(0.3), location: 0),
+                            .init(color: color.opacity(0.2), location: 0.5),
+                            .init(color: .clear, location: 1)
+                        ]),
+                        center: .leading,
+                        startRadius: 1,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 20, height: 20)
+                .blur(radius: 6)
+            
+            // Core static circle
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+        }
+        .frame(width: 20, height: 20) // Fixed containment frame
+    }
+}
+

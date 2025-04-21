@@ -93,15 +93,14 @@ struct CollectionsSection: View {
     
     var body: some View {
         ForEach(collections, id: \.name) { collection in
+            let isActive = instance.selectedTab?.name == collection.name
+            
             Button(action: {
                 instance.createNewTab(
                     name: collection.name
                 )
             }) {
                 HStack {
-//                    Image(systemName: "tablecells")
-//                        .opacity(0.7)
-                    
                     Image(systemName: "folder")
                         .opacity(0.7)
                     Text(collection.name)
@@ -109,9 +108,50 @@ struct CollectionsSection: View {
                 }
             }
             .buttonStyle(SidebarButtonStyle(
-                isActive: instance.selectedTab?.name == collection.name
+                isActive: isActive
             ))
+            .contextMenu {
+                Button {
+                    Task {
+                        instance.createNewTab(
+                            name: collection.name
+                        )
+                    }
+                } label: {
+                    Label("Open in New Tab", systemImage: "plus.square")
+                        .frame(minWidth: 150, alignment: .leading)
+                }.disabled(isActive)
+                
+                Divider()
+                
+                Button {
+                    // Copy to pasteboard
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(collection.name, forType: .string)
+                } label: {
+                    Label("Copy name", systemImage: "doc.on.clipboard")
+                        .frame(minWidth: 150, alignment: .leading)
+                }
+                
+                Divider()
+
+                Button {
+                    Task {
+                        // await model.disconnectConnectionInstance(instanceId)
+                    }
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                        .frame(minWidth: 150, alignment: .leading)
+                }
+
+                Button(role: .destructive) {
+                    // Copy connection string action
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .frame(minWidth: 150, alignment: .leading)
+                }
+            }
         }
     }
 }
-

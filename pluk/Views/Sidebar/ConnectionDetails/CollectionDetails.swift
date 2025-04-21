@@ -13,7 +13,6 @@ struct ConnectionDetailsSidebar: View {
     @Environment(\.colorScheme) private var colorScheme
     
     @State private var isScrolled = false
-    @Namespace private var scrollSpace
     
     var body: some View {
         VStack(spacing: 0) {

@@ -126,11 +126,11 @@ struct ExtendedJSONDecoder {
                 if let nestedTuples = first.value as? [(key: String, value: Any)] {
                     // Convert the nested tuples to a document before handling the extended JSON
                     let nestedDoc = try convertJSONToDocument(nestedTuples, keyPath: keyPath + [first.key])
-                    return handleExtendedJSON(key: first.key, value: nestedDoc, keyPath: keyPath)
+                    return MongoKittenQueryHandler.handleExtendedJSON(key: first.key, value: nestedDoc, keyPath: keyPath)
                 }
                 
                 // Handle non-nested values directly
-                return handleExtendedJSON(key: first.key, value: first.value, keyPath: keyPath)
+                return MongoKittenQueryHandler.handleExtendedJSON(key: first.key, value: first.value, keyPath: keyPath)
             }
             
             // Regular document
@@ -139,7 +139,7 @@ struct ExtendedJSONDecoder {
         case let dictionary as [String: Any]:
             // Check if this is an extended JSON wrapper object
             if dictionary.count == 1, let (key, value) = dictionary.first, key.hasPrefix("$") {
-                return handleExtendedJSON(key: key, value: value, keyPath: keyPath)
+                return MongoKittenQueryHandler.handleExtendedJSON(key: key, value: value, keyPath: keyPath)
             }
             
             // Regular document - convert to array of tuples to maintain consistency
@@ -163,127 +163,6 @@ struct ExtendedJSONDecoder {
                 )
             )
         }
-    }
-    
-    private func handleExtendedJSON(key: String, value: Any, keyPath: [String]) -> Primitive {
-        switch key {
-        case "$numberInt", "$numberLong":
-            if let stringValue = value as? String {
-                if let intValue = Int32(stringValue) {
-                    return intValue
-                }
-            }
-            
-        case "$numberDouble":
-            if let stringValue = value as? String, let doubleValue = Double(stringValue) {
-                return doubleValue
-            }
-            
-        case "$oid":
-            if let stringValue = value as? String, let objectId = ObjectId(stringValue) {
-                return objectId
-            }
-            
-        case "$date":
-            if let dateString = value as? String {
-                // First try with milliseconds precision
-                if let date = ExtendedJSONDecoder.extJSONDateFormatterMilliseconds.date(from: dateString) {
-                    return date
-                }
-                // Then try with seconds precision
-                else if let date = ExtendedJSONDecoder.extJSONDateFormatterSeconds.date(from: dateString) {
-                    return date
-                }
-            }
-            // Handle nested $numberLong in $date
-            else if let tupleArray = value as? [(key: String, value: Any)],
-                    tupleArray.count == 1,
-                    let first = tupleArray.first,
-                    first.key == "$numberLong",
-                    let millisString = first.value as? String,
-                    let millis = Int64(millisString) {
-                return Date(timeIntervalSince1970: Double(millis) / 1000)
-            }
-            
-        case "$timestamp":
-            if let timestampDoc = value as? Document {
-                if let t = timestampDoc["t"] as? Int32,
-                   let i = timestampDoc["i"] as? Int32 {
-                    return Timestamp(increment: i, timestamp: t)
-                }
-            }
-            
-        case "$binary":
-            if let tupleArray = value as? [(key: String, value: Any)] {
-                var base64String: String? = nil
-                var subTypeString: String? = nil
-                
-                for (subKey, subValue) in tupleArray {
-                    if subKey == "base64", let str = subValue as? String {
-                        base64String = str
-                    } else if subKey == "subType", let str = subValue as? String {
-                        subTypeString = str
-                    }
-                }
-                
-                if let base64 = base64String,
-                   let subTypeHex = subTypeString,
-                   let subTypeInt = UInt8(subTypeHex, radix: 16),
-                   let data = Data(base64Encoded: base64) {
-                    
-                    // Create a ByteBuffer
-                    let allocator = ByteBufferAllocator()
-                    var buffer = allocator.buffer(capacity: data.count)
-                    buffer.writeBytes(data)
-                    
-                    // Create SubType enum value
-                    let subType: Binary.SubType
-                    switch subTypeInt {
-                    case 0x00: subType = .generic
-                    case 0x01: subType = .function
-                    case 0x04: subType = .uuid
-                    case 0x05: subType = .md5
-                    default: subType = .userDefined(subTypeInt)
-                    }
-                    
-                    return Binary(subType: subType, buffer: buffer)
-                }
-            }
-            
-        case "$regex":
-            if let tupleArray = value as? [(key: String, value: Any)] {
-                var pattern: String? = nil
-                var options: String? = nil
-                
-                for (subKey, subValue) in tupleArray {
-                    if subKey == "pattern", let str = subValue as? String {
-                        pattern = str
-                    } else if subKey == "options", let str = subValue as? String {
-                        options = str
-                    }
-                }
-                
-                if let pat = pattern, let opt = options {
-                    return RegularExpression(pattern: pat, options: opt)
-                }
-            }
-            
-        case "$minKey":
-            return MinKey()
-            
-        case "$maxKey":
-            return MaxKey()
-            
-        case "$code":
-            if let codeString = value as? String {
-                return JavaScriptCode(codeString)
-            }
-            
-        default:
-            break
-        }
-        
-        return "Invalid \(key) format with value of type \(type(of: value))"
     }
 }
 

@@ -17,10 +17,11 @@ struct FormField<Content: View>: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .foregroundColor(.white.opacity(0.7))
                 .font(.system(size: 13))
+                .padding(.leading, 2)
             
             content
         }

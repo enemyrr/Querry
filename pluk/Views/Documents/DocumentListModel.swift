@@ -29,7 +29,10 @@ import SwiftUI
     var isLoading = false
     var error: Error?
     var filterText = ""
+    var showFilterEditor: Bool = false
     var actionBarUpdateTrigger = UUID()
+    var loadingKeyValue: String?
+    var intialLoadComplete: Bool = false
     
     // MARK: - Pagination Properties
     var currentPage: Int { paginationManager.currentPage }
@@ -38,23 +41,31 @@ import SwiftUI
     
     // MARK: - Document Management
     func loadDocuments(filter: Document = [:]) async {
-        guard let databaseService = databaseService else {
-            error = MongoError.databaseNotInitialized
+        guard let databaseService = databaseService, let selectedTab = instance.selectedTab else {
+            if databaseService == nil {
+                error = MongoError.databaseNotInitialized
+            } else {
+                error = MongoError.collectionNotFound
+            }
             return
         }
         
-        guard let selectedTab = instance.selectedTab else {
-            error = MongoError.collectionNotFound
+        // Check if already loading to prevent duplicate calls
+        if isLoading {
             return
         }
         
-        await MainActor.run { isLoading = true }
-        defer { Task { @MainActor in isLoading = false } }
+        await MainActor.run {
+            error = nil
+            intialLoadComplete = true
+            self.isLoading = true
+        }
         
         do {
+            // First get count with a lightweight query
             let count = try await databaseService.getDocumentCount(for: selectedTab.name)
-            await MainActor.run { paginationManager.updateTotalItems(count) }
             
+            // Then load the actual documents
             let documents = try await databaseService.findDocuments(
                 in: selectedTab.name,
                 filter: filter,
@@ -62,20 +73,33 @@ import SwiftUI
                 limit: paginationManager.limit
             )
             
+            // Process documents in a background task to avoid blocking
             let formatted = await formatDocuments(documents)
             
             await MainActor.run {
+                paginationManager.updateTotalItems(count)
                 self.formattedDocuments = formatted
                 self.lastFetchTimestamp = Date()
+                
+                // Instead of immediately setting isLoading to false,
+                 Task {
+                     try? await Task.sleep(for: .seconds(1))
+                     self.isLoading = false
+//                     error = NSError(domain: "YourAppDomain", code: 500, userInfo: [NSLocalizedDescriptionKey: "Something went wrong"])
+                 }
             }
         } catch {
-            await MainActor.run { self.error = error }
+            print(error)
+            await MainActor.run {
+                self.error = error
+                self.isLoading = false
+            }
         }
     }
     
     // MARK: - Document Formatting
     private func formatDocuments(_ documents: [Document]) async -> [FormattedDocument] {
-        let chunkSize = 50
+        let chunkSize = 10
         var formattedDocs: [FormattedDocument] = []
         
         for chunk in stride(from: 0, to: documents.count, by: chunkSize) {
@@ -127,14 +151,18 @@ import SwiftUI
     func nextPage() {
         if paginationManager.nextPage() {
             updatePendingActionsState()
-            Task { await loadDocuments() }
+            Task {
+                await loadDocuments()
+            }
         }
     }
     
     func previousPage() {
         if paginationManager.previousPage() {
             updatePendingActionsState()
-            Task { await loadDocuments() }
+            Task {
+                await loadDocuments()
+            }
         }
     }
     
@@ -173,9 +201,9 @@ import SwiftUI
     }
     
     func updatePendingActionData(for documentId: String, updateData: String) {
-//        if let index = pendingActions.firstIndex(where: { $0.documentId == documentId }) {
-//            pendingActions[index].updateData = updateData
-//        }
+        if let index = pendingActions.firstIndex(where: { $0.documentId == documentId }) {
+            pendingActions[index].updateData = updateData
+        }
     }
     
     func hasPendingAction(documentId: String, action: DocumentAction? = nil) -> Bool {
@@ -183,12 +211,6 @@ import SwiftUI
             return pendingActions.contains { $0.documentId == documentId && $0.action == action }
         } else {
             return pendingActions.contains { $0.documentId == documentId }
-        }
-    }
-    
-    func clearAllPendingActions() {
-        DispatchQueue.main.async { [weak self] in
-            self?.pendingActions.removeAll()
         }
     }
     
@@ -203,6 +225,7 @@ import SwiftUI
     // MARK: - Commit Actions
     func commitPendingActions() async {
         guard !pendingActions.isEmpty, let databaseService = databaseService else { return }
+        guard let databaseName = instance.selectedTab?.name else { return }
         
         isProcessingBatch = true
         defer { isProcessingBatch = false }
@@ -221,7 +244,7 @@ import SwiftUI
                 }
                 
                 try await databaseService.deleteDocument(
-                    from: instance.connection.name,
+                    from: databaseName,
                     withId: objectId
                 )
                 
@@ -243,7 +266,7 @@ import SwiftUI
                 }
                 
                 try await databaseService.updateDocument(
-                    in: instance.connection.name,
+                    in: databaseName,
                     withId: objectId,
                     withData: document
                 )

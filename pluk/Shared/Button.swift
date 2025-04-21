@@ -68,6 +68,36 @@ struct ActionButtonStyle: ButtonStyle {
     }
 }
 
+struct RefreshButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)
+    var isActive: Bool = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            let iconName = isActive ? "xmark" : "arrow.clockwise"
+            Image(systemName: iconName)
+                .font(.system(size: 14))
+                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle()) // Keep this for hit testing
+        }
+        .padding(padding)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering || isActive
+                        ? (colorScheme == .dark ? Color.black : Color.white)
+                            .opacity(0.3)
+                        : Color.clear
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
 
 struct TabBarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -217,6 +247,7 @@ struct DatabaseIcon: View {
 struct PrimaryButtonStyle: ButtonStyle {
     static let buttonColor = Color(red: 99/255, green: 197/255, blue: 248/255)
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -228,6 +259,7 @@ struct PrimaryButtonStyle: ButtonStyle {
                 // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .opacity(isHovering ? 0.8 : 1.0)
             )
             // Add subtle pressed state effect
             .opacity(configuration.isPressed ? 0.8 : 1.0)
@@ -237,6 +269,8 @@ struct PrimaryButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
             // Add hand cursor on hover
             .onHover { isHovered in
+                isHovering = isHovered
+                
                 if isHovered {
                     NSCursor.pointingHand.push()
                 } else {
@@ -338,6 +372,30 @@ struct OutlineButtonStyle: ButtonStyle {
         }
     }
 }
+
+struct OutlineSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .cornerRadius(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    (colorScheme == .dark ? Color.black : Color.white).opacity(isHovering ? 0.4 : 0.2)
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 
 struct DistructiveButtonStyleText: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme

@@ -32,7 +32,9 @@ struct DocumentList: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .task {
-                    await viewModel.loadDocuments()
+                    if !viewModel.intialLoadComplete {
+                        await viewModel.loadDocuments()
+                    }
                 }
                 .background {
                     RoundedRectangle(cornerRadius: 10)
@@ -40,11 +42,12 @@ struct DocumentList: View {
                 }
                 
                 VStack {
-                    StatusToast(isLoading: viewModel.isLoading)
-                        .padding(.top, 10)
+                    // TODO: Enable when i see a use-case
+                    // StatusToast(isLoading: viewModel.isLoading)
+                    //  .padding(.top, 10)
                     Spacer()
                     FloatingActionBar(viewModel: viewModel, screenWidth: geometry.size.width)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 10)
                 }
             }.frame(width: geometry.size.width, height: geometry.size.height)
         }

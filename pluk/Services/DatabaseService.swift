@@ -29,9 +29,9 @@ class DatabaseService {
     }
     
     func findDocuments(in collectionName: String,
-                      filter: Document = [:],
-                      skip: Int? = nil,
-                      limit: Int? = nil) async throws -> [Document] {
+                       filter: Document = [:],
+                       skip: Int? = nil,
+                       limit: Int? = nil) async throws -> [Document] {
         let collection = database[collectionName]
         var query = collection.find(filter)
         
@@ -59,8 +59,8 @@ class DatabaseService {
     }
     
     func updateDocument(in collectionName: String,
-                       withId id: ObjectId,
-                       withData document: Document) async throws {
+                        withId id: ObjectId,
+                        withData document: Document) async throws {
         let collection = database[collectionName]
         let result = try await collection.updateOne(
             where: ["_id": id],
@@ -77,15 +77,17 @@ class DatabaseService {
         try await collection.deleteOne(where: ["_id": id])
     }
     
-    // MARK: - Database Info
-    func getBuildInfo() async throws -> BuildInfo {
+    func createCollection(_ collectionName: String) async throws {
+        let createCommand: Document = ["create": collectionName]
+        
         let connection = try await database.pool.next(for: .basic)
-        return try await connection.executeCodable(
-            ["buildInfo": 1],
-            decodeAs: BuildInfo.self,
-            namespace: .administrativeCommand,
-            sessionId: connection.implicitSessionId,
-            traceLabel: "getBuildInfo"
+        _ = try await connection.execute(
+            createCommand,
+            namespace: database.commandNamespace
         )
+    }
+    
+    func getBuildInfo() async throws -> BuildInfo {
+        return try await database.getBuildInfo()
     }
 }

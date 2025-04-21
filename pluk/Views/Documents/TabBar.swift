@@ -25,7 +25,6 @@ struct TabBar: View {
                     .padding(.vertical, 4)
                 
                 tabScrollView
-                
                     .background(
                         Button(action: {
                             if let selectedTab = instance.selectedTab {
@@ -89,7 +88,7 @@ struct TabBar: View {
                             },
                             onClose: {
                                 instance.removeTab(tab)
-                            }
+                            },
                         )
                         .padding(.leading, instance.tabs.first?.id == tab.id ? 8 : 0)
                         .padding(.trailing, instance.tabs.last?.id == tab.id ? 8 : 0)

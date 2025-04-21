@@ -101,10 +101,8 @@ struct CreateEditor: View {
         }
     }
     
-    // Full query editor view as a private function
     private func fullQueryEditorView() -> some View {
         VStack(spacing: 0) {
-            // Query Editor Header
             HStack {
                 Text("Insert Document")
                     .font(.headline)
@@ -119,17 +117,6 @@ struct CreateEditor: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                
-                Button(action: {
-                    closeWithAnimation()
-                }) {
-                    Text("Discard")
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
-                        .tint(.red)
-                }
-                .buttonStyle(DistructiveButtonStyleText())
-                .disabled(viewModel.isLoading || saveSuccess)
                 
                 Button(action: handleSave) {
                     ZStack {

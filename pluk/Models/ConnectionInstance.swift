@@ -96,23 +96,20 @@ import AIProxy
         }
     }
     
-    func collectionsForCurrentDatabase() -> [MongoCollection] {
-        guard let dbName = database else { return [] }
-        return collections[dbName.name] ?? []
-    }
-    
-    private func loadCollectionsForDatabase(_ databaseName: String) async {
+    func loadCollectionsForCurrentDatabase() async {
+        guard let currentDatabase = database else { return }
+        
         do {
-            guard let database = database else {
-                throw MongoError.databaseNotInitialized
-            }
+            let collections = try await databaseService?.listCollections()
+            self.collections[currentDatabase.name] = collections
             
-            let dbCollections = try await database.listCollections()
-            let sortedCollections = dbCollections.sorted { $0.name < $1.name }
-            collections[databaseName] = sortedCollections
+            let result = try await currentDatabase.pool.listDatabases()
+            await MainActor.run {
+                self.databases = result
+            }
         } catch {
             lastError = error
-            collections[databaseName] = []
+            collections[currentDatabase.name] = []
         }
     }
     
@@ -201,21 +198,12 @@ import AIProxy
         }
     }
     
-    
-    func getMongoDBVersion(from database: MongoDatabase) async throws -> BuildInfo {
-        // Get the connection pool from the database
-        let connection = try await database.pool.next(for: .basic)
-        
-        // Execute the command against the admin database
-        let buildInfo = try await connection.executeCodable(
-            [ "buildInfo": 1 ],
-            decodeAs: BuildInfo.self,
-            namespace: .administrativeCommand,
-            sessionId: connection.implicitSessionId,
-            traceLabel: "getMongoDBVersion"
-        )
-        
-        return buildInfo
+    func createCollection(withName: String) async throws {
+        do {
+            try await databaseService?.createCollection(withName)
+        } catch {
+            throw error
+        }
     }
     
     // MARK: - Tab Management
@@ -227,6 +215,7 @@ import AIProxy
         
         let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle)
         tabs.append(newTab)
+        
         selectedTab = newTab
     }
     

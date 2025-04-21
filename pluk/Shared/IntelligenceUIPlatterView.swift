@@ -87,6 +87,7 @@ struct IntelligenceUIPlatterView: View {
                 // Add drawing group to optimize compositing
                 .drawingGroup()
         )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         // Apply drawing group to entire view to optimize rendering
         .drawingGroup()
         .onAppear {

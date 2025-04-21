@@ -33,25 +33,32 @@ struct AISearchView: View {
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: true))
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 7, bottom: 7, trailing: 7), isActive: true))
             .keyboardShortcut(.escape, modifiers: [])
             .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [],
                 key: "Escape"
             ), spacing: 10)
+            .padding(.leading, 3)
             
             HStack(spacing: 12) {
                 // Main TextField with dynamic display text
-                if viewModel.isProcessing {
+                if viewModel.processingStage != .idle {
                     Text(viewModel.processingStage.description + animationDots)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                              .id("processing-\(viewModel.processingStage.description)")
-                              .animation(.easeInOut(duration: 0.3), value: viewModel.processingStage)
+                        .transition(.push(from: .bottom))
+                        .id("processing-\(viewModel.processingStage.description)")
+                        .animation(
+                            .interpolatingSpring(stiffness: 50, damping: 10),
+                            value: viewModel.processingStage
+                        )
                 } else {
                     TextField("Tell Pluk what to find (e.g. fruits: \"Apple\")...", text: $viewModel.search)
                         .focusSection()
+                        .font(
+                            Font.system(.body, design: .monospaced)
+                        )
                         .focused($isSearchFocused)
                         .textFieldStyle(.plain)
                         .onSubmit {
@@ -63,25 +70,66 @@ struct AISearchView: View {
                             }
                         }
                         .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.3), value: viewModel.isProcessing)
+                        .animation(.easeInOut(duration: 0.3), value: viewModel.processingStage)
                 }
             }
             .padding(.vertical, 8)
-            .animation(.easeInOut, value: viewModel.isProcessing)
+            .animation(.easeInOut, value: viewModel.processingStage)
             
-            Divider()
-                .frame(height: 22)
-                .padding(.vertical, 6)
-            
-            PaginationMinimal(viewModel: DocumentListModel)
+            HStack {
+                if viewModel.processingStage != .idle {
+                    Button(action: {
+                        // TODO: Ability to disable
+                    }) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 12))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                Color.white.opacity(0.1)
+                            )
+                    )
+                    .onAppear {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            // Animate to full opacity and size
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                // Use withAnimation to trigger the state change animation
+                            }
+                        }
+                    }
+                }
+//                Text("Enter")
+//                    .font(.system(size: 12))
+//                    .padding(.vertical, 4)
+//                    .padding(.horizontal, 6)
+//                    .foregroundColor(.white.opacity(0.2))
+//                    .background(
+//                        RoundedRectangle(cornerRadius: 4)
+//                            .stroke(.white.opacity(0.2))
+//                    )
+
+            }
+            .padding(.vertical, 4)
+            .padding(.trailing, 2)
+
+//            Divider()
+//                .frame(height: 22)
+//                .padding(.vertical, 6)
+//            
+//            PaginationMinimal(viewModel: DocumentListModel)
         }
+        .frame(height: 34)
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(
             IntelligenceUIPlatterView()
         )
-        .onChange(of: viewModel.isProcessing) { _, isProcessing in
-            if isProcessing {
+        .onChange(of: viewModel.processingStage) { _, isProcessing in
+            if viewModel.processingStage != .idle {
                 startProcessingAnimation()
             } else {
                 stopProcessingAnimation()
