@@ -2,10 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleURLTypes</key>
-	<array/>
 	<key>Preferred default scene session role</key>
 	<string>MainWindow</string>
+	<key>SEnableDownloaderService</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://mfauzaan.github.io/pluk/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=</string>
 	<key>UIApplicationSceneManifest</key>
 	<false/>
 	<key>com.apple.security.network.client</key>

@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Pluk</title>
+        <item>
+            <title>0.0.1</title>
+            <pubDate>Wed, 23 Apr 2025 15:34:11 +0000</pubDate>
+            <sparkle:version>0.0.1</sparkle:version>
+            <sparkle:shortVersionString>0.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/mfauzaan/pluk/releases/download/v0.0.1/Pluk.dmg" length="12359231" type="application/octet-stream" sparkle:edSignature="tBzZI7zwNnsq0ZxHjq43Z+EpkKJAN67UthQpNnbNt6xrukO1d5T0BkhLovGNhIb5z5fJ38+sD1euQrw/dV9aDw=="/>
+        </item>
+    </channel>
+</rss>

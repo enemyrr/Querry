@@ -14,7 +14,7 @@ struct MainWindow: View {
     @State private var appViewModel = AppViewModel()
     @State private var sidebarViewModel = SidebarViewModel()
     @Environment(\.modelContext) private var modelContext
-    
+
     var body: some View {
         ZStack {
             VibrantBackgroundView()
