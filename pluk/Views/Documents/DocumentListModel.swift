@@ -75,9 +75,15 @@ import SwiftUI
                 paginationManager.updateTotalItems(count)
                 self.formattedDocuments = formatted
                 self.lastFetchTimestamp = Date()
-                self.isLoading = false
+                
+                // Instead of immediately setting isLoading to false,
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    self.isLoading = false
+                }
             }
         } catch {
+            print(error)
             await MainActor.run {
                 self.error = error
                 self.isLoading = false

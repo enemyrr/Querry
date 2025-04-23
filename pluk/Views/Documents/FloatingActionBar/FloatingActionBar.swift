@@ -69,15 +69,11 @@ struct FloatingActionBar: View {
                     if viewModel.isLoading {
                         GlowingBubbleLoader()
                     }
-                }
-            )
-            .background(
-                Group {
+                    
                     if viewModel.error != nil {
                         LoadingErrorIndicator()
                     }
                 }
-                
             )
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
             .background(
@@ -115,6 +111,7 @@ struct FloatingActionBar: View {
                             .foregroundColor(.gray)
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
+                    .padding([.vertical, .trailing], -4)
                 }
             }
         }
@@ -268,9 +265,6 @@ struct FloatingActionBar: View {
                 searchQueryViewModel.showQueryEditor = true
             }) {
                 BadgedFilterIcon()
-                //                Image(systemName: "line.3.horizontal.decrease")
-                //                    .font(.system(size: 14))
-                //                    .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
             .keyboardShortcut("p", modifiers: .command)
@@ -278,32 +272,6 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "p"
             ), spacing: 10)
-            
-            //            Button(action: {
-            //                withAnimation(.spring(response: 0.3)) {
-            //                    viewModel.action = ActionBar.search
-            //                }
-            //            }) {
-            //                Image(systemName: "curlybraces")
-            //                    .font(.system(size: 14))
-            ////                Text("Query")
-            ////                    .font(Font.system(.body, design: .monospaced))
-            //            }
-            //            .padding(.vertical, 3)
-            //            .padding(.horizontal, 6)
-            //            .background(
-            //                RoundedRectangle(cornerRadius: 6)
-            //                    .fill(
-            //                        Color.white.opacity(0.05)
-            //                    )
-            //            )
-            //            .buttonStyle(.plain)
-            ////            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            //            .keyboardShortcut("p", modifiers: .command)
-            //            .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
-            //                modifiers: [.command],
-            //                key: "p"
-            //            ), spacing: 10)
             
             // TODO: More options button
             //            Button(action: {

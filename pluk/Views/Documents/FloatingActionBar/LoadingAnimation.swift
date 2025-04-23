@@ -62,26 +62,6 @@ struct GlowingBubbleLoader: View {
             }
             .frame(height: max(height * 6, 40))
             .clipShape(RoundedRectangle(cornerRadius: 8))
-//            .onChange(of: animationTrigger) { _, _ in
-//                print(animationTrigger)
-//                // When animation completes, check if it should continue
-//                if isLoading {
-//                    // Only schedule next animation if still loading
-//                    DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration + 0.05) {
-//                        if isLoading {
-//                            // Create a new UUID to trigger the next animation cycle
-//                            animationTrigger = UUID()
-//                        }
-//                    }
-//                }
-//            }
-//            .onChange(of: isLoading) { _, newValue in
-//                if newValue {
-//                    print("new trigger from change")
-//                    // Start/restart animation when isLoading becomes true
-//                    animationTrigger = UUID()
-//                }
-//            }
     }
 }
 
@@ -110,40 +90,5 @@ struct LongTailTriangleShape: Shape {
         path.closeSubpath()
         
         return path
-    }
-}
-
-extension View {
-    func onAnimationCompleted<Value: Equatable>(for value: Value, completion: @escaping () -> Void) -> some View {
-        modifier(AnimationCompletionModifier(for: value, completion: completion))
-    }
-}
-
-struct AnimationCompletionModifier<Value>: ViewModifier where Value: Equatable {
-    let value: Value
-    let completion: () -> Void
-    
-    @State private var previousValue: Value
-    
-    init(for value: Value, completion: @escaping () -> Void) {
-        self.value = value
-        self.completion = completion
-        _previousValue = State(initialValue: value)
-    }
-    
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: value) { oldValue, newValue in
-                guard oldValue == previousValue else {
-                    previousValue = newValue
-                    return
-                }
-                
-                // Schedule completion to run after the current animation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    previousValue = newValue
-                    completion()
-                }
-            }
     }
 }
