@@ -53,7 +53,7 @@ class ConnectionService {
         // First perform any cleanup needed on the instance
         if let instanceToDisconnect = getInstance(instanceId) {
             // Properly disconnect
-            let _instanceStatus = await disconnectDBInstance(instanceToDisconnect)
+            _ = await disconnectDBInstance(instanceToDisconnect)
             
             // Now remove from the array
             connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })

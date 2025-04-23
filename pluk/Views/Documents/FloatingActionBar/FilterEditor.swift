@@ -97,13 +97,17 @@ struct FilterEditor: View {
                 //                    .foregroundColor(.secondary)
                 //                    .font(.subheadline)
                 
-                Button(action: viewModel.clearQuery) {
-                    Text("Clear")
-                        .font(.system(size: 12))
-                        .opacity(viewModel.aiQueryResult == viewModel.defaultQuery ? 0.5 : 1)
-                }
-                .buttonStyle(OutlineSecondaryButtonStyle())
-                .disabled(viewModel.aiQueryResult == viewModel.defaultQuery)
+                    Button(action: viewModel.clearQuery) {
+                        Text("Clear")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(OutlineSecondaryButtonStyle())
+                    .opacity(viewModel.query == viewModel.defaultQuery ? 0 : 1)
+                    .transition(.asymmetric(
+                        insertion: .scale.combined(with: .opacity),
+                        removal: .opacity
+                    ))
+                    .animation(.spring(response: 0.3), value: viewModel.query != viewModel.defaultQuery)
                 
                 Button(action: viewModel.executeQuery) {
                     Image(systemName: displayedIcon)
@@ -115,6 +119,10 @@ struct FilterEditor: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(OutlineButtonStyle())
                 .disabled(viewModel.processingStage != .idle)
+                .customHelp("Run current query", delay: 0.5, position: .left, shortcut: KeyboardShortcut(
+                    modifiers: [.command],
+                    key: "Enter"
+                ), spacing: 8)
             }
             .padding([.top, .horizontal, .bottom], 8)
             .onChange(of: viewModel.processingStage) { oldValue, newValue in
@@ -140,8 +148,8 @@ struct FilterEditor: View {
             }
             
             CodeEditor(text: Binding<String>(
-                get: { viewModel.aiQueryResult },
-                set: { viewModel.aiQueryResult = $0 }
+                get: { viewModel.query },
+                set: { viewModel.query = $0 }
             ), position: $position, messages: $messages, language: .mongodb())
             .environment(\.codeEditorTheme, Theme.defaultDark)
             .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))

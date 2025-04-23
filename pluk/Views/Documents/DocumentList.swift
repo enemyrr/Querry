@@ -3,9 +3,11 @@ import AppKit
 
 struct DocumentList: View {
     @State private var viewModel: DocumentListModel
+    @State private var searchQueryViewModel: SearchQueryViewModel
     
     init(viewModel: DocumentListModel) {
         self._viewModel = State(wrappedValue: viewModel)
+        self.searchQueryViewModel = SearchQueryViewModel(documentListModel: viewModel)
     }
     
     var body: some View {
@@ -20,7 +22,6 @@ struct DocumentList: View {
                                         document: document,
                                         documentListViewModel: viewModel)
                                 )
-                                .transition(.opacity)
                                 .frame(maxWidth: .infinity)
                                 .padding(.horizontal)
                             }
@@ -28,8 +29,38 @@ struct DocumentList: View {
                         .id("\(viewModel.lastFetchTimestamp)")
                         .padding(.top)
                         .padding(.bottom, 24) // Space for Floating Action bar
+                        
+                        Spacer()
+                            .frame(height: 40) // Fixed height spacer at the bottom
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay {
+                        if viewModel.formattedDocuments.isEmpty && viewModel.isLoading == false {
+                            if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
+                                ContentUnavailableView {
+                                    Label("No Matching Documents", systemImage: "doc.text.magnifyingglass").font(.title2)
+                                } description: {
+                                    Text("Your search didn't match any documents in this collection.")
+                                } actions: {
+                                    Button("Clear Search") {
+                                        searchQueryViewModel.clearQuery()
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            } else {
+                                ContentUnavailableView {
+                                    Label("No Documents Available", systemImage: "tray").font(.title2)
+                                } description: {
+                                    Text("This collection doesn't contain any documents yet.\nAdd your first document or import data to get started.")
+                                } actions: {
+                                    Button("Add Document") {
+                                        searchQueryViewModel.showCreateDocumentSheet = true
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
                 }
                 .task {
                     if !viewModel.intialLoadComplete {
@@ -42,11 +73,8 @@ struct DocumentList: View {
                 }
                 
                 VStack {
-                    // TODO: Enable when i see a use-case
-                    // StatusToast(isLoading: viewModel.isLoading)
-                    //  .padding(.top, 10)
                     Spacer()
-                    FloatingActionBar(viewModel: viewModel, screenWidth: geometry.size.width)
+                    FloatingActionBar(viewModel: viewModel, searchQueryViewModel: searchQueryViewModel, screenWidth: geometry.size.width)
                         .padding(.bottom, 10)
                 }
             }.frame(width: geometry.size.width, height: geometry.size.height)

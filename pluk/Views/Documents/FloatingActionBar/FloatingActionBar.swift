@@ -10,15 +10,14 @@ import SwiftUI
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
     var viewModel: DocumentListModel
+    @Bindable var searchQueryViewModel: SearchQueryViewModel
     @Environment(\.colorScheme) private var colorScheme
-    @State private var searchQueryViewModel: SearchQueryViewModel
-    @State private var showCreateDocumentSheet: Bool = false
     @State private var showFilterQueryEditor: Bool = false
     @State private var containerWidth: CGFloat = 0
     
-    init(viewModel: DocumentListModel, screenWidth: CGFloat) {
+    init(viewModel: DocumentListModel, searchQueryViewModel: SearchQueryViewModel,  screenWidth: CGFloat) {
         self.viewModel = viewModel
-        self.searchQueryViewModel = SearchQueryViewModel(documentListModel: viewModel)
+        self.searchQueryViewModel = searchQueryViewModel
         self.screenWidth = screenWidth
     }
     
@@ -32,20 +31,20 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-            if !showFilterQueryEditor && !showCreateDocumentSheet {
+            if !showFilterQueryEditor && !searchQueryViewModel.showCreateDocumentSheet {
                 topRectangleView
                     .padding(.horizontal, 10)
                     .frame(width: containerWidth)
             }
             
-            if !showCreateDocumentSheet && showFilterQueryEditor {
+            if !searchQueryViewModel.showCreateDocumentSheet && showFilterQueryEditor {
                 FilterEditor(viewModel: searchQueryViewModel, showFilterQueryEditor: $showFilterQueryEditor)
                     .frame(width: screenWidth * 0.9)
             }
             
-            if showCreateDocumentSheet {
-                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $showCreateDocumentSheet)
-                    .frame(width: screenWidth * (0.9))
+            if searchQueryViewModel.showCreateDocumentSheet {
+                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
+                        .frame(width: screenWidth * (0.9))
             }
             
             HStack {
@@ -107,7 +106,7 @@ struct FloatingActionBar: View {
 
                 Spacer()
                 
-                if searchQueryViewModel.aiQueryResult != searchQueryViewModel.defaultQuery {
+                if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
                     Button(action: {
                         searchQueryViewModel.clearQuery()
                     }) {
@@ -211,14 +210,14 @@ struct FloatingActionBar: View {
             
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
-                    showCreateDocumentSheet = true
+                    searchQueryViewModel.showCreateDocumentSheet = true
                 }
             }) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: showCreateDocumentSheet))
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: searchQueryViewModel.showCreateDocumentSheet))
             .keyboardShortcut("n", modifiers: .command)
             .customHelp("Create documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],

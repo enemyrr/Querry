@@ -34,30 +34,6 @@ struct ExtendedJSONDecoder {
         return try convertJSONToDocument(json, keyPath: [])
     }
     
-    
-    /// A map from extended JSON wrapper keys (e.g. "$numberLong") to the MongoKitten BSON type they correspond to.
-    private static var wrapperKeyMap: [String: [Any.Type]] = {
-        return [
-            "$numberInt": [Int32.self],
-            "$numberLong": [Int64.self],
-            "$numberDouble": [Double.self],
-            "$numberDecimal": [Decimal128.self],
-            "$oid": [ObjectId.self],
-            "$binary": [Binary.self],
-            "$date": [Date.self, Int64.self],
-            "$timestamp": [Timestamp.self],
-            "$regex": [RegularExpression.self],
-            "$minKey": [MinKey.self],
-            "$maxKey": [MaxKey.self],
-            "$code": [JavaScriptCode.self, JavaScriptCodeWithScope.self],
-            "$scope": [JavaScriptCodeWithScope.self],
-        ]
-    }()
-    
-    private static var wrapperKeySet: Set<String> = {
-        return Set(wrapperKeyMap.keys)
-    }()
-    
     private func convertJSONToDocument(_ jsonData: [(key: String, value: Any)], keyPath: [String] = []) throws -> Document {
         // Create a new document
         var document = Document()
@@ -120,28 +96,9 @@ struct ExtendedJSONDecoder {
             return doubleValue
             
         case let tupleArray as [(key: String, value: Any)]:
-            // Check if this is an extended JSON wrapper object with a single key starting with $
-            if tupleArray.count == 1, let first = tupleArray.first, first.key.hasPrefix("$") {
-                // Check if the value is another tuple array that needs to be converted to a document first
-                if let nestedTuples = first.value as? [(key: String, value: Any)] {
-                    // Convert the nested tuples to a document before handling the extended JSON
-                    let nestedDoc = try convertJSONToDocument(nestedTuples, keyPath: keyPath + [first.key])
-                    return MongoKittenQueryHandler.handleExtendedJSON(key: first.key, value: nestedDoc, keyPath: keyPath)
-                }
-                
-                // Handle non-nested values directly
-                return MongoKittenQueryHandler.handleExtendedJSON(key: first.key, value: first.value, keyPath: keyPath)
-            }
-            
-            // Regular document
             return try convertJSONToDocument(tupleArray, keyPath: keyPath)
             
         case let dictionary as [String: Any]:
-            // Check if this is an extended JSON wrapper object
-            if dictionary.count == 1, let (key, value) = dictionary.first, key.hasPrefix("$") {
-                return MongoKittenQueryHandler.handleExtendedJSON(key: key, value: value, keyPath: keyPath)
-            }
-            
             // Regular document - convert to array of tuples to maintain consistency
             let tuples = dictionary.map { (key: $0.key, value: $0.value) }
             return try convertJSONToDocument(tuples, keyPath: keyPath)

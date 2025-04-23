@@ -26,7 +26,7 @@ import SwiftUI
     // UI States
     var action: ActionBar = ActionBar.main
     var formattedDocuments: [FormattedDocument] = []
-    var isLoading = false
+    var isLoading = true
     var error: Error?
     var filterText = ""
     var showFilterEditor: Bool = false
@@ -47,11 +47,6 @@ import SwiftUI
             } else {
                 error = MongoError.collectionNotFound
             }
-            return
-        }
-        
-        // Check if already loading to prevent duplicate calls
-        if isLoading {
             return
         }
         
@@ -80,16 +75,9 @@ import SwiftUI
                 paginationManager.updateTotalItems(count)
                 self.formattedDocuments = formatted
                 self.lastFetchTimestamp = Date()
-                
-                // Instead of immediately setting isLoading to false,
-                 Task {
-                     try? await Task.sleep(for: .seconds(1))
-                     self.isLoading = false
-//                     error = NSError(domain: "YourAppDomain", code: 500, userInfo: [NSLocalizedDescriptionKey: "Something went wrong"])
-                 }
+                self.isLoading = false
             }
         } catch {
-            print(error)
             await MainActor.run {
                 self.error = error
                 self.isLoading = false
