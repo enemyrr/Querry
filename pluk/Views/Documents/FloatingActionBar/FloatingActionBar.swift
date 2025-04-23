@@ -12,7 +12,6 @@ struct FloatingActionBar: View {
     var viewModel: DocumentListModel
     @Bindable var searchQueryViewModel: SearchQueryViewModel
     @Environment(\.colorScheme) private var colorScheme
-    @State private var showFilterQueryEditor: Bool = false
     @State private var containerWidth: CGFloat = 0
     
     init(viewModel: DocumentListModel, searchQueryViewModel: SearchQueryViewModel,  screenWidth: CGFloat) {
@@ -23,7 +22,7 @@ struct FloatingActionBar: View {
     
     var body: some View {
         Button("") {
-            showFilterQueryEditor = true
+            searchQueryViewModel.showQueryEditor = true
         }
         .keyboardShortcut("f", modifiers: [.command])
         .padding(0)
@@ -31,14 +30,15 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-            if !showFilterQueryEditor && !searchQueryViewModel.showCreateDocumentSheet {
+            if !searchQueryViewModel.showQueryEditor && !searchQueryViewModel.showCreateDocumentSheet {
                 topRectangleView
                     .padding(.horizontal, 10)
                     .frame(width: containerWidth)
+                    .animation(.smooth, value: searchQueryViewModel.showQueryEditor || searchQueryViewModel.showCreateDocumentSheet)
             }
-            
-            if !searchQueryViewModel.showCreateDocumentSheet && showFilterQueryEditor {
-                FilterEditor(viewModel: searchQueryViewModel, showFilterQueryEditor: $showFilterQueryEditor)
+
+            if !searchQueryViewModel.showCreateDocumentSheet && searchQueryViewModel.showQueryEditor {
+                QueryEditor(viewModel: searchQueryViewModel, showQueryEditor: $searchQueryViewModel.showQueryEditor)
                     .frame(width: screenWidth * 0.9)
             }
             
@@ -134,7 +134,7 @@ struct FloatingActionBar: View {
         }
         .animation(.spring(response: 0.2), value: isHoveringTopRectangle)
         .onTapGesture {
-            showFilterQueryEditor = true
+            searchQueryViewModel.openQueryEditor()
         }
     }
     
@@ -265,7 +265,7 @@ struct FloatingActionBar: View {
         HStack(spacing: 4) {
             Button(action: {
                 viewModel.showFilterEditor = true
-                showFilterQueryEditor = true
+                searchQueryViewModel.showQueryEditor = true
             }) {
                 BadgedFilterIcon()
                 //                Image(systemName: "line.3.horizontal.decrease")

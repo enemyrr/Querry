@@ -39,6 +39,10 @@ struct CreateEditor: View {
                         .onTapOutsideGesture {
                             closeWithAnimation()
                         }
+                        .onKeyPress(.escape) {
+                            closeWithAnimation()
+                            return .handled
+                        }
                 }
             }
             .fixedSize(horizontal: !isExpanded, vertical: !isExpanded)
@@ -51,6 +55,7 @@ struct CreateEditor: View {
                     .stroke(.separator, lineWidth: 1)
             )
         }
+        .opacity(opacityValue)
         .onAppear {
             withAnimation(.spring(response: 0.3, blendDuration: 0.1)) {
                 isExpanded = true
@@ -63,16 +68,20 @@ struct CreateEditor: View {
         }
     }
     
+    @State private var opacityValue: Double = 1.0
+    
     // MARK: - Private Methods
     private func closeWithAnimation() {
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
             isExpanded = false
+            opacityValue = 0.0
         }
         
         // Dismiss after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
             showEditor = false
             showCreateDocumentSheet = false
+            opacityValue = 1.0
         }
     }
     

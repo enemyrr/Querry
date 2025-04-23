@@ -56,8 +56,7 @@ public enum ProcessingStage: Int {
     /// The natural language search query input by the user
     var search: String = ""
     
-    /// Flag to show the full query editor
-    var showFilterQueryEditor: Bool = false
+    var showQueryEditor: Bool = false
     var showCreateDocumentSheet: Bool = false
     
     init(documentListModel: DocumentListModel) {
@@ -230,26 +229,13 @@ Current Date: \(currentDate)
     }
     
     
-    // MARK: - Query Editor Methods
-    /// Close the full query editor view with animation
-    func closeFullQueryEditor() {
-        Task { @MainActor in
-            // Only perform animation if the editor is currently open
-            if showFilterQueryEditor {
-                withAnimation(.spring(response: 0.15)) {
-                    showFilterQueryEditor = false
-                }
-            }
-        }
-    }
-    
     /// Open the full query editor view with animation
-    func openFullQueryEditor() {
+    func openQueryEditor() {
         Task { @MainActor in
             // Only perform animation if the editor is currently open
-            if !showFilterQueryEditor {
+            if !showQueryEditor {
                 withAnimation(.spring(response: 0.15)) {
-                    showFilterQueryEditor = true
+                    showQueryEditor = true
                 }
             }
         }

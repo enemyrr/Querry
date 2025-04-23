@@ -9,14 +9,14 @@ import SwiftUI
 import LanguageSupport
 import OnTapOutsideGesture
 
-struct FilterEditor: View {
+struct QueryEditor: View {
     var viewModel: SearchQueryViewModel
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = Set()
     
     @State private var isExpanded: Bool = false
     @State private var showEditor: Bool = false
-    @Binding var showFilterQueryEditor: Bool
+    @Binding var showQueryEditor: Bool
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -42,6 +42,7 @@ struct FilterEditor: View {
                     .stroke(.separator, lineWidth: 1)
             )
         }
+        .opacity(opacityValue)
         .onAppear {
             withAnimation(.spring(response: 0.3, blendDuration: 0.1)) {
                 isExpanded = true
@@ -64,9 +65,9 @@ struct FilterEditor: View {
         }
         
         // Dismiss after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
             showEditor = false
-            showFilterQueryEditor = false
+            showQueryEditor = false
             opacityValue = 1.0
         }
     }
