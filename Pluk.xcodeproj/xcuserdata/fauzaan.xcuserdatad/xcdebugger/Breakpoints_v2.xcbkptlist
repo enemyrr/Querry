@@ -7,334 +7,48 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "F7DB7451-6ECA-4E60-9118-7CE41C00F5C8"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Services/DatabaseService.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "61"
-            endingLineNumber = "61"
-            landmarkName = "updateDocument(in:withId:withData:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "3464C2B4-17C0-44A3-B9AE-E1B02A0E9682"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Services/DatabaseService.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "64"
-            endingLineNumber = "64"
-            landmarkName = "updateDocument(in:withId:withData:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "91F9892D-97AE-4FB6-9CD9-A59900226E0A"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Services/DatabaseService.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "65"
-            endingLineNumber = "65"
-            landmarkName = "updateDocument(in:withId:withData:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "91F9892D-97AE-4FB6-9CD9-A59900226E0A - 98bfb3ab6018c41c"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(1) suspend resume partial function for Pluk.DatabaseService.updateDocument(in: Swift.String, withId: BSON.ObjectId, withData: BSON.Document) async throws -&gt; ()"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "65"
-                  endingLineNumber = "65">
-               </Location>
-               <Location
-                  uuid = "91F9892D-97AE-4FB6-9CD9-A59900226E0A - 119a880111951016"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(4) suspend resume partial function for Pluk.DatabaseService.updateDocument(in: Swift.String, withId: BSON.ObjectId, withData: BSON.Document) async throws -&gt; ()"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "65"
-                  endingLineNumber = "65">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "C720FA25-56D5-45B3-8E5D-104B5A9817F2"
+            uuid = "731AFA34-3D7B-445B-835F-5199396AD4A2"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "pluk/Services/DatabaseService.swift"
+            filePath = "collection/Views/Documents/DocumentViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "21"
-            endingLineNumber = "21"
-            landmarkName = "listCollections()"
+            startingLineNumber = "274"
+            endingLineNumber = "274"
+            landmarkName = "commitPendingActions()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "C720FA25-56D5-45B3-8E5D-104B5A9817F2 - 2f1e426bcb6b9fd4"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(1) suspend resume partial function for Pluk.DatabaseService.listCollections() async throws -&gt; Swift.Array&lt;MongoKitten.MongoCollection&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "21"
-                  endingLineNumber = "21">
-               </Location>
-               <Location
-                  uuid = "C720FA25-56D5-45B3-8E5D-104B5A9817F2 - a2c5feb366b2fb5b"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(4) suspend resume partial function for Pluk.DatabaseService.listCollections() async throws -&gt; Swift.Array&lt;MongoKitten.MongoCollection&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "21"
-                  endingLineNumber = "21">
-               </Location>
-               <Location
-                  uuid = "C720FA25-56D5-45B3-8E5D-104B5A9817F2 - a2c5feb366b2fb5b"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(4) suspend resume partial function for Pluk.DatabaseService.listCollections() async throws -&gt; Swift.Array&lt;MongoKitten.MongoCollection&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "21"
-                  endingLineNumber = "21">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "9B85FA8D-A799-4688-9271-CC8F3D7FCC18"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Services/DatabaseService.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "42"
-            endingLineNumber = "42"
-            landmarkName = "findDocuments(in:filter:skip:limit:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "9B85FA8D-A799-4688-9271-CC8F3D7FCC18 - c6fa347537aaef20"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(1) suspend resume partial function for Pluk.DatabaseService.findDocuments(in: Swift.String, filter: BSON.Document, skip: Swift.Optional&lt;Swift.Int&gt;, limit: Swift.Optional&lt;Swift.Int&gt;) async throws -&gt; Swift.Array&lt;BSON.Document&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "42"
-                  endingLineNumber = "42">
-               </Location>
-               <Location
-                  uuid = "9B85FA8D-A799-4688-9271-CC8F3D7FCC18 - c6fa347537aaef20"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(1) suspend resume partial function for Pluk.DatabaseService.findDocuments(in: Swift.String, filter: BSON.Document, skip: Swift.Optional&lt;Swift.Int&gt;, limit: Swift.Optional&lt;Swift.Int&gt;) async throws -&gt; Swift.Array&lt;BSON.Document&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Services/DatabaseService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "42"
-                  endingLineNumber = "42">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "6234B3C0-C0B4-4711-A5B5-3A40C678FBA1"
+            uuid = "5696FE47-CBC2-4CAD-8CD2-64585C0ABA9E"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "pluk/Services/DatabaseService.swift"
+            filePath = "collection/Views/Documents/DocumentViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "70"
-            endingLineNumber = "70"
-            landmarkName = "updateDocument(in:withId:withData:)"
-            landmarkType = "7">
-            <Actions>
-               <BreakpointActionProxy
-                  ActionExtensionID = "Xcode.BreakpointAction.DebuggerCommand">
-                  <ActionContent
-                     consoleCommand = "po result">
-                  </ActionContent>
-               </BreakpointActionProxy>
-            </Actions>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "35CF6C99-D712-4F29-85EB-27FB512DD640"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Core/Database/ExtendedJSONDecoder.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "43"
-            endingLineNumber = "43"
-            landmarkName = "convertJSONToDocument(_:keyPath:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "35CF6C99-D712-4F29-85EB-27FB512DD640 - b9eb7f6b1bd4a856"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.ExtendedJSONDecoder.convertJSONToDocument(_: Swift.Array&lt;(key: Swift.String, value: Any)&gt;, keyPath: Swift.Array&lt;Swift.String&gt;) throws -&gt; BSON.Document"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Core/Database/ExtendedJSONDecoder.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "43"
-                  endingLineNumber = "43">
-               </Location>
-               <Location
-                  uuid = "35CF6C99-D712-4F29-85EB-27FB512DD640 - b9eb7f6b1bd4a856"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.ExtendedJSONDecoder.convertJSONToDocument(_: Swift.Array&lt;(key: Swift.String, value: Any)&gt;, keyPath: Swift.Array&lt;Swift.String&gt;) throws -&gt; BSON.Document"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/pluk/pluk/pluk/Core/Database/ExtendedJSONDecoder.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "43"
-                  endingLineNumber = "43">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "5DF34A5C-C106-4142-A8C7-895C4BFB5E72"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Core/Database/ExtendedJSONDecoder.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "62"
-            endingLineNumber = "62"
-            landmarkName = "convertToPrimitive(_:keyPath:)"
+            startingLineNumber = "280"
+            endingLineNumber = "280"
+            landmarkName = "commitPendingActions()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "6F800A5A-A226-43AD-9772-FECAFAFFAA04"
+            uuid = "059F47B3-892C-4A47-B624-80132ACA09B5"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "pluk/Core/Database/ExtendedJSONDecoder.swift"
+            filePath = "collection/Views/Documents/DocumentViewModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "67"
-            endingLineNumber = "67"
-            landmarkName = "convertToPrimitive(_:keyPath:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "AF4225BB-B685-4F88-87FF-52C4620286D2"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Core/Database/ExtendedJSONDecoder.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "99"
-            endingLineNumber = "99"
-            landmarkName = "convertToPrimitive(_:keyPath:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "FAE369B4-60C4-4584-A9FD-F5FE3CA1CF75"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Core/Database/ExtendedJSONDecoder.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "104"
-            endingLineNumber = "104"
-            landmarkName = "convertToPrimitive(_:keyPath:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "C288C135-7411-44AC-9A56-512BAD35A555"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Core/Database/ExtendedJSONDecoder.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "113"
-            endingLineNumber = "113"
-            landmarkName = "convertToPrimitive(_:keyPath:)"
+            startingLineNumber = "288"
+            endingLineNumber = "288"
+            landmarkName = "commitPendingActions()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
