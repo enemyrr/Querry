@@ -1,0 +1,4 @@
+module MongoKittenCore {
+header "MongoKittenCore-Swift.h"
+export *
+}

@@ -1,0 +1,4 @@
+module MongoCore {
+header "MongoCore-Swift.h"
+export *
+}

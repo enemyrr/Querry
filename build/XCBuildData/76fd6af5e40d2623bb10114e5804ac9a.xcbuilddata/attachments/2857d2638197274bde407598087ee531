@@ -1,0 +1,4 @@
+module CNIOAtomics {
+umbrella header "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/Sources/CNIOAtomics/include/CNIOAtomics.h"
+export *
+}

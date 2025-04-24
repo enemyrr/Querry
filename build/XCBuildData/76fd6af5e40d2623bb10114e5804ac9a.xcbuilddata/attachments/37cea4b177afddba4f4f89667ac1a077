@@ -1,0 +1,45 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracing-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracing-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracing-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracing-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracing-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracing-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/InstrumentationSystem+Tracing.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/InstrumentationSystem+Tracing.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/InstrumentationSystem+Tracing.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/InstrumentationSystem+Tracing.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/NoOpTracer.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/NoOpTracer.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/NoOpTracer.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/NoOpTracer.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/SpanProtocol.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/SpanProtocol.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/SpanProtocol.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/SpanProtocol.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/Tracer.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracer.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracer.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/Tracer.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/TracerProtocol+Legacy.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracerProtocol+Legacy.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracerProtocol+Legacy.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracerProtocol+Legacy.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/TracerProtocol.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracerProtocol.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracerProtocol.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracerProtocol.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/Sources/Tracing/TracingTime.swift" : {
+    "index-unit-output-path" : "/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracingTime.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracingTime.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-distributed-tracing/build/swift-distributed-tracing.build/Release/Tracing.build/Objects-normal/arm64/TracingTime.o"
+  }
+}

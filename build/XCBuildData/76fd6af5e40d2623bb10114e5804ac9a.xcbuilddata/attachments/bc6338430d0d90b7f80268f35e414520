@@ -1,0 +1,70 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/Client.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Client.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Client.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Client.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/DNSClient+Connect.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient+Connect.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient+Connect.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient+Connect.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/DNSClient+Query.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient+Query.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient+Query.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSClient+Query.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/DNSDecoder.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSDecoder.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSDecoder.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSDecoder.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/DNSEncoder.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSEncoder.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSEncoder.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/DNSEncoder.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/Errors.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Errors.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Errors.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Errors.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/Helpers.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Helpers.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Helpers.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Helpers.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/Messages/Message.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Message.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Message.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/Message.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/Messages/MessageOptions.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/MessageOptions.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/MessageOptions.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/MessageOptions.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/PTR.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/PTR.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/PTR.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/PTR.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/ResolvConf/ConfigParser.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/ConfigParser.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/ConfigParser.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/ConfigParser.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/Sources/DNSClient/SRV.swift" : {
+    "index-unit-output-path" : "/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/SRV.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/SRV.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/DNSClient/build/DNSClient.build/Release/DNSClient.build/Objects-normal/x86_64/SRV.o"
+  }
+}

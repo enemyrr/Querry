@@ -98,9 +98,7 @@ jobs:
           echo "$(pwd)/bin" >> $GITHUB_PATH
 
       - name: Build Pluk.app
-        run: |
-          cd macos
-          xcodebuild -target Pluk -configuration Release
+        run: xcodebuild -target Pluk -configuration Release
 
       # Add all our metadata to Info.plist so we can reference it later.
       - name: Update Info.plist
@@ -108,13 +106,13 @@ jobs:
           SPARKLE_KEY_PUB: ${{ secrets.PROD_MACOS_SPARKLE_KEY_PUB }}
         run: |
           # Version Info
-          /usr/libexec/PlistBuddy -c "Set :GhosttyCommit $PLUK_COMMIT" "macos/build/Release/Pluk.app/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $PLUK_BUILD" "macos/build/Release/Pluk.app/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $PLUK_VERSION" "macos/build/Release/Pluk.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :GhosttyCommit $PLUK_COMMIT" "build/Release/Pluk.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $PLUK_BUILD" "build/Release/Pluk.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $PLUK_VERSION" "build/Release/Pluk.app/Contents/Info.plist"
 
           # Updater
-          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $SPARKLE_KEY_PUB" "macos/build/Release/Pluk.app/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c "Delete :SUEnableAutomaticChecks" "macos/build/Release/Pluk.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $SPARKLE_KEY_PUB" "build/Release/Pluk.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :SUEnableAutomaticChecks" "build/Release/Pluk.app/Contents/Info.plist"
 
       - name: Codesign app bundle
         env:

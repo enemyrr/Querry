@@ -1,0 +1,165 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSL-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSL-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSL-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSL-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSL-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSL-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/AndroidCABundle.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/AndroidCABundle.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/AndroidCABundle.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/AndroidCABundle.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/ByteBufferBIO.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/ByteBufferBIO.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/ByteBufferBIO.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/ByteBufferBIO.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/CustomPrivateKey.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/CustomPrivateKey.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/CustomPrivateKey.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/CustomPrivateKey.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/IdentityVerification.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/IdentityVerification.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/IdentityVerification.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/IdentityVerification.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/LinuxCABundle.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/LinuxCABundle.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/LinuxCABundle.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/LinuxCABundle.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/NIOSSLClientHandler.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLClientHandler.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLClientHandler.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLClientHandler.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/NIOSSLHandler+Configuration.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLHandler+Configuration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLHandler+Configuration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLHandler+Configuration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/NIOSSLHandler.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLHandler.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLHandler.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLHandler.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/NIOSSLServerHandler.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLServerHandler.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLServerHandler.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLServerHandler.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/ObjectIdentifier.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/ObjectIdentifier.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/ObjectIdentifier.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/ObjectIdentifier.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/PosixPort.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/PosixPort.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/PosixPort.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/PosixPort.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLCallbacks.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCallbacks.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCallbacks.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCallbacks.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLCertificate.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCertificate.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCertificate.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCertificate.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLCertificateExtensions.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCertificateExtensions.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCertificateExtensions.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLCertificateExtensions.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLConnection.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLConnection.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLConnection.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLConnection.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLContext.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLContext.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLContext.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLContext.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLErrors.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLErrors.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLErrors.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLErrors.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLInit.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLInit.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLInit.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLInit.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLPKCS12Bundle.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPKCS12Bundle.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPKCS12Bundle.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPKCS12Bundle.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLPrivateKey.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPrivateKey.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPrivateKey.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPrivateKey.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SSLPublicKey.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPublicKey.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPublicKey.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SSLPublicKey.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SecurityFrameworkCertificateVerification.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SecurityFrameworkCertificateVerification.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SecurityFrameworkCertificateVerification.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SecurityFrameworkCertificateVerification.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/String+unsafeUninitializedCapacity.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/String+unsafeUninitializedCapacity.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/String+unsafeUninitializedCapacity.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/String+unsafeUninitializedCapacity.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SubjectAlternativeName.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SubjectAlternativeName.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SubjectAlternativeName.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SubjectAlternativeName.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SwiftCrypto/NIOSSLSecureBytes.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLSecureBytes.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLSecureBytes.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/NIOSSLSecureBytes.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SwiftCrypto/RNG.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/RNG.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/RNG.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/RNG.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SwiftCrypto/SafeCompare.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SafeCompare.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SafeCompare.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/SafeCompare.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/SwiftCrypto/Zeroization.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/Zeroization.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/Zeroization.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/Zeroization.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/TLSConfiguration.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/TLSConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/TLSConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/TLSConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/Sources/NIOSSL/UniversalBootstrapSupport.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/UniversalBootstrapSupport.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/UniversalBootstrapSupport.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/UniversalBootstrapSupport.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/DerivedSources/resource_bundle_accessor.swift" : {
+    "index-unit-output-path" : "/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/resource_bundle_accessor.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/resource_bundle_accessor.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio-ssl/build/swift-nio-ssl.build/Release/NIOSSL.build/Objects-normal/x86_64/resource_bundle_accessor.o"
+  }
+}

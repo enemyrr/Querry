@@ -1,0 +1,105 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditorView-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditorView-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditorView-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditorView-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditorView-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditorView-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/CodeActions.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeActions.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeActions.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeActions.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/CodeEditing.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditing.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditing.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditing.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/CodeEditor.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditor.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditor.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeEditor.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/CodeStorage.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeStorage.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeStorage.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeStorage.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/CodeStorageDelegate.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeStorageDelegate.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeStorageDelegate.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeStorageDelegate.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/CodeView.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeView.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeView.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/CodeView.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/Constants.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/Constants.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/Constants.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/Constants.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/GutterView.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/GutterView.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/GutterView.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/GutterView.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/LineMap.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/LineMap.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/LineMap.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/LineMap.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/MessageViews.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/MessageViews.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/MessageViews.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/MessageViews.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/MinimapView.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/MinimapView.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/MinimapView.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/MinimapView.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/OSDefinitions.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/OSDefinitions.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/OSDefinitions.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/OSDefinitions.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/ScrollViewExtras.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/ScrollViewExtras.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/ScrollViewExtras.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/ScrollViewExtras.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/TextContentStorageExtras.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextContentStorageExtras.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextContentStorageExtras.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextContentStorageExtras.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/TextLayoutManagerExtras.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextLayoutManagerExtras.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextLayoutManagerExtras.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextLayoutManagerExtras.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/TextView.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextView.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextView.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/TextView.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/Theme.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/Theme.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/Theme.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/Theme.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/UIHostingView.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/UIHostingView.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/UIHostingView.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/UIHostingView.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/CodeEditorView/ViewModifiers.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/ViewModifiers.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/ViewModifiers.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/CodeEditorView.build/Objects-normal/x86_64/ViewModifiers.o"
+  }
+}

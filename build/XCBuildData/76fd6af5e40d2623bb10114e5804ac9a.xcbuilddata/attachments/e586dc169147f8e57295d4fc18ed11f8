@@ -1,0 +1,60 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageSupport-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageSupport-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageSupport-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageSupport-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageSupport-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageSupport-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/AgdaConfiguration.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/AgdaConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/AgdaConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/AgdaConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/CypherConfiguration.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/CypherConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/CypherConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/CypherConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/HaskellConfiguration.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/HaskellConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/HaskellConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/HaskellConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/LanguageConfiguration.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/LanguageService.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageService.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageService.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/LanguageService.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/Location.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Location.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Location.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Location.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/Message.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Message.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Message.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Message.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/SQLiteConfiguration.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/SQLiteConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/SQLiteConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/SQLiteConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/SwiftConfiguration.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/SwiftConfiguration.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/SwiftConfiguration.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/SwiftConfiguration.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/Sources/LanguageSupport/Tokeniser.swift" : {
+    "index-unit-output-path" : "/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Tokeniser.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Tokeniser.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/CodeEditorView/build/CodeEditorView.build/Release/LanguageSupport.build/Objects-normal/x86_64/Tokeniser.o"
+  }
+}

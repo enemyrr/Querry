@@ -1,0 +1,30 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/NIOFoundationCompat-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/NIOFoundationCompat-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/NIOFoundationCompat-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/NIOFoundationCompat-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/NIOFoundationCompat-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/NIOFoundationCompat-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/Sources/NIOFoundationCompat/ByteBuffer-foundation.swift" : {
+    "index-unit-output-path" : "/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/ByteBuffer-foundation.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/ByteBuffer-foundation.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/ByteBuffer-foundation.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/Sources/NIOFoundationCompat/Codable+ByteBuffer.swift" : {
+    "index-unit-output-path" : "/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/Codable+ByteBuffer.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/Codable+ByteBuffer.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/Codable+ByteBuffer.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/Sources/NIOFoundationCompat/JSONSerialization+ByteBuffer.swift" : {
+    "index-unit-output-path" : "/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/JSONSerialization+ByteBuffer.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/JSONSerialization+ByteBuffer.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/JSONSerialization+ByteBuffer.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/Sources/NIOFoundationCompat/WaitSpinningRunLoop.swift" : {
+    "index-unit-output-path" : "/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/WaitSpinningRunLoop.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/WaitSpinningRunLoop.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/swift-nio/build/swift-nio.build/Release/NIOFoundationCompat.build/Objects-normal/x86_64/WaitSpinningRunLoop.o"
+  }
+}

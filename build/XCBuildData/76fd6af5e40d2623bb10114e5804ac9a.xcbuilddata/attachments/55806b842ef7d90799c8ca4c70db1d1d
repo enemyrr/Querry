@@ -1,0 +1,105 @@
+{
+  "" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoCore-master.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoCore-master.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoCore-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoCore-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoCore-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoCore-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/CommandPrimitives.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/CommandPrimitives.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/CommandPrimitives.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/CommandPrimitives.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Error.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Error.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Error.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Error.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/MongoReplyDeserializer.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoReplyDeserializer.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoReplyDeserializer.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoReplyDeserializer.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/Collation.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Collation.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Collation.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Collation.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/ConnectionSettings.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ConnectionSettings.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ConnectionSettings.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ConnectionSettings.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/Namespace.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Namespace.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Namespace.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Namespace.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/ReadConcern.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ReadConcern.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ReadConcern.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ReadConcern.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/ServerHandshake.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ServerHandshake.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ServerHandshake.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ServerHandshake.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/WireVersion.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/WireVersion.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/WireVersion.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/WireVersion.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Primitives/WriteConcern.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/WriteConcern.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/WriteConcern.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/WriteConcern.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/MessageHeader.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MessageHeader.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MessageHeader.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MessageHeader.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/MongoReply.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoReply.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoReply.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoReply.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/MongoRequest.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoRequest.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoRequest.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/MongoRequest.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/OpMessage.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpMessage.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpMessage.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpMessage.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/OpQuery.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpQuery.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpQuery.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpQuery.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/OpReply.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpReply.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpReply.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/OpReply.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Protocol/ProtocolHelpers.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ProtocolHelpers.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ProtocolHelpers.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/ProtocolHelpers.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Sessions.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Sessions.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Sessions.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Sessions.o"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/Sources/MongoCore/Tansaction.swift" : {
+    "index-unit-output-path" : "/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Tansaction.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Tansaction.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-bezzxjtspcgkvhadilxxvjispjjk/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Release/MongoCore.build/Objects-normal/x86_64/Tansaction.o"
+  }
+}
