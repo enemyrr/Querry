@@ -6,7 +6,7 @@ on:
         required: true
       upload:
         description: "Upload final artifacts to R2"
-        default: false
+        default: true
 
   push:
     tags:
