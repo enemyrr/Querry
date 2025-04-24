@@ -98,7 +98,7 @@ jobs:
           echo "$(pwd)/bin" >> $GITHUB_PATH
 
       - name: Build Pluk.app
-        run: xcodebuild -target Pluk -configuration Release
+        run: xcodebuild -target Pluk -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
 
       # Add all our metadata to Info.plist so we can reference it later.
       - name: Update Info.plist
