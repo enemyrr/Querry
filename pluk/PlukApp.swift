@@ -8,6 +8,7 @@ import Foundation
 import SwiftUI
 import SwiftData
 import Sparkle
+import PostHog
 
 @main
 struct Pluk: App {
@@ -27,6 +28,11 @@ struct Pluk: App {
     
     init() {
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        
+        let POSTHOG_API_KEY = "phc_sUeCOX55NMF1KRMylcacBuRrAdZmOtPLLQE0To9eeSK"
+        let POSTHOG_HOST = "https://us.i.posthog.com"
+        let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
+        PostHogSDK.shared.setup(config)
     }
     
     var body: some Scene {

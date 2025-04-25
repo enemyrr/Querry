@@ -9,7 +9,7 @@
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://mfauzaan.github.io/pluk/appcast.xml</string>
+	<string>https://r2.pluk.sh/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=</string>
 	<key>UIApplicationSceneManifest</key>
