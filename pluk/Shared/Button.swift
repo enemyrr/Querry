@@ -176,10 +176,20 @@ struct IconButtonWithoutBorder: View {
     
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12))
-                .frame(width: 30, height: 30)
-                .opacity(0.7)
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        isHovering
+                        ? (colorScheme == .dark ? Color.black : Color.white)
+                            .opacity(0.3)
+                        : Color.clear
+                    )
+                
+                Image(systemName: systemName)
+                    .font(.system(size: 12))
+                    .opacity(0.7)
+            }
+            .frame(width: 30, height: 30)
         }
         .buttonStyle(PlainButtonStyle())
         .background(

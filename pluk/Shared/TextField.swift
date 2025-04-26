@@ -26,3 +26,36 @@ struct CustomTextFieldStyle: TextFieldStyle {
         
     }
 }
+
+struct TextEditorWithPlaceholder: View {
+    @Binding var text: String
+    let placeholder: String
+    @FocusState private var isFocused: Bool
+    var height: CGFloat = 120
+    
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .background(Color.black.opacity(isFocused ? 0.2 : 0))
+                .foregroundColor(.white)
+                .focused($isFocused)
+            
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundColor(.gray.opacity(0.7))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(height: height)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.separator, lineWidth: 1)
+        )
+    }
+}

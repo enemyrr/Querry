@@ -5,14 +5,13 @@
 //  Created by Fauzaan on 1/1/25.
 //
 import SwiftUI
-import MongoKitten
 
 struct Sidebar: View {
     @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     
     var body: some View {
         HStack(spacing: 0) {
-            NavigationSidebar(model: viewModel)
+            NavigationSidebar(viewModel: viewModel)
                 .frame(width: 50)
             
             if viewModel.activeSidebarItem != .home {
@@ -27,7 +26,7 @@ struct Sidebar: View {
 
 // MARK: - Navigation Sidebar
 struct NavigationSidebar: View {
-    var model: SidebarViewModel
+    var viewModel: SidebarViewModel
     
     var body: some View {
         VStack {
@@ -42,29 +41,29 @@ struct NavigationSidebar: View {
         Group {
             IconButton(
                 systemName: "house.fill",
-                isSelected: model.activeSidebarItem == .home
+                isSelected: viewModel.activeSidebarItem == .home
             ) {
-                model.changeActiveSidebarItem(.home)
+                viewModel.changeActiveSidebarItem(.home)
             }
             
             Divider()
                 .padding(.horizontal, 12)
                 .padding(.bottom, -6)
             
-            ForEach(model.connections) { instance in
+            ForEach(viewModel.connections) { instance in
                 let instanceId = instance.id
                 
                 DatabaseIcon(
                     color: instance.connection.color.color,
                     letter: instance.connection.name.prefix(1).uppercased(),
-                    isSelected: model.activeSidebarItem == .connection(instanceId)
+                    isSelected: viewModel.activeSidebarItem == .connection(instanceId)
                 ) {
-                    model.changeActiveSidebarItem(.connection(instanceId))
+                    viewModel.changeActiveSidebarItem(.connection(instanceId))
                 }
                 .contextMenu {
                     Button(role: .destructive) {
                         Task {
-                            await model.disconnectConnectionInstance(instanceId)
+                            await viewModel.disconnectConnectionInstance(instanceId)
                         }
                     } label: {
                         Label("Disconnect", systemImage: "xmark.circle.fill")
@@ -95,11 +94,22 @@ struct NavigationSidebar: View {
         .background(.clear)
     }
     
-    private var bottomNavigationItems: some View {
+    var bottomNavigationItems: some View {
         IconButtonWithoutBorder(
             systemName: "exclamationmark.bubble.fill",
             isSelected: false
-        ) {}
+        ) {
+            viewModel.showFeedbackForm()
+        }
+        .popover(
+            isPresented: Binding<Bool>(
+                get: { viewModel.isShowingFeedback },
+                set: { viewModel.isShowingFeedback = $0 }
+            ),
+            arrowEdge: .trailing
+        ) {
+            FeedbackForm(viewModel: viewModel)
+        }
         .padding(.bottom, 16)
     }
 }
