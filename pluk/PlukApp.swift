@@ -12,6 +12,8 @@ import PostHog
 
 @main
 struct Pluk: App {
+    @Environment(\.openWindow) private var openWindow
+    
     private let updaterController: SPUStandardUpdaterController
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -46,7 +48,24 @@ struct Pluk: App {
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        
+        Window("About Pluk", id: "aboutWindow") {
+            AboutView()
+                .toolbar(removing: .title)
+                .toolbarBackground(.hidden, for: .windowToolbar)
+                .containerBackground(.thinMaterial, for: .window)
+                .windowMinimizeBehavior(.disabled)
+                .fixedSize()
+        }
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Pluk") {
+                    openWindow(id: "aboutWindow")
+                }
+            }
+            
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }

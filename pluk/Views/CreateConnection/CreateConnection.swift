@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 import MongoKitten
+import MongoCore
 import SwiftData
 
 struct CreateConnection: View {
@@ -67,12 +68,14 @@ struct CreateConnectionForm: View {
             let connectionSettings = try ConnectionSettings(uri)
             
             if connectionSettings.targetDatabase == nil {
-                uriError = "Include a default database name in the URI"
+                uriError = "Please specify a database in your connection URI"
             } else{
                 uriError = nil
             }
+        } catch let error as MongoInvalidUriError {
+            uriError = error.description
         } catch {
-            uriError = error.localizedDescription
+            uriError = "The given MongoDB connection URI is invalid"
         }
     }
     
@@ -100,20 +103,13 @@ struct CreateConnectionForm: View {
                         .textFieldStyle(CustomTextFieldStyle())
                 }
                 
-                FormField(label: "URI") {
+                FormField(label: "URI", errorMessage: uriError) {
                     TextField("e.g mongodb+srv://user:password@cluster.mongodb.net/admin", text: $uri)
                         .textFieldStyle(CustomTextFieldStyle())
                         .onChange(of: uri) { oldValue, newValue in
                             validateMongoUri(newValue)
                         }
-                    
-                    if let error = uriError {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .font(.caption)
-                    }
                 }
-                
             }
             .padding(20)
             .background(Color(.controlColor).opacity(0.1))

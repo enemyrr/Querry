@@ -71,22 +71,19 @@ struct NavigationSidebar: View {
                     
                     Divider()
                     
-                    Button {
-                        // Refresh connection action
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
+//                    Button {
+//                        // Refresh connection action
+//                    } label: {
+//                        Label("Refresh", systemImage: "arrow.clockwise")
+//                    }
                     
                     Button {
-                        // Copy connection string action
+                        let connectionURI = instance.connection.url
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(connectionURI, forType: .string)
                     } label: {
                         Label("Copy Connection String", systemImage: "doc.on.doc")
-                    }
-                    
-                    Button {
-                        // Show connection details
-                    } label: {
-                        Label("Connection Details", systemImage: "info.circle")
                     }
                 }
             }

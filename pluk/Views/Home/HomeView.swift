@@ -119,6 +119,8 @@ struct ConnectionListItem: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isHovering = false
     @State private var showEditSheet = false
+    @State private var showDeleteConfirmation = false
+    @State private var connectionToDelete: Connection?
     
     var body: some View {
         HStack {
@@ -182,7 +184,7 @@ struct ConnectionListItem: View {
                     .ignoresSafeArea()
                 
                 CreateConnectionForm(connectionId: connection.persistentModelID)
-                            .frame(width: 500)
+                    .frame(width: 500)
             }
         }
         .contextMenu {
@@ -201,27 +203,47 @@ struct ConnectionListItem: View {
                 Text("Edit")
             }
             
-            Button {
-                // Show connection details
-            } label: {
-                Text("Duplicate")
-            }
-            
             Divider()
             
             Button {
-                // Show connection details
+                let connectionURI = connection.url
+
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(connectionURI, forType: .string)
             } label: {
                 Text("Copy connection string")
             }
             
+            
             Divider()
+            
             Button(role: .destructive) {
-                modelContext.delete(connection)
+                // Store the connection to delete and show confirmation
+                connectionToDelete = connection
+                showDeleteConfirmation = true
             } label: {
                 Text("Delete")
             }
-            
         }
+        .confirmationDialog(
+            "Delete Connection",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let connection = connectionToDelete {
+                    modelContext.delete(connection)
+                    connectionToDelete = nil
+                }
+            }
+            
+            Button("Cancel", role: .cancel) {
+                connectionToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this connection? This action cannot be undone.")
+        }
+        .dialogSeverity(.critical)
     }
 }

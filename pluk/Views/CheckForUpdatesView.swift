@@ -8,7 +8,6 @@
 import SwiftUI
 import Sparkle
 
-
 struct CheckForUpdatesView: View {
     @ObservedObject private var checkForUpdatesViewModel: CheckForUpdatesViewModel
     private let updater: SPUUpdater
