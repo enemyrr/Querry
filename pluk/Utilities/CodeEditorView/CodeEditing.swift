@@ -10,29 +10,6 @@ import SwiftUI
 
 import LanguageSupport
 
-
-// MARK: -
-// MARK: Actions and commands
-
-//extension CodeView {
-//
-//#if os(macOS)
-//  override func performKeyEquivalent(with event: NSEvent) -> Bool {
-//
-//    if event.charactersIgnoringModifiers == "/"
-//        && event.modifierFlags.intersection([.command, .control, .option]) == .command
-//    {
-//
-//      comment()
-//      return true
-//
-//    } else {
-//      return super.performKeyEquivalent(with: event)
-//    }
-//  }
-//#endif
-//}
-
 /// Adds an "Editor" menu with code editing commands and adds a duplicate command to the pasteboard commands.
 ///
 public struct CodeEditingCommands: Commands {
@@ -52,11 +29,7 @@ public struct CodeEditingCommands: Commands {
 }
 
 private func send(_ action: Selector) {
-#if os(macOS)
   NSApplication.shared.sendAction(action, to: nil, from: nil)
-#elseif os(iOS) || os(visionOS)
-  UIApplication.shared.sendAction(action, to: nil, from: nil, for: nil)
-#endif
 }
 
 /// Menu item for the duplicate command.
@@ -117,11 +90,7 @@ public struct CodeEditingCommandsView: View {
 
 extension CodeView: CodeEditorActions {
 
-#if os(macOS)
   @objc public func duplicate(_ sender: Any?) { duplicate(sender) }
-#elseif os(iOS) || os(visionOS)
-  @objc public override func duplicate(_ sender: Any?) { duplicate() }
-#endif
   @objc public func reindent(_ sender: Any?) { reindent() }
   @objc public func shiftLeft(_ sender: Any?) { shiftLeftOrRight(doShiftLeft: true) }
   @objc public func shiftRight(_ sender: Any?) { shiftLeftOrRight(doShiftLeft: false) }
@@ -132,9 +101,6 @@ extension CodeView: CodeEditorActions {
 // MARK: Override tab key behaviour
 
 extension CodeView {
-
-#if os(macOS)
-
   override public func keyDown(with event: NSEvent) {
 
     let noModifiers = event.modifierFlags.intersection([.shift, .control, .option, .command]) == []
@@ -146,15 +112,6 @@ extension CodeView {
       super.keyDown(with: event)
     }
   }
-
-#elseif os(iOS) || os(visionOS)
-
-  override var keyCommands: [UIKeyCommand] {
-    [ UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(insertTab))
-    ]
-  }
-
-#endif
 }
 
 // MARK: -
@@ -759,11 +716,8 @@ extension CodeView {
 
     // NB: It is crucial to process selected ranges in reverse order as any text change invalidates ranges in the line
     //     map after the change.
-#if os(macOS)
     let ranges = selectedRanges.reversed()
-#elseif os(iOS) || os(visionOS)
-    let ranges = [NSValue(range: selectedRange)]
-#endif
+
     var newSelected: [NSRange] = []
     for rangeAsValue in ranges {
       let range = rangeAsValue.rangeValue
@@ -771,10 +725,6 @@ extension CodeView {
       let newRange = block(range)
       newSelected.append(newRange)
     }
-#if os(macOS)
     if !newSelected.isEmpty { selectedRanges = newSelected.map{ NSValue(range: $0) } }
-#elseif os(iOS) || os(visionOS)
-    if let selection = newSelected.first { selectedRange = selection }
-#endif
   }
 }

@@ -12,11 +12,8 @@
 //  functionality, such as semantic tokens, interacts with functionality in here, such as token highlighting. The code
 //  view accesses the language service from here.
 
-#if os(iOS) || os(visionOS)
-import UIKit
-#elseif os(macOS)
+
 import AppKit
-#endif
 import os
 
 import Rearrange

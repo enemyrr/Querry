@@ -60,7 +60,6 @@ final class CodeView: NSTextView {
   // Delegates
   fileprivate let codeViewDelegate =                 CodeViewDelegate()
   fileprivate var codeStorageDelegate:               CodeStorageDelegate
-  fileprivate let minimapTextLayoutManagerDelegate = MinimapTextLayoutManagerDelegate()
   fileprivate let minimapCodeViewDelegate =          CodeViewDelegate()
 
   // Subviews
@@ -275,71 +274,20 @@ final class CodeView: NSTextView {
     addBackgroundSubview(currentLineHighlightView)
     self.currentLineHighlightView = currentLineHighlightView
 
-    // Create the minimap with its own gutter, but sharing the code storage with the code view
-    //
-    let minimapView        = MinimapView(),
-        minimapGutterView  = GutterView(frame: CGRect.zero,
-                                        textView: minimapView,
-                                        codeStorage: codeStorage,
-                                        theme: theme,
-                                        getMessageViews: { [weak self] in self?.messageViews ?? [:] },
-                                        isMinimapGutter: true),
-    minimapDividerView = NSBox()
-    minimapView.codeView = self
-
-    minimapDividerView.boxType     = .custom
-    minimapDividerView.fillColor   = .separatorColor
-    minimapDividerView.borderWidth = 0
-    self.minimapDividerView = minimapDividerView
-    // NB: The divider view is floating. We cannot add it now, as we don't have an `enclosingScrollView` yet.
 
     // We register the text layout manager of the minimap view as a secondary layout manager of the code view's text
     // content storage, so that code view and minimap use the same content.
-    minimapView.textLayoutManager?.replace(textContentStorage)
     textContentStorage.primaryTextLayoutManager = textLayoutManager
-    minimapView.delegate = minimapCodeViewDelegate
-    minimapView.textLayoutManager?.setSafeRenderingAttributesValidator(with: 
-                                                                        minimapCodeViewDelegate) { (minimapLayoutManager,
-                                                                                                    layoutFragment) in
-      guard let textContentStorage = minimapLayoutManager.textContentManager as? NSTextContentStorage else { return }
-      codeStorage.setHighlightingAttributes(for: textContentStorage.range(for: layoutFragment.rangeInElement),
-                                            in: minimapLayoutManager)
-    }.flatMap { observations.append($0) }
-    minimapView.textLayoutManager?.delegate = minimapTextLayoutManagerDelegate
 
-    let font = theme.font
-    minimapView.font                                = OSFont(name: font.fontName, size: font.pointSize / minimapRatio)!
-    minimapView.backgroundColor                     = backgroundColor
-    minimapView.autoresizingMask                    = .none
-    minimapView.isEditable                          = false
-    minimapView.isSelectable                        = false
-    minimapView.isHorizontallyResizable             = false
-    minimapView.isVerticallyResizable               = true
-    minimapView.textContainerInset                  = .zero
-    minimapView.textContainer?.widthTracksTextView  = false    // we need to be able to control the size (see `tile()`)
-    minimapView.textContainer?.heightTracksTextView = false
-    minimapView.textContainer?.lineBreakMode        = .byWordWrapping
-    self.minimapView = minimapView
-    // NB: The minimap view is floating. We cannot add it now, as we don't have an `enclosingScrollView` yet.
-
-    minimapView.addSubview(minimapGutterView)
-    self.minimapGutterView = minimapGutterView
 
     let documentVisibleBox = NSBox()
     documentVisibleBox.boxType     = .custom
     documentVisibleBox.fillColor   = theme.textColour.withAlphaComponent(0.1)
     documentVisibleBox.borderWidth = 0
-    minimapView.addSubview(documentVisibleBox)
     self.documentVisibleBox = documentVisibleBox
 
     maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
       
-    // This is needed to redo layout of the minimap once all the views are laid out.
-    // FIXME: Unfortunately, this comes with a visible delay, though.
-    Task { @MainActor in
-      minimapView.textLayoutManager?.invalidateLayout(for: minimapView.textLayoutManager!.documentRange)
-    }
-
     // We need to re-tile the subviews whenever the frame of the text view changes.
     frameChangedNotificationObserver
       = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
@@ -667,7 +615,6 @@ extension CodeView {
   private func tile() {
     guard let codeContainer = optTextContainer as? CodeContainer else { return }
 
-#if os(macOS)
     // Add the floating views if they are not yet in the view hierachy.
     // NB: Since macOS 14, we need to explicitly set clipping; otherwise, views will draw outside of the bounds of the
     //     scroll view. We need to do this vor each view, as it is not guaranteed that they share a container view.
@@ -683,7 +630,6 @@ extension CodeView {
       enclosingScrollView?.addFloatingSubview(view, for: .horizontal)
       view.superview?.clipsToBounds = true
     }
-#endif
 
     // Compute size of the main view gutter
     //
@@ -697,26 +643,10 @@ extension CodeView {
 
     if gutterView?.frame.size != gutterSize { gutterView?.frame = CGRect(origin: .zero, size: gutterSize) }
 
-    // Compute sizes of the minimap text view and gutter
-    //
-    let minimapFontWidth     = fontWidth / minimapRatio,
-        minimapGutterWidth   = ceil(minimapFontWidth * gutterWidthInCharacters),
-        dividerWidth         = CGFloat(1),
-        minimapGutterRect    = CGRect(origin: CGPoint.zero,
-                                      size: CGSize(width: minimapGutterWidth, height: minimumHeight)).integral,
-        minimapExtras        = minimapGutterWidth + dividerWidth,
-        gutterWithPadding    = gutterWidth + lineFragmentPadding,
-        visibleWidth         = documentVisibleRect.width,
-        widthWithoutGutters  = visibleWidth - gutterWithPadding,
-        compositeFontWidth   = fontWidth,
-        numberOfCharacters   = widthWithoutGutters / compositeFontWidth,
+    let visibleWidth         = documentVisibleRect.width,
         codeViewWidth        = visibleWidth,
         minimapWidth         = visibleWidth - codeViewWidth,
-        minimapX             = floor(visibleWidth - minimapWidth),
-        minimapExclusionPath = OSBezierPath(rect: minimapGutterRect),
-        minimapDividerRect   = CGRect(x: minimapX - dividerWidth, y: 0, width: dividerWidth, height: minimumHeight).integral
 
-    enclosingScrollView?.hasHorizontalScroller = !viewLayout.wrapText
     isHorizontallyResizable                    = !viewLayout.wrapText
     if !isHorizontallyResizable && frame.size.width != visibleWidth { frame.size.width = visibleWidth }  // don't update frames in vain
 
@@ -740,7 +670,6 @@ extension CodeView {
     let minimapTextContainer = minimapView?.textContainer
     if minimapWidth != minimapView?.frame.width || minimapTextContainerWidth != minimapTextContainer?.size.width {
 
-      minimapTextContainer?.exclusionPaths      = [minimapExclusionPath]
       minimapTextContainer?.size                = CGSize(width: minimapTextContainerWidth,
                                                                height: CGFloat.greatestFiniteMagnitude)
       minimapTextContainer?.lineFragmentPadding = 0

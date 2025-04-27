@@ -535,19 +535,6 @@ extension CodeEditor: NSViewRepresentable {
 
     scrollView.verticalScrollPosition = position.verticalScrollPosition
 
-    // The minimap needs to be vertically positioned in dependence on the scroll position of the main code view by
-    // observing the bounds of the content view.
-    context.coordinator.boundsChangedNotificationObserver
-      = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification,
-                                               object: scrollView.contentView,
-                                               queue: .main){ [weak scrollView] _ in
-
-          // FIXME: we would like to get less fine-grained updates here, but `NSScrollView.didEndLiveScrollNotification` doesn't happen when moving the cursor around
-          if let scrollView {
-            context.coordinator.scrollPositionDidChange(scrollView)
-          }
-        }
-
     // Report the initial message set
     Task { @MainActor in codeView.update(messages: messages) }
 

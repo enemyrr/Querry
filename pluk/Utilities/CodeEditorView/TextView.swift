@@ -189,83 +189,6 @@ extension TextView {
 }
 
 
-#if os(iOS) || os(visionOS)
-
-// MARK: -
-// MARK: UIKit version
-
-import UIKit
-
-private let highlightingAttributes = [NSAttributedString.Key.foregroundColor: UIColor.black,
-                                      NSAttributedString.Key.backgroundColor: UIColor.yellow]
-
-extension UITextView: TextView {
-  typealias Color = UIColor
-  typealias Font  = UIFont
-
-  var optTextLayoutManager:  NSTextLayoutManager?  { textLayoutManager }
-  var optTextContainer:      NSTextContainer?      { textContainer }
-  var optTextContentStorage: NSTextContentStorage? { textLayoutManager?.textContentManager as? NSTextContentStorage }
-  var optCodeStorage:        CodeStorage?          { textStorage as? CodeStorage }
-
-  var textBackgroundColor: Color? { backgroundColor }
-  var textFont:            Font? { font }
-  var textContainerOrigin: CGPoint { return CGPoint(x: textContainerInset.left, y: textContainerInset.top) }
-
-  var insertionPoint: Int? { selectedRange.length == 0 ? selectedRange.location : nil }
-
-  var selectedLines: Set<Int> {
-    guard let codeStorageDelegate = optCodeStorage?.delegate as? CodeStorageDelegate else { return Set() }
-
-    return Set(codeStorageDelegate.lineMap.linesContaining(range: selectedRange))
-  }
-
-  var documentVisibleRect: CGRect { return CGRect(origin: contentOffset, size: bounds.size) }
-
-  // This implementation currently comes with an infelicity. If there is already a indicator view visible, while this
-  // method is called again, the old view should be removed right away. This is a bit awkward to implement, as we cannot
-  // add a stored property in an extension, but it should happen eventually as it does look better.
-  func showFindIndicator(for range: NSRange) {
-    guard let textLayoutManager  = optTextLayoutManager,
-          let textContentStorage = textLayoutManager.textContentManager as? NSTextContentStorage,
-          let visibleTextRange   = textLayoutManager.textViewportLayoutController.viewportRange
-    else { return }
-
-    // Determine the visible portion of the range
-    let visibleCharRange = textContentStorage.range(for: visibleTextRange),
-        visibleRange     = NSIntersectionRange(visibleCharRange, range)
-
-    // Set up a label view to animate as the indicator view
-    guard let visibleTextRange = textContentStorage.textRange(for: visibleRange),
-          let rect             = textLayoutManager.boundingRectOfFirstTextSegment(for: visibleTextRange)
-    else { return }
-    let label = UILabel(frame: rect.offsetBy(dx: textContainerOrigin.x, dy: 0)),
-        text  = NSMutableAttributedString(attributedString: textStorage.attributedSubstring(from: visibleRange))
-    text.addAttributes(highlightingAttributes, range: NSRange(location: 0, length: text.length))
-    label.attributedText      = text
-    label.layer.cornerRadius  = 3
-    label.layer.masksToBounds = true
-    addSubview(label)
-
-    // We animate the label in with a spring effect, and remove it with a delay.
-    label.alpha     = 0
-    label.transform = CGAffineTransform(scaleX: 0.2, y: 0.2)
-    UIView.animate(withDuration: 0.2, delay: 0, usingSpringWithDamping: 0.1, initialSpringVelocity: 1){
-      label.alpha = 1
-      label.transform = CGAffineTransform.identity
-    } completion: { _ in
-      UIView.animate(withDuration: 0.2, delay: 0.4){
-        label.alpha = 0
-      } completion: { _ in
-        label.removeFromSuperview()
-      }
-    }
-  }
-}
-
-
-#elseif os(macOS)
-
 // MARK: -
 // MARK: AppKit version
 
@@ -308,5 +231,3 @@ extension NSTextView: TextView {
 
   var contentSize: CGSize { bounds.size }
 }
-
-#endif

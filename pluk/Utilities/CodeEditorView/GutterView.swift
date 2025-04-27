@@ -15,20 +15,6 @@ import LanguageSupport
 private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", category: "GutterView")
 
 
-#if os(iOS) || os(visionOS)
-
-// MARK: -
-// MARK: UIKit version
-
-import UIKit
-
-
-private let fontDescriptorFeatureIdentifier = OSFontDescriptor.FeatureKey.type
-private let fontDescriptorTypeIdentifier    = OSFontDescriptor.FeatureKey.selector
-
-
-#elseif os(macOS)
-
 
 // MARK: -
 // MARK: AppKit version
@@ -38,8 +24,6 @@ import AppKit
 
 private let fontDescriptorFeatureIdentifier = OSFontDescriptor.FeatureKey.typeIdentifier
 private let fontDescriptorTypeIdentifier    = OSFontDescriptor.FeatureKey.selectorIdentifier
-
-#endif
 
 
 // MARK: -
@@ -85,9 +69,6 @@ final class GutterView: OSView {
     self.getMessageViews = getMessageViews
     self.isMinimapGutter = isMinimapGutter
     super.init(frame: frame)
-#if os(iOS) || os(visionOS)
-    isOpaque = false
-#endif
   }
 
   @available(*, unavailable)
@@ -95,10 +76,8 @@ final class GutterView: OSView {
     fatalError("CodeEditorView.GutterView.init(coder:) not implemented")
   }
 
-#if os(macOS)
   // Use the coordinate system of the associated text view.
   override var isFlipped: Bool { textView?.isFlipped ?? false }
-#endif
 }
 
 extension GutterView {
@@ -123,11 +102,8 @@ extension GutterView {
   ///
   func invalidateGutter(for charRange: NSRange? = nil) {
     guard let charRange else {
-#if os(macOS)
       needsDisplay = true
-#else
-      setNeedsDisplay()
-#endif
+
       return
     }
 
@@ -191,11 +167,7 @@ extension GutterView {
           ]
       ]
     )
-    #if os(iOS) || os(visionOS)
-    let font = OSFont(descriptor: desc, size: 0)
-    #elseif os(macOS)
     let font = OSFont(descriptor: desc, size: 0) ?? OSFont.systemFont(ofSize: 0)
-    #endif
 
     let selectedLines = textView?.selectedLines ?? Set(1..<2)
 

@@ -11,7 +11,7 @@ struct FeedbackForm: View {
     @Bindable var viewModel: SidebarViewModel
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             // Header
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading) {
