@@ -15,21 +15,6 @@ import LanguageSupport
 private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", category: "CodeActions")
 
 
-#if os(iOS) || os(visionOS)
-
-// MARK: -
-// MARK: UIKit version
-
-extension CodeView {
-
-  // TODO: Code actions still need to be implemented for iOS
-  func infoAction() {
-  }
-}
-
-
-#elseif os(macOS)
-
 // MARK: -
 // MARK: AppKit version
 
@@ -512,5 +497,3 @@ extension CodeView {
   }
 
 }
-
-#endif
