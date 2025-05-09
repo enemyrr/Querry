@@ -96,7 +96,6 @@ struct CreateTableForm: View {
     private func createCollection() {
         guard !isSubmitting else { return }
         
-        // Reset error state
         errorMessage = nil
         isSubmitting = true
         
@@ -111,6 +110,13 @@ struct CreateTableForm: View {
                     
                     Task {
                         await viewModel.activeConnection?.loadCollectionsForCurrentDatabase()
+                        
+                        // Open a new tab
+                        if let activeConnection = viewModel.activeConnection {
+                            activeConnection.createNewTab(
+                                name: name
+                            )
+                        }
                     }
                 }
             } catch let error as NSError {
@@ -136,7 +142,6 @@ struct CreateTableForm: View {
     
     var body: some View {
         VStack(spacing: 15) {
-            // Header
             HStack {
                 Text("Create collection")
                     .font(.title3)
@@ -147,7 +152,6 @@ struct CreateTableForm: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 0)
             
-            // Form Fields
             VStack(alignment: .leading, spacing: 16) {
                 FormField(label: "Name") {
                     TextField("e.g new-collection", text: $name)
@@ -156,13 +160,6 @@ struct CreateTableForm: View {
                         .onChange(of: name) { _, newValue in
                             nameError = validateCollectionName(newValue)
                         }
-                    
-                    if let error = nameError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .padding(.top, 4)
-                    }
                 }
             }
             .padding(15)
