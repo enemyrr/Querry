@@ -43,10 +43,9 @@ struct CreateConnectionForm: View {
     @State private var color: Optional<ConnectionColor> = nil
     @State private var selectedEnvironment: ConnectionEnvironment = .local
     @State private var uriError: String? = nil
-    
-    @FocusState private var uriFieldIsFocused: Bool
-    
     @State private var showDatabaseField = false
+
+    @FocusState private var uriFieldIsFocused: Bool
     
     private let connectionId: PersistentIdentifier?
     
@@ -115,9 +114,22 @@ struct CreateConnectionForm: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("URI")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    HStack {
+                           Text("URI")
+                               .font(.subheadline)
+                               .foregroundColor(.secondary)
+                           
+                           Spacer()
+                           
+                           if let error = uriError {
+                               Text(error)
+                                   .font(.caption)
+                                   .foregroundColor(.red)
+                                   .lineLimit(1)
+                                   .truncationMode(.tail)
+                           }
+                       }
+                       
                     
                     HStack(spacing: 8) {
                         TextField("e.g mongodb+srv://user:password@cluster.mongodb.net", text: $uri)
@@ -137,13 +149,6 @@ struct CreateConnectionForm: View {
                                 .textFieldStyle(CustomTextFieldStyle())
                                 .frame(width: 100)
                         }
-                    }
-                    
-                    if let error = uriError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .padding(.top, 4)
                     }
                 }
             }
