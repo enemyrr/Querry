@@ -79,7 +79,7 @@ import AIProxy
         connectionStatus = .connecting
         
         do {
-            self.database = try await MongoDatabase.connect(to: connection.url)
+            self.database = try await MongoDatabase.connect(to: connection.connectionUri)
             connectionStatus = .connected
             
             if let databaseService = self.databaseService {

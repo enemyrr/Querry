@@ -28,16 +28,26 @@ final class Connection {
     var color: ConnectionColor
     var environment: ConnectionEnvironment
     var url: String
+    var defaultDatabase: String?
     var createdAt: Date = Date()
     var lastOpenedAt: Date = Date()
     var updatedAt: Date = Date()
     
-    init(databaseType: DatabaseType, url: String, name: String, color: ConnectionColor, environment: ConnectionEnvironment) {
+    init(databaseType: DatabaseType, url: String, name: String, color: ConnectionColor, environment: ConnectionEnvironment, defaultDatabase: String? = nil) {
         self.name = name
         self.databaseType = databaseType
         self.url = url
         self.color = color
         self.environment = environment
+        self.defaultDatabase = defaultDatabase
+    }
+    
+    var connectionUri: String {
+        if let database = defaultDatabase, !database.isEmpty {
+            return "\(url)/\(database)"
+        } else {
+            return url
+        }
     }
 }
 

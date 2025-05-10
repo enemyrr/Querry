@@ -78,7 +78,7 @@ struct NavigationSidebar: View {
 //                    }
                     
                     Button {
-                        let connectionURI = instance.connection.url
+                        let connectionURI = instance.connection.connectionUri
                         let pasteboard = NSPasteboard.general
                         pasteboard.clearContents()
                         pasteboard.setString(connectionURI, forType: .string)
