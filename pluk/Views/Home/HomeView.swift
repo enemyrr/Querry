@@ -134,7 +134,10 @@ struct ConnectionListItem: View {
                             EnvironmentTag(environment: connection.environment)
                         }
                         
-                        Text(connection.url).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(connection.connectionUri)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
             }
@@ -206,7 +209,7 @@ struct ConnectionListItem: View {
             Divider()
             
             Button {
-                let connectionURI = connection.url
+                let connectionURI = connection.connectionUri
 
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()

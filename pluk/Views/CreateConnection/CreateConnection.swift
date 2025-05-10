@@ -39,9 +39,14 @@ struct CreateConnectionForm: View {
     
     @State private var uri = ""
     @State private var name = ""
+    @State private var defaultDatabase = ""
     @State private var color: Optional<ConnectionColor> = nil
     @State private var selectedEnvironment: ConnectionEnvironment = .local
     @State private var uriError: String? = nil
+    
+    @FocusState private var uriFieldIsFocused: Bool
+    
+    @State private var showDatabaseField = false
     
     private let connectionId: PersistentIdentifier?
     
@@ -52,10 +57,14 @@ struct CreateConnectionForm: View {
         _name = State(initialValue: "")
         _color = State(initialValue: .blue)
         _selectedEnvironment = State(initialValue: .local)
+        _defaultDatabase = State(initialValue: "")
     }
     
     private var isFormValid: Bool {
-        !uri.isEmpty && !name.isEmpty && uriError == nil
+        !uri.isEmpty &&
+          !name.isEmpty &&
+          uriError == nil &&
+          (!showDatabaseField || !defaultDatabase.isEmpty)
     }
     
     private func validateMongoUri(_ uri: String) {
@@ -67,10 +76,12 @@ struct CreateConnectionForm: View {
         do {
             let connectionSettings = try ConnectionSettings(uri)
             
-            if connectionSettings.targetDatabase == nil {
-                uriError = "Please specify a database in your connection URI"
-            } else{
-                uriError = nil
+            if let database = connectionSettings.targetDatabase {
+                defaultDatabase = database
+                showDatabaseField = false
+            } else {
+                defaultDatabase = ""
+                showDatabaseField = true
             }
         } catch let error as MongoInvalidUriError {
             uriError = error.description
@@ -103,12 +114,37 @@ struct CreateConnectionForm: View {
                         .textFieldStyle(CustomTextFieldStyle())
                 }
                 
-                FormField(label: "URI", errorMessage: uriError) {
-                    TextField("e.g mongodb+srv://user:password@cluster.mongodb.net/admin", text: $uri)
-                        .textFieldStyle(CustomTextFieldStyle())
-                        .onChange(of: uri) { oldValue, newValue in
-                            validateMongoUri(newValue)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("URI")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    HStack(spacing: 8) {
+                        TextField("e.g mongodb+srv://user:password@cluster.mongodb.net", text: $uri)
+                            .textFieldStyle(CustomTextFieldStyle())
+                            .focused($uriFieldIsFocused)
+                            .onChange(of: uri) { oldValue, newValue in
+                                if (uriFieldIsFocused) {
+                                    validateMongoUri(newValue)
+                                }
+                            }
+                        
+                        if showDatabaseField {
+                            Text("/")
+                                .foregroundColor(.secondary)
+                            
+                            TextField("database", text: $defaultDatabase)
+                                .textFieldStyle(CustomTextFieldStyle())
+                                .frame(width: 100)
                         }
+                    }
+                    
+                    if let error = uriError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .padding(.top, 4)
+                    }
                 }
             }
             .padding(20)
@@ -151,43 +187,49 @@ struct CreateConnectionForm: View {
             .padding(.top, 10)
         }
         .onAppear {
-                    loadConnectionData()
-                }
+            loadExistingConnectionData()
+        }
         .padding(20)
     }
     
-    private func loadConnectionData() {
-            guard let id = connectionId else { return }
+    private func loadExistingConnectionData() {
+        guard let id = connectionId else { return }
+        
+        do {
+            let connection = try modelContext.fetch(
+                FetchDescriptor<Connection>(
+                    predicate: #Predicate { $0.persistentModelID == id }
+                )
+            ).first
             
-            do {
-                let connection = try modelContext.fetch(
-                    FetchDescriptor<Connection>(
-                        predicate: #Predicate { $0.persistentModelID == id }
-                    )
-                ).first
+            if let connection = connection {
+                uri = connection.url
+                name = connection.name
+                color = connection.color
+                selectedEnvironment = connection.environment
                 
-                if let connection = connection {
-                    uri = connection.url
-                    name = connection.name
-                    color = connection.color
-                    selectedEnvironment = connection.environment
+                if connection.defaultDatabase != nil {
+                    showDatabaseField = true
+                    defaultDatabase = connection.defaultDatabase ?? ""
                 }
-            } catch {
-                print("Error loading connection: \(error)")
             }
+        } catch {
+            print("Error loading connection: \(error)")
         }
+    }
     
     private func saveConnection() {
         if let id = connectionId,
            let existing = try? modelContext.fetch(
-                FetchDescriptor<Connection>(
-                    predicate: #Predicate { $0.persistentModelID == id }
-                )
-            ).first {
+            FetchDescriptor<Connection>(
+                predicate: #Predicate { $0.persistentModelID == id }
+            )
+           ).first {
             existing.url = uri
             existing.name = name
             existing.color = color.unsafelyUnwrapped
             existing.environment = selectedEnvironment
+            existing.defaultDatabase = defaultDatabase
             try? modelContext.save()
         } else {
             let connection = Connection(
@@ -195,7 +237,8 @@ struct CreateConnectionForm: View {
                 url: uri,
                 name: name,
                 color: color.unsafelyUnwrapped,
-                environment: selectedEnvironment
+                environment: selectedEnvironment,
+                defaultDatabase: defaultDatabase
             )
             modelContext.insert(connection)
         }
