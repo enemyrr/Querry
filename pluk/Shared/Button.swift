@@ -255,7 +255,7 @@ struct DatabaseIcon: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 99/255, green: 197/255, blue: 248/255)
+    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
     
@@ -271,13 +271,9 @@ struct PrimaryButtonStyle: ButtonStyle {
                     .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
-            // Add subtle pressed state effect
             .opacity(configuration.isPressed ? 0.8 : 1.0)
-            // Add subtle scale effect when pressed
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            // Smooth animation for press states
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-            // Add hand cursor on hover
             .onHover { isHovered in
                 isHovering = isHovered
                 
