@@ -39,8 +39,9 @@ struct QueryEditor: View {
             .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
+                    .stroke(.separator)
             )
+            .cornerRadius(10)
         }
         .opacity(opacityValue)
         .onAppear {
@@ -156,11 +157,11 @@ struct QueryEditor: View {
             .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
+                    .stroke(.separator)
             )
             .padding(.bottom, 2)
-            .cornerRadius(10)
             .frame(height: 120)
+            .cornerRadius(10)
         }
     }
 }

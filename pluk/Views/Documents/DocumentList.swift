@@ -71,6 +71,7 @@ struct DocumentList: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(.separator, lineWidth: 1)
                 }
+                .cornerRadius(10)
                 
                 VStack {
                     Spacer()

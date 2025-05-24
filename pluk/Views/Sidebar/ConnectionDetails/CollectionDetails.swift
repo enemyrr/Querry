@@ -61,6 +61,7 @@ struct ConnectionDetailsSidebar: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(.separator)
         }
+        .cornerRadius(10)
         .task(id: viewModel.activeSidebarItem.hashValue) {
             await viewModel.loadActiveConnection()
         }

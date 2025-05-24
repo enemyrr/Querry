@@ -110,8 +110,9 @@ struct HoverActionButtons: View {
         .modifier(GlassBackgroundStyle())
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(.separator, lineWidth: 1)
+                .stroke(.separator)
         )
+        .cornerRadius(6)
         .opacity(isVisible ? 1 : 0)
         .animation(.easeInOut(duration: 0.2), value: isVisible)
         .animation(.easeInOut(duration: 0.2), value: pendingAction == .update)

@@ -64,6 +64,7 @@ struct FloatingActionBar: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.separator, lineWidth: 1)
             )
+            .cornerRadius(8)
             .background(
                 Group {
                     if viewModel.isLoading {

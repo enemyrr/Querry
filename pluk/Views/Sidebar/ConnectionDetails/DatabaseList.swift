@@ -97,6 +97,8 @@ struct CollectionsSection: View {
     @State private var renameText: String = ""
     @State private var isRenaming = false
     @FocusState private var isRenameFieldFocused: Bool
+    @State private var showDeleteConfirmation = false
+    @State private var collectionToDelete: MongoCollection?
     @Environment(\.colorScheme) var colorScheme
     
     private var hasTextChanged: Bool {
@@ -135,6 +137,25 @@ struct CollectionsSection: View {
         .contextMenu {
             contextMenuContent(for: collection, isActive: isActive)
         }
+        .confirmationDialog(
+            "Delete Connection",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let connection = collectionToDelete {
+//                    modelContext.delete(connection)
+//                    collectionToDelete = nil
+                }
+            }
+            
+            Button("Cancel", role: .cancel) {
+                collectionToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this collection? This action cannot be undone.")
+        }
+        .dialogSeverity(.critical)
     }
     
     // MARK: - Inline Rename View
@@ -231,7 +252,8 @@ struct CollectionsSection: View {
         }
 
         Button(role: .destructive) {
-            // Delete collection action
+            collectionToDelete = collection
+            showDeleteConfirmation = true
         } label: {
             Label("Delete", systemImage: "trash")
                 .frame(minWidth: 150, alignment: .leading)

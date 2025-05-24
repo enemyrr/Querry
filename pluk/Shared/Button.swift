@@ -359,7 +359,6 @@ struct OutlineButtonStyle: ButtonStyle {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
-        .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.separator, lineWidth: 1)
@@ -373,6 +372,7 @@ struct OutlineButtonStyle: ButtonStyle {
                     : Color.clear
                 )
         )
+        .cornerRadius(8)
         .onHover { hovering in
             isHovering = hovering
         }

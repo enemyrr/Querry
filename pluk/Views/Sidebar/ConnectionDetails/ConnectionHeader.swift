@@ -113,14 +113,13 @@ struct ConnectionHeader: View {
                     }
             }
         )
-        .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(
                     statusColor.opacity(isHovered ? 0.3 : 0.15))
                 .blendMode(.plusLighter)
-                .padding(1)
         )
+        .cornerRadius(8) 
         .animation(.easeInOut(duration: 0.3), value: status)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
