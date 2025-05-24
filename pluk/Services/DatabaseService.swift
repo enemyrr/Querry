@@ -87,6 +87,20 @@ class DatabaseService {
         )
     }
     
+    func renameCollection(from oldName: String, to newName: String) async throws {
+        let renameCommand: Document = [
+            "renameCollection": "\(database.name).\(oldName)",
+            "to": "\(database.name).\(newName)"
+        ]
+        
+        let connection = try await database.pool.next(for: .basic)
+        
+        _ = try await connection.execute(
+            renameCommand,
+            namespace: .administrativeCommand
+        )
+    }
+    
     func getBuildInfo() async throws -> BuildInfo {
         return try await database.getBuildInfo()
     }
