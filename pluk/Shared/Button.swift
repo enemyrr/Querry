@@ -484,6 +484,61 @@ struct HoverActionButtonStyleText: ButtonStyle {
     }
 }
 
+struct RenameCancelButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .frame(height: 14)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(
+                    (colorScheme == .dark ? Color.white : Color.black)
+                        .opacity(isHovering ? 0.2 : 0.1)
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct RenameSaveButtonStyle: ButtonStyle {
+    let backgroundColor: Color
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    init(backgroundColor: Color = .primary) {
+        self.backgroundColor = backgroundColor
+    }
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .frame(height: 14)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(
+                    backgroundColor
+                        .opacity(isHovering ? 0.9 : 0.8)
+                )
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
 extension Button {
     func primaryStyle() -> some View {
         self.buttonStyle(PrimaryButtonStyle())

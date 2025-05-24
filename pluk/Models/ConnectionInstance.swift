@@ -198,6 +198,19 @@ import AIProxy
         }
     }
     
+    func renameCollection(from oldName: String, to newName: String) async throws {
+        guard let _ = database?[oldName] else {
+            throw MongoError.collectionNotFound
+        }
+        
+        do {
+            try await databaseService?.renameCollection(from: oldName, to: newName)
+            updateTabName(from: oldName, to: newName)
+        } catch {
+            throw error
+        }
+    }
+    
     func createCollection(withName: String) async throws {
         do {
             try await databaseService?.createCollection(withName)
@@ -230,6 +243,16 @@ import AIProxy
                 selectedTab = tabs[newSelectedIndex]
             } else {
                 selectedTab = nil
+            }
+        }
+    }
+    
+    func updateTabName(from oldName: String, to newName: String) {
+        if let tabIndex = tabs.firstIndex(where: { $0.name == oldName }) {
+            tabs[tabIndex].name = newName
+            
+            if selectedTab?.name == oldName {
+                selectedTab = tabs[tabIndex]
             }
         }
     }
