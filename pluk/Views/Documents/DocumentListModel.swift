@@ -10,8 +10,7 @@ import MongoKitten
 import AIProxy
 import SwiftUI
 
-@Observable
-class DocumentListModel {
+@Observable class DocumentListModel {
     let instance: ConnectionInstance
     private let databaseService: DatabaseService?
     private let paginationManager: PaginationManager
