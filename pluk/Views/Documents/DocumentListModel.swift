@@ -10,7 +10,8 @@ import MongoKitten
 import AIProxy
 import SwiftUI
 
-@Observable class DocumentListModel {
+@Observable
+class DocumentListModel {
     let instance: ConnectionInstance
     private let databaseService: DatabaseService?
     private let paginationManager: PaginationManager
@@ -33,6 +34,7 @@ import SwiftUI
     var actionBarUpdateTrigger = UUID()
     var loadingKeyValue: String?
     var intialLoadComplete: Bool = false
+    var isLoadingAnimation: Bool = false
     
     // MARK: - Pagination Properties
     var currentPage: Int { paginationManager.currentPage }
@@ -51,9 +53,10 @@ import SwiftUI
         }
         
         await MainActor.run {
-            error = nil
-            intialLoadComplete = true
+            self.error = nil
+            self.intialLoadComplete = true
             self.isLoading = true
+            self.isLoadingAnimation = true
         }
         
         do {
@@ -75,11 +78,12 @@ import SwiftUI
                 paginationManager.updateTotalItems(count)
                 self.formattedDocuments = formatted
                 self.lastFetchTimestamp = Date()
+                self.isLoading = false
                 
                 // Instead of immediately setting isLoading to false,
                 Task {
                     try? await Task.sleep(for: .seconds(1))
-                    self.isLoading = false
+                    self.isLoadingAnimation = false
                 }
             }
         } catch {
