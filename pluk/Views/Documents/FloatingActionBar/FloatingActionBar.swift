@@ -67,7 +67,7 @@ struct FloatingActionBar: View {
             .cornerRadius(8)
             .background(
                 Group {
-                    if viewModel.isLoading {
+                    if viewModel.isLoadingAnimation {
                         GlowingBubbleLoader()
                     }
                     
@@ -150,7 +150,7 @@ struct FloatingActionBar: View {
                     await viewModel.loadDocuments()
                 }
             }) {
-                let iconName = viewModel.isLoading ? "xmark" : "arrow.clockwise"
+                let iconName = viewModel.isLoadingAnimation ? "xmark" : "arrow.clockwise"
                 Image(systemName: iconName)
                     .font(.system(size: 14))
                     .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
