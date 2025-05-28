@@ -9,7 +9,7 @@ import SwiftUI
 struct GlowingBubbleLoader: View {
     var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
     var height: CGFloat = 6
-    var animationDuration: Double = 1.5
+    var animationDuration: Double = 1
     
     // Trigger to start each animation cycle
     @State private var animationTrigger = UUID()

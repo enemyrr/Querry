@@ -174,6 +174,17 @@ One-line queries are acceptable for simple filters.
         }
     ]
 }
+
+**Example 4:**
+**Input:** _id: "66def00118741b4011c5126b"
+**Output:**
+``json  
+{
+    "_id": {
+        "$oid": "66def00118741b4011c5126b" 
+    }
+}
+
 ```
 # Notes NEVER provide explanations or ask clarifying questions.
 NEVER describe what the query does.
@@ -270,5 +281,13 @@ Current Date: \(currentDate)
                 print("Error during query execution: \(error)")
             }
         }
+    }
+    
+    func getFilter() -> Document? {
+        guard let document = try? Document(fromJSON: query) else {
+            return nil
+        }
+        
+        return document
     }
 }

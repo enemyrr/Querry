@@ -23,9 +23,9 @@ class DatabaseService {
     }
     
     // MARK: - Document Operations
-    func getDocumentCount(for collectionName: String) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: Document = [:]) async throws -> Int {
         let collection = database[collectionName]
-        return try await collection.count()
+        return try await collection.count(filter)
     }
     
     func findDocuments(in collectionName: String,

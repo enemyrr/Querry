@@ -60,7 +60,7 @@ import SwiftUI
         
         do {
             // First get count with a lightweight query
-            let count = try await databaseService.getDocumentCount(for: selectedTab.name)
+            let count = try await databaseService.getDocumentCount(for: selectedTab.name, filter: filter)
             
             // Then load the actual documents
             let documents = try await databaseService.findDocuments(
@@ -81,7 +81,7 @@ import SwiftUI
                 
                 // Instead of immediately setting isLoading to false,
                 Task {
-                    try? await Task.sleep(for: .seconds(1))
+                    try? await Task.sleep(for: .milliseconds(600))
                     self.isLoadingAnimation = false
                 }
             }
@@ -145,20 +145,28 @@ import SwiftUI
     }
     
     // MARK: - Pagination Methods
-    func nextPage() {
+    func nextPage(filter: Document? = [:]) {
         if paginationManager.nextPage() {
             updatePendingActionsState()
             Task {
-                await loadDocuments()
+                if let filter = filter {
+                    await loadDocuments(filter: filter)
+                } else {
+                    await loadDocuments()
+                }
             }
         }
     }
     
-    func previousPage() {
+    func previousPage(filter: Document? = [:]) {
         if paginationManager.previousPage() {
             updatePendingActionsState()
             Task {
-                await loadDocuments()
+                if let filter = filter {
+                    await loadDocuments(filter: filter)
+                } else {
+                    await loadDocuments()
+                }
             }
         }
     }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MongoKitten
 
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
@@ -138,18 +139,14 @@ struct FloatingActionBar: View {
     
     private var mainView: some View {
         HStack(spacing: 5) {
-            Pagination(viewModel: viewModel)
+            Pagination(viewModel: viewModel, filter: searchQueryViewModel.getFilter())
             
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
             
-            Button(action: {
-                Task {
-                    await viewModel.loadDocuments()
-                }
-            }) {
+            Button(action: searchQueryViewModel.executeQuery) {
                 let iconName = viewModel.isLoadingAnimation ? "xmark" : "arrow.clockwise"
                 Image(systemName: iconName)
                     .font(.system(size: 14))
