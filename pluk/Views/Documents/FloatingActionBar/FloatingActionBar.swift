@@ -123,7 +123,7 @@ struct FloatingActionBar: View {
         .modifier(GlassBackgroundStyleRoundedTop())
         .overlay(
             RoundedCorners(tl: 8, tr: 8, bl: 0, br: 0)
-                .stroke(.separator, lineWidth: 1)
+                .stroke(.separator, lineWidth: 0.5)
         )
         .shadow(color: isHoveringTopRectangle ? Color.black.opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)
         .contentShape(Rectangle()) // Ensure the entire area is interactive

@@ -38,6 +38,7 @@ struct Pagination: View {
                 Text("\(viewModel.totalItems) documents").foregroundColor(.gray)
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), disableScaleEffect: true))
+            
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     viewModel.nextPage()
@@ -74,7 +75,6 @@ struct PaginationMinimal: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
-                    // Apply opacity based on disabled state
                     .foregroundColor(.white.opacity(viewModel.currentPage <= 1 ? 0.5 : 1))
             }
             .disabled(viewModel.currentPage <= 1)
@@ -94,7 +94,6 @@ struct PaginationMinimal: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
-                    // Apply opacity based on disabled state
                     .foregroundColor(.white.opacity(viewModel.currentPage >= viewModel.totalPages ? 0.5 : 1))
             }
             .disabled(viewModel.currentPage >= viewModel.totalPages)
