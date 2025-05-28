@@ -6,15 +6,17 @@
 //
 
 import SwiftUI
+import MongoKitten
 
 struct Pagination: View {
     var viewModel: DocumentListModel
+    var filter: Document? = [:]
     
     var body: some View {
         HStack(spacing: 0) {
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
-                    viewModel.previousPage()
+                    viewModel.previousPage(filter: filter)
                 }
             }) {
                 Image(systemName: "chevron.left")
@@ -41,7 +43,7 @@ struct Pagination: View {
             
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
-                    viewModel.nextPage()
+                    viewModel.nextPage(filter: filter)
                 }
             }) {
                 Image(systemName: "chevron.right")

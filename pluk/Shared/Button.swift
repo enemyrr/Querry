@@ -68,37 +68,6 @@ struct ActionButtonStyle: ButtonStyle {
     }
 }
 
-struct RefreshButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) var colorScheme
-    @State private var isHovering = false
-    var padding: EdgeInsets = EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)
-    var isActive: Bool = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        HStack {
-            let iconName = isActive ? "xmark" : "arrow.clockwise"
-            Image(systemName: iconName)
-                .font(.system(size: 14))
-                .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
-                .frame(width: 16, height: 16)
-                .contentShape(Rectangle()) // Keep this for hit testing
-        }
-        .padding(padding)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(
-                    isHovering || isActive
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
-                )
-        )
-        .onHover { hovering in
-            isHovering = hovering
-        }
-    }
-}
-
 struct TabBarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack {
