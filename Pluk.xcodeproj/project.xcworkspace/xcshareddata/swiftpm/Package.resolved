@@ -1,5 +1,5 @@
 {
-  "originHash" : "4358770044672862976582162f516b38408c25609b92de09095b3074359f0742",
+  "originHash" : "0e12dab2b88768469512ab110086ac669c96ca477425826a739d86627a9817b4",
   "pins" : [
     {
       "identity" : "aiproxyswift",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "6acf51921bd81c30d63529883f4d7a3cf1a45be7",
         "version" : "0.75.2"
-      }
-    },
-    {
-      "identity" : "bson",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orlandos-nl/BSON.git",
-      "state" : {
-        "revision" : "d918a5c24d875deeb6bcc9082a68bd097ac24d92",
-        "version" : "8.1.2"
       }
     },
     {
