@@ -64,7 +64,7 @@ private extension Array where Element == UInt8 {
     }
 }
 
-internal struct UInt128: Equatable, Hashable {
+public struct UInt128: Equatable, Hashable {
     /// The high order 64 bits
     internal var high: UInt64
     /// The low order 64 bits
@@ -165,7 +165,8 @@ public struct BSONDecimal128: Equatable, Hashable, CustomStringConvertible {
     }
 
     public var description: String { self.toString() }
-
+    public var rawValue: UInt128 { self.value }
+    
     /// Holder for raw decimal128 value
     private let value: UInt128
 

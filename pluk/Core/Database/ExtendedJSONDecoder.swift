@@ -160,6 +160,16 @@ struct ExtendedJSONDecoder {
                 return objectId
             }
             
+        case "$numberDecimal":
+            if let stringValue = value as? String {
+                do {
+                    let value = try BSONDecimal128(stringValue)
+                    return Decimal128(low: value.rawValue.low.byteSwapped, high: value.rawValue.high.byteSwapped)
+                } catch {
+                    return "NaN"
+                }
+            }
+            
         case "$date":
             if let dateString = value as? String {
                 // First try with milliseconds precision
