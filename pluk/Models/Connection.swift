@@ -8,8 +8,15 @@
 import SwiftUI
 import SwiftData
 
-enum DatabaseType: String, Codable {
+enum DatabaseType: String, Codable, CaseIterable {
+    var id: String { rawValue }
+    
+    case supabase = "supabase"
+    case neon = "neon"
+    case postgres = "postgres"
+    case mysql = "mysql"
     case mongodb = "MongoDB"
+    case mariadb = "MariaDB"
 }
 
 enum ConnectionEnvironment: String, CaseIterable, Codable {

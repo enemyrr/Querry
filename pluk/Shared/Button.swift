@@ -68,6 +68,36 @@ struct ActionButtonStyle: ButtonStyle {
     }
 }
 
+struct XMarkButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+    var disableScaleEffect: Bool = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(padding)
+        .background(
+            Circle()
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
+                )
+        )
+        .if(!disableScaleEffect) { view in
+            view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        }
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+
 struct TabBarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack {
@@ -231,12 +261,12 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)      // Vertical padding for height
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(isEnabled ? .black : .secondary)     // White text color
+            .padding(.vertical, 14)      // Vertical padding for height
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)     // White text color
             .background(
                 // Use system accent color for native feel, or specify custom blue
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
@@ -297,14 +327,14 @@ struct CustomMenuButtonStyle: ButtonStyle {
         HStack {
             configuration.label
         }
-        .padding(12)
-        .cornerRadius(8)
+        .padding(14)
+        .cornerRadius(10)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(.separator, lineWidth: 1)
         )
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(
                     isHovering
                     ? (colorScheme == .dark ? Color.black : Color.white)

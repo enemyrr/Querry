@@ -186,7 +186,7 @@ struct ConnectionListItem: View {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                     .ignoresSafeArea()
                 
-                CreateConnectionForm(connectionId: connection.persistentModelID)
+                CreateConnectionForm(connection: connection)
                     .frame(width: 500)
             }
         }
