@@ -194,6 +194,7 @@ struct DatabaseTypeCard: View {
                                 .frame(width: 32, height: 32)
                                 .scaleEffect(isHovered ? 1.05 : 1.0)
                                 .animation(.easeInOut(duration: 0.15), value: isHovered)
+                                .foregroundStyle(databaseType.accentColor)
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 8) {

@@ -323,6 +323,7 @@ struct CreateConnectionForm: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 48, height: 48)
+                                .foregroundStyle(databaseType.accentColor)
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {

@@ -35,7 +35,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .neon: return Color(hex: "#00E599")
         case .postgres: return Color(hex: "#336791")
         case .mysql: return Color(hex: "#00546B")
-        case .mongodb: return Color(hex: "#07EB65")
+        case .mongodb: return Color(hex: "#00ED64")
         case .mariadb: return Color(hex: "#C39A6C")
         }
     }
@@ -56,9 +56,20 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .supabase: return "supabase"
         case .neon: return "neon"
         case .postgres: return "postgres"
-        case .mongodb: return "mongodb"
+        case .mongodb: return "database.mongodb"
         case .mysql: return "mysql"
         case .mariadb: return "mariadb"
+        }
+    }
+    
+    var foregroundColor: Color {
+        switch self {
+        case .supabase: return Color(hex: "#3ECF8E")
+        case .neon: return Color(hex: "#00E599")
+        case .postgres: return Color(hex: "#FFFFFF")
+        case .mysql: return Color(hex: "#00546B")
+        case .mongodb: return Color(hex: "#00ED64")
+        case .mariadb: return Color(hex: "#C39A6C")
         }
     }
     

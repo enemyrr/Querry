@@ -124,6 +124,7 @@ struct DatabaseTypeIcon: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 18, height: 18)
+                        .foregroundStyle(databaseType.foregroundColor)
                 )
         }
     }
@@ -230,7 +231,7 @@ struct ConnectionListItem: View {
             
             Button {
                 let connectionURI = connection.connectionUri
-
+                
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(connectionURI, forType: .string)
