@@ -37,110 +37,10 @@ struct CreateConnection: View {
     }
 }
 
-// MARK: - Database Provider Models
-enum DatabaseProvider: String, CaseIterable, Identifiable {
-    case supabase = "supabase"
-    case neon = "neon"
-    case postgres = "postgres"
-    case mongodb = "MongoDB"
-    case mysql = "mysql"
-    case mariadb = "mariadb"
-    
-    var id: String { rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .supabase: return "Supabase"
-        case .neon: return "Neon"
-        case .postgres: return "PostgreSQL"
-        case .mongodb: return "MongoDB"
-        case .mysql: return "MySQL"
-        case .mariadb: return "MariaDB"
-        }
-    }
-    
-    var icon: String {
-        switch self {
-        case .supabase: return "supabase"
-        case .neon: return "neon"
-        case .postgres: return "postgres"
-        case .mongodb: return "mongodb"
-        case .mysql: return "mysql"
-        case .mariadb: return "mariadb"
-        }
-    }
-    
-    var accentColor: Color {
-        switch self {
-        case .supabase: return Color(hex: "#3ECF8E")
-        case .neon: return Color(hex: "#00E599")
-        case .postgres: return Color(hex: "#336791")
-        case .mysql: return Color(hex: "#00546B")
-        case .mongodb: return Color(hex: "#07EB65")
-        case .mariadb: return Color(hex: "#C39A6C")
-        }
-    }
-    
-    var isConnected: Bool {
-        switch self {
-        case .supabase: return false
-        default: return false
-        }
-    }
-    
-    var status: ProviderStatus {
-        switch self {
-        case .mongodb:
-            return .beta
-        case .neon, .supabase, .mysql, .mariadb:
-            return .comingSoon
-        default:
-            return .available
-        }
-    }
-    
-    var placeholderURI: String {
-        switch self {
-        case .supabase:
-            return "postgresql://username:password@host:5432/database"
-        case .neon:
-            return "postgresql://username:password@host:5432/database"
-        case .postgres:
-            return "postgresql://username:password@localhost:5432/database"
-        case .mysql:
-            return "mysql://username:password@localhost:3306/database"
-        case .mongodb:
-            return "mongodb+srv://user:password@cluster.mongodb.net"
-        case .mariadb:
-            return "mariadb://username:password@localhost:3306/database"
-        }
-    }
-    
-    var category: ProviderCategory {
-        switch self {
-        case .supabase, .neon:
-            return .cloud
-        case .postgres, .mysql, .mongodb, .mariadb:
-            return .database
-        }
-    }
-}
 
-enum ProviderCategory: String, CaseIterable {
-    case cloud = "Cloud Providers"
-    case database = "Database"
-}
-
-enum ProviderStatus {
-    case available
-    case beta
-    case comingSoon
-    case notConnected
-}
-
-// MARK: - Cloud Provider Web View
-struct CloudProviderWebView: NSViewRepresentable {
-    let provider: DatabaseProvider
+// MARK: - Cloud Database Web View
+struct CloudDatabaseWebView: NSViewRepresentable {
+    let databaseType: DatabaseType
     @Binding var isLoading: Bool
     @Environment(\.dismiss) var dismiss
     
@@ -151,7 +51,7 @@ struct CloudProviderWebView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: WKWebView, context: Context) {
-        guard let url = getProviderURL() else { return }
+        guard let url = getDatabaseTypeURL() else { return }
         let request = URLRequest(url: url)
         nsView.load(request)
     }
@@ -160,8 +60,8 @@ struct CloudProviderWebView: NSViewRepresentable {
         Coordinator(self)
     }
     
-    private func getProviderURL() -> URL? {
-        switch provider {
+    private func getDatabaseTypeURL() -> URL? {
+        switch databaseType {
         case .supabase:
             return URL(string: "https://supabase.com/dashboard")
         case .neon:
@@ -172,9 +72,9 @@ struct CloudProviderWebView: NSViewRepresentable {
     }
     
     class Coordinator: NSObject, WKNavigationDelegate {
-        let parent: CloudProviderWebView
+        let parent: CloudDatabaseWebView
         
-        init(_ parent: CloudProviderWebView) {
+        init(_ parent: CloudDatabaseWebView) {
             self.parent = parent
         }
         
@@ -193,7 +93,7 @@ struct CreateConnectionForm: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     
-    @State private var selectedProvider: DatabaseProvider? = nil
+    @State private var selectedDatabaseType: DatabaseType? = nil
     @State private var uri = ""
     @State private var name = ""
     @State private var defaultDatabase = ""
@@ -212,9 +112,9 @@ struct CreateConnectionForm: View {
     }
     
     private var isFormValid: Bool {
-        guard let provider = selectedProvider else { return false }
+        guard let databaseType = selectedDatabaseType else { return false }
         
-        if provider.category == .cloud {
+        if databaseType.category == .cloud {
             return !name.isEmpty
         }
         
@@ -224,13 +124,13 @@ struct CreateConnectionForm: View {
         (!showDatabaseField || !defaultDatabase.isEmpty)
     }
     
-    private func validateConnectionString(_ uri: String, for provider: DatabaseProvider) {
+    private func validateConnectionString(_ uri: String, for databaseType: DatabaseType) {
         guard !uri.isEmpty else {
             uriError = nil
             return
         }
         
-        switch provider {
+        switch databaseType {
         case .mongodb:
             validateMongoUri(uri)
         case .postgres, .supabase, .neon:
@@ -281,16 +181,16 @@ struct CreateConnectionForm: View {
             if connection != nil {
                 connectionFormView
             } else {
-                if selectedProvider == nil {
-                    ProviderSelectionView(selectedProvider: $selectedProvider)
+                if selectedDatabaseType == nil {
+                    DatabaseSelectionView(selectedDatabaseType: $selectedDatabaseType)
                         .transition(
                             .asymmetric(
                                 insertion: .scale(scale: 1).combined(with: .opacity),
                                 removal: .scale(scale: 0.9).combined(with: .opacity)
                             )
                         )
-                } else if selectedProvider?.category == .cloud {
-                    cloudProviderView
+                } else if selectedDatabaseType?.category == .cloud {
+                    cloudDatabaseView
                         .transition(
                             .asymmetric(
                                 insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -312,17 +212,16 @@ struct CreateConnectionForm: View {
         .onAppear {
             mapExistingConnectionData()
         }
-        .animation(.easeInOut(duration: 0.25), value: selectedProvider)
-        
+        .animation(.easeInOut(duration: 0.25), value: selectedDatabaseType)
     }
     
-    private var cloudProviderView: some View {
+    private var cloudDatabaseView: some View {
         VStack(spacing: 0) {
             // Modern header with back navigation
             HStack {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedProvider = nil
+                        selectedDatabaseType = nil
                     }
                 }) {
                     HStack(spacing: 8) {
@@ -341,11 +240,11 @@ struct CreateConnectionForm: View {
                 Spacer()
                 
                 VStack(spacing: 2) {
-                    Text(selectedProvider?.displayName ?? "")
+                    Text(selectedDatabaseType?.displayName ?? "")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.primary)
                     
-                    Text("Authenticate with your provider")
+                    Text("Authenticate with your cloud database")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 }
@@ -361,9 +260,9 @@ struct CreateConnectionForm: View {
             .padding(.vertical, 24)
             
             // Web View Container
-            if let provider = selectedProvider {
+            if let databaseType = selectedDatabaseType {
                 ZStack {
-                    CloudProviderWebView(provider: provider, isLoading: $isWebViewLoading)
+                    CloudDatabaseWebView(databaseType: databaseType, isLoading: $isWebViewLoading)
                         .cornerRadius(16)
                         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
                     
@@ -372,7 +271,7 @@ struct CreateConnectionForm: View {
                             ProgressView()
                                 .scaleEffect(1.2)
                             
-                            Text("Loading \(provider.displayName)...")
+                            Text("Loading \(databaseType.displayName)...")
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondary)
                         }
@@ -390,13 +289,13 @@ struct CreateConnectionForm: View {
     private var connectionFormView: some View {
         ScrollView {
             VStack(spacing: 32) {
-                // Header with provider info
+                // Header with database type info
                 VStack(spacing: 24) {
                     HStack {
                         if connection == nil {
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    selectedProvider = nil
+                                    selectedDatabaseType = nil
                                 }
                             }) {
                                 HStack(spacing: 8) {
@@ -417,17 +316,17 @@ struct CreateConnectionForm: View {
                         }
                     }
                     
-                    // Provider header with icon
+                    // Database type header with icon
                     HStack(spacing: 16) {
-                        if let provider = selectedProvider {
-                            Image(provider.icon)
+                        if let databaseType = selectedDatabaseType {
+                            Image(databaseType.icon)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 48, height: 48)
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Configure \(selectedProvider?.displayName ?? "") Connection")
+                            Text("Configure \(selectedDatabaseType?.displayName ?? "") Connection")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(.primary)
                             
@@ -469,12 +368,14 @@ struct CreateConnectionForm: View {
                                 }
                                 
                                 HStack(spacing: 8) {
-                                    TextField("e.g mongodb+srv://user:password@cluster.mongodb.net", text: $uri)
+                                    TextField(selectedDatabaseType?.placeholderURI ?? "", text: $uri)
                                         .textFieldStyle(CustomTextFieldStyle())
                                         .focused($uriFieldIsFocused)
                                         .onChange(of: uri) { oldValue, newValue in
                                             if (uriFieldIsFocused) {
-                                                validateMongoUri(newValue)
+                                                if let selectedDatabaseType = selectedDatabaseType {
+                                                    validateConnectionString(uri, for: selectedDatabaseType)
+                                                }
                                             }
                                         }
                                     
@@ -523,7 +424,7 @@ struct CreateConnectionForm: View {
     }
     
     private var connectionFieldLabel: String {
-        switch selectedProvider {
+        switch selectedDatabaseType {
         case .mongodb:
             return "MongoDB URI"
         default:
@@ -537,7 +438,7 @@ struct CreateConnectionForm: View {
             name = connection.name
             color = connection.color
             selectedEnvironment = connection.environment
-            selectedProvider = DatabaseProvider(rawValue: connection.databaseType.rawValue)
+            selectedDatabaseType = DatabaseType(rawValue: connection.databaseType.rawValue)
             
             if connection.defaultDatabase != nil {
                 showDatabaseField = true
@@ -547,8 +448,8 @@ struct CreateConnectionForm: View {
     }
     
     private func saveConnection() {
-        guard let provider = selectedProvider else { return }
-        guard let databaseType = DatabaseType(rawValue: provider.rawValue) else { return }
+        guard let databaseType = selectedDatabaseType else { return }
+        guard let databaseTypeEnum = DatabaseType(rawValue: databaseType.rawValue) else { return }
         
         if let id = connection?.persistentModelID,
            let existing = try? modelContext.fetch(
@@ -564,7 +465,7 @@ struct CreateConnectionForm: View {
             try? modelContext.save()
         } else {
             let connection = Connection(
-                databaseType: databaseType,
+                databaseType: databaseTypeEnum,
                 url: uri,
                 name: name,
                 color: color.unsafelyUnwrapped,
