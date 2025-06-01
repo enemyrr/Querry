@@ -73,7 +73,7 @@ struct DatabasesSection: View {
                     instance.connectedDatabase = database
                 }) {
                     HStack {
-                        Image(systemName: "folder.fill")
+                        Image(systemName: databaseIcon)
                             .foregroundStyle(.secondary)
                         Text(database.name)
                         Spacer()
@@ -85,14 +85,22 @@ struct DatabasesSection: View {
             }
         }
     }
+    
+    private var databaseIcon: String {
+            switch instance.connection.databaseType {
+            case .mongodb:
+                return "folder.fill"
+            default:
+                return "table.fill"
+            }
+        }
 }
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
     var instance: ConnectionInstance
     let collections: [any CollectionWrapper]
-    
-    
+ 
     @State private var showDeleteConfirmation = false
     @State private var collectionToDelete: (any CollectionWrapper)?
     
@@ -123,7 +131,7 @@ struct CollectionsSection: View {
             instance.createNewTab(name: collection.name)
         }) {
             HStack {
-                Image(systemName: "folder")
+                Image(systemName: databaseIcon)
                     .opacity(0.7)
                     .animation(.easeInOut(duration: 0.3), value: renamingCollection)
                 Text(collection.name)
@@ -154,6 +162,15 @@ struct CollectionsSection: View {
         }
         .dialogSeverity(.critical)
     }
+    
+    private var databaseIcon: String {
+            switch instance.connection.databaseType {
+            case .mongodb:
+                return "folder"
+            default:
+                return "table"
+            }
+        }
     
     // MARK: - Inline Rename View
     @State private var renamingCollection: String? = nil

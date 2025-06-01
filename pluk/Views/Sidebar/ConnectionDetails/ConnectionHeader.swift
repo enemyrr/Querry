@@ -11,6 +11,7 @@ struct ConnectionHeader: View {
     let name: String
     let status: ConnectionStatus
     let version: String?
+    let databaseType: DatabaseType
     let environment: ConnectionEnvironment
     
     @State private var isHovered = false
@@ -45,7 +46,7 @@ struct ConnectionHeader: View {
                         
                         if let version = version {
                             Divider().frame(height: 10)
-                            Text("MongoDB \(version)").font(.caption)
+                            Text("\(databaseType.displayName) \(version)").font(.caption)
                                 .foregroundStyle(.secondary)
                         }                    }
                 }

@@ -71,7 +71,7 @@ class MongoDBDriver: DatabaseDriver {
         }
         
         let buildInfo = try await database.getBuildInfo()
-        return BuildInfo(version: buildInfo.version, databaseType: "MongoDB")
+        return BuildInfo(version: buildInfo.version, databaseType: DatabaseType.mongodb)
     }
     
     func listDatabases() async throws -> [MongoDBWrapper] {

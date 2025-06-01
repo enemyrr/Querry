@@ -21,6 +21,7 @@ struct ConnectionDetailsSidebar: View {
                     name: instance.connection.name,
                     status: instance.connectionStatus,
                     version: instance.connectionVersion,
+                    databaseType: instance.connection.databaseType,
                     environment: instance.connection.environment)
                 
                 VStack(spacing: 0) {

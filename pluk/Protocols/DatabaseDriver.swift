@@ -31,7 +31,7 @@ protocol DatabaseDriver {
 // MARK: - Build Info Structure
 struct BuildInfo {
     let version: String
-    let databaseType: String
+    let databaseType: DatabaseType
 }
 
 // MARK: - Generic Database Wrapper
