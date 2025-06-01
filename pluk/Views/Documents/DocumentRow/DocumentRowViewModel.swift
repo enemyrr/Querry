@@ -12,7 +12,7 @@ import UInt128
 
 // MARK: - DocumentRowViewModel
 @Observable class DocumentRowViewModel {
-    let document: FormattedDocument
+    let document: MongoKitten.Document.FormattedDocument
     let documentListViewModel: DocumentListModel
     
     var updatedDocument: Document
@@ -23,7 +23,7 @@ import UInt128
     @ObservationIgnored private var errorMessage: String?
     var isDeleted = false
     
-    init(document: FormattedDocument, documentListViewModel: DocumentListModel) {
+    init(document: MongoKitten.Document.FormattedDocument, documentListViewModel: DocumentListModel) {
         self.document = document
         self.documentListViewModel = documentListViewModel
         self.updatedDocument = document.rawDocument

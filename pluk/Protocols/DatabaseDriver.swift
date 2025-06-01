@@ -5,6 +5,7 @@ protocol DatabaseDriver {
     associatedtype Database: DatabaseWrapper
     associatedtype Collection: CollectionWrapper
     associatedtype Document
+    associatedtype FormattedDocument
     
     // Connection management
     func connect(to connectionUri: String) async throws -> Database
@@ -16,15 +17,15 @@ protocol DatabaseDriver {
     func listCollections() async throws -> [Collection]
     
     // Collection operations
-    func getDocumentCount(for collectionName: String, in database: Database) async throws -> Int
-    func findDocuments(in collectionName: String, database: Database, filter: [String: Any]) async throws -> [Document]
+    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [FormattedDocument]
     func createDocument(in collectionName: String, database: Database, document: [String: Any]) async throws
     func updateDocument(in collectionName: String, database: Database, id: Any, data: [String: Any]) async throws
     func deleteDocument(in collectionName: String, database: Database, id: Any) async throws
     
     // Collection management
-    func createCollection(named collectionName: String, in database: any DatabaseWrapper) async throws
-    func renameCollection(from oldName: String, to newName: String, in database: any DatabaseWrapper) async throws
+    func createCollection(named collectionName: String) async throws
+    func renameCollection(from oldName: String, to newName: String) async throws
 }
 
 // MARK: - Build Info Structure

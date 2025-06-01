@@ -120,7 +120,7 @@ struct DocumentRow: View {
 
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
-    var fields: [FormattedDocument.FormattedField]
+    var fields: [MongoKitten.Document.FormattedDocument.FormattedField]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -224,7 +224,7 @@ struct RecursiveKeyValueRow: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
     let value: Primitive?
-    let nestedFields: [FormattedDocument.FormattedField]?
+    let nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
     
     var body: some View {
         Group {
@@ -248,7 +248,7 @@ struct RecursiveKeyValueRow: View {
 struct ExpandableValueView: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
-    let nestedFields: [FormattedDocument.FormattedField]?
+    let nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
     
     private static let monoFont = Font.system(.body, design: .monospaced)
     

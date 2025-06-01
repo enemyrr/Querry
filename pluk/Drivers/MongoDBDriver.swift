@@ -47,6 +47,7 @@ class MongoDBDriver: DatabaseDriver {
     typealias Database = MongoDBWrapper
     typealias Collection = MongoCollectionWrapper
     typealias Document = MongoKitten.Document
+    typealias FormattedDocument = MongoKitten.Document.FormattedDocument
     
     private var connectedDatabase: MongoDatabase?
     
@@ -91,16 +92,24 @@ class MongoDBDriver: DatabaseDriver {
         return collections.map { MongoCollectionWrapper(collection: $0) }.sorted { $0.name < $1.name }
     }
     
-    func getDocumentCount(for collectionName: String, in database: MongoDBWrapper) async throws -> Int {
-        let collection = database.database[collectionName]
+    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let collection = mongoDatabase[collectionName]
         return try await collection.count()
     }
     
-    func findDocuments(in collectionName: String, database: MongoDBWrapper, filter: [String: Any]) async throws -> [MongoKitten.Document] {
-        let collection = database.database[collectionName]
-//        let mongoFilter = try MongoKitten.Document(from: filter)
-//        return try await collection.find(mongoFilter).drain()
-        return [Document()]
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws ->  [FormattedDocument] {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let collection = mongoDatabase[collectionName]
+        
+        let documents = try await collection.find().drain()
+        return await formatDocuments(documents)
     }
     
     func createDocument(in collectionName: String, database: MongoDBWrapper, document: [String: Any]) async throws {
@@ -137,37 +146,87 @@ class MongoDBDriver: DatabaseDriver {
         try await collection.deleteOne(where: filter)
     }
     
-    func createCollection(named collectionName: String, in database: any DatabaseWrapper) async throws {
-        guard let mongoDatabase = database as? MongoDBWrapper else {
-            throw MongoError.invalidWrapper
+    func createCollection(named collectionName: String) async throws {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
         }
         
         let createCommand: Document = ["create": collectionName]
         
-        let connection = try await mongoDatabase.database.pool.next(for: .basic)
+        let connection = try await mongoDatabase.pool.next(for: .basic)
         _ = try await connection.execute(
             createCommand,
-            namespace: mongoDatabase.database.commandNamespace
+            namespace: mongoDatabase.commandNamespace
         )
     }
     
-    func renameCollection(from oldName: String, to newName: String, in database: any DatabaseWrapper) async throws {
-        guard let mongoDatabase = database as? MongoDBWrapper else {
-            throw MongoError.invalidWrapper
+    func renameCollection(from oldName: String, to newName: String) async throws {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
         }
         
         let renameCommand: Document = [
-            "renameCollection": "\(database.name).\(oldName)",
-            "to": "\(database.name).\(newName)"
+            "renameCollection": "\(mongoDatabase.name).\(oldName)",
+            "to": "\(mongoDatabase.name).\(newName)"
         ]
         
-        let connection = try await mongoDatabase.database.pool.next(for: .basic)
+        let connection = try await mongoDatabase.pool.next(for: .basic)
         
         _ = try await connection.execute(
             renameCommand,
             namespace: .administrativeCommand
         )
     }
+    
+    // MARK: - Document Formatting
+    private func formatDocuments(_ documents: [Document]) async -> [MongoKitten.Document.FormattedDocument] {
+        let chunkSize = 10
+        var formattedDocs: [MongoKitten.Document.FormattedDocument] = []
+        
+        for chunk in stride(from: 0, to: documents.count, by: chunkSize) {
+            let end = min(chunk + chunkSize, documents.count)
+            let documentChunk = Array(documents[chunk..<end])
+            
+            let formattedChunk = documentChunk.map { document in
+                formatDocument(document)
+            }
+            
+            formattedDocs.append(contentsOf: formattedChunk)
+            await Task.yield()
+        }
+        
+        return formattedDocs
+    }
+    
+    private func formatDocument(_ document: Document) -> MongoKitten.Document.FormattedDocument {
+        guard let id = document["_id"] as? ObjectId else {
+            return MongoKitten.Document.FormattedDocument(id: "", fields: [], rawDocument: document)
+        }
+        
+        let fields = document.keys.map { key in
+            formatField(key: key, value: document[key])
+        }
+        
+        return MongoKitten.Document.FormattedDocument(id: id.hexString, fields: fields, rawDocument: document)
+    }
+    
+    private func formatField(key: String, value: Primitive?) -> MongoKitten.Document.FormattedDocument.FormattedField {
+        let formatted = Document().formatValue(value)
+        
+        var nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
+        if let doc = value as? Document {
+            nestedFields = doc.keys.map { key in
+                formatField(key: key, value: doc[key])
+            }
+        }
+        
+        return MongoKitten.Document.FormattedDocument.FormattedField(
+            key: key,
+            formattedValue: formatted,
+            rawValue: value ?? "nil",
+            nestedFields: nestedFields
+        )
+    } 
 }
 
 // MARK: - Dictionary to Document Extension

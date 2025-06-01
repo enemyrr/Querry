@@ -177,49 +177,51 @@ extension Document {
 }
 
 
-struct FormattedDocument: Hashable {
-    let id: String
-    let fields: [FormattedField]
-    let rawDocument: Document
-    
-    struct FormattedField: Hashable {
-        let key: String
-        let formattedValue: FormattedPrimitive
-        let rawValue: Primitive
-        let nestedFields: [FormattedField]?
+extension Document {
+    struct FormattedDocument: Hashable {
+        let id: String
+        let fields: [FormattedField]
+        let rawDocument: Document
+        
+        struct FormattedField: Hashable {
+            let key: String
+            let formattedValue: FormattedPrimitive
+            let rawValue: Primitive
+            let nestedFields: [FormattedField]?
+            
+            // Implement Hashable
+            func hash(into hasher: inout Hasher) {
+                hasher.combine(key)
+                hasher.combine(formattedValue.value)
+            }
+            
+            static func == (lhs: FormattedField, rhs: FormattedField) -> Bool {
+                return lhs.key == rhs.key && lhs.formattedValue.value == rhs.formattedValue.value
+            }
+        }
         
         // Implement Hashable
         func hash(into hasher: inout Hasher) {
-            hasher.combine(key)
-            hasher.combine(formattedValue.value)
+            hasher.combine(id)
         }
         
-        static func == (lhs: FormattedField, rhs: FormattedField) -> Bool {
-            return lhs.key == rhs.key && lhs.formattedValue.value == rhs.formattedValue.value
-        }
-    }
-    
-    // Implement Hashable
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-    
-    static func == (lhs: FormattedDocument, rhs: FormattedDocument) -> Bool {
-        return lhs.id == rhs.id
-    }
-}
-
-extension Binary.SubType {
-    public static func == (lhs: Binary.SubType, rhs: Binary.SubType) -> Bool {
-        switch (lhs, rhs) {
-        case (.generic, .generic), (.function, .function), (.uuid, .uuid), (.md5, .md5):
-            return true
-        case (.userDefined(let lhsByte), .userDefined(let rhsByte)):
-            return lhsByte == rhsByte
-        default:
-            return false
+        static func == (lhs: FormattedDocument, rhs: FormattedDocument) -> Bool {
+            return lhs.id == rhs.id
         }
     }
 }
 
 
+
+    extension Binary.SubType {
+        public static func == (lhs: Binary.SubType, rhs: Binary.SubType) -> Bool {
+            switch (lhs, rhs) {
+            case (.generic, .generic), (.function, .function), (.uuid, .uuid), (.md5, .md5):
+                return true
+            case (.userDefined(let lhsByte), .userDefined(let rhsByte)):
+                return lhsByte == rhsByte
+            default:
+                return false
+            }
+        }
+    }

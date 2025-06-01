@@ -15,6 +15,7 @@ class PostgreSQLDriver: DatabaseDriver {
     typealias Database = PostgreSQLDatabaseWrapper
     typealias Collection = PostgreSQLCollectionWrapper
     typealias Document = [String: Any]
+    typealias FormattedDocument = [String: Any]
     
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
         // TODO: Implement PostgreSQL connection
@@ -37,11 +38,11 @@ class PostgreSQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("PostgreSQL driver not yet implemented")
     }
     
-    func getDocumentCount(for collectionName: String, in database: PostgreSQLDatabaseWrapper) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
         throw DatabaseError.notImplemented("PostgreSQL driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, database: PostgreSQLDatabaseWrapper, filter: [String: Any]) async throws -> [[String: Any]] {
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [[String: Any]] {
         throw DatabaseError.notImplemented("PostgreSQL driver not yet implemented")
     }
     
@@ -57,11 +58,11 @@ class PostgreSQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("PostgreSQL driver not yet implemented")
     }
     
-    func createCollection(named collectionName: String, in database: any DatabaseWrapper) async throws {
+    func createCollection(named collectionName: String) async throws {
         throw DatabaseError.notImplemented("PostgreSQL driver not yet implemented")
     }
     
-    func renameCollection(from oldName: String, to newName: String, in database: any DatabaseWrapper) async throws {
+    func renameCollection(from oldName: String, to newName: String) async throws {
         throw DatabaseError.notImplemented("PostgreSQL driver not yet implemented")
     }
 }

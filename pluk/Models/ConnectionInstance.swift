@@ -44,15 +44,19 @@ import AIProxy
         self.connection = connection
     }
     
-//    func viewModel(for tab: DatabaseTab) -> DocumentListModel {
-//        if let existing = documentViewModels[tab.id] {
-//            return existing
-//        } else {
-////            let newModel = DocumentListModel(instance: self, databaseService: databaseService)
-////            documentViewModels[tab.id] = newModel
-////            return newModel
-//        }
-//    }
+    func viewModel(for tab: DatabaseTab) -> DocumentListModel {
+        if let existing = documentViewModels[tab.id] {
+            return existing
+        } else {
+            guard let databaseDriver, let connectedDatabase else {
+                fatalError("Database driver not set yet")
+            }
+            
+            let newModel = DocumentListModel(instance: self, databaseDriver: databaseDriver, connectedDatabase: connectedDatabase)
+            documentViewModels[tab.id] = newModel
+            return newModel
+        }
+    }
     
     func processDatabaseCollections(previousDatabase: MongoDatabase?) async {
         guard let currentDatabase = database else { return }
@@ -144,21 +148,6 @@ import AIProxy
         }
     }
     
-    func getDocumentCount(for collectionName: String) async throws -> Int {
-        guard let driver = _databaseDriver,
-              let database = connectedDatabase else {
-            throw DatabaseError.operationFailed("No active database connection")
-        }
-        
-        do {
-//            return try await driver.getDocumentCount(for: collectionName, in: database)
-            return 0
-        } catch {
-            lastError = error
-            throw error
-        }
-    }
-    
     // Legacy MongoDB methods - these will be gradually refactored
     func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder {
         guard connection.databaseType == .mongodb,
@@ -233,13 +222,12 @@ import AIProxy
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
-        guard let driver = _databaseDriver,
-              let database = connectedDatabase else {
+        guard let driver = _databaseDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
         do {
-            try await driver.renameCollection(from: oldName, to: newName, in: database)
+            try await driver.renameCollection(from: oldName, to: newName)
             updateTabName(from: oldName, to: newName)
         } catch {
             throw error
@@ -247,14 +235,12 @@ import AIProxy
     }
     
     func createCollection(withName: String) async throws {
-        guard let driver = _databaseDriver,
-              let database = connectedDatabase else {
+        guard let driver = _databaseDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
         do {
-           
-            try await driver.createCollection(named: withName, in: database)
+            try await driver.createCollection(named: withName)
         } catch {
             throw error
         }

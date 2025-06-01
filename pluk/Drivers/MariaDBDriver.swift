@@ -15,6 +15,7 @@ class MariaDBDriver: DatabaseDriver {
     typealias Database = MariaDBDatabaseWrapper
     typealias Collection = MariaDBCollectionWrapper
     typealias Document = [String: Any]
+    typealias FormattedDocument = [String: Any]
     
     func connect(to connectionUri: String) async throws -> MariaDBDatabaseWrapper {
         // TODO: Implement MariaDB connection
@@ -37,11 +38,11 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func getDocumentCount(for collectionName: String, in database: MariaDBDatabaseWrapper) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, database: MariaDBDatabaseWrapper, filter: [String: Any]) async throws -> [[String: Any]] {
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [[String: Any]] {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
@@ -57,11 +58,11 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func createCollection(named collectionName: String, in database: any DatabaseWrapper) async throws {
+    func createCollection(named collectionName: String) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func renameCollection(from oldName: String, to newName: String, in database: any DatabaseWrapper) async throws {
+    func renameCollection(from oldName: String, to newName: String) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
 } 
