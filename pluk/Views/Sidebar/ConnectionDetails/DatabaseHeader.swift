@@ -14,7 +14,7 @@ struct DatabaseHeader: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     var viewModel: SidebarViewModel
-    var database: MongoDatabase?
+    var database: (any DatabaseWrapper)?
 
     var body: some View {
         VStack {
@@ -58,7 +58,7 @@ struct DatabaseHeader: View {
                 Spacer()
                 
                 HStack(spacing: 0) {
-                    CreateTable(
+                    CreateCollection(
                         viewModel: viewModel
                     )
                 }

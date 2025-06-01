@@ -6,7 +6,7 @@
 //
 import SwiftUI
 
-struct CreateTable: View {
+struct CreateCollection: View {
     @State private var showSheet = false
     var viewModel: SidebarViewModel
     
@@ -20,7 +20,7 @@ struct CreateTable: View {
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                     .ignoresSafeArea()
-                CreateTableForm(viewModel: viewModel)
+                CreateCollectionForm(viewModel: viewModel)
             }
         }
         .buttonStyle(ActionButtonStyle())
@@ -32,7 +32,7 @@ struct CreateTable: View {
     }
 }
 
-struct CreateTableForm: View {
+struct CreateCollectionForm: View {
     var viewModel: SidebarViewModel
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext

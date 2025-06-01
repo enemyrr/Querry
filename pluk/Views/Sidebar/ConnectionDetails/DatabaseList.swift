@@ -22,17 +22,17 @@ struct DatabaseList: View {
     private var connectionContent: some View {
         VStack(spacing: 0) {
             if let activeConnection = viewModel.activeConnection {
-                if let selectedDb = activeConnection.database {
-                    let filteredCollections = (activeConnection.collections[selectedDb.name] ?? [])
+                if let connectedDatabase = activeConnection.connectedDatabase {
+                    let filteredCollections = (activeConnection.collections[connectedDatabase.name] ?? [])
                         .filter {
                             viewModel.searchText.isEmpty ||
                             $0.name.localizedCaseInsensitiveContains(viewModel.searchText)
                         }
                     
                     CollectionsSection(
-                            instance: activeConnection,
-                            collections: filteredCollections
-                        ).padding(.horizontal, 16)
+                        instance: activeConnection,
+                        collections: filteredCollections
+                    ).padding(.horizontal, 16)
                 } else {
                     if activeConnection.connectionStatus != .error {
                         ProgressView()
@@ -70,7 +70,7 @@ struct DatabasesSection: View {
         DisclosureGroup("Databases") {
             ForEach(instance.databases, id: \.name) { database in
                 Button(action: {
-                    instance.database = database
+                    instance.connectedDatabase = database
                 }) {
                     HStack {
                         Image(systemName: "folder.fill")
@@ -90,15 +90,12 @@ struct DatabasesSection: View {
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
     var instance: ConnectionInstance
-    let collections: [MongoCollection]
+    let collections: [any CollectionWrapper]
     
-    // State for inline rename functionality
-    @State private var renamingCollection: String? = nil
-    @State private var renameText: String = ""
-    @State private var isRenaming = false
-    @FocusState private var isRenameFieldFocused: Bool
+    
     @State private var showDeleteConfirmation = false
-    @State private var collectionToDelete: MongoCollection?
+    @State private var collectionToDelete: (any CollectionWrapper)?
+    
     @Environment(\.colorScheme) var colorScheme
     
     private var hasTextChanged: Bool {
@@ -121,7 +118,7 @@ struct CollectionsSection: View {
     
     // MARK: - Normal Collection Button
     @ViewBuilder
-    private func normalCollectionButton(for collection: MongoCollection, isActive: Bool) -> some View {
+    private func normalCollectionButton(for collection: any CollectionWrapper, isActive: Bool) -> some View {
         Button(action: {
             instance.createNewTab(name: collection.name)
         }) {
@@ -144,8 +141,8 @@ struct CollectionsSection: View {
         ) {
             Button("Delete", role: .destructive) {
                 if let connection = collectionToDelete {
-//                    modelContext.delete(connection)
-//                    collectionToDelete = nil
+                    //                    modelContext.delete(connection)
+                    //                    collectionToDelete = nil
                 }
             }
             
@@ -159,15 +156,20 @@ struct CollectionsSection: View {
     }
     
     // MARK: - Inline Rename View
+    @State private var renamingCollection: String? = nil
+    @State private var renameText: String = ""
+    @State private var isRenaming = false
+    @FocusState private var isRenameFieldFocused: Bool
+    
     @ViewBuilder
-    private func inlineRenameView(for collection: MongoCollection) -> some View {
+    private func inlineRenameView(for collection: any CollectionWrapper) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "pencil.line")
                 .opacity(0.7)
                 .foregroundColor(.secondary)
                 .padding(.leading, 4)
                 .padding(.leading, 2)
-
+            
             TextField("Collection name", text: $renameText)
                 .textFieldStyle(.plain)
                 .focused($isRenameFieldFocused)
@@ -217,57 +219,14 @@ struct CollectionsSection: View {
         }
     }
     
-    // MARK: - Context Menu Content
-    @ViewBuilder
-    private func contextMenuContent(for collection: MongoCollection, isActive: Bool) -> some View {
-        Button {
-            Task {
-                instance.createNewTab(name: collection.name)
-            }
-        } label: {
-            Label("Open in New Tab", systemImage: "plus.square")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-        .disabled(isActive)
-        
-        Divider()
-        
-        Button {
-            // Copy to pasteboard
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(collection.name, forType: .string)
-        } label: {
-            Label("Copy name", systemImage: "doc.on.clipboard")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-        
-        Divider()
-
-        Button {
-            startRename(for: collection)
-        } label: {
-            Label("Rename", systemImage: "pencil")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-
-        Button(role: .destructive) {
-            collectionToDelete = collection
-            showDeleteConfirmation = true
-        } label: {
-            Label("Delete", systemImage: "trash")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-    }
-    
     // MARK: - Rename Logic
-    private func startRename(for collection: MongoCollection) {
+    private func startRename(for collection: any CollectionWrapper) {
         renamingCollection = collection.name
         renameText = collection.name
         isRenaming = false
     }
     
-    private func confirmRename(for collection: MongoCollection) {
+    private func confirmRename(for collection: any CollectionWrapper) {
         let trimmedName = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Validate
@@ -305,7 +264,7 @@ struct CollectionsSection: View {
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-           renameText = ""
+            renameText = ""
         }
     }
     
@@ -322,7 +281,7 @@ struct CollectionsSection: View {
             }
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-               renameText = ""
+                renameText = ""
             }
             
         } catch {
@@ -354,5 +313,48 @@ struct CollectionsSection: View {
         }
         
         return nil
+    }
+    
+    // MARK: - Context Menu Content
+    @ViewBuilder
+    private func contextMenuContent(for collection: any CollectionWrapper, isActive: Bool) -> some View {
+        Button {
+            Task {
+                instance.createNewTab(name: collection.name)
+            }
+        } label: {
+            Label("Open in New Tab", systemImage: "plus.square")
+                .frame(minWidth: 150, alignment: .leading)
+        }
+        .disabled(isActive)
+        
+        Divider()
+        
+        Button {
+            // Copy to pasteboard
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(collection.name, forType: .string)
+        } label: {
+            Label("Copy name", systemImage: "doc.on.clipboard")
+                .frame(minWidth: 150, alignment: .leading)
+        }
+        
+        Divider()
+        
+        Button {
+            startRename(for: collection)
+        } label: {
+            Label("Rename", systemImage: "pencil")
+                .frame(minWidth: 150, alignment: .leading)
+        }
+        
+        Button(role: .destructive) {
+            collectionToDelete = collection
+            showDeleteConfirmation = true
+        } label: {
+            Label("Delete", systemImage: "trash")
+                .frame(minWidth: 150, alignment: .leading)
+        }
     }
 }

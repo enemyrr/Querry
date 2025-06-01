@@ -62,12 +62,22 @@ class ConnectionService {
     
     func disconnectDBInstance(_ instance: ConnectionInstance) async -> ConnectionStatus {
         guard instance.connectionStatus == .connected else { return .error }
-        guard let db = instance.database, let cluster = db.pool as? MongoCluster else { return .error }
         
-        await cluster.disconnect()
-        instance.connectionStatus = .disconnected
+        // Use the new driver architecture for disconnection
+        if let driver = instance.databaseDriver {
+            await driver.disconnect()
+            instance.connectionStatus = .disconnected
+            return instance.connectionStatus
+        }
         
-        return instance.connectionStatus
+        // Fallback to MongoDB-specific disconnection for backward compatibility
+        if let db = instance.database, let cluster = db.pool as? MongoCluster {
+            await cluster.disconnect()
+            instance.connectionStatus = .disconnected
+            return instance.connectionStatus
+        }
+        
+        return .error
     }
     
     func getInstance(_ instanceId: UUID) -> ConnectionInstance? {

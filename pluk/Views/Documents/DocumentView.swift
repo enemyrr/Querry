@@ -16,19 +16,19 @@ struct DocumentView: View {
             TabBar(instance: instance)
                 .zIndex(1)
             
-            VStack {
-                if let selectedTab = instance.selectedTab {
-                    DocumentList(viewModel: instance.viewModel(for: selectedTab))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .id(selectedTab.id)
-                } else {
-                    Text("No collection selected")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(8)
-            .zIndex(-1)
+//            VStack {
+//                if let selectedTab = instance.selectedTab {
+//                    DocumentList(viewModel: instance.viewModel(for: selectedTab))
+//                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+//                        .id(selectedTab.id)
+//                } else {
+//                    Text("No collection selected")
+//                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+//                }
+//            }
+//            .frame(maxWidth: .infinity, maxHeight: .infinity)
+//            .padding(8)
+//            .zIndex(-1)
         }
         .padding(.top, 8)
         .ignoresSafeArea(.all)

@@ -26,7 +26,7 @@ struct ConnectionDetailsSidebar: View {
                 VStack(spacing: 0) {
                     DatabaseHeader(
                         viewModel: viewModel,
-                        database: instance.database
+                        database: instance.connectedDatabase
                     )
                         .padding(.horizontal)
                         .padding(.vertical, 4)

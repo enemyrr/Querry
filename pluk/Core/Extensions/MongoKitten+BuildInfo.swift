@@ -8,14 +8,14 @@
 import MongoKitten
 
 extension MongoDatabase {
-    func getBuildInfo() async throws -> BuildInfo {
+    func getBuildInfo() async throws -> MongoBuildInfo {
         // Use self instead of requiring an external database parameter
         let connection = try await self.pool.next(for: .basic)
         
         // Execute the command against the admin database
         let buildInfo = try await connection.executeCodable(
             ["buildInfo": 1],
-            decodeAs: BuildInfo.self,
+            decodeAs: MongoBuildInfo.self,
             namespace: .administrativeCommand,
             sessionId: connection.implicitSessionId,
             traceLabel: "getMongoDBVersion"
@@ -26,7 +26,7 @@ extension MongoDatabase {
 }
 
 
-struct BuildInfo: Decodable {
+struct MongoBuildInfo: Decodable {
     private enum CodingKeys: String, CodingKey {
         case version
         case ok

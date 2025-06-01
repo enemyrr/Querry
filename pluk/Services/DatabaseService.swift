@@ -101,7 +101,7 @@ class DatabaseService {
         )
     }
     
-    func getBuildInfo() async throws -> BuildInfo {
+    func getBuildInfo() async throws -> MongoBuildInfo {
         return try await database.getBuildInfo()
     }
 }
