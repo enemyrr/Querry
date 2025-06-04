@@ -27,7 +27,7 @@ import SwiftUI
     
     // UI States
     var action: ActionBar = ActionBar.main
-    var formattedDocuments: [MongoKitten.Document.FormattedDocument] = []
+    var formattedDocuments: [Any] = []
     var isLoading = true
     var error: Error?
     var filterText = ""
@@ -71,7 +71,7 @@ import SwiftUI
 //            // Process documents in a background task to avoid blocking
             await MainActor.run {
                 paginationManager.updateTotalItems(count)
-                self.formattedDocuments = documents as! [MongoKitten.Document.FormattedDocument]
+                self.formattedDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
                 

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import MongoKitten
 
 struct DocumentList: View {
     @State private var viewModel: DocumentListModel
@@ -16,7 +17,7 @@ struct DocumentList: View {
                 VStack {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(viewModel.formattedDocuments, id: \.self) { document in
+                            ForEach(viewModel.formattedDocuments as! [MongoKitten.Document.FormattedDocument], id: \.self) { document in
                                 DocumentRow(
                                     viewModel: DocumentRowViewModel(
                                         document: document,
@@ -73,11 +74,11 @@ struct DocumentList: View {
                 }
                 .cornerRadius(10)
                 
-                VStack {
-                    Spacer()
-                    FloatingActionBar(viewModel: viewModel, searchQueryViewModel: searchQueryViewModel, screenWidth: geometry.size.width)
-                        .padding(.bottom, 10)
-                }
+//                VStack {
+//                    Spacer()
+//                    FloatingActionBar(viewModel: viewModel, searchQueryViewModel: searchQueryViewModel, screenWidth: geometry.size.width)
+//                        .padding(.bottom, 10)
+//                }
             }.frame(width: geometry.size.width, height: geometry.size.height)
         }
     }

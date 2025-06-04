@@ -11,12 +11,19 @@ struct PostgreSQLCollectionWrapper: CollectionWrapper {
     let name: String
 }
 
+struct PostgreSQLCell {
+    public var dataType: PostgresDataType
+    public var format: PostgresFormat
+    public var columnName: String
+    public var columnIndex: Int
+}
+
 // MARK: - PostgreSQL Driver
 class PostgreSQLDriver: DatabaseDriver {
     typealias Database = PostgreSQLDatabaseWrapper
     typealias Collection = PostgreSQLCollectionWrapper
     typealias Document = [String: Any]
-    typealias FormattedDocument = [String: Any]
+    typealias FormattedDocument = PostgreSQLCell
     
     // Store connection and event loop group for proper cleanup
     private var connection: PostgresConnection?
@@ -178,11 +185,30 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        return 1
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [[String: Any]] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [FormattedDocument] {
+        let connection = try ensureConnected()
+               
+               do {
+                   let results = try await connection.query("SELECT * FROM \"user\";", logger: Logger(label: "postgres"))
+                   
+                   var allRows: [FormattedDocument] = []
+
+                   for try await row in results {
+                       for value in row.makeRandomAccess() {
+                           allRows.append(
+                            FormattedDocument(dataType: value.dataType, format: value.format, columnName: value.columnName, columnIndex: value.columnIndex)
+                           )
+                       }
+                    }
+                    return allRows
+               } catch let error as PSQLError {
+                   throw mapPSQLError(error)
+               } catch {
+                   throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
+               }
     }
     
     func createDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, document: [String: Any]) async throws {

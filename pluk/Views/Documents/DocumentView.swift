@@ -18,9 +18,20 @@ struct DocumentView: View {
             
             VStack {
                 if let selectedTab = instance.selectedTab {
-                    DocumentList(viewModel: instance.viewModel(for: selectedTab))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .id(selectedTab.id)
+                    switch instance.connection.databaseType {
+                    case .postgres:
+                                TableListView(viewModel: instance.viewModel(for: selectedTab))
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .id(selectedTab.id)
+                            case .mongodb:
+                        DocumentList(viewModel: instance.viewModel(for: selectedTab))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .id(selectedTab.id)
+                    default:
+                        Text("No collection selected")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    
                 } else {
                     Text("No collection selected")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

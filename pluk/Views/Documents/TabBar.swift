@@ -89,6 +89,7 @@ struct TabBar: View {
                             onClose: {
                                 instance.removeTab(tab)
                             },
+                            databaseType: instance.connection.databaseType
                         )
                         .padding(.leading, instance.tabs.first?.id == tab.id ? 8 : 0)
                         .padding(.trailing, instance.tabs.last?.id == tab.id ? 8 : 0)
@@ -130,13 +131,14 @@ struct TabBarItem: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    let databaseType: DatabaseType
     @State private var isHovering = false
     
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 10) {
                 Button(action: onClose) {
-                    Image(systemName: isHovering ? "xmark" : "document.fill")
+                    Image(systemName: isHovering ? "xmark" : databaseType == .mongodb ? "document.fill" : "table")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
                 }

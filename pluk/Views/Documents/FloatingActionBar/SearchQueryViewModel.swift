@@ -96,9 +96,9 @@ public enum ProcessingStage: Int {
             
             // Get a sample document for the AI to understand the schema
             var sampleDocument = Document()
-            if let document = documentListModel.formattedDocuments.first?.rawDocument {
-                sampleDocument = document
-            }
+//            if let document = documentListModel.formattedDocuments.first?.rawDocument {
+//                sampleDocument = document
+//            }
             
             let currentDate = Date()
         
