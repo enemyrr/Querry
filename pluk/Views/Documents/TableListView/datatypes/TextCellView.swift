@@ -55,7 +55,7 @@ class TextCellView: NSView {
         hoverBorderView?.wantsLayer = true
         hoverBorderView?.layer?.borderWidth = 2.0
         hoverBorderView?.layer?.borderColor = NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.5).cgColor
-        hoverBorderView?.layer?.cornerRadius = 2.0
+        hoverBorderView?.layer?.cornerRadius = 0.0
         hoverBorderView?.isHidden = true
         
         addSubview(hoverBorderView!)
@@ -73,7 +73,7 @@ class TextCellView: NSView {
         selectedBorderView?.wantsLayer = true
         selectedBorderView?.layer?.borderWidth = 2.0
         selectedBorderView?.layer?.borderColor = NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.5).cgColor
-        selectedBorderView?.layer?.cornerRadius = 2.0
+        selectedBorderView?.layer?.cornerRadius = 0.0
         selectedBorderView?.isHidden = true
         
         addSubview(selectedBorderView!)
@@ -184,7 +184,7 @@ class TextCellView: NSView {
         animatedBorder.wantsLayer = true
         animatedBorder.layer?.borderWidth = 2.0
         animatedBorder.layer?.borderColor = NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.5).cgColor
-        animatedBorder.layer?.cornerRadius = 2.0
+        animatedBorder.layer?.cornerRadius = 0.0
         animatedBorder.layer?.backgroundColor = NSColor.clear.cgColor
         
         // Position it at the source cell initially (with the same insets as selected border)

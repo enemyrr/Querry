@@ -9,12 +9,10 @@ import SwiftUI
 import AppKit
 
 class TableListViewController: NSViewController {
-    private var rows: [Any] = []
+    private var postgresResult: PostgreSQLQueryResult?
     private let containerView = NSView()
     private let scrollView = NSScrollView()
     private let tableView = NSTableView()
-    
-    private var checkedRows: Set<Int> = []
     
     private enum CellIdentifier {
         static let checkbox = NSUserInterfaceItemIdentifier("CheckboxCell")
@@ -22,8 +20,8 @@ class TableListViewController: NSViewController {
         static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
     }
     
-    init(rows: [Any]) {
-        self.rows = rows
+    init(rows: PostgreSQLQueryResult) {
+        self.postgresResult = rows
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -31,9 +29,44 @@ class TableListViewController: NSViewController {
         fatalError("init(coder:) has not been implemented")
     }
     
-    override func loadView() {
-        self.view = NSView()
-    }
+    
+    func updateRows(_ newRows: PostgreSQLQueryResult, isLoading: Bool = false) {
+           // Update on main thread since we're dealing with UI
+           DispatchQueue.main.async { [weak self] in
+               guard let self = self else { return }
+               
+               // Store the new data
+               self.postgresResult = newRows
+               
+               print("📊 TableListViewController: Received \(newRows.rowCount) rows")
+               print("🔄 Loading state: \(isLoading)")
+               
+               // If we're loading, you might want to show a loading state
+               if isLoading {
+//                   self.showLoadingState()
+               } else {
+//                   self.hideLoadingState()
+                   
+                   // ✅ Rebuild columns when data changes
+//                   self.setupDynamicColumns()
+                   
+                   // Reload the table with new data
+//                   self.tableView.reloadData()
+               }
+           }
+       }
+    
+    private func setupDynamicColumns() {
+            guard let result = postgresResult else { return }
+            
+            for columnInfo in result.columns {
+                createColumn(
+                    identifier: columnInfo.name,
+                    title: columnInfo.name.capitalized,
+                    icon: nil
+                )
+            }
+        }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -45,7 +78,6 @@ class TableListViewController: NSViewController {
             object: nil
         )
         
-        //        setupTableWithCustomHeaders()
         setupUI()
         setupTable()
     }
@@ -72,9 +104,8 @@ class TableListViewController: NSViewController {
         // Create the table column
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
         column.title = title
-        column.width = 150
-        column.minWidth = 100
-        column.maxWidth = 300
+        column.minWidth = 40
+        column.maxWidth = 400
         column.resizingMask = [.userResizingMask]
         
         // Create and configure the custom header cell
@@ -82,11 +113,10 @@ class TableListViewController: NSViewController {
             textCell: identifier
         )
         customHeaderCell.configure(title: title, icon: icon, showSortButton: false)
-        //
         
+        column.resizingMask = [.userResizingMask]
         customHeaderCell.representedObject = column
         
-        //        column.headerCell = NSTableHeaderCell(textCell: identifier)
         column.headerCell = customHeaderCell
         
         // Add the column to the table
@@ -94,7 +124,7 @@ class TableListViewController: NSViewController {
     }
     
     private func setupUI() {
-        // Container with border
+        // Container with border (full width)
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = 10
         containerView.layer?.borderWidth = 1
@@ -108,37 +138,14 @@ class TableListViewController: NSViewController {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
         scrollView.backgroundColor = NSColor.clear
-        scrollView.documentView = tableView
         
-        // Table view setup
+        // ✅ Table view setup - make it size itself
         tableView.style = .inset
         tableView.backgroundColor = NSColor.clear
         tableView.gridStyleMask = [.solidVerticalGridLineMask]
         tableView.gridColor = NSColor.separatorColor
         tableView.usesAutomaticRowHeights = false
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
-        
-        view.addSubview(containerView)
-        containerView.addSubview(scrollView)
-        
-        setupConstraints()
-    }
-    
-    private func setupTable() {
-        // Create checkbox column first
-        //        let checkboxColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("checkbox"))
-        //        checkboxColumn.title = ""
-        //        checkboxColumn.width = 20.0
-        //        checkboxColumn.resizingMask = []
-        
-        
-        // Create data columns with sorting keys
-        let columnData = [
-            ("Name", "id", 120.0, "id"),
-            ("Type", "user_id", 120.0, "user_id"),
-            ("Alias", "name", 120.0, "name"),
-            ("Hotkey", "createdAt", 120.0, "createdAt")
-        ]
         
         if let headerView = tableView.headerView {
             let newHeight: CGFloat = 32
@@ -161,14 +168,36 @@ class TableListViewController: NSViewController {
             tableView.headerView = headerView
         }
         
-        for (identifier, title, width, sortKey) in columnData {
-                                    // Add sort descriptor for this column
-            //                        let sortDescriptor = NSSortDescriptor(key: sortKey, ascending: true)
-            //                        column.sortDescriptorPrototype = sortDescriptor
-            createColumn(identifier: identifier, title: title, icon: NSImage(systemSymbolName: "person.fill", accessibilityDescription: nil))
-        }
+        // ✅ Put table directly in scroll view (revert to original)
+        scrollView.documentView = tableView
         
+        view.addSubview(containerView)
+        containerView.addSubview(scrollView)
         
+        setupConstraints()
+    }
+    private func setupTable() {
+        // Create data columns with sorting keys
+        let columnData = [
+            ("Name", "id", 120.0, "id"),
+            ("Type", "user_id", 120.0, "user_id"),
+            ("Alias", "name", 120.0, "name"),
+            ("Hotkey", "createdAt", 120.0, "createdAt")
+        ]
+        
+        setupDynamicColumns()
+//
+//        
+////        guard let result = postgresResult else { return }
+//        
+//        for (name, _, _, _) in columnData {
+//            createColumn(
+//                identifier: name,
+//                title: name,
+//                icon: nil
+//            )
+//        }
+//        
         // Enable column resizing
         tableView.allowsColumnResizing = true
         tableView.allowsColumnReordering = true
@@ -185,7 +214,7 @@ class TableListViewController: NSViewController {
         
         tableView.rowSizeStyle = .custom
         tableView.style = .plain
-        tableView.reloadData()
+//        tableView.reloadData()
     }
     
     private func setupConstraints() {
@@ -205,42 +234,6 @@ class TableListViewController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
         ])
-        
-        // Set the table view's frame to limit its width
-        let totalColumnWidth: CGFloat = 40.0 + (4 * 120.0)
-        let padding: CGFloat = 20
-        let tableWidth = totalColumnWidth + padding
-        
-        tableView.frame = NSRect(x: 0, y: 0, width: tableWidth, height: 0)
-    }
-    
-    // MARK: - Checkbox Actions
-    @objc private func checkboxToggled(_ sender: NSButton) {
-        let row = sender.tag
-        
-        if sender.state == .on {
-            checkedRows.insert(row)
-        } else {
-            checkedRows.remove(row)
-        }
-        
-        print("Row \(row) checkbox state: \(sender.state == .on ? "checked" : "unchecked")")
-        print("Currently checked rows: \(checkedRows)")
-    }
-    
-    // Public methods
-    func getCheckedRows() -> Set<Int> {
-        return checkedRows
-    }
-    
-    func clearAllCheckboxes() {
-        checkedRows.removeAll()
-        tableView.reloadData()
-    }
-    
-    func checkAllRows() {
-        checkedRows = Set(0..<tableView.numberOfRows)
-        tableView.reloadData()
     }
 }
 
@@ -248,7 +241,7 @@ class TableListViewController: NSViewController {
 // MARK: - Table View Data Source
 extension TableListViewController: NSTableViewDataSource {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return 100 // Sample data
+        return postgresResult?.rowCount ?? 0
     }
     
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
@@ -262,29 +255,9 @@ extension TableListViewController: NSTableViewDataSource {
 // MARK: - Table View Delegate
 extension TableListViewController: NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard let tableColumn = tableColumn else { return nil }
-        
-        // Handle checkbox column with recycling
-        if tableColumn.identifier.rawValue == "checkbox" {
-            // Try to reuse existing checkbox cell
-            var cellView = tableView.makeView(withIdentifier: CellIdentifier.checkbox, owner: self) as? CheckboxCellView
-            
-            if cellView == nil {
-                // Create new checkbox cell if none available for reuse
-                cellView = CheckboxCellView()
-                cellView?.identifier = CellIdentifier.checkbox
-            }
-            
-            // Configure the cell
-            cellView?.configure(
-                isChecked: checkedRows.contains(row),
-                row: row,
-                target: self,
-                action: #selector(checkboxToggled(_:))
-            )
-            
-            return cellView
-        }
+        guard let tableColumn = tableColumn,
+              let result = postgresResult,
+              row < result.rowCount else { return nil }
         
         // Handle data columns with recycling
         var cellView = tableView.makeView(withIdentifier: CellIdentifier.textCell, owner: self) as? TextCellView
@@ -296,13 +269,49 @@ extension TableListViewController: NSTableViewDelegate {
         }
         
         // Configure the cell with data
+        let columnName = tableColumn.identifier.rawValue
+        let value = result.value(row: row, column: columnName)
+        let displayText = formatValueForDisplay(value)
+        
         let isLastColumn = tableView.tableColumns.firstIndex(of: tableColumn) == tableView.tableColumns.count - 1
+        
         cellView?.configure(
-            text: "Cell \(row + 1)",
+            text: displayText,
             isLastColumn: isLastColumn
         )
         
         return cellView
+    }
+//    
+//    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+//        guard let tableColumn = tableColumn,
+//              let result = postgresResult,
+//              row < result.rowCount else { return nil }
+//      
+//      guard let cell = tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? NSTableCellView else { return nil }
+//      
+//        let columnName = tableColumn.identifier.rawValue
+//        let value = result.value(row: row, column: columnName)
+//        let displayText = formatValueForDisplay(value)
+//        
+//          cell.textField?.stringValue = displayText
+//      
+//      return cell
+//    }
+    
+    private func formatValueForDisplay(_ value: Any?) -> String {
+        guard let value = value else { return "NULL" }
+        
+        if let date = value as? Date {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        } else if let bool = value as? Bool {
+            return bool ? "true" : "false"
+        } else {
+            return String(describing: value)
+        }
     }
     
     // Row view recycling
@@ -341,20 +350,5 @@ extension TableListViewController: NSTableViewDelegate {
         
         return true
     }
-    
-    func tableView(_ tableView: NSTableView, shouldEdit tableColumn: NSTableColumn?, row: Int) -> Bool {
-        print("table column")
-        return true
-    }
-    
-    //    func tableView(_ tableView: NSTableView, headerViewFor tableColumn: NSTableColumn?) -> NSTableHeaderView? {
-    //        let headerView = NSTableHeaderView()
-    //        return headerView
-    //
-    ////        let headerCell = NSTableHeaderCell(textCell: title)
-    ////        headerCell.font = NSFont.boldSystemFont(ofSize: 11)
-    ////        headerCell.backgroundStyle = .raised
-    ////        headerCell.textColor = NSColor.labelColor.withAlphaComponent(0.7)
-    //    }
 }
 

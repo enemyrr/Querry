@@ -12,6 +12,10 @@ struct MySQLCollectionWrapper: CollectionWrapper {
 
 // MARK: - MySQL Driver (Placeholder)
 class MySQLDriver: DatabaseDriver {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [String : Any] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     typealias Database = MySQLDatabaseWrapper
     typealias Collection = MySQLCollectionWrapper
     typealias Document = [String: Any]

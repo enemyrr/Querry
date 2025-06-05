@@ -44,6 +44,10 @@ struct MongoCollectionWrapper: CollectionWrapper {
 
 // MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> BSON.Document.FormattedDocument {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     typealias Database = MongoDBWrapper
     typealias Collection = MongoCollectionWrapper
     typealias Document = MongoKitten.Document

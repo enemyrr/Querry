@@ -27,7 +27,8 @@ import SwiftUI
     
     // UI States
     var action: ActionBar = ActionBar.main
-    var formattedDocuments: [Any] = []
+    var formattedDocuments: Any = []
+    var rowDocuments: PostgreSQLQueryResult?;
     var isLoading = true
     var error: Error?
     var filterText = ""
@@ -67,13 +68,15 @@ import SwiftUI
 //                skip: paginationManager.skip,
 //                limit: paginationManager.limit
             )
-//            
+            
+//
 //            // Process documents in a background task to avoid blocking
             await MainActor.run {
                 paginationManager.updateTotalItems(count)
                 self.formattedDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
+                self.rowDocuments = documents as? PostgreSQLQueryResult
                 
                 // Instead of immediately setting isLoading to false,
                 Task {

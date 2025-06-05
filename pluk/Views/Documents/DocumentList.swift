@@ -17,15 +17,15 @@ struct DocumentList: View {
                 VStack {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(viewModel.formattedDocuments as! [MongoKitten.Document.FormattedDocument], id: \.self) { document in
-                                DocumentRow(
-                                    viewModel: DocumentRowViewModel(
-                                        document: document,
-                                        documentListViewModel: viewModel)
-                                )
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal)
-                            }
+//                            ForEach(viewModel.formattedDocuments as! [MongoKitten.Document.FormattedDocument], id: \.self) { document in
+//                                DocumentRow(
+//                                    viewModel: DocumentRowViewModel(
+//                                        document: document,
+//                                        documentListViewModel: viewModel)
+//                                )
+//                                .frame(maxWidth: .infinity)
+//                                .padding(.horizontal)
+//                            }
                         }
                         .id("\(viewModel.lastFetchTimestamp)")
                         .padding(.top)
@@ -36,31 +36,31 @@ struct DocumentList: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay {
-                        if viewModel.formattedDocuments.isEmpty && viewModel.isLoading == false {
-                            if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
-                                ContentUnavailableView {
-                                    Label("No Matching Documents", systemImage: "doc.text.magnifyingglass").font(.title2)
-                                } description: {
-                                    Text("Your search didn't match any documents in this collection.")
-                                } actions: {
-                                    Button("Clear Search") {
-                                        searchQueryViewModel.clearQuery()
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            } else {
-                                ContentUnavailableView {
-                                    Label("No Documents Available", systemImage: "tray").font(.title2)
-                                } description: {
-                                    Text("This collection doesn't contain any documents yet.\nAdd your first document or import data to get started.")
-                                } actions: {
-                                    Button("Add Document") {
-                                        searchQueryViewModel.showCreateDocumentSheet = true
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
+//                        if viewModel.formattedDocuments.isEmpty && viewModel.isLoading == false {
+//                            if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
+//                                ContentUnavailableView {
+//                                    Label("No Matching Documents", systemImage: "doc.text.magnifyingglass").font(.title2)
+//                                } description: {
+//                                    Text("Your search didn't match any documents in this collection.")
+//                                } actions: {
+//                                    Button("Clear Search") {
+//                                        searchQueryViewModel.clearQuery()
+//                                    }
+//                                    .buttonStyle(.plain)
+//                                }
+//                            } else {
+//                                ContentUnavailableView {
+//                                    Label("No Documents Available", systemImage: "tray").font(.title2)
+//                                } description: {
+//                                    Text("This collection doesn't contain any documents yet.\nAdd your first document or import data to get started.")
+//                                } actions: {
+//                                    Button("Add Document") {
+//                                        searchQueryViewModel.showCreateDocumentSheet = true
+//                                    }
+//                                    .buttonStyle(.plain)
+//                                }
+//                            }
+//                        }
                     }
                 }
                 .task {

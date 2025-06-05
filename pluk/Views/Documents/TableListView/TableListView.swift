@@ -8,7 +8,6 @@ import Foundation
 import SwiftUI
 import AppKit
 
-// MARK: - SwiftUI View that internally uses AppKit
 struct TableListView: View {
     private let viewModel: DocumentListModel
     
@@ -17,28 +16,37 @@ struct TableListView: View {
     }
     
     var body: some View {
-        InternalTableListViewWrapper(viewModel: viewModel)
-            .background(Color.clear)
-            .background {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            }
-            .task {
-                if !viewModel.intialLoadComplete {
-                    await viewModel.loadDocuments()
+        Group {
+            if let rowDocuments = viewModel.rowDocuments {
+                InternalTableListViewWrapper(
+                    rows: rowDocuments,
+                    isLoading: viewModel.isLoading
+                )
+                .background {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: 1)
                 }
+            } else {
+                ProgressView().controlSize(.small)
             }
+        }
+        .task {
+            if !viewModel.intialLoadComplete {
+                await viewModel.loadDocuments()
+            }
+        }
     }
     
     private struct InternalTableListViewWrapper: NSViewControllerRepresentable {
-        let viewModel: DocumentListModel
+        var rows: PostgreSQLQueryResult
+        var isLoading: Bool = false
         
         func makeNSViewController(context: Context) -> TableListViewController {
-            return TableListViewController(rows: viewModel.formattedDocuments)
+            return TableListViewController(rows: rows)
         }
         
         func updateNSViewController(_ nsViewController: TableListViewController, context: Context) {
-//            nsViewController.updateContent()
+            nsViewController.updateRows(rows, isLoading: isLoading)
         }
     }
 }

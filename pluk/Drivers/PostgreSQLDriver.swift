@@ -16,14 +16,61 @@ struct PostgreSQLCell {
     public var format: PostgresFormat
     public var columnName: String
     public var columnIndex: Int
+    public var data: Any
+}
+
+struct PostgreSQLColumnInfo {
+    let name: String
+    let dataType: PostgresDataType
+    let format: PostgresFormat
+    let index: Int
+}
+
+struct PostgreSQLRow {
+    let data: [String: Any] // Column name -> value
+    let index: Int
+}
+
+struct PostgreSQLQueryResult {
+    let columns: [PostgreSQLColumnInfo]
+    let rows: [PostgreSQLRow]
+    let totalCount: Int
+    
+    // Convenience computed properties
+    var columnNames: [String] {
+        return columns.map { $0.name }
+    }
+    
+    var columnCount: Int {
+        return columns.count
+    }
+    
+    var rowCount: Int {
+        return rows.count
+    }
+    
+    // Get specific column info by name
+    func column(named name: String) -> PostgreSQLColumnInfo? {
+        return columns.first { $0.name == name }
+    }
+    
+    // Get value for specific row and column
+    func value(row: Int, column: String) -> Any? {
+        guard row < rows.count else { return nil }
+        return rows[row].data[column]
+    }
 }
 
 // MARK: - PostgreSQL Driver
 class PostgreSQLDriver: DatabaseDriver {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [PostgreSQLQueryResult] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     typealias Database = PostgreSQLDatabaseWrapper
     typealias Collection = PostgreSQLCollectionWrapper
     typealias Document = [String: Any]
-    typealias FormattedDocument = PostgreSQLCell
+    typealias FormattedDocument = PostgreSQLQueryResult
     
     // Store connection and event loop group for proper cleanup
     private var connection: PostgresConnection?
@@ -103,11 +150,11 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     private func ensureConnected() throws -> PostgresConnection {
-            guard isConnected, let connection = self.connection else {
-                throw DatabaseError.connectionFailed("Not connected to PostgreSQL database")
-            }
-            return connection
+        guard isConnected, let connection = self.connection else {
+            throw DatabaseError.connectionFailed("Not connected to PostgreSQL database")
         }
+        return connection
+    }
     
     func getBuildInfo() async throws -> BuildInfo {
         let connection = try ensureConnected()
@@ -188,32 +235,103 @@ class PostgreSQLDriver: DatabaseDriver {
         return 1
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [FormattedDocument] {
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> PostgreSQLQueryResult {
         let connection = try ensureConnected()
-               
-               do {
-                   let results = try await connection.query("SELECT * FROM \"user\";", logger: Logger(label: "postgres"))
-                   
-                   var allRows: [FormattedDocument] = []
-
-                   for try await row in results {
-                       for value in row.makeRandomAccess() {
-                           allRows.append(
-                            FormattedDocument(dataType: value.dataType, format: value.format, columnName: value.columnName, columnIndex: value.columnIndex)
-                           )
-                       }
+        
+        do {
+            let results = try await connection.query("SELECT * FROM \"persona\" ORDER by id;", logger: Logger(label: "postgres"))
+            
+            var columns: [PostgreSQLColumnInfo] = []
+            var rows: [PostgreSQLRow] = []
+            var rowIndex = 0
+            
+            for try await row in results {
+                var rowData: [String: Any] = [:]
+                
+                if columns.isEmpty {
+                    var columnIndex = 0
+                    for cell in row {
+                        let columnInfo = PostgreSQLColumnInfo(
+                            name: cell.columnName,
+                            dataType: cell.dataType,
+                            format: cell.format,
+                            index: columnIndex
+                        )
+                        columns.append(columnInfo)
+                        columnIndex += 1
                     }
-                    return allRows
-               } catch let error as PSQLError {
-                   throw mapPSQLError(error)
-               } catch {
-                   throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
-               }
+                }
+                
+                // Extract row data
+                for cell in row {
+                    let columnName = cell.columnName
+                    let value = try extractValue(from: cell)
+                    rowData[columnName] = value
+                }
+                
+                let postgresRow = PostgreSQLRow(data: rowData, index: rowIndex)
+                rows.append(postgresRow)
+                rowIndex += 1
+            }
+            
+            return PostgreSQLQueryResult(
+                columns: columns,
+                rows: rows,
+                totalCount: rows.count
+            )
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
+        }
     }
     
     func createDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
+    
+    private func extractValue(from cell: PostgresCell) throws -> Any? {
+          // Check if the cell is null
+          if cell.bytes == nil {
+              return nil
+          }
+          
+          // Extract value based on PostgreSQL data type
+          switch cell.dataType {
+          case .bool:
+              return try cell.decode(Bool.self)
+          case .int2:
+              return try cell.decode(Int16.self)
+          case .int4:
+              return try cell.decode(Int32.self)
+          case .int8:
+              return try cell.decode(Int64.self)
+          case .float4:
+              return try cell.decode(Float.self)
+          case .float8:
+              return try cell.decode(Double.self)
+          case .text, .varchar, .char:
+              return try cell.decode(String.self)
+          case .timestamp, .timestamptz:
+              return try cell.decode(Date.self)
+          case .date:
+              return try cell.decode(Date.self)
+          case .uuid:
+              return try cell.decode(UUID.self)
+          case .json, .jsonb:
+              // For JSON types, decode as String first, then you can parse as needed
+              let jsonString = try cell.decode(String.self)
+              return jsonString
+          case .bytea:
+              return try cell.decode(Data.self)
+          case .numeric:
+              // PostgreSQL NUMERIC/DECIMAL - decode as Decimal or String
+              return try cell.decode(String.self)
+          default:
+              // For unknown types, try to decode as String
+              return try cell.decode(String.self)
+          }
+      }
     
     func updateDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, id: Any, data: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
@@ -323,22 +441,22 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     private func extractVersionNumber(from fullVersion: String) -> String? {
-           let pattern = #"PostgreSQL\s+(\d+(?:\.\d+)*)"#
-           
-           do {
-               let regex = try NSRegularExpression(pattern: pattern, options: [])
-               let nsString = fullVersion as NSString
-               let results = regex.matches(in: fullVersion, options: [], range: NSRange(location: 0, length: nsString.length))
-               
-               if let match = results.first,
-                  match.numberOfRanges > 1 {
-                   let versionRange = match.range(at: 1)
-                   return nsString.substring(with: versionRange)
-               }
-           } catch {
-               print("Regex failed for version extraction: \(error)")
-           }
-           
+        let pattern = #"PostgreSQL\s+(\d+(?:\.\d+)*)"#
+        
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let nsString = fullVersion as NSString
+            let results = regex.matches(in: fullVersion, options: [], range: NSRange(location: 0, length: nsString.length))
+            
+            if let match = results.first,
+               match.numberOfRanges > 1 {
+                let versionRange = match.range(at: 1)
+                return nsString.substring(with: versionRange)
+            }
+        } catch {
+            print("Regex failed for version extraction: \(error)")
+        }
+        
         return nil
     }
 }

@@ -12,6 +12,10 @@ struct MariaDBCollectionWrapper: CollectionWrapper {
 
 // MARK: - MariaDB Driver (Placeholder)
 class MariaDBDriver: DatabaseDriver {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [String : Any] {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
     typealias Database = MariaDBDatabaseWrapper
     typealias Collection = MariaDBCollectionWrapper
     typealias Document = [String: Any]
