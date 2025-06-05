@@ -41,11 +41,14 @@ class TextCellView: NSView {
         textField = NSTextField(labelWithString: "")
         textField.textColor = NSColor.labelColor
         textField.font = NSFont.systemFont(ofSize: 12)
+        textField.lineBreakMode = .byTruncatingTail
+        textField.cell?.truncatesLastVisibleLine = true
         
         addSubview(textField)
         textField.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
             textField.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }

@@ -238,8 +238,13 @@ class PostgreSQLDriver: DatabaseDriver {
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> PostgreSQLQueryResult {
         let connection = try ensureConnected()
         
+        // Validate and sanitize the collection name to prevent SQL injection
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
         do {
-            let results = try await connection.query("SELECT * FROM \"persona\" ORDER by id;", logger: Logger(label: "postgres"))
+            // Use proper identifier quoting for PostgreSQL
+            let query = "SELECT * FROM \(sanitizedCollectionName) ORDER BY id"
+            let results = try await connection.query(PostgresQuery(unsafeSQL: query), logger: Logger(label: "postgres"))
             
             var columns: [PostgreSQLColumnInfo] = []
             var rows: [PostgreSQLRow] = []
@@ -378,6 +383,43 @@ class PostgreSQLDriver: DatabaseDriver {
             database: database,
             tls: .disable // You might want to make this configurable
         )
+    }
+    
+    private func validateAndSanitizeIdentifier(_ identifier: String) throws -> String {
+        // Remove whitespace and validate the identifier
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check if the identifier is empty
+        if trimmed.isEmpty {
+            throw DatabaseError.configurationError("Identifier cannot be empty")
+        }
+        
+        // PostgreSQL identifier rules:
+        // - Must start with a letter or underscore
+        // - Can contain letters, digits, underscores, and dollar signs
+        // - Maximum length is 63 characters
+        
+        if trimmed.count > 63 {
+            throw DatabaseError.configurationError("Identifier too long (max 63 characters)")
+        }
+        
+        // Check if it starts with letter or underscore
+        guard let firstChar = trimmed.first,
+              firstChar.isLetter || firstChar == "_" else {
+            throw DatabaseError.configurationError("Identifier must start with letter or underscore")
+        }
+        
+        // Check for valid characters
+        let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_$"))
+        for char in trimmed.unicodeScalars {
+            if !validCharacters.contains(char) {
+                throw DatabaseError.configurationError("Identifier contains invalid characters")
+            }
+        }
+        
+        // Return properly quoted identifier for PostgreSQL
+        // Use double quotes to preserve case and handle reserved words
+        return "\"\(trimmed)\""
     }
     
     private func buildWhereClause(from filter: [String: Any]) -> String {
