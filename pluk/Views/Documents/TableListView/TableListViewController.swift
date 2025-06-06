@@ -13,15 +13,17 @@ class TableListViewController: NSViewController {
     private let containerView = NSView()
     private let scrollView = NSScrollView()
     private let tableView = NSTableView()
-    
+    private let schema: DatabaseSchemaResult
+
     private enum CellIdentifier {
         static let checkbox = NSUserInterfaceItemIdentifier("CheckboxCell")
         static let textCell = NSUserInterfaceItemIdentifier("TextCell")
         static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
     }
     
-    init(rows: PostgreSQLQueryResult) {
+    init(rows: PostgreSQLQueryResult, schema: DatabaseSchemaResult) {
         self.postgresResult = rows
+        self.schema = schema
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -30,7 +32,7 @@ class TableListViewController: NSViewController {
     }
     
     
-    func updateRows(_ newRows: PostgreSQLQueryResult, isLoading: Bool = false) {
+    func updateRows(_ newRows: PostgreSQLQueryResult, isLoading: Bool = false, schema: DatabaseSchemaResult? = nil) {
            // Update on main thread since we're dealing with UI
            DispatchQueue.main.async { [weak self] in
                guard let self = self else { return }
@@ -48,21 +50,19 @@ class TableListViewController: NSViewController {
 //                   self.hideLoadingState()
                    
                    // ✅ Rebuild columns when data changes
-//                   self.setupDynamicColumns()
+                   self.setupDynamicColumns()
                    
                    // Reload the table with new data
-//                   self.tableView.reloadData()
+                   self.tableView.reloadData()
                }
            }
        }
     
     private func setupDynamicColumns() {
-            guard let result = postgresResult else { return }
-            
-            for columnInfo in result.columns {
+            for columnInfo in schema.columns {
                 createColumn(
-                    identifier: columnInfo.name,
-                    title: columnInfo.name.capitalized,
+                    identifier: columnInfo.columnName,
+                    title: columnInfo.columnName.capitalized,
                     icon: nil
                 )
             }
@@ -142,7 +142,7 @@ class TableListViewController: NSViewController {
         // ✅ Table view setup - make it size itself
         tableView.style = .inset
         tableView.backgroundColor = NSColor.clear
-        tableView.gridStyleMask = [.solidVerticalGridLineMask]
+//        tableView.gridStyleMask = [.solidVerticalGridLineMask]
         tableView.gridColor = NSColor.separatorColor
         tableView.usesAutomaticRowHeights = false
         tableView.columnAutoresizingStyle = .noColumnAutoresizing

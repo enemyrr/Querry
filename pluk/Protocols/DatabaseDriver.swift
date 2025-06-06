@@ -24,6 +24,8 @@ protocol DatabaseDriver {
     func updateDocument(in collectionName: String, database: Database, id: Any, data: [String: Any]) async throws
     func deleteDocument(in collectionName: String, database: Database, id: Any) async throws
     
+    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult
+    
     // Collection management
     func createCollection(named collectionName: String) async throws
     func renameCollection(from oldName: String, to newName: String) async throws
@@ -33,6 +35,92 @@ protocol DatabaseDriver {
 struct BuildInfo {
     let version: String
     let databaseType: DatabaseType
+}
+
+// MARK: - Schema Information Structures
+struct DatabaseSchemaInfo {
+    let ordinalPosition: Int?
+    let columnName: String
+    let dataType: String
+    let formatType: String?
+    let numericPrecision: Int?
+    let datetimePrecision: Int?
+    let numericScale: Int?
+    let dataLength: Int?
+    let isNullable: String
+    let check: String
+    let checkConstraint: String
+    let columnDefault: String?
+    let foreignKey: String
+    let comment: String?
+    
+    init(
+        ordinalPosition: Int? = nil,
+        columnName: String,
+        dataType: String,
+        formatType: String? = nil,
+        numericPrecision: Int? = nil,
+        datetimePrecision: Int? = nil,
+        numericScale: Int? = nil,
+        dataLength: Int? = nil,
+        isNullable: String = "YES",
+        check: String = "",
+        checkConstraint: String = "",
+        columnDefault: String? = nil,
+        foreignKey: String = "",
+        comment: String? = nil
+    ) {
+        self.ordinalPosition = ordinalPosition
+        self.columnName = columnName
+        self.dataType = dataType
+        self.formatType = formatType
+        self.numericPrecision = numericPrecision
+        self.datetimePrecision = datetimePrecision
+        self.numericScale = numericScale
+        self.dataLength = dataLength
+        self.isNullable = isNullable
+        self.check = check
+        self.checkConstraint = checkConstraint
+        self.columnDefault = columnDefault
+        self.foreignKey = foreignKey
+        self.comment = comment
+    }
+}
+
+struct DatabaseSchemaResult {
+    let tableName: String
+    let schemaName: String
+    let columns: [DatabaseSchemaInfo]
+    let totalCount: Int
+    
+    var columnCount: Int {
+        return columns.count
+    }
+    
+    // Get specific column info by name
+    func column(named name: String) -> DatabaseSchemaInfo? {
+        return columns.first { $0.columnName == name }
+    }
+    
+    // Get columns by data type
+    func columns(ofType dataType: String) -> [DatabaseSchemaInfo] {
+        return columns.filter { $0.dataType == dataType }
+    }
+    
+    // Get nullable columns
+    var nullableColumns: [DatabaseSchemaInfo] {
+        return columns.filter { $0.isNullable == "YES" }
+    }
+    
+    // Get non-nullable columns
+    var nonNullableColumns: [DatabaseSchemaInfo] {
+        return columns.filter { $0.isNullable == "NO" }
+    }
+    
+    // Get columns with defaults
+    var columnsWithDefaults: [DatabaseSchemaInfo] {
+        return columns.filter { $0.columnDefault != nil }
+    }
 }
 
 // MARK: - Generic Database Wrapper

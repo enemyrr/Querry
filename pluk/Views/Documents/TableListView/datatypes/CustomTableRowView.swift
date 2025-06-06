@@ -72,12 +72,12 @@ class CustomTableRowView: NSTableRowView {
         if !isSelected {
             // Additional background drawing if needed
         }
-        drawCustomBorders()
+        // drawCustomBorders()
     }
     
     private func drawCustomBorders() {
         let separatorColor = NSColor.separatorColor
-        let bottomBorderRect = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
+        let bottomBorderRect = NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1)
         separatorColor.setFill()
         bottomBorderRect.fill()
     }

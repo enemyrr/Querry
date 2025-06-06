@@ -165,21 +165,16 @@ class MongoDBDriver: DatabaseDriver {
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
-        guard let mongoDatabase = connectedDatabase else {
+        guard let database = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
         
-        let renameCommand: Document = [
-            "renameCollection": "\(mongoDatabase.name).\(oldName)",
-            "to": "\(mongoDatabase.name).\(newName)"
-        ]
-        
-        let connection = try await mongoDatabase.pool.next(for: .basic)
-        
-        _ = try await connection.execute(
-            renameCommand,
-            namespace: .administrativeCommand
-        )
+        let from = database[oldName]
+//        try await from.rename(to: newName)
+    }
+    
+    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
+        throw DatabaseError.notImplemented("MongoDB schema introspection not yet implemented")
     }
     
     // MARK: - Document Formatting

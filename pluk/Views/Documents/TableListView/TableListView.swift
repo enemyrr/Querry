@@ -10,6 +10,7 @@ import AppKit
 
 struct TableListView: View {
     private let viewModel: DocumentListModel
+    @State private var schema: DatabaseSchemaResult?
     
     init(viewModel: DocumentListModel) {
         self.viewModel = viewModel
@@ -17,10 +18,11 @@ struct TableListView: View {
     
     var body: some View {
         Group {
-            if let rowDocuments = viewModel.rowDocuments {
+            if let rowDocuments = viewModel.rowDocuments, let schema = schema {
                 InternalTableListViewWrapper(
                     rows: rowDocuments,
-                    isLoading: viewModel.isLoading
+                    isLoading: viewModel.isLoading,
+                    schema: schema
                 )
                 .background {
                     RoundedRectangle(cornerRadius: 10)
@@ -31,6 +33,17 @@ struct TableListView: View {
             }
         }
         .task {
+            if let selectedTab = viewModel.instance.selectedTab {
+                do {
+                    let schemaResult = try await viewModel.databaseDriver.getSchema(for: selectedTab.name)
+                    await MainActor.run {
+                        self.schema = schemaResult
+                    }
+                } catch {
+                    print("Failed to get schema: \(error)")
+                }
+            }
+            
             if !viewModel.intialLoadComplete {
                 await viewModel.loadDocuments()
             }
@@ -40,13 +53,14 @@ struct TableListView: View {
     private struct InternalTableListViewWrapper: NSViewControllerRepresentable {
         var rows: PostgreSQLQueryResult
         var isLoading: Bool = false
+        var schema: DatabaseSchemaResult
         
         func makeNSViewController(context: Context) -> TableListViewController {
-            return TableListViewController(rows: rows)
+            return TableListViewController(rows: rows, schema: schema)
         }
         
         func updateNSViewController(_ nsViewController: TableListViewController, context: Context) {
-            nsViewController.updateRows(rows, isLoading: isLoading)
+            nsViewController.updateRows(rows, isLoading: isLoading, schema: schema)
         }
     }
 }

@@ -69,4 +69,8 @@ class MariaDBDriver: DatabaseDriver {
     func renameCollection(from oldName: String, to newName: String) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
+    
+    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
 } 

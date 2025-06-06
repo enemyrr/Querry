@@ -12,7 +12,7 @@ import SwiftUI
 
 @Observable class DocumentListModel {
     let instance: ConnectionInstance
-    private let databaseDriver: any DatabaseDriver
+    let databaseDriver: any DatabaseDriver
     private let paginationManager: PaginationManager
     var connectedDatabase: any DatabaseWrapper
     

@@ -10,10 +10,11 @@ import AppKit
 
 class TextCellView: NSView {
     private var textField: NSTextField!
-    private var borderView: NSView?
     private var hoverBorderView: NSView?
     private var selectedBorderView: NSView?
     private var trackingArea: NSTrackingArea?
+    private var rightBorderView: NSView?
+    private var bottomBorderView: NSView?
     
     // Static properties to track states
     private static weak var currentlyHoveredCell: TextCellView?
@@ -319,37 +320,51 @@ class TextCellView: NSView {
     func configure(text: String, isLastColumn: Bool) {
         textField.stringValue = text
         
-        // Handle border for last column
-        if isLastColumn {
-            if borderView == nil {
-                createBorderView()
-            }
-            borderView?.isHidden = false
-        } else {
-            borderView?.isHidden = true
+        // Always show border for all cells
+        if rightBorderView == nil || bottomBorderView == nil {
+            createBorderView()
         }
     }
     
     private func createBorderView() {
-        borderView = NSView()
-        borderView?.wantsLayer = true
-        borderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+         // Right border
+         rightBorderView = NSView()
+         rightBorderView?.wantsLayer = true
+         rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
         
-        addSubview(borderView!)
-        borderView?.translatesAutoresizingMaskIntoConstraints = false
+         addSubview(rightBorderView!)
+         rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
+         NSLayoutConstraint.activate([
+             rightBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 9),
+             rightBorderView!.topAnchor.constraint(equalTo: topAnchor),
+             rightBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
+             rightBorderView!.widthAnchor.constraint(equalToConstant: 1.0)
+         ])
+        
+        // Bottom border
+        bottomBorderView = NSView()
+        bottomBorderView?.wantsLayer = true
+        bottomBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        
+        addSubview(bottomBorderView!)
+        bottomBorderView?.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            borderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 9),
-            borderView!.topAnchor.constraint(equalTo: topAnchor),
-            borderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
-            borderView!.widthAnchor.constraint(equalToConstant: 1.0)
+            bottomBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -8),
+            bottomBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 8),
+            bottomBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
+            bottomBorderView!.heightAnchor.constraint(equalToConstant: 1.0)
         ])
+    }
+    
+    override func layout() {
+        super.layout()
+        // No need for manual frame updates - Auto Layout handles everything
     }
     
     // Prepare for reuse - reset state
     override func prepareForReuse() {
         super.prepareForReuse()
         textField.stringValue = ""
-        borderView?.isHidden = true
         
         // Clear hover state if this cell was currently hovered
         if TextCellView.currentlyHoveredCell === self {
