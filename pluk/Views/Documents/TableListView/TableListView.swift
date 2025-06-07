@@ -23,10 +23,12 @@ struct TableListView: View {
                     rows: rowDocuments,
                     schema: schema
                 )
+                .background(Color(.controlColor).opacity(0.1))
                 .background {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(.separator, lineWidth: 1)
                 }
+                .cornerRadius(10)
             } else {
                 ProgressView().controlSize(.small)
             }
@@ -42,7 +44,8 @@ struct TableListView: View {
                     print("Failed to get schema: \(error)")
                 }
             }
-            
+        }
+        .task {            
             if !viewModel.intialLoadComplete {
                 await viewModel.loadDocuments()
             }

@@ -225,9 +225,13 @@ struct TableListViewController: NSViewRepresentable {
             // Configure the cell with data
             let columnName = tableColumn.identifier.rawValue
             let value = result.value(row: row, column: columnName)
-            
+            guard let columnInfo = result.column(named: columnName) else {
+                return nil
+            }
+
             cellView?.configure(
-                text: value ?? "Test",
+                value: value,
+                columnInfo: columnInfo
             )
             
             return cellView

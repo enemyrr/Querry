@@ -60,6 +60,23 @@ struct PostgreSQLQueryResult {
         guard row < rows.count else { return nil }
         return rows[row].data[column]
     }
+    
+    // Get column info by index
+    func column(at index: Int) -> PostgreSQLColumnInfo? {
+        guard index >= 0 && index < columns.count else { return nil }
+        return columns[index]
+    }
+    
+    // Get all values for a specific column
+    func values(for column: String) -> [Any] {
+        return rows.compactMap { $0.data[column] }
+    }
+    
+    // Get all values for a column by index
+    func values(at columnIndex: Int) -> [Any] {
+        guard let columnName = column(at: columnIndex)?.name else { return [] }
+        return values(for: columnName)
+    }
 }
 
 

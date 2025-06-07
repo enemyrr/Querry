@@ -332,8 +332,14 @@ class TextCellView: NSView {
     }
 
     
-    func configure(value: String?) {
-        textField.stringValue = value
+    func configure(value: Any?, columnInfo: PostgreSQLColumnInfo) {
+        if let value = value {
+            textField.stringValue = String(describing: value)
+            textField.textColor = NSColor.headerTextColor
+        } else {
+            textField.stringValue = "(NULL)"
+            textField.textColor = NSColor.secondaryLabelColor
+        }
         
         // Always show border for all cells
         if rightBorderView == nil || bottomBorderView == nil {

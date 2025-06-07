@@ -136,7 +136,7 @@ struct TabBarItem: View {
     
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 10) {
+            HStack(spacing: 14) {
                 Button(action: onClose) {
                     Image(systemName: isHovering ? "xmark" : databaseType == .mongodb ? "document.fill" : "table")
                         .font(.system(size: 9))
