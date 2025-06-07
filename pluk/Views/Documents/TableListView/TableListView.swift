@@ -19,9 +19,8 @@ struct TableListView: View {
     var body: some View {
         Group {
             if let rowDocuments = viewModel.rowDocuments, let schema = schema {
-                InternalTableListViewWrapper(
+                TableListViewController(
                     rows: rowDocuments,
-                    isLoading: viewModel.isLoading,
                     schema: schema
                 )
                 .background {
@@ -49,19 +48,4 @@ struct TableListView: View {
             }
         }
     }
-    
-    private struct InternalTableListViewWrapper: NSViewControllerRepresentable {
-        var rows: PostgreSQLQueryResult
-        var isLoading: Bool = false
-        var schema: DatabaseSchemaResult
-        
-        func makeNSViewController(context: Context) -> TableListViewController {
-            return TableListViewController(rows: rows, schema: schema)
-        }
-        
-        func updateNSViewController(_ nsViewController: TableListViewController, context: Context) {
-            nsViewController.updateRows(rows, isLoading: isLoading, schema: schema)
-        }
-    }
 }
-

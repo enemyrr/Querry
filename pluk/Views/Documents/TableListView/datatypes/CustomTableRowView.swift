@@ -69,10 +69,9 @@ class CustomTableRowView: NSTableRowView {
     }
     
     override func drawBackground(in dirtyRect: NSRect) {
-        if !isSelected {
-            // Additional background drawing if needed
+        if isSelected {
+            drawCustomBorders()
         }
-        // drawCustomBorders()
     }
     
     private func drawCustomBorders() {

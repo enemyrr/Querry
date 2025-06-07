@@ -16,7 +16,6 @@ class TextCellView: NSView {
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
     
-    // Static properties to track states
     private static weak var currentlyHoveredCell: TextCellView?
     private static weak var currentlySelectedCell: TextCellView?
     
@@ -24,18 +23,18 @@ class TextCellView: NSView {
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        setupTextField()
-        setupHoverBorder()
-        setupSelectedBorder()
-        setupTracking()
+         setupTextField()
+         setupHoverBorder()
+         setupSelectedBorder()
+         setupTracking()
     }
     
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupTextField()
-        setupHoverBorder()
-        setupSelectedBorder()
-        setupTracking()
+         setupHoverBorder()
+         setupSelectedBorder()
+         setupTracking()
     }
     
     private func setupTextField() {
@@ -48,8 +47,8 @@ class TextCellView: NSView {
         addSubview(textField)
         textField.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             textField.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }
@@ -317,8 +316,24 @@ class TextCellView: NSView {
         }
     }
     
-    func configure(text: String, isLastColumn: Bool) {
-        textField.stringValue = text
+    private func formatValueForDisplay(_ value: Any?) -> String? {
+        guard let value = value else { return "NULL" }
+        
+        if let date = value as? Date {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        } else if let bool = value as? Bool {
+            return bool ? "true" : "false"
+        } else {
+            return String(describing: value)
+        }
+    }
+
+    
+    func configure(value: String?) {
+        textField.stringValue = value
         
         // Always show border for all cells
         if rightBorderView == nil || bottomBorderView == nil {
