@@ -39,7 +39,6 @@ struct DocumentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding([.leading, .trailing, .bottom], 8)
-            .padding(.top, 0)
             .zIndex(-1)
         }
         .padding(.top, 8)
