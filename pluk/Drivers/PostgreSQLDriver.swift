@@ -34,8 +34,9 @@ struct PostgreSQLRow {
 
 struct PostgreSQLQueryResult {
     let columns: [PostgreSQLColumnInfo]
-    let rows: [PostgreSQLRow]
+    let rows: [PostgresRandomAccessRow]
     let totalCount: Int
+    let rawRows: [PostgresRandomAccessRow]
     
     // Convenience computed properties
     var columnNames: [String] {
@@ -55,11 +56,11 @@ struct PostgreSQLQueryResult {
         return columns.first { $0.name == name }
     }
     
-    // Get value for specific row and column
-    func value(row: Int, column: String) -> Any? {
-        guard row < rows.count else { return nil }
-        return rows[row].data[column]
-    }
+//    // Get value for specific row and column
+//    func value(row: Int, column: String) -> Any? {
+//        guard row < rows.count else { return nil }
+//        return rows[row].data[column]
+//    }
     
     // Get column info by index
     func column(at index: Int) -> PostgreSQLColumnInfo? {
@@ -68,15 +69,52 @@ struct PostgreSQLQueryResult {
     }
     
     // Get all values for a specific column
-    func values(for column: String) -> [Any] {
-        return rows.compactMap { $0.data[column] }
-    }
+//    func values(for column: String) -> [Any] {
+//        return rows.compactMap { $0.data[column] }
+//    }
     
     // Get all values for a column by index
-    func values(at columnIndex: Int) -> [Any] {
-        guard let columnName = column(at: columnIndex)?.name else { return [] }
-        return values(for: columnName)
-    }
+//    func values(at columnIndex: Int) -> [Any] {
+//        guard let columnName = column(at: columnIndex)?.name else { return [] }
+//        return values(for: columnName)
+//    }
+    
+    // Get raw cell for lazy decoding - NOW RETURNS PostgresCell
+       func rawCell(row: Int, column: String) -> PostgresCell? {
+           guard row < rawRows.count else { return nil }
+           let randomAccessRow = rawRows[row]
+           
+           // Check if column exists first
+           guard randomAccessRow.contains(column) else { return nil }
+           
+           return randomAccessRow[column] // This returns PostgresCell
+       }
+       
+       // For compatibility - decode on demand
+       func value(row: Int, column: String) -> Any? {
+           guard let cell = rawCell(row: row, column: column) else { return nil }
+           return try? decodeValue(from: cell)
+       }
+       
+       private func decodeValue(from cell: PostgresCell) throws -> Any? {
+           guard cell.bytes != nil else { return nil }
+           
+           switch cell.dataType {
+           case .bool: return try cell.decode(Bool.self)
+           case .int2: return try cell.decode(Int16.self)
+           case .int4: return try cell.decode(Int32.self)
+           case .int8: return try cell.decode(Int64.self)
+           case .float4: return try cell.decode(Float.self)
+           case .float8: return try cell.decode(Double.self)
+           case .text, .varchar, .char: return try cell.decode(String.self)
+           case .timestamp, .timestamptz, .date: return try cell.decode(Date.self)
+           case .uuid: return try cell.decode(UUID.self)
+           case .json, .jsonb: return try cell.decode(String.self)
+           case .bytea: return try cell.decode(Data.self)
+           case .numeric: return try cell.decode(String.self)
+           default: return try cell.decode(String.self)
+           }
+       }
 }
 
 
@@ -269,59 +307,42 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> PostgreSQLQueryResult {
-        let startTime = CFAbsoluteTimeGetCurrent()
         let connection = try ensureConnected()
-        
-        // Validate and sanitize the collection name to prevent SQL injection
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         do {
-            // Use proper identifier quoting for PostgreSQL
-            let query = "SELECT * FROM \(sanitizedCollectionName)"
-            let results = try await connection.query(PostgresQuery(unsafeSQL: query), logger: Logger(label: "postgres"))
+            let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 150"
+            let results = try await connection.query(query, logger: Logger(label: "postgres"))
             
             var columns: [PostgreSQLColumnInfo] = []
-            var rows: [PostgreSQLRow] = []
-            var rowIndex = 0
+            var rawRows: [PostgresRandomAccessRow] = [] // Store random access rows
+            var columnsInitialized = false
             
             for try await row in results {
-                var rowData: [String: Any] = [:]
-                
-                if columns.isEmpty {
+                // Extract column info only once
+                if !columnsInitialized {
                     var columnIndex = 0
                     for cell in row {
-                        let columnInfo = PostgreSQLColumnInfo(
+                        columns.append(PostgreSQLColumnInfo(
                             name: cell.columnName,
                             dataType: cell.dataType,
                             format: cell.format,
                             index: columnIndex
-                        )
-                        columns.append(columnInfo)
+                        ))
                         columnIndex += 1
                     }
+                    columnsInitialized = true
                 }
                 
-                // Extract row data
-                for cell in row {
-                    let columnName = cell.columnName
-                    let value = try extractValue(from: cell)
-                    rowData[columnName] = value
-                }
-                
-                let postgresRow = PostgreSQLRow(data: rowData, index: rowIndex)
-                rows.append(postgresRow)
-                rowIndex += 1
+                // Convert to random access row for O(1) cell access
+                rawRows.append(row.makeRandomAccess())
             }
-            
-            let endTime = CFAbsoluteTimeGetCurrent()
-            let executionTime = endTime - startTime
-            print("⏱️ Query execution time: \(String(format: "%.3f", executionTime)) seconds")
-            print("📊 Fetched \(rows.count) rows")
             
             return PostgreSQLQueryResult(
                 columns: columns,
-                rows: rows,
-                totalCount: rows.count
+                rows: rawRows,
+                totalCount: rawRows.count,
+                rawRows: rawRows,
             )
             
         } catch let error as PSQLError {
@@ -330,7 +351,7 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
-    
+
     func createDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }

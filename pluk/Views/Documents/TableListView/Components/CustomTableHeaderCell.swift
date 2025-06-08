@@ -54,7 +54,6 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         titleLabel?.isBordered = false
         titleLabel?.backgroundColor = .clear
         titleLabel?.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel?.textColor = .headerTextColor
         titleLabel?.alignment = .left
         //
         //        // Create icon
@@ -176,15 +175,15 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         let rightBorder = NSBezierPath()
         rightBorder.move(to: NSPoint(x: frame.maxX - 0.5, y: frame.minY + verticalInset))
         rightBorder.line(to: NSPoint(x: frame.maxX - 0.5, y: frame.maxY - verticalInset))
-        rightBorder.lineWidth = 0.5
+        rightBorder.lineWidth = 1
         rightBorder.stroke()
-//        
-//                let bottomBorder = NSBezierPath()
-//                bottomBorder.move(to: NSPoint(x: frame.minX, y: frame.minY))
-//                bottomBorder.line(to: NSPoint(x: frame.maxX, y: frame.minY))
-//                bottomBorder.lineWidth = 2
-//                bottomBorder.stroke()
-    }
+        
+        let bottomBorder = NSBezierPath()
+        bottomBorder.move(to: NSPoint(x: frame.minX, y: frame.maxY - 0.5))
+        bottomBorder.line(to: NSPoint(x: frame.maxX, y: frame.maxY - 0.5))
+        bottomBorder.lineWidth = 2
+        bottomBorder.stroke()
+   }
     
     override func drawFocusRingMask(withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)

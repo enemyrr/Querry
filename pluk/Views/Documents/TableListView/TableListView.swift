@@ -18,28 +18,26 @@ struct TableListView: View {
     
     var body: some View {
         Group {
-            if let rowDocuments = viewModel.rowDocuments, let schema = schema {
+            if let schema = schema {
                 TableListViewController(
-                    rows: rowDocuments,
+                    rows: viewModel.rowDocuments,
                     schema: schema
                 )
-                .padding(4)
                 .background(Color(.controlColor).opacity(0.1))
                 .cornerRadius(10)
                 .background {
                     TabConnectedBorder()
                 }
-//                .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
                 VStack {
                         ProgressView().controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.controlColor).opacity(0.1))
+                .cornerRadius(10)
                 .background {
                     TabConnectedBorder()
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
         .task {

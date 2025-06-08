@@ -45,24 +45,9 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         func updateRows(_ newRows: PostgreSQLQueryResult?, schema: DatabaseSchemaResult? = nil) {
-            // Update on main thread since we're dealing with UI
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                
                 // Store the new data
                 self.rows = newRows
-                
-                if let newRows = newRows {
-                    print("📊 TableListViewController: Received \(newRows.rowCount) rows")
-                }
-                
-//                self.tableView.reloadData()
-                
-                // // Use the built-in sizeToFit() for all columns
-//                 for column in self.tableView.tableColumns {
-//                     column.sizeToFit()
-//                 }
-            }
+                self.tableView.reloadData()
         }
         
         @objc private func handleHeaderSort(_ notification: Notification) {
@@ -90,7 +75,6 @@ struct TableListViewController: NSViewRepresentable {
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
             customHeaderCell.configure(title: title, icon: icon, showSortButton: false)
             column.headerCell = customHeaderCell
-            
             column.sizeToFit()
             
             tableView.addTableColumn(column)
@@ -98,7 +82,6 @@ struct TableListViewController: NSViewRepresentable {
         
         private func setupUI() {
             containerView.wantsLayer = true
-            containerView.layer?.cornerRadius = 8
             
             // Scroll view setup
             scrollView.hasVerticalScroller = true
@@ -155,31 +138,18 @@ struct TableListViewController: NSViewRepresentable {
             tableView.usesAutomaticRowHeights = false
             
             if let headerView = tableView.headerView {
-                let newHeight: CGFloat = 32
-                headerView.frame.size.height = newHeight
-                
-                headerView.wantsLayer = true
+                headerView.frame.size.height = 32
                 
                 let visualEffectView = NSVisualEffectView()
                 visualEffectView.frame = headerView.bounds
                 visualEffectView.material = .hudWindow
-                visualEffectView.blendingMode = .behindWindow
+                visualEffectView.blendingMode = .withinWindow
                 visualEffectView.state = .active
                 visualEffectView.autoresizingMask = [.width, .height]
                 
-                // Force it to the background using zPosition
                 visualEffectView.wantsLayer = true
-                visualEffectView.layer?.zPosition = -1001
+                visualEffectView.layer?.zPosition = -1000
                 
-                // Add black background with opacity
-//                let backgroundView = NSView()
-//                backgroundView.wantsLayer = true
-//                backgroundView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.2).cgColor
-//                backgroundView.frame = headerView.bounds
-//                backgroundView.autoresizingMask = [.width, .height]
-//                backgroundView.layer?.zPosition = -1000 // Behind the visual effect view
-//                
-//                headerView.addSubview(backgroundView)
                 headerView.addSubview(visualEffectView)
                 tableView.headerView = headerView
             }
@@ -189,8 +159,6 @@ struct TableListViewController: NSViewRepresentable {
         func numberOfRows(in tableView: NSTableView) -> Int {
             return rows?.rowCount ?? 0
         }
-        
-
         
         @objc private func onItemClicked() {
             print("row \(tableView.clickedRow), col \(tableView.clickedColumn) clicked")
@@ -209,6 +177,40 @@ struct TableListViewController: NSViewRepresentable {
             
             return rowView
         }
+        
+        func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
+            guard let tableColumn = tableView.tableColumns[safe: column],
+                  let rows = self.rows else {
+                return 100 // Default width
+            }
+            
+            let columnIdentifier = tableColumn.identifier.rawValue
+            
+            // Calculate header width
+            let headerTitle = tableColumn.title
+            let headerFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+            let headerAttributes = [NSAttributedString.Key.font: headerFont]
+            let headerWidth = (headerTitle as NSString).size(withAttributes: headerAttributes).width + 40 // padding
+            
+            // Calculate content width by sampling some rows
+            var maxContentWidth: CGFloat = 0
+            let sampleSize = min(100, rows.rowCount) // Sample first 100 rows for performance
+            
+            for row in 0..<sampleSize {
+                if let value = rows.value(row: row, column: columnIdentifier) {
+                    let contentString = String(describing: value)
+                    let contentFont = NSFont.systemFont(ofSize: 13) // Match your cell font
+                    let contentAttributes = [NSAttributedString.Key.font: contentFont]
+                    let contentWidth = (contentString as NSString).size(withAttributes: contentAttributes).width + 20 // padding
+                    maxContentWidth = max(maxContentWidth, contentWidth)
+                }
+            }
+            
+            // Return the larger of header width or content width, with reasonable bounds
+            let calculatedWidth = max(headerWidth, maxContentWidth)
+            return max(60, min(calculatedWidth, 300)) // Min 60px, max 300px
+        }
+
         
         func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
             return 28
@@ -229,24 +231,18 @@ struct TableListViewController: NSViewRepresentable {
                 cellView?.identifier = CellIdentifier.textCell
             }
             
-            // Configure the cell with data
+            // Use the new configure method with raw cell
             let columnName = tableColumn.identifier.rawValue
-            let value = result.value(row: row, column: columnName)
-            guard let columnInfo = result.column(named: columnName) else {
-                return nil
-            }
-
-            cellView?.configure(
-                value: value,
-                columnInfo: columnInfo
-            )
+            let rawCell = result.rawCell(row: row, column: columnName)
+            let columnInfo = result.column(named: columnName)
             
+            cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!)
             return cellView
         }
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(rows: rows, schema: schema)
+        return Coordinator(rows: rows, schema: schema)
     }
     
     func makeNSView(context: Context) -> NSView {
@@ -255,5 +251,11 @@ struct TableListViewController: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.updateRows(rows, schema: schema)
+    }
+}
+
+extension Array {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
     }
 }

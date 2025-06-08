@@ -8,10 +8,9 @@
 import SwiftUI
 
 struct SidebarButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     let isActive: Bool
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -23,11 +22,11 @@ struct SidebarButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 8)
                 .fill(
                     (isActive || isHovering)
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(
-                                (isActive && isHovering) ? 0.2 : 0.3
-                            )
-                        : Color.clear
+                    ? Color(.controlColor)
+                        .opacity(
+                            (isActive && isHovering) ? 0.3 : 0.4
+                        )
+                    : Color.clear
                 )
         )
         .onHover { hovering in
@@ -44,7 +43,7 @@ struct ActionButtonStyle: ButtonStyle {
     var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -54,9 +53,9 @@ struct ActionButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering || isActive
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .if(!disableScaleEffect) { view in
@@ -118,7 +117,7 @@ struct TabCloseButtonStyle: ButtonStyle {
     var padding: EdgeInsets = EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -129,7 +128,7 @@ struct TabCloseButtonStyle: ButtonStyle {
                 .fill(
                     isHovering || isActive
                     ? Color(.controlColor).opacity(0.5)
-                        : Color.clear
+                    : Color.clear
                 )
         )
         .if(!disableScaleEffect) { view in
@@ -148,7 +147,7 @@ struct IconButton: View {
     let withBorder: Bool = false
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     var body: some View {
         Button(action: action) {
             ZStack {
@@ -320,13 +319,13 @@ struct SecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isHovering ? Self.buttonColor : .clear)
             )
-            // Add subtle pressed state effect
+        // Add subtle pressed state effect
             .opacity(configuration.isPressed ? 0.8 : 1.0)
-            // Add subtle scale effect when pressed
+        // Add subtle scale effect when pressed
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            // Smooth animation for press states
+        // Smooth animation for press states
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-            // Add hand cursor on hover
+        // Add hand cursor on hover
             .onHover { isHovered in
                 isHovering = isHovered
                 if isHovered {
@@ -424,7 +423,7 @@ struct OutlineSecondaryButtonStyle: ButtonStyle {
 struct DistructiveButtonStyleText: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -436,9 +435,9 @@ struct DistructiveButtonStyleText: ButtonStyle {
             RoundedRectangle(cornerRadius: 8)
                 .fill(
                     isHovering
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
@@ -451,7 +450,7 @@ struct DistructiveButtonStyleText: ButtonStyle {
 struct HoverActionButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -463,9 +462,9 @@ struct HoverActionButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
@@ -478,7 +477,7 @@ struct HoverActionButtonStyle: ButtonStyle {
 struct HoverActionButtonStyleText: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -490,9 +489,9 @@ struct HoverActionButtonStyleText: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .scaleEffect(configuration.isPressed ? 0.9 : 1.0)

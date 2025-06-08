@@ -45,7 +45,6 @@ import SwiftUI
     
     // MARK: - Document Management
     func loadDocuments(filter: Document = [:]) async {
-        let startTime = CFAbsoluteTimeGetCurrent()
         guard let selectedTab = instance.selectedTab else {
                 error = MongoError.collectionNotFound
             return
@@ -79,9 +78,6 @@ import SwiftUI
                 self.isLoading = false
                 self.rowDocuments = documents as? PostgreSQLQueryResult
                 
-                let endTime = CFAbsoluteTimeGetCurrent()
-                let executionTime = endTime - startTime
-                print("⏱️ MAIN: Query execution time: \(String(format: "%.3f", executionTime)) seconds")
                 // Instead of immediately setting isLoading to false,
                 Task {
                     try? await Task.sleep(for: .milliseconds(600))

@@ -150,29 +150,36 @@ struct TabBarItem: View {
     var body: some View {
         Button(action: onSelect) {
             VStack {
-                HStack(spacing: 8) {
-                    Image(systemName: databaseType == .mongodb ? "document.fill" : "table")
-                        .font(.system(size: 12))
-                    
-                    Text(tab)
-                        .lineLimit(1)
-                    
-                    Spacer()
+                ZStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: databaseType == .mongodb ? "document.fill" : "table")
+                            .font(.system(size: 12))
+                        
+                        Text(tab)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        
+                        Spacer()
+                    }
                     
                     if isHovering {
-                        Button(action: onClose) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 12))
+                        HStack {
+                            Spacer()
+                            Button(action: onClose) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 12))
+                            }
+                            .buttonStyle(TabCloseButtonStyle())
+                            .frame(width: 10, height: 10)
                         }
-                        .buttonStyle(TabCloseButtonStyle())
-                        .frame(width: 10, height: 10)
                     }
                 }
                 .padding(.bottom, 4)
             }
             .frame(width: 160)
             .padding(.vertical, 8)
-            .padding(.horizontal, 12)
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
             .background(
                 GeometryReader { geometry in
                     TabShape(isSelected: isSelected)
@@ -182,11 +189,6 @@ struct TabBarItem: View {
                         ])
                 }
             )
-//            .background(
-//                // Add border around selected tab
-//                TabBarBorder(instance: instance)
-//                    .stroke(isSelected ? Color(.separatorColor) : Color.clear, lineWidth: 1)
-//            )
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isHovering ? Color(.controlColor).opacity(0.6) : Color.clear)
