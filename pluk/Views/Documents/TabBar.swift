@@ -14,15 +14,12 @@ struct TabBar: View {
         HStack(spacing: 0) {
             if !appViewModel.isSidebarVisible {
                 Divider()
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                     .padding(.leading, 8)
             }
             
             if !instance.tabs.isEmpty {
                 navigationButtons
-                
-                Divider()
-                    .padding(.vertical, 4)
                 
                 tabScrollView
                     .background(
@@ -41,7 +38,7 @@ struct TabBar: View {
             
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
-        .frame(height: 30)
+        .frame(height: 36)
     }
     
     private var navigationButtons: some View {
@@ -72,7 +69,7 @@ struct TabBar: View {
                 key: "]"
             ))
         }
-        .padding(.horizontal, 10)
+        .padding(.leading, 10)
     }
     
     private var tabScrollView: some View {
@@ -136,26 +133,39 @@ struct TabBarItem: View {
     
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 14) {
-                Button(action: onClose) {
-                    Image(systemName: isHovering ? "xmark" : databaseType == .mongodb ? "document.fill" : "table")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+            VStack {
+                HStack(spacing: 8) {
+                    Image(systemName: databaseType == .mongodb ? "document.fill" : "table")
+                        .font(.system(size: 12))
+                    
+                    Text(tab)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    if isHovering {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(TabCloseButtonStyle())
+                        .frame(width: 10, height: 10)
+                    }
                 }
-                .buttonStyle(TabBarButtonStyle())
-                .frame(width: 10, height: 10)
-                
-                Text(tab)
-                    .foregroundColor(isSelected ? .primary : .secondary)
-                    .lineLimit(1)
-                
-                Spacer(minLength: isSelected ? 50 : 0)
+                .padding(.bottom, 4)
             }
+            .frame(width: 160)
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
             .background(
+                TabShape(isSelected: isSelected)
+                    .fill(isSelected ? Color(NSColor.controlColor).opacity(0.1) : Color.clear)
+            )
+            .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected || isHovering ? Color.black.opacity(0.5) : Color.black.opacity(0.2))
+                    .fill(isHovering ? Color(.controlColor).opacity(0.6) : Color.clear)
+                    .padding(.bottom, 4)
+                    .opacity(isSelected ? 0 : 1)
             )
         }
         .buttonStyle(.plain)
@@ -164,5 +174,61 @@ struct TabBarItem: View {
                 isHovering = hovering
             }
         }
+    }
+}
+
+
+struct TabShape: Shape {
+    let isSelected: Bool
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        if isSelected {
+            let radius: CGFloat = 8
+            let curveRadius: CGFloat = 10
+            let smoothness: CGFloat =  1 // Controls corner smoothness
+            
+            // Start from bottom left (extended)
+            path.move(to: CGPoint(x: -curveRadius, y: rect.height))
+            
+            // Bottom left outward curve - more pronounced with smoothness
+            path.addQuadCurve(
+                to: CGPoint(x: 0, y: rect.height - curveRadius),
+                control: CGPoint(x: -2 * smoothness, y: rect.height)
+            )
+            
+            // Left side line up
+            path.addLine(to: CGPoint(x: 0, y: radius))
+            
+            // Top left rounded corner with smoothness
+            path.addQuadCurve(
+                to: CGPoint(x: radius, y: 0),
+                control: CGPoint(x: 0, y: 0)
+            )
+            
+            // Top line
+            path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
+            
+            // Top right rounded corner with smoothness
+            path.addQuadCurve(
+                to: CGPoint(x: rect.width, y: radius),
+                control: CGPoint(x: rect.width, y: 0)
+            )
+            
+            // Right side line down
+            path.addLine(to: CGPoint(x: rect.width, y: rect.height - curveRadius))
+            
+            // Bottom right outward curve - more pronounced with smoothness
+            path.addQuadCurve(
+                to: CGPoint(x: rect.width + curveRadius, y: rect.height),
+                control: CGPoint(x: rect.width + 2 * smoothness, y: rect.height)
+            )
+            
+            // Bottom line to close
+            path.addLine(to: CGPoint(x: -curveRadius, y: rect.height))
+        }
+        
+        return path
     }
 }

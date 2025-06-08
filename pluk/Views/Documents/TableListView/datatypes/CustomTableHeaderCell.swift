@@ -14,16 +14,16 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     private var iconImageView: NSImageView?
     private var sortButton: NSButton?
     
-        override init(textCell string: String) {
-            super.init(textCell: string)
-//            setupCustomView()
-        }
+    override init(textCell string: String) {
+        super.init(textCell: string)
+        //            setupCustomView()
+    }
     
-        required init(coder: NSCoder) {
-            super.init(coder: coder)
-//            setupCustomView()
-//            drawBackground(in: cellFrame)
-        }
+    required init(coder: NSCoder) {
+        super.init(coder: coder)
+        //            setupCustomView()
+        //            drawBackground(in: cellFrame)
+    }
     
     //    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
     //            drawBackground(in: cellFrame)
@@ -44,18 +44,18 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     private func setupCustomView() {
         // Create container view
-                customView = NSView()
-                customView?.wantsLayer = true
-                customView?.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        customView = NSView()
+        customView?.wantsLayer = true
+        customView?.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         
         // Create title label
-                titleLabel = NSTextField()
-                titleLabel?.isEditable = false
-                titleLabel?.isBordered = false
-                titleLabel?.backgroundColor = .clear
-                titleLabel?.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-                titleLabel?.textColor = .headerTextColor
-                titleLabel?.alignment = .left
+        titleLabel = NSTextField()
+        titleLabel?.isEditable = false
+        titleLabel?.isBordered = false
+        titleLabel?.backgroundColor = .clear
+        titleLabel?.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        titleLabel?.textColor = .headerTextColor
+        titleLabel?.alignment = .left
         //
         //        // Create icon
         //        iconImageView = NSImageView()
@@ -96,24 +96,24 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         //        iconImageView.translatesAutoresizingMaskIntoConstraints = false
         //        sortButton.translatesAutoresizingMaskIntoConstraints = false
         //
-//                NSLayoutConstraint.activate([
-                    // Icon constraints
-//                    iconImageView.leadingAnchor.constraint(equalTo: customView.leadingAnchor, constant: 8),
-//                    iconImageView.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
-//                    iconImageView.widthAnchor.constraint(equalToConstant: 16),
-//                    iconImageView.heightAnchor.constraint(equalToConstant: 16),
+        //                NSLayoutConstraint.activate([
+        // Icon constraints
+        //                    iconImageView.leadingAnchor.constraint(equalTo: customView.leadingAnchor, constant: 8),
+        //                    iconImageView.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
+        //                    iconImageView.widthAnchor.constraint(equalToConstant: 16),
+        //                    iconImageView.heightAnchor.constraint(equalToConstant: 16),
         
-                    // Title label constraints
-//                    titleLabel.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: 4),
-//                    titleLabel.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
-//                    titleLabel.trailingAnchor.constraint(equalTo: sortButton.leadingAnchor, constant: -4),
+        // Title label constraints
+        //                    titleLabel.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: 4),
+        //                    titleLabel.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
+        //                    titleLabel.trailingAnchor.constraint(equalTo: sortButton.leadingAnchor, constant: -4),
         
-                    // Sort button constraints
-//                    sortButton.trailingAnchor.constraint(equalTo: customView.trailingAnchor, constant: -8),
-//                    sortButton.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
-//                    sortButton.widthAnchor.constraint(equalToConstant: 20),
-//                    sortButton.heightAnchor.constraint(equalToConstant: 20)
-//                ])
+        // Sort button constraints
+        //                    sortButton.trailingAnchor.constraint(equalTo: customView.trailingAnchor, constant: -8),
+        //                    sortButton.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
+        //                    sortButton.widthAnchor.constraint(equalToConstant: 20),
+        //                    sortButton.heightAnchor.constraint(equalToConstant: 20)
+        //                ])
     }
     
     func configure(title: String, icon: NSImage? = nil, showSortButton: Bool = true) {
@@ -139,7 +139,7 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         drawTitle(in: cellFrame, icon: NSImage(systemSymbolName: "chevron.up.chevron.down", accessibilityDescription: nil))
     }
     
-
+    
     private func drawTitle(in rect: NSRect, icon: NSImage?) {
         var textRect = rect.insetBy(dx: 8, dy: 0)
         textRect.size.width -= 20 // Space for sort indicator
@@ -147,7 +147,6 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         // Create text attributes
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = self.alignment
-        paragraphStyle.lineBreakMode = .byTruncatingTail
         
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.menuBarFont(ofSize: 12),
@@ -173,18 +172,18 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         
         NSColor.separatorColor.setStroke()
         
-        let bottomBorder = NSBezierPath()
-        bottomBorder.move(to: NSPoint(x: frame.minX, y: frame.minY))
-        bottomBorder.line(to: NSPoint(x: frame.maxX, y: frame.minY))
-        bottomBorder.lineWidth = 2
-        bottomBorder.stroke()
-        
         let verticalInset: CGFloat = 6
         let rightBorder = NSBezierPath()
         rightBorder.move(to: NSPoint(x: frame.maxX - 0.5, y: frame.minY + verticalInset))
         rightBorder.line(to: NSPoint(x: frame.maxX - 0.5, y: frame.maxY - verticalInset))
         rightBorder.lineWidth = 0.5
         rightBorder.stroke()
+//        
+//                let bottomBorder = NSBezierPath()
+//                bottomBorder.move(to: NSPoint(x: frame.minX, y: frame.minY))
+//                bottomBorder.line(to: NSPoint(x: frame.maxX, y: frame.minY))
+//                bottomBorder.lineWidth = 2
+//                bottomBorder.stroke()
     }
     
     override func drawFocusRingMask(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -212,6 +211,18 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         drawCustomBackground(in: cellFrame)
     }
     
+    
+    override func cellSize(forBounds rect: NSRect) -> NSSize {
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let attributes = [NSAttributedString.Key.font: font]
+        let titleSize = (title as NSString).size(withAttributes: attributes)
+        
+        // Add padding for your custom drawing
+        let width = titleSize.width + 40 // Space for borders, icons, etc.
+        let height = max(titleSize.height + 8, 32) // Minimum height
+        
+        return NSSize(width: width, height: height)
+    }
     
     
     override func highlight(_ flag: Bool, withFrame cellFrame: NSRect, in controlView: NSView) {

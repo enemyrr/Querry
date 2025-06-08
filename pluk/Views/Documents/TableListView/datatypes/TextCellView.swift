@@ -334,8 +334,13 @@ class TextCellView: NSView {
     
     func configure(value: Any?, columnInfo: PostgreSQLColumnInfo) {
         if let value = value {
-            textField.stringValue = String(describing: value)
-            textField.textColor = NSColor.headerTextColor
+            if let stringValue = value as? String, stringValue.isEmpty {
+                textField.stringValue = "(EMPTY)"
+                textField.textColor = NSColor.secondaryLabelColor
+            } else {
+                textField.stringValue = String(describing: value)
+                textField.textColor = NSColor.controlTextColor
+            }
         } else {
             textField.stringValue = "(NULL)"
             textField.textColor = NSColor.secondaryLabelColor

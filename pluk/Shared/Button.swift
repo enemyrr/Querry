@@ -114,11 +114,30 @@ struct TabBarButtonStyle: ButtonStyle {
 }
 
 struct TabCloseButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
+    var disableScaleEffect: Bool = false
+    var isActive: Bool = false
+
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(width: 16, height: 16)
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+        HStack {
+            configuration.label
+        }
+        .padding(padding)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering || isActive
+                    ? Color(.controlColor).opacity(0.5)
+                        : Color.clear
+                )
+        )
+        .if(!disableScaleEffect) { view in
+            view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        }
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 }
 

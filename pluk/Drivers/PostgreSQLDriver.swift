@@ -269,6 +269,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> PostgreSQLQueryResult {
+        let startTime = CFAbsoluteTimeGetCurrent()
         let connection = try ensureConnected()
         
         // Validate and sanitize the collection name to prevent SQL injection
@@ -312,12 +313,16 @@ class PostgreSQLDriver: DatabaseDriver {
                 rowIndex += 1
             }
             
+            let endTime = CFAbsoluteTimeGetCurrent()
+            let executionTime = endTime - startTime
+            print("⏱️ Query execution time: \(String(format: "%.3f", executionTime)) seconds")
+            print("📊 Fetched \(rows.count) rows")
+            
             return PostgreSQLQueryResult(
                 columns: columns,
                 rows: rows,
                 totalCount: rows.count
             )
-            
             
         } catch let error as PSQLError {
             throw mapPSQLError(error)

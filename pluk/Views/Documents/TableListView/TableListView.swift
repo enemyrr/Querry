@@ -23,14 +23,20 @@ struct TableListView: View {
                     rows: rowDocuments,
                     schema: schema
                 )
+                .padding(4)
                 .background(Color(.controlColor).opacity(0.1))
-                .background {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.separator, lineWidth: 1)
-                }
+//                .background {
+//                    RoundedRectangle(cornerRadius: 10)
+//                        .stroke(.separator, lineWidth: 1)
+//                }
                 .cornerRadius(10)
             } else {
-                ProgressView().controlSize(.small)
+                VStack {
+                        ProgressView().controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.controlColor).opacity(0.1))
+                .cornerRadius(10)
             }
         }
         .task {
@@ -45,7 +51,7 @@ struct TableListView: View {
                 }
             }
         }
-        .task {            
+        .task {
             if !viewModel.intialLoadComplete {
                 await viewModel.loadDocuments()
             }

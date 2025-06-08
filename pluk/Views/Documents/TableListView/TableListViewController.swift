@@ -56,7 +56,12 @@ struct TableListViewController: NSViewRepresentable {
                     print("📊 TableListViewController: Received \(newRows.rowCount) rows")
                 }
                 
-                self.tableView.reloadData()
+//                self.tableView.reloadData()
+                
+                // // Use the built-in sizeToFit() for all columns
+//                 for column in self.tableView.tableColumns {
+//                     column.sizeToFit()
+//                 }
             }
         }
         
@@ -78,29 +83,22 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         private func createColumn(identifier: String, title: String, icon: NSImage?) {
-            // Create the table column
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
             column.title = title
-            column.width = 60
-            column.minWidth = 40
-            column.maxWidth = 400
-            column.resizingMask = [.userResizingMask, .autoresizingMask]
             
-            // Create and configure the custom header cell
-            let customHeaderCell = CustomTableHeaderCell(
-                textCell: identifier
-            )
+            // Then add custom header
+            let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
             customHeaderCell.configure(title: title, icon: icon, showSortButton: false)
-            customHeaderCell.representedObject = column
             column.headerCell = customHeaderCell
             
-            // Add the column to the table
+            column.sizeToFit()
+            
             tableView.addTableColumn(column)
         }
         
         private func setupUI() {
             containerView.wantsLayer = true
-            containerView.layer?.cornerRadius = 10
+            containerView.layer?.cornerRadius = 8
             
             // Scroll view setup
             scrollView.hasVerticalScroller = true
@@ -138,7 +136,7 @@ struct TableListViewController: NSViewRepresentable {
             // Enable column resizing
             tableView.allowsColumnResizing = true
             tableView.allowsColumnReordering = true
-            tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+            tableView.columnAutoresizingStyle = .noColumnAutoresizing
             
             // Enable column selection only
             tableView.allowsColumnSelection = true
@@ -164,15 +162,24 @@ struct TableListViewController: NSViewRepresentable {
                 
                 let visualEffectView = NSVisualEffectView()
                 visualEffectView.frame = headerView.bounds
-                visualEffectView.material = .sidebar
+                visualEffectView.material = .hudWindow
                 visualEffectView.blendingMode = .behindWindow
                 visualEffectView.state = .active
                 visualEffectView.autoresizingMask = [.width, .height]
                 
                 // Force it to the background using zPosition
                 visualEffectView.wantsLayer = true
-                visualEffectView.layer?.zPosition = -1000
+                visualEffectView.layer?.zPosition = -1001
                 
+                // Add black background with opacity
+//                let backgroundView = NSView()
+//                backgroundView.wantsLayer = true
+//                backgroundView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.2).cgColor
+//                backgroundView.frame = headerView.bounds
+//                backgroundView.autoresizingMask = [.width, .height]
+//                backgroundView.layer?.zPosition = -1000 // Behind the visual effect view
+//                
+//                headerView.addSubview(backgroundView)
                 headerView.addSubview(visualEffectView)
                 tableView.headerView = headerView
             }
