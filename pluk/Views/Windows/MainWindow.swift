@@ -14,18 +14,29 @@ struct MainWindow: View {
     @State private var appViewModel = AppViewModel()
     @State private var sidebarViewModel = SidebarViewModel()
     @Environment(\.modelContext) private var modelContext
-
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         ZStack {
             VibrantBackgroundView()
                 .edgesIgnoringSafeArea(.all)
             
-            // Main Background color:
-            // Replace on light theme
-            Color(hex: 0x030303)
-                .opacity(0.3)
-                .edgesIgnoringSafeArea(.all)
-
+            if colorScheme == .dark {
+                Color(hex: 0x030303)
+                    .opacity(0.5)
+                    .edgesIgnoringSafeArea(.all)
+            } else {
+                Color(hex: 0xFCFCFC)
+                    .opacity(0.4)
+                    .edgesIgnoringSafeArea(.all)
+            }
+            
+            if let connectionColor = sidebarViewModel.activeConnection?.connection.color, sidebarViewModel.activeSidebarItem != .home {
+                connectionColor.color
+                    .opacity(0.015)
+                    .edgesIgnoringSafeArea(.all)
+            }
+            
             CustomSplitView(
                 sidebar: {
                     Sidebar()
