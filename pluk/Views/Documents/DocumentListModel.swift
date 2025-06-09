@@ -58,20 +58,12 @@ import SwiftUI
         }
         
         do {
-            print("🔍 Starting document fetch...")
-            let startTime = CFAbsoluteTimeGetCurrent()
-            
             let documents = try await databaseDriver.findDocuments(
                 in: selectedTab.name,
                 filter: [:],
 //                skip: paginationManager.skip,
 //                limit: paginationManager.limit
             ) as? PostgreSQLQueryResult
-            
-            let fetchTime = CFAbsoluteTimeGetCurrent() - startTime
-            print("📊 PostgreSQL fetch took: \(String(format: "%.3f", fetchTime))s")
-            
-            let uiUpdateStart = CFAbsoluteTimeGetCurrent()
             
            // OPTIMIZED: Batch all UI updates in single MainActor call
             await MainActor.run {
@@ -81,10 +73,6 @@ import SwiftUI
                 self.rowDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
-                
-                let uiUpdateTime = CFAbsoluteTimeGetCurrent() - uiUpdateStart
-                print("🎨 UI update took: \(String(format: "%.3f", uiUpdateTime))s")
-                print("✅ Data ready for table display")
                 
                 // Defer animation state change to avoid blocking cell rendering
                 Task { @MainActor in

@@ -84,8 +84,8 @@ struct ConnectionHeader: View {
                     .fill(
                         RadialGradient(
                             gradient: Gradient(stops: [
-                                .init(color: statusColor.opacity(0.4), location: 0),
-                                .init(color: statusColor.opacity(0.2), location: 0.5),
+                                .init(color: statusColor.opacity(0.8), location: 0),
+                                .init(color: statusColor.opacity(0.4), location: 0.5),
                                 .init(color: .clear, location: 1)
                             ]),
                             center: .leading,
@@ -93,6 +93,7 @@ struct ConnectionHeader: View {
                             endRadius: 120
                         )
                     )
+                    .blendMode(.multiply)
                     .frame(width: 240, height: 240)
                     .blur(radius: 30)
                     .offset(bubbleOffset)

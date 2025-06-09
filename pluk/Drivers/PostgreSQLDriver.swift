@@ -357,16 +357,8 @@ class PostgreSQLDriver: DatabaseDriver {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         do {
-            print("🗄️ Executing PostgreSQL query...")
-            let queryStart = CFAbsoluteTimeGetCurrent()
-            
             let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 300"
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
-            
-            let queryTime = CFAbsoluteTimeGetCurrent() - queryStart
-            print("⚡ Query execution: \(String(format: "%.3f", queryTime))s")
-            
-            let processingStart = CFAbsoluteTimeGetCurrent()
             
             var columns: [PostgreSQLColumnInfo] = []
             var rawRows: [PostgresRandomAccessRow] = []
@@ -391,10 +383,6 @@ class PostgreSQLDriver: DatabaseDriver {
                 // Convert to random access row for O(1) cell access
                 rawRows.append(row.makeRandomAccess())
             }
-            
-            let processingTime = CFAbsoluteTimeGetCurrent() - processingStart
-            print("🔄 Row processing: \(String(format: "%.3f", processingTime))s")
-            print("📈 Processed \(rawRows.count) rows with \(columns.count) columns")
             
             return PostgreSQLQueryResult(
                 columns: columns,
@@ -625,7 +613,6 @@ class PostgreSQLDriver: DatabaseDriver {
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
-            print(String(reflecting: error))
             throw DatabaseError.operationFailed("Failed to get schema: \(error.localizedDescription)")
         }
     }
