@@ -22,6 +22,11 @@ class TextCellView: NSView {
     
     private var isSelected: Bool = false
     
+    // Cache for optimization
+    private var lastConfiguredColumn: String = ""
+    private var lastConfiguredValue: String = ""
+    private var lastCellDataHash: Int = 0
+    
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
          setupTextField()
@@ -380,22 +385,24 @@ class TextCellView: NSView {
     }
     
     func configure(rawCell: PostgresCell?, columnInfo: PostgreSQLColumnInfo) {
-        guard let cell = rawCell else {
-                textField.stringValue = "(NULL)"
-                createBorderViewIfNeeded()
-                return
-            }
+        // guard let cell = rawCell else {
+        //         textField.stringValue = "(NULL)"
+        //         createBorderViewIfNeeded()
+        //         return
+        //     }
         
-         do {
-             textField.stringValue = "(NULL)"
-             let value = try decodeValue(from: cell)
-             configureWithValue(value, columnInfo: columnInfo)
-         } catch {
-             textField.stringValue = "Error: \(error.localizedDescription)"
-             textField.textColor = NSColor.systemRed
-         }
+        textField.stringValue = "STATIC"
+//
+//         do {
+//             textField.stringValue = "(NULL)"
+//             let value = try decodeValue(from: cell)
+//             configureWithValue(value, columnInfo: columnInfo)
+//         } catch {
+//             textField.stringValue = "Error: \(error.localizedDescription)"
+//             textField.textColor = NSColor.systemRed
+//         }
          
-         createBorderViewIfNeeded()
+//         createBorderViewIfNeeded()
     }
     private func configureWithValue(_ value: Any?, columnInfo: PostgreSQLColumnInfo) {
         if let value = value {

@@ -138,6 +138,7 @@ class PostgreSQLDriver: DatabaseDriver {
     // Connection configuration
     private var configuration: PostgresConnection.Configuration?
     private var databases: [PostgreSQLDatabaseWrapper] = []
+    private var schema: [PostgreSQLDatabaseWrapper] = []
     private var collections: [PostgreSQLCollectionWrapper] = []
     
     deinit {
@@ -204,6 +205,8 @@ class PostgreSQLDriver: DatabaseDriver {
             try? await eventLoopGroup.shutdownGracefully()
             self.eventLoopGroup = nil
         }
+        
+        await databaseSchema.removeAll()
         
         self.isConnected = false
     }
@@ -354,11 +357,19 @@ class PostgreSQLDriver: DatabaseDriver {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         do {
-            let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 150"
+            print("🗄️ Executing PostgreSQL query...")
+            let queryStart = CFAbsoluteTimeGetCurrent()
+            
+            let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 300"
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
             
+            let queryTime = CFAbsoluteTimeGetCurrent() - queryStart
+            print("⚡ Query execution: \(String(format: "%.3f", queryTime))s")
+            
+            let processingStart = CFAbsoluteTimeGetCurrent()
+            
             var columns: [PostgreSQLColumnInfo] = []
-            var rawRows: [PostgresRandomAccessRow] = [] // Store random access rows
+            var rawRows: [PostgresRandomAccessRow] = []
             var columnsInitialized = false
             
             for try await row in results {
@@ -381,11 +392,15 @@ class PostgreSQLDriver: DatabaseDriver {
                 rawRows.append(row.makeRandomAccess())
             }
             
+            let processingTime = CFAbsoluteTimeGetCurrent() - processingStart
+            print("🔄 Row processing: \(String(format: "%.3f", processingTime))s")
+            print("📈 Processed \(rawRows.count) rows with \(columns.count) columns")
+            
             return PostgreSQLQueryResult(
                 columns: columns,
                 rows: rawRows,
                 totalCount: rawRows.count,
-                rawRows: rawRows,
+                rawRows: rawRows
             )
             
         } catch let error as PSQLError {
@@ -462,16 +477,92 @@ class PostgreSQLDriver: DatabaseDriver {
         return try await getSchema(for: collectionName, in: "public")
     }
     
+   
+    // MARK: - Schema Cache
+    
+    /// Efficient composite key for schema caching
+    private struct SchemaKey: Hashable {
+        let schemaName: String
+        let tableName: String
+        
+        init(_ schemaName: String, _ tableName: String) {
+            self.schemaName = schemaName
+            self.tableName = tableName
+        }
+    }
+    
+    /// Thread-safe schema cache with size limits
+    private actor SchemaCache {
+        private var cache: [SchemaKey: DatabaseSchemaResult] = [:]
+        private let maxSize: Int
+        private var accessOrder: [SchemaKey] = [] // For LRU eviction
+        
+        init(maxSize: Int = 100) {
+            self.maxSize = maxSize
+        }
+        
+        func get(_ key: SchemaKey) -> DatabaseSchemaResult? {
+            guard let result = cache[key] else { return nil }
+            
+            // Update access order for LRU
+            if let index = accessOrder.firstIndex(of: key) {
+                accessOrder.remove(at: index)
+            }
+            accessOrder.append(key)
+            
+            return result
+        }
+        
+        func set(_ key: SchemaKey, value: DatabaseSchemaResult) {
+            // Remove if already exists to update access order
+            if cache[key] != nil {
+                if let index = accessOrder.firstIndex(of: key) {
+                    accessOrder.remove(at: index)
+                }
+            }
+            
+            cache[key] = value
+            accessOrder.append(key)
+            
+            // Enforce size limit with LRU eviction
+            if cache.count > maxSize {
+                let oldestKey = accessOrder.removeFirst()
+                cache.removeValue(forKey: oldestKey)
+            }
+        }
+        
+        func remove(_ key: SchemaKey) {
+            cache.removeValue(forKey: key)
+            if let index = accessOrder.firstIndex(of: key) {
+                accessOrder.remove(at: index)
+            }
+        }
+        
+        func removeAll() {
+            cache.removeAll()
+            accessOrder.removeAll()
+        }
+        
+        var count: Int {
+            cache.count
+        }
+    }
+    
+    // Cache for database schemas with performance optimizations
+    private let databaseSchema = SchemaCache()
+
     func getSchema(for tableName: String, in schemaName: String = "public") async throws -> DatabaseSchemaResult {
-        guard let tableInfo = collections.first(where: { $0.name == tableName }) else {
-            throw DatabaseError.configurationError("Database not found")
+        let cacheKey = SchemaKey(schemaName, tableName)
+        
+        // Check if schema is already cached
+        if let cachedSchema = await databaseSchema.get(cacheKey) {
+            return cachedSchema
         }
         
         let connection = try ensureConnected()
         
         do {
-            // First try a simpler query without the pg_attribute join to avoid aclitem issues
-            let schemaQuery = PostgresQuery(unsafeSQL: """
+            let schemaQuery = PostgresQuery("""
                 SELECT
                     ordinal_position,
                     column_name,
@@ -490,14 +581,13 @@ class PostgreSQLDriver: DatabaseDriver {
                 FROM
                     information_schema.columns
                 WHERE
-                    table_name = '\(tableName)'
-                    AND table_schema = '\(schemaName)'
+                    table_name = '\(unescaped: tableName)'
+                    AND table_schema = '\(unescaped: schemaName)'
                 ORDER BY ordinal_position;
             """)
             
             let results = try await connection.query(schemaQuery, logger: Logger(label: "postgres"))
-            
-            var schemaColumns: [DatabaseSchemaInfo] = []
+            var databaseSchemaInfo: [DatabaseSchemaInfo] = []
             
             for try await (ordinalPosition, columnName, dataType, formatType, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, foreignKey, comment) in results.decode((Int, String, String, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
                 let schemaInfo = DatabaseSchemaInfo(
@@ -517,15 +607,20 @@ class PostgreSQLDriver: DatabaseDriver {
                     comment: comment
                 )
                 
-                schemaColumns.append(schemaInfo)
+                databaseSchemaInfo.append(schemaInfo)
             }
             
-            return DatabaseSchemaResult(
+            let schemaResult = DatabaseSchemaResult(
                 tableName: tableName,
                 schemaName: schemaName,
-                columns: schemaColumns,
-                totalCount: schemaColumns.count
+                columns: databaseSchemaInfo,
+                totalCount: databaseSchemaInfo.count
             )
+            
+            // Cache the result for future use
+            await databaseSchema.set(cacheKey, value: schemaResult)
+            
+            return schemaResult
             
         } catch let error as PSQLError {
             throw mapPSQLError(error)
@@ -533,6 +628,23 @@ class PostgreSQLDriver: DatabaseDriver {
             print(String(reflecting: error))
             throw DatabaseError.operationFailed("Failed to get schema: \(error.localizedDescription)")
         }
+    }
+    
+    /// Clear the schema cache - useful when schema changes are expected
+    func clearSchemaCache() async {
+        await databaseSchema.removeAll()
+    }
+    
+    /// Clear schema cache for a specific table
+    func clearSchemaCache(for tableName: String, in schemaName: String = "public") async {
+        let cacheKey = SchemaKey(schemaName, tableName)
+        await databaseSchema.remove(cacheKey)
+    }
+    
+    /// Get current cache statistics
+    func getSchemaCacheStats() async -> (count: Int, maxSize: Int) {
+        let count = await databaseSchema.count
+        return (count: count, maxSize: 100)
     }
     
     // MARK: - Helper Methods

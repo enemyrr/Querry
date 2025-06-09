@@ -27,7 +27,7 @@ struct DocumentList: View {
 //                                .padding(.horizontal)
 //                            }
                         }
-                        .id("\(viewModel.lastFetchTimestamp)")
+//                        .id("\(viewModel.lastFetchTimestamp)")
                         .padding(.top)
                         .padding(.bottom, 24) // Space for Floating Action bar
                         

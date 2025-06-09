@@ -22,11 +22,11 @@ struct DocumentView: View {
                     case .postgres:
                                 TableListView(viewModel: instance.viewModel(for: selectedTab))
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .id(selectedTab.id)
+//                                    .id(selectedTab.id)
                             case .mongodb:
                         DocumentList(viewModel: instance.viewModel(for: selectedTab))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .id(selectedTab.id)
+//                            .id(selectedTab.id)
                     default:
                         Text("No collection selected")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)

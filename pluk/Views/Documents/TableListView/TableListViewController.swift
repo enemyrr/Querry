@@ -8,21 +8,11 @@ import Foundation
 import SwiftUI
 import AppKit
 
-class ExtendedClipView: NSClipView {
-    var bottomExtension: CGFloat = 50
-    
-    override var documentRect: NSRect {
-        var rect = super.documentRect
-        rect.size.height += bottomExtension
-        return rect
-    }
-}
-
 struct TableListViewController: NSViewRepresentable {
     let rows: PostgreSQLQueryResult?
     let schema: DatabaseSchemaResult?
     
-    init(rows: PostgreSQLQueryResult? = nil, schema: DatabaseSchemaResult? = nil) {
+    init(rows: PostgreSQLQueryResult?, schema: DatabaseSchemaResult? = nil) {
         self.rows = rows
         self.schema = schema
     }
@@ -41,8 +31,7 @@ struct TableListViewController: NSViewRepresentable {
             static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
         }
         
-        init(rows: PostgreSQLQueryResult?, schema: DatabaseSchemaResult?) {
-            self.rows = rows
+        init(schema: DatabaseSchemaResult?) {
             self.schema = schema
             super.init()
         }
@@ -55,9 +44,12 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         func updateRows(_ newRows: PostgreSQLQueryResult?, schema: DatabaseSchemaResult? = nil) {
-                // Store the new data
-                self.rows = newRows
-                self.tableView.reloadData()
+            // Store the new data
+            self.rows = newRows
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.tableView.reloadData()
+            }
         }
         
         @objc private func handleHeaderSort(_ notification: Notification) {
@@ -210,7 +202,7 @@ struct TableListViewController: NSViewRepresentable {
             
             // Calculate content width by sampling some rows
             var maxContentWidth: CGFloat = 0
-            let sampleSize = min(100, rows.rowCount) // Sample first 100 rows for performance
+            let sampleSize = min(10, rows.rowCount) // Sample first 100 rows for performance
             
             for row in 0..<sampleSize {
                 if let value = rows.value(row: row, column: columnIdentifier) {
@@ -258,7 +250,8 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(rows: rows, schema: schema)
+        print("makeCoordinator \(rows?.rowCount)")
+        return Coordinator(schema: schema)
     }
     
     func makeNSView(context: Context) -> NSView {
@@ -266,6 +259,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
+        print("Updating NSView \(rows?.rowCount)")
         context.coordinator.updateRows(rows, schema: schema)
     }
 }
@@ -273,5 +267,24 @@ struct TableListViewController: NSViewRepresentable {
 extension Array {
     subscript(safe index: Index) -> Element? {
         return indices.contains(index) ? self[index] : nil
+    }
+}
+
+class ExtendedClipView: NSClipView {
+    var bottomExtension: CGFloat = 50
+    
+    override var documentRect: NSRect {
+        var rect = super.documentRect
+        
+        if let documentView = self.documentView {
+            let visibleHeight = self.bounds.height
+            let contentHeight = documentView.bounds.height
+            
+            if contentHeight > visibleHeight {
+                rect.size.height += bottomExtension
+            }
+        }
+        
+        return rect
     }
 }

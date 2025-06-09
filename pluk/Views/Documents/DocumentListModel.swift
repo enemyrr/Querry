@@ -46,7 +46,7 @@ import SwiftUI
     // MARK: - Document Management
     func loadDocuments(filter: Document = [:]) async {
         guard let selectedTab = instance.selectedTab else {
-                error = MongoError.collectionNotFound
+            error = MongoError.collectionNotFound
             return
         }
         
@@ -58,6 +58,9 @@ import SwiftUI
         }
         
         do {
+            print("🔍 Starting document fetch...")
+            let startTime = CFAbsoluteTimeGetCurrent()
+            
             let documents = try await databaseDriver.findDocuments(
                 in: selectedTab.name,
                 filter: [:],
@@ -65,17 +68,27 @@ import SwiftUI
 //                limit: paginationManager.limit
             ) as? PostgreSQLQueryResult
             
-           // Process documents in a background task to avoid blocking
+            let fetchTime = CFAbsoluteTimeGetCurrent() - startTime
+            print("📊 PostgreSQL fetch took: \(String(format: "%.3f", fetchTime))s")
+            
+            let uiUpdateStart = CFAbsoluteTimeGetCurrent()
+            
+           // OPTIMIZED: Batch all UI updates in single MainActor call
             await MainActor.run {
-                paginationManager.updateTotalItems(documents?.totalCount ?? 0)
+                // Update all properties at once to minimize SwiftUI updates
+                self.paginationManager.updateTotalItems(documents?.totalCount ?? 0)
                 self.formattedDocuments = documents
+                self.rowDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
-                self.rowDocuments = documents
                 
-                // Instead of immediately setting isLoading to false,
-                Task {
-                    try? await Task.sleep(for: .milliseconds(600))
+                let uiUpdateTime = CFAbsoluteTimeGetCurrent() - uiUpdateStart
+                print("🎨 UI update took: \(String(format: "%.3f", uiUpdateTime))s")
+                print("✅ Data ready for table display")
+                
+                // Defer animation state change to avoid blocking cell rendering
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(100)) // Reduced from 600ms
                     self.isLoadingAnimation = false
                 }
             }
@@ -84,6 +97,7 @@ import SwiftUI
             await MainActor.run {
                 self.error = error
                 self.isLoading = false
+                self.isLoadingAnimation = false
             }
         }
     }
