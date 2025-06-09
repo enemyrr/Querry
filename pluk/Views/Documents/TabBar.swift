@@ -112,7 +112,6 @@ struct NSTabViewWrapper: NSViewRepresentable {
         let tabView = NSTabView()
         tabView.delegate = context.coordinator
         tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
-        tabView.controlTint = .defaultControlTint
         tabView.drawsBackground = false
         
         return tabView
@@ -166,8 +165,8 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     tabViewItem.image = NSImage(systemSymbolName: instance.connection.databaseType == .mongodb ? "document.fill" : "table", accessibilityDescription: nil)
                     
                     // Create the actual content view for the tab
-                    let hostingView = NSHostingView(rootView: TabContentView(tab: tab, instance: instance))
-                    tabViewItem.view = hostingView
+                    let tabContentView = TabContentView(tab: tab, instance: instance)
+                    tabViewItem.view = tabContentView
                     
                     // Insert at correct position
                     if index < tabView.numberOfTabViewItems {
@@ -357,29 +356,6 @@ struct TabShape: Shape {
         }
         
         return path
-    }
-}
-
-struct TabContentView: View {
-    let tab: DatabaseTab
-    let instance: ConnectionInstance
-    
-    var body: some View {
-        Group {
-            switch instance.connection.databaseType {
-            case .postgres:
-                TableListView(viewModel: instance.viewModel(for: tab))
-            case .mongodb:
-                DocumentList(viewModel: instance.viewModel(for: tab))
-            default:
-                VStack {
-                    Text("No collection selected")
-                        .font(.title2)
-                    Spacer()
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
