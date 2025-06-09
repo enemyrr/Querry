@@ -47,6 +47,9 @@ class TabContentView: NSView {
     private func setupView() {
         wantsLayer = true
         
+        // Add custom border (excluding top border for seamless tab integration)
+        addCustomBorder()
+        
         switch instance.connection.databaseType {
         case .postgres:
             setupPostgresView()
@@ -109,5 +112,65 @@ class TabContentView: NSView {
     // Method to update the content when tab data changes
     func updateContent() {
         setupView()
+    }
+    
+    private func addCustomBorder() {
+        // Remove any existing border layers
+        layer?.sublayers?.removeAll { $0.name == "customBorder" }
+        
+        let borderLayer = CAShapeLayer()
+        borderLayer.name = "customBorder"
+        borderLayer.strokeColor = NSColor.separatorColor.cgColor
+        borderLayer.fillColor = NSColor.clear.cgColor
+        borderLayer.lineWidth = 1.0
+        
+        // Create path for container with top corners but no connecting top border
+        let path = NSBezierPath()
+        let cornerRadius: CGFloat = 8.0
+        let rect = bounds
+        
+        // Start from bottom-left corner
+        path.move(to: NSPoint(x: cornerRadius, y: 0))
+        
+        // Bottom border to bottom-right
+        path.line(to: NSPoint(x: rect.width - cornerRadius, y: 0))
+        
+        // Bottom-right corner
+        path.curve(to: NSPoint(x: rect.width, y: cornerRadius),
+                  controlPoint1: NSPoint(x: rect.width - cornerRadius/2, y: 0),
+                  controlPoint2: NSPoint(x: rect.width, y: cornerRadius/2))
+        
+        // Right border up
+        path.line(to: NSPoint(x: rect.width, y: rect.height - cornerRadius))
+        
+        // Top-right corner
+        path.curve(to: NSPoint(x: rect.width - cornerRadius, y: rect.height),
+                  controlPoint1: NSPoint(x: rect.width, y: rect.height - cornerRadius/2),
+                  controlPoint2: NSPoint(x: rect.width - cornerRadius/2, y: rect.height))
+        
+        // Start new path segment for left side (gap in between for tab)
+        path.move(to: NSPoint(x: cornerRadius, y: rect.height))
+        
+        // Top-left corner
+        path.curve(to: NSPoint(x: 0, y: rect.height - cornerRadius),
+                  controlPoint1: NSPoint(x: cornerRadius/2, y: rect.height),
+                  controlPoint2: NSPoint(x: 0, y: rect.height - cornerRadius/2))
+        
+        // Left border down
+        path.line(to: NSPoint(x: 0, y: cornerRadius))
+        
+        // Bottom-left corner
+        path.curve(to: NSPoint(x: cornerRadius, y: 0),
+                  controlPoint1: NSPoint(x: 0, y: cornerRadius/2),
+                  controlPoint2: NSPoint(x: cornerRadius/2, y: 0))
+        
+        borderLayer.path = path.cgPath
+        layer?.addSublayer(borderLayer)
+    }
+    
+    override func layout() {
+        super.layout()
+        // Update border when view bounds change
+        addCustomBorder()
     }
 }

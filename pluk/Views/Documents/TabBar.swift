@@ -10,6 +10,7 @@ import AppKit
 struct TabBar: View {
     @Environment(AppViewModel.self) private var appViewModel
     var instance: ConnectionInstance
+    @State private var tabPositions: [TabPosition] = []
     
     var body: some View {
         HStack(spacing: 0) {
@@ -39,6 +40,17 @@ struct TabBar: View {
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
         .frame(height: 36)
+        .coordinateSpace(name: "TabBar")
+        .onPreferenceChange(TabPositionPreferenceKey.self) { positions in
+            self.tabPositions = positions
+        }
+        .overlay(
+            TabBarBorderView(
+                selectedTabId: instance.selectedTab?.id.uuidString ?? "",
+                isVisible: instance.selectedTab != nil,
+                tabPositions: tabPositions
+            )
+        )
     }
     
     private var navigationButtons: some View {
@@ -87,6 +99,14 @@ struct TabBar: View {
                                 instance.removeTab(tab)
                             },
                             databaseType: instance.connection.databaseType
+                        )
+                        .background(
+                            GeometryReader { geometry in
+                                Color.clear
+                                    .preference(key: TabPositionPreferenceKey.self, value: [
+                                        TabPosition(id: tab.id.uuidString, frame: geometry.frame(in: .named("TabBar")))
+                                    ])
+                            }
                         )
                         .padding(.leading, instance.tabs.first?.id == tab.id ? 8 : 0)
                         .padding(.trailing, instance.tabs.last?.id == tab.id ? 8 : 0)
@@ -359,6 +379,47 @@ struct TabShape: Shape {
     }
 }
 
+// Custom border shape that excludes bottom border for selected tabs
+struct TabBorderShape: Shape {
+    let isSelected: Bool
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        if isSelected {
+            let radius: CGFloat = 8
+            let curveRadius: CGFloat = 10
+            let smoothness: CGFloat = 1
+            
+            // Start from bottom left curve point (don't draw bottom border)
+            path.move(to: CGPoint(x: 0, y: rect.height - curveRadius))
+            
+            // Left side line up
+            path.addLine(to: CGPoint(x: 0, y: radius))
+            
+            // Top left rounded corner
+            path.addQuadCurve(
+                to: CGPoint(x: radius, y: 0),
+                control: CGPoint(x: 0, y: 0)
+            )
+            
+            // Top line
+            path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
+            
+            // Top right rounded corner
+            path.addQuadCurve(
+                to: CGPoint(x: rect.width, y: radius),
+                control: CGPoint(x: rect.width, y: 0)
+            )
+            
+            // Right side line down (stop before bottom curve)
+            path.addLine(to: CGPoint(x: rect.width, y: rect.height - curveRadius))
+        }
+        
+        return path
+    }
+}
+
 struct NavigationButton: View {
     let icon: String
     let action: () -> Void
@@ -375,5 +436,98 @@ struct NavigationButton: View {
         }
         .disabled(isDisabled)
         .buttonStyle(.plain)
+    }
+}
+
+// Preference key to track tab positions
+struct TabPosition: Equatable {
+    let id: String
+    let frame: CGRect
+}
+
+struct TabPositionPreferenceKey: PreferenceKey {
+    static var defaultValue: [TabPosition] = []
+    
+    static func reduce(value: inout [TabPosition], nextValue: () -> [TabPosition]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+// Continuous border view
+struct TabBarBorderView: View {
+    let selectedTabId: String
+    let isVisible: Bool
+    let tabPositions: [TabPosition]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            if isVisible, let selectedTabPosition = tabPositions.first(where: { $0.id == selectedTabId }) {
+                ContinuousBorderShape(
+                    tabFrame: selectedTabPosition.frame,
+                    totalWidth: geometry.size.width
+                )
+                .stroke(Color(.separatorColor), lineWidth: 1)
+                .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+// Shape for continuous border
+struct ContinuousBorderShape: Shape {
+    let tabFrame: CGRect
+    let totalWidth: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        let radius: CGFloat = 8
+        let curveRadius: CGFloat = 10
+        let smoothness: CGFloat = 1
+        let tabHeight = rect.height
+        
+        // Start from left edge (after navigation buttons)
+        path.move(to: CGPoint(x: 22, y: tabHeight))
+        
+        // Line to start of selected tab curve
+        path.addLine(to: CGPoint(x: tabFrame.minX - curveRadius, y: tabHeight))
+        
+        // Bottom left outward curve of tab
+        path.addQuadCurve(
+            to: CGPoint(x: tabFrame.minX, y: tabHeight - curveRadius),
+            control: CGPoint(x: tabFrame.minX - 2 * smoothness, y: tabHeight)
+        )
+        
+        // Left side of tab
+        path.addLine(to: CGPoint(x: tabFrame.minX, y: radius))
+        
+        // Top left corner of tab
+        path.addQuadCurve(
+            to: CGPoint(x: tabFrame.minX + radius, y: 0),
+            control: CGPoint(x: tabFrame.minX, y: 0)
+        )
+        
+        // Top of tab
+        path.addLine(to: CGPoint(x: tabFrame.maxX - radius, y: 0))
+        
+        // Top right corner of tab
+        path.addQuadCurve(
+            to: CGPoint(x: tabFrame.maxX, y: radius),
+            control: CGPoint(x: tabFrame.maxX, y: 0)
+        )
+        
+        // Right side of tab
+        path.addLine(to: CGPoint(x: tabFrame.maxX, y: tabHeight - curveRadius))
+        
+        // Bottom right outward curve of tab
+        path.addQuadCurve(
+            to: CGPoint(x: tabFrame.maxX + curveRadius, y: tabHeight),
+            control: CGPoint(x: tabFrame.maxX + 2 * smoothness, y: tabHeight)
+        )
+        
+        // Continue line to right edge
+        path.addLine(to: CGPoint(x: totalWidth - 22, y: tabHeight))
+        
+        return path
     }
 }
