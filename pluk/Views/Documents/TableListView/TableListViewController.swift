@@ -244,7 +244,10 @@ struct TableListViewController: NSViewRepresentable {
             let rawCell = result.rawCell(row: row, column: columnName)
             let columnInfo = result.column(named: columnName)
             
-            cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!)
+            if columnInfo != nil {
+                cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!)
+            }
+            
             return cellView
         }
     }

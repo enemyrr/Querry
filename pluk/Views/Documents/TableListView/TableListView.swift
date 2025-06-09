@@ -33,7 +33,7 @@ struct TableListView: View {
                             .background(Color(.controlBackgroundColor).opacity(0.5))
                             .cornerRadius(10)
                             .background {
-                                TabConnectedBorder()
+//                                TabConnectedBorder()
                             }
                             .onAppear {
                                 let appearTime = CFAbsoluteTimeGetCurrent()
@@ -45,7 +45,7 @@ struct TableListView: View {
                             .background(Color(.controlBackgroundColor).opacity(0.5))
                             .cornerRadius(10)
                             .background {
-                                TabConnectedBorder()
+//                                TabConnectedBorder()
                             }
                         }
                     }

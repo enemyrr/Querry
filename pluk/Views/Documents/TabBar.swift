@@ -5,11 +5,11 @@
 //  Created by Fauzaan on 1/3/25.
 //
 import SwiftUI
+import AppKit
 
 struct TabBar: View {
     @Environment(AppViewModel.self) private var appViewModel
     var instance: ConnectionInstance
-    @State private var tabPositions: [TabPosition] = []
     
     var body: some View {
         HStack(spacing: 0) {
@@ -20,9 +20,9 @@ struct TabBar: View {
             }
             
             if !instance.tabs.isEmpty {
-                 navigationButtons
+                navigationButtons
                 
-                tabScrollView
+                customTabButtons
                     .background(
                         Button(action: {
                             if let selectedTab = instance.selectedTab {
@@ -31,27 +31,14 @@ struct TabBar: View {
                         }) {
                             EmptyView()
                         }
-                            .keyboardShortcut("w", modifiers: [.command])
-                            .opacity(0)
-                            .accessibilityHidden(true)
+                        .keyboardShortcut("w", modifiers: [.command])
+                        .opacity(0)
+                        .accessibilityHidden(true)
                     )
             }
-            
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
         .frame(height: 36)
-        .coordinateSpace(name: "TabBar")
-        .onPreferenceChange(TabPositionPreferenceKey.self) { positions in
-            self.tabPositions = positions
-        }
-        .overlay(
-            // Draw border at TabBar level so it can extend over navigation buttons
-            TabBarBorderViewWithPositions(
-                selectedTabId: instance.selectedTab?.id.uuidString ?? "",
-                isVisible: instance.selectedTab != nil,
-                tabPositions: tabPositions
-            )
-        )
     }
     
     private var navigationButtons: some View {
@@ -85,15 +72,14 @@ struct TabBar: View {
         .padding(.leading, 10)
     }
     
-    private var tabScrollView: some View {
+    private var customTabButtons: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(instance.tabs) { tab in
-                        TabBarItem(
-                            tab: tab.name,
-                            tabId: tab.id.uuidString,
-                            isSelected: instance.selectedTab?.name == tab.name,
+                        CustomTabButton(
+                            tab: tab,
+                            isSelected: instance.selectedTab?.id == tab.id,
                             onSelect: {
                                 instance.selectTab(tab)
                             },
@@ -106,7 +92,7 @@ struct TabBar: View {
                         .padding(.trailing, instance.tabs.last?.id == tab.id ? 8 : 0)
                     }
                 }
-                .padding(.trailing, 20) // Add right side scroll offset
+                .padding(.trailing, 20)
             }
             .onChange(of: instance.selectedTab) { _, newValue in
                 if let tab = newValue {
@@ -119,28 +105,146 @@ struct TabBar: View {
     }
 }
 
-struct NavigationButton: View {
-    let icon: String
-    let action: () -> Void
-    let isDisabled: Bool
+struct NSTabViewWrapper: NSViewRepresentable {
+    let instance: ConnectionInstance
     
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 6, height: 12)
-                .padding(8)
-                .contentShape(Rectangle())
+    func makeNSView(context: Context) -> NSTabView {
+        let tabView = NSTabView()
+        tabView.delegate = context.coordinator
+        tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
+        tabView.controlTint = .defaultControlTint
+        tabView.drawsBackground = false
+        
+        return tabView
+    }
+    
+    func updateNSView(_ nsView: NSTabView, context: Context) {
+        context.coordinator.updateTabs(nsView)
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(instance: instance)
+    }
+    
+    class Coordinator: NSObject, NSTabViewDelegate {
+        let instance: ConnectionInstance
+        private var isUpdating = false
+        
+        init(instance: ConnectionInstance) {
+            self.instance = instance
         }
-        .disabled(isDisabled)
-        .buttonStyle(.plain)
+        
+        func updateTabs(_ tabView: NSTabView) {
+            guard !isUpdating else { return }
+            isUpdating = true
+            defer { isUpdating = false }
+            
+            // Remove tabs that no longer exist
+            let currentTabIdentifiers = Set(tabView.tabViewItems.compactMap { $0.identifier as? String })
+            let expectedTabIdentifiers = Set(instance.tabs.map { $0.id.uuidString })
+            
+            for identifier in currentTabIdentifiers {
+                if !expectedTabIdentifiers.contains(identifier) {
+                    if let item = tabView.tabViewItems.first(where: { ($0.identifier as? String) == identifier }) {
+                        tabView.removeTabViewItem(item)
+                    }
+                }
+            }
+            
+            // Add or update tabs
+            for (index, tab) in instance.tabs.enumerated() {
+                let identifier = tab.id.uuidString
+                
+                if let existingItem = tabView.tabViewItems.first(where: { ($0.identifier as? String) == identifier }) {
+                    // Update existing tab
+                    existingItem.label = tab.name
+                    existingItem.image = NSImage(systemSymbolName: instance.connection.databaseType == .mongodb ? "document.fill" : "table", accessibilityDescription: nil)
+                } else {
+                    // Create new tab
+                    let tabViewItem = NSTabViewItem(identifier: identifier)
+                    tabViewItem.label = tab.name
+                    tabViewItem.image = NSImage(systemSymbolName: instance.connection.databaseType == .mongodb ? "document.fill" : "table", accessibilityDescription: nil)
+                    
+                    // Create the actual content view for the tab
+                    let hostingView = NSHostingView(rootView: TabContentView(tab: tab, instance: instance))
+                    tabViewItem.view = hostingView
+                    
+                    // Insert at correct position
+                    if index < tabView.numberOfTabViewItems {
+                        tabView.insertTabViewItem(tabViewItem, at: index)
+                    } else {
+                        tabView.addTabViewItem(tabViewItem)
+                    }
+                }
+            }
+            
+            // Select the correct tab
+            if let selectedTab = instance.selectedTab,
+               let item = tabView.tabViewItems.first(where: { ($0.identifier as? String) == selectedTab.id.uuidString }) {
+                tabView.selectTabViewItem(item)
+            }
+        }
+        
+        // MARK: - NSTabViewDelegate
+        
+        func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+            guard !isUpdating,
+                  let identifier = tabViewItem?.identifier as? String,
+                  let tab = instance.tabs.first(where: { $0.id.uuidString == identifier }) else {
+                return
+            }
+            
+            instance.selectTab(tab)
+        }
+        
+        func tabView(_ tabView: NSTabView, shouldSelect tabViewItem: NSTabViewItem?) -> Bool {
+            return true
+        }
+        
+        // Handle tab closing via context menu or gesture
+        func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
+            // Add context menu for tab closing
+            if let item = tabViewItem,
+               let identifier = item.identifier as? String,
+               let tab = instance.tabs.first(where: { $0.id.uuidString == identifier }) {
+                
+                let menu = NSMenu()
+                let closeItem = NSMenuItem(title: "Close Tab", action: #selector(closeTab(_:)), keyEquivalent: "w")
+                closeItem.keyEquivalentModifierMask = [.command]
+                closeItem.representedObject = tab
+                closeItem.target = self
+                menu.addItem(closeItem)
+                
+                // Add close other tabs option
+                let closeOthersItem = NSMenuItem(title: "Close Other Tabs", action: #selector(closeOtherTabs(_:)), keyEquivalent: "")
+                closeOthersItem.representedObject = tab
+                closeOthersItem.target = self
+                menu.addItem(closeOthersItem)
+                
+                item.view?.menu = menu
+            }
+        }
+        
+        @objc private func closeTab(_ sender: NSMenuItem) {
+            if let tab = sender.representedObject as? DatabaseTab {
+                instance.removeTab(tab)
+            }
+        }
+        
+        @objc private func closeOtherTabs(_ sender: NSMenuItem) {
+            if let currentTab = sender.representedObject as? DatabaseTab {
+                let tabsToClose = instance.tabs.filter { $0.id != currentTab.id }
+                for tab in tabsToClose {
+                    instance.removeTab(tab)
+                }
+            }
+        }
     }
 }
 
-struct TabBarItem: View {
-    let tab: String
-    let tabId: String
+// Custom tab button with your styling
+struct CustomTabButton: View {
+    let tab: DatabaseTab
     let isSelected: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -155,7 +259,7 @@ struct TabBarItem: View {
                         Image(systemName: databaseType == .mongodb ? "document.fill" : "table")
                             .font(.system(size: 12))
                         
-                        Text(tab)
+                        Text(tab.name)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         
@@ -181,13 +285,8 @@ struct TabBarItem: View {
             .padding(.leading, 10)
             .padding(.trailing, 12)
             .background(
-                GeometryReader { geometry in
-                    TabShape(isSelected: isSelected)
-                        .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.6) : Color.clear)
-                        .preference(key: TabPositionPreferenceKey.self, value: [
-                            TabPosition(id: tabId, frame: geometry.frame(in: .named("TabBar")))
-                        ])
-                }
+                TabShape(isSelected: isSelected)
+                    .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.6) : Color.clear)
             )
             .background(
                 RoundedRectangle(cornerRadius: 8)
@@ -205,7 +304,7 @@ struct TabBarItem: View {
     }
 }
 
-
+// Custom tab shape for styling
 struct TabShape: Shape {
     let isSelected: Bool
     
@@ -215,65 +314,9 @@ struct TabShape: Shape {
         if isSelected {
             let radius: CGFloat = 8
             let curveRadius: CGFloat = 10
-            let smoothness: CGFloat = 1 // Controls corner smoothness
+            let smoothness: CGFloat = 1
             
             // Start from bottom left (extended)
-            path.move(to: CGPoint(x: -curveRadius, y: rect.height))
-            
-            // Bottom left outward curve - more pronounced with smoothness
-            path.addQuadCurve(
-                to: CGPoint(x: 0, y: rect.height - curveRadius),
-                control: CGPoint(x: -2 * smoothness, y: rect.height)
-            )
-            
-            // Left side line up
-            path.addLine(to: CGPoint(x: 0, y: radius))
-            
-            // Top left rounded corner with smoothness
-            path.addQuadCurve(
-                to: CGPoint(x: radius, y: 0),
-                control: CGPoint(x: 0, y: 0)
-            )
-            
-            // Top line
-            path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
-            
-            // Top right rounded corner with smoothness
-            path.addQuadCurve(
-                to: CGPoint(x: rect.width, y: radius),
-                control: CGPoint(x: rect.width, y: 0)
-            )
-            
-            // Right side line down
-            path.addLine(to: CGPoint(x: rect.width, y: rect.height - curveRadius))
-            
-            // Bottom right outward curve - more pronounced with smoothness
-            path.addQuadCurve(
-                to: CGPoint(x: rect.width + curveRadius, y: rect.height),
-                control: CGPoint(x: rect.width + 2 * smoothness, y: rect.height)
-            )
-            
-            // Bottom line to close
-            path.addLine(to: CGPoint(x: -curveRadius, y: rect.height))
-        }
-        
-        return path
-    }
-}
-
-// Extension to add border functionality
-extension TabShape {
-    func borderPath(in rect: CGRect) -> Path {
-        var path = Path()
-        
-        if isSelected {
-            let radius: CGFloat = 8
-            let curveRadius: CGFloat = 10
-            let smoothness: CGFloat = 1
-            let extensionWidth: CGFloat = 5000  // How far to extend beyond bounds
-            let extensionHeight: CGFloat = 1000 // How far to extend below
-            
-            // Start from bottom left curve point
             path.move(to: CGPoint(x: -curveRadius, y: rect.height))
             
             // Bottom left outward curve
@@ -309,177 +352,52 @@ extension TabShape {
                 control: CGPoint(x: rect.width + 2 * smoothness, y: rect.height)
             )
             
-            // EXTENSION BEYOND BOUNDS STARTS HERE
-            
-            // Extend further right beyond the view bounds
-            path.addLine(to: CGPoint(x: rect.width + curveRadius + extensionWidth, y: rect.height))
-            
-            // Drop down to create extended border
-            path.addLine(to: CGPoint(x: rect.width + curveRadius + extensionWidth, y: rect.height + extensionHeight))
-            
-            // Go back to the left side (creating bottom border)
-            path.addLine(to: CGPoint(x: -curveRadius - extensionWidth, y: rect.height + extensionHeight))
-            
-            // Go back up on the left side
-            path.addLine(to: CGPoint(x: -curveRadius - extensionWidth, y: rect.height))
-            
-            // Connect back to the starting point
+            // Bottom line to close
             path.addLine(to: CGPoint(x: -curveRadius, y: rect.height))
-            
-            // Close the path to create a complete shape
-            path.closeSubpath()
         }
         
         return path
     }
 }
 
-// Preference key to collect tab positions
-struct TabPosition: Equatable {
-    let id: String
-    let frame: CGRect
-}
-
-struct TabPositionPreferenceKey: PreferenceKey {
-    static var defaultValue: [TabPosition] = []
-    
-    static func reduce(value: inout [TabPosition], nextValue: () -> [TabPosition]) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
-struct TabBarBorderViewWithPositions: View {
-    let selectedTabId: String
-    let isVisible: Bool
-    let tabPositions: [TabPosition]
+struct TabContentView: View {
+    let tab: DatabaseTab
+    let instance: ConnectionInstance
     
     var body: some View {
-        GeometryReader { geometry in
-            if isVisible, let selectedTabPosition = tabPositions.first(where: { $0.id == selectedTabId }) {
-                return AnyView(
-                    TabBarBorderShape(
-                        tabFrame: selectedTabPosition.frame,
-                        totalWidth: geometry.size.width
-                    )
-                    .stroke(Color(.separatorColor))
-                    .allowsHitTesting(false)
-                )
-            } else {
-                return AnyView(EmptyView())
+        Group {
+            switch instance.connection.databaseType {
+            case .postgres:
+                TableListView(viewModel: instance.viewModel(for: tab))
+            case .mongodb:
+                DocumentList(viewModel: instance.viewModel(for: tab))
+            default:
+                VStack {
+                    Text("No collection selected")
+                        .font(.title2)
+                    Spacer()
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-struct TabBarBorderShape: Shape {
-    let tabFrame: CGRect
-    let totalWidth: CGFloat
+struct NavigationButton: View {
+    let icon: String
+    let action: () -> Void
+    let isDisabled: Bool
     
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        
-        let radius: CGFloat = 8
-        let curveRadius: CGFloat = 10
-        let smoothness: CGFloat = 1
-        let tabHeight = rect.height
-        
-        // Start from far left (covering navigation buttons)
-        path.move(to: CGPoint(x: 22, y: tabHeight))
-        
-        // Draw line to the start of the left curve
-        path.addLine(to: CGPoint(x: tabFrame.minX - curveRadius, y: tabHeight))
-        
-        // Bottom left outward curve
-        path.addQuadCurve(
-            to: CGPoint(x: tabFrame.minX, y: tabHeight - curveRadius),
-            control: CGPoint(x: tabFrame.minX - 2 * smoothness, y: tabHeight)
-        )
-        
-        // Left side line up
-        path.addLine(to: CGPoint(x: tabFrame.minX, y: radius))
-        
-        // Top left rounded corner
-        path.addQuadCurve(
-            to: CGPoint(x: tabFrame.minX + radius, y: 0),
-            control: CGPoint(x: tabFrame.minX, y: 0)
-        )
-        
-        // Top line
-        path.addLine(to: CGPoint(x: tabFrame.maxX - radius, y: 0))
-        
-        // Top right rounded corner
-        path.addQuadCurve(
-            to: CGPoint(x: tabFrame.maxX, y: radius),
-            control: CGPoint(x: tabFrame.maxX, y: 0)
-        )
-        
-        // Right side line down
-        path.addLine(to: CGPoint(x: tabFrame.maxX, y: tabHeight - curveRadius))
-        
-        // Bottom right outward curve
-        path.addQuadCurve(
-            to: CGPoint(x: tabFrame.maxX + curveRadius, y: tabHeight),
-            control: CGPoint(x: tabFrame.maxX + 2 * smoothness, y: tabHeight)
-        )
-        
-        // Continue line to the far right
-        path.addLine(to: CGPoint(x: totalWidth - 22, y: tabHeight))
-        
-        return path
-    }
-}
-
-struct TabConnectedBorder: View {
     var body: some View {
-        GeometryReader { geometry in
-            Path { path in
-                let rect = geometry.frame(in: .local)
-                let cornerRadius: CGFloat = 10
-                let topBorderLength: CGFloat = 14
-                
-                // Start from top-right corner with short top border
-                path.move(to: CGPoint(x: rect.width - topBorderLength, y: 0))
-                
-                // Short top border on the right
-                path.addLine(to: CGPoint(x: rect.width - cornerRadius, y: 0))
-                
-                // Top-right corner
-                path.addQuadCurve(
-                    to: CGPoint(x: rect.width, y: cornerRadius),
-                    control: CGPoint(x: rect.width, y: 0)
-                )
-                
-                // Right border
-                path.addLine(to: CGPoint(x: rect.width, y: rect.height - cornerRadius))
-                
-                // Bottom-right corner
-                path.addQuadCurve(
-                    to: CGPoint(x: rect.width - cornerRadius, y: rect.height),
-                    control: CGPoint(x: rect.width, y: rect.height)
-                )
-                
-                // Bottom border
-                path.addLine(to: CGPoint(x: cornerRadius, y: rect.height))
-                
-                // Bottom-left corner
-                path.addQuadCurve(
-                    to: CGPoint(x: 0, y: rect.height - cornerRadius),
-                    control: CGPoint(x: 0, y: rect.height)
-                )
-                
-                // Left border
-                path.addLine(to: CGPoint(x: 0, y: cornerRadius))
-                
-                // Top-left corner
-                path.addQuadCurve(
-                    to: CGPoint(x: cornerRadius, y: 0),
-                    control: CGPoint(x: 0, y: 0)
-                )
-                
-                // Short top border on the left
-                path.addLine(to: CGPoint(x: topBorderLength, y: 0))
-            }
-            .stroke(Color(.separatorColor), lineWidth: 1)
+        Button(action: action) {
+            Image(systemName: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 6, height: 12)
+                .padding(8)
+                .contentShape(Rectangle())
         }
+        .disabled(isDisabled)
+        .buttonStyle(.plain)
     }
 }
