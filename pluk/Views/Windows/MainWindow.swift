@@ -23,17 +23,20 @@ struct MainWindow: View {
             
             if colorScheme == .dark {
                 Color(hex: 0x030303)
-                    .opacity(0.5)
+                    .opacity(0.2)
+                    .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             } else {
                 Color(hex: 0xFCFCFC)
-                    .opacity(0.4)
+                    .opacity(0.015)
+                    .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             }
             
             if let connectionColor = sidebarViewModel.activeConnection?.connection.color, sidebarViewModel.activeSidebarItem != .home {
                 connectionColor.color
-                    .opacity(0.015)
+                    .opacity(0.20)
+                    .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             }
             
@@ -67,9 +70,10 @@ struct MainWindow: View {
 struct VibrantBackgroundView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .sidebar  // Matches macOS sidebar effect
+        view.material = .sidebar
         view.blendingMode = .behindWindow
         view.state = .active
+        view.wantsLayer = true
         return view
     }
     

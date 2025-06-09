@@ -15,6 +15,7 @@ struct DocumentView: View {
     var body: some View {
         VStack(spacing: 0) {
             TabBar(instance: instance)
+                .padding(.bottom, -1)
                 .zIndex(1)
             
             NSTabViewWrapper(instance: instance)
