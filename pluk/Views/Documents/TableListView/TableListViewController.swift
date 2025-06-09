@@ -253,7 +253,6 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        print("makeCoordinator \(rows?.rowCount)")
         return Coordinator(schema: schema)
     }
     
@@ -262,7 +261,6 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
-        print("Updating NSView \(rows?.rowCount)")
         context.coordinator.updateRows(rows, schema: schema)
     }
 }
