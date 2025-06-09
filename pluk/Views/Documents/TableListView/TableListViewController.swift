@@ -8,6 +8,16 @@ import Foundation
 import SwiftUI
 import AppKit
 
+class ExtendedClipView: NSClipView {
+    var bottomExtension: CGFloat = 50
+    
+    override var documentRect: NSRect {
+        var rect = super.documentRect
+        rect.size.height += bottomExtension
+        return rect
+    }
+}
+
 struct TableListViewController: NSViewRepresentable {
     let rows: PostgreSQLQueryResult?
     let schema: DatabaseSchemaResult?
@@ -82,6 +92,12 @@ struct TableListViewController: NSViewRepresentable {
         
         private func setupUI() {
             containerView.wantsLayer = true
+            
+            // Create custom clip view
+            let customClipView = ExtendedClipView()
+            customClipView.bottomExtension = 80 // Your floating bar height
+            
+            scrollView.contentView = customClipView
             
             // Scroll view setup
             scrollView.hasVerticalScroller = true

@@ -183,7 +183,7 @@ struct TabBarItem: View {
             .background(
                 GeometryReader { geometry in
                     TabShape(isSelected: isSelected)
-                        .fill(isSelected ? Color(.controlColor).opacity(0.1) : Color.clear)
+                        .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.6) : Color.clear)
                         .preference(key: TabPositionPreferenceKey.self, value: [
                             TabPosition(id: tabId, frame: geometry.frame(in: .named("TabBar")))
                         ])
@@ -191,7 +191,7 @@ struct TabBarItem: View {
             )
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isHovering ? Color(.controlColor).opacity(0.6) : Color.clear)
+                    .fill(isHovering ? Color(.controlColor).opacity(0.5) : Color.clear)
                     .padding(.bottom, 4)
                     .opacity(isSelected ? 0 : 1)
             )

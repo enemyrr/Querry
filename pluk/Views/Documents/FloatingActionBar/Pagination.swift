@@ -37,7 +37,7 @@ struct Pagination: View {
             Button(action: {
                 // Open Modal
             }) {
-                Text("\(viewModel.totalItems) documents").foregroundColor(.gray)
+                Text("\(viewModel.totalItems) rows").foregroundColor(.gray)
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), disableScaleEffect: true))
             

@@ -58,25 +58,20 @@ import SwiftUI
         }
         
         do {
-            // First get count with a lightweight query
-            let count = try await databaseDriver.getDocumentCount(for: selectedTab.name, filter: [:])
-            
-            // Then load the actual documents
             let documents = try await databaseDriver.findDocuments(
                 in: selectedTab.name,
                 filter: [:],
 //                skip: paginationManager.skip,
 //                limit: paginationManager.limit
-            )
+            ) as? PostgreSQLQueryResult
             
-//
-//            // Process documents in a background task to avoid blocking
+           // Process documents in a background task to avoid blocking
             await MainActor.run {
-                paginationManager.updateTotalItems(count)
+                paginationManager.updateTotalItems(documents?.totalCount ?? 0)
                 self.formattedDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
-                self.rowDocuments = documents as? PostgreSQLQueryResult
+                self.rowDocuments = documents
                 
                 // Instead of immediately setting isLoading to false,
                 Task {

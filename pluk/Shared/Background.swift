@@ -20,8 +20,7 @@ struct GlassBackgroundStyle: ViewModifier {
                         .fill(
                             .linearGradient(
                                 colors: [
-                                    Color(.controlColor).opacity(0.1),
-                                    Color(.controlColor).opacity(0.05),
+                                    Color(.controlBackgroundColor).opacity(0.05),
                                     .clear,
                                 ],
                                 startPoint: .top,

@@ -303,7 +303,50 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
-        return 1
+        return 0
+//        let connection = try ensureConnected()
+//        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+//        
+//        do {
+//            let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 150"
+//            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+//            
+//            var columns: [PostgreSQLColumnInfo] = []
+//            var rawRows: [PostgresRandomAccessRow] = [] // Store random access rows
+//            var columnsInitialized = false
+//            
+//            for try await row in results {
+//                // Extract column info only once
+//                if !columnsInitialized {
+//                    var columnIndex = 0
+//                    for cell in row {
+//                        columns.append(PostgreSQLColumnInfo(
+//                            name: cell.columnName,
+//                            dataType: cell.dataType,
+//                            format: cell.format,
+//                            index: columnIndex
+//                        ))
+//                        columnIndex += 1
+//                    }
+//                    columnsInitialized = true
+//                }
+//                
+//                // Convert to random access row for O(1) cell access
+//                rawRows.append(row.makeRandomAccess())
+//            }
+//            
+//            return PostgreSQLQueryResult(
+//                columns: columns,
+//                rows: rawRows,
+//                totalCount: rawRows.count,
+//                rawRows: rawRows,
+//            )
+//            
+//        } catch let error as PSQLError {
+//            throw mapPSQLError(error)
+//        } catch {
+//            throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
+//        }
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> PostgreSQLQueryResult {
