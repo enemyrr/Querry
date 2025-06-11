@@ -9,8 +9,8 @@ import SwiftUI
 import MongoKitten
 
 struct FloatingActionBar: View {
+    @Environment(ConnectionInstance.self) private var instance
     let screenWidth: CGFloat
-    var viewModel: DocumentListModel
     
     @State private var containerWidth: CGFloat = 0
     @State var lastQuery: String?
@@ -18,10 +18,8 @@ struct FloatingActionBar: View {
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String?
     
-    init(viewModel: DocumentListModel, screenWidth: CGFloat) {
-        self.viewModel = viewModel
-        self.screenWidth = screenWidth
-    }
+    @State var action: ActionBar = ActionBar.main
+    @State var showFilterEditor: Bool = false
     
     var body: some View {
         Button("") {
@@ -51,13 +49,13 @@ struct FloatingActionBar: View {
             }
             
             HStack {
-                switch viewModel.action {
+                switch action {
                 case .main:
                     mainView
                 case .search:
-                    if let selectedTab = viewModel.instance.selectedTab {
-                        AISearchView(viewModel: viewModel, selectedTab: selectedTab)
-                            .frame(width: screenWidth * 0.55)
+                    if let selectedTab = instance.selectedTab {
+                        //                        AISearchView(viewModel: viewModel, selectedTab: selectedTab)
+                        //                            .frame(width: screenWidth * 0.55)
                     }
                 default:
                     mainView
@@ -71,16 +69,16 @@ struct FloatingActionBar: View {
             )
             .background(
                 Group {
-                    if viewModel.isLoadingAnimation {
+                    if instance.isLoadingAnimation {
                         GlowingBubbleLoader()
                     }
                     
-                    if viewModel.error != nil {
+                    if instance.error != nil {
                         LoadingErrorIndicator()
                     }
                 }
             )
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
+            //            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
             .background(
                 GeometryReader { geometry in
                     Color.clear
@@ -168,40 +166,40 @@ struct FloatingActionBar: View {
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
-                if viewModel.pendingActionsCount(for: .delete) > 0 {
-                    Divider()
-                        .frame(height: 22)
-                        .padding(.vertical, 6)
-                    
-                    DeleteActionButton(
-                        deleteCount: viewModel.pendingActionsCount(for: .delete),
-                        isProcessingBatch: viewModel.isProcessingBatch,
-                        onDelete: {
-                            Task {
-                                await viewModel.commitPendingActions()
-                            }
-                        }
-                    )
-                    .padding(.horizontal, 2)
-                }
+                //                if viewModel.pendingActionsCount(for: .delete) > 0 {
+                Divider()
+                    .frame(height: 22)
+                    .padding(.vertical, 6)
                 
-                // Batch update button - only show when there are documents marked for update
-                if viewModel.pendingActionsCount(for: .update) > 1 {
-                    Divider()
-                        .frame(height: 22)
-                        .padding(.vertical, 6)
-                    
-                    UpdateActionButton(
-                        updateCount: viewModel.pendingActionsCount(for: .update),
-                        isProcessingBatch: viewModel.isProcessingBatch,
-                        onUpdate: {
-                            Task {
-                                await viewModel.commitPendingActions()
-                            }
-                        }
-                    )
-                }
+                //                    DeleteActionButton(
+                //                        deleteCount: viewModel.pendingActionsCount(for: .delete),
+                //                        isProcessingBatch: viewModel.isProcessingBatch,
+                //                        onDelete: {
+                //                            Task {
+                //                                await viewModel.commitPendingActions()
+                //                            }
+                //                        }
+                //                    )
+                //                    .padding(.horizontal, 2)
             }
+            
+            // Batch update button - only show when there are documents marked for update
+            //                if viewModel.pendingActionsCount(for: .update) > 1 {
+            //                    Divider()
+            //                        .frame(height: 22)
+            //                        .padding(.vertical, 6)
+            //
+            //                    UpdateActionButton(
+            //                        updateCount: viewModel.pendingActionsCount(for: .update),
+            //                        isProcessingBatch: viewModel.isProcessingBatch,
+            //                        onUpdate: {
+            //                            Task {
+            //                                await viewModel.commitPendingActions()
+            //                            }
+            //                        }
+            //                    )
+            //                }
+            //            }
             
             Divider()
                 .frame(height: 22)
@@ -231,7 +229,7 @@ struct FloatingActionBar: View {
             
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
-                    viewModel.action = ActionBar.search
+                    action = ActionBar.search
                 }
             }) {
                 Image(systemName: "sparkles")
@@ -263,7 +261,7 @@ struct FloatingActionBar: View {
     private var FilterIcon: some View {
         HStack(spacing: 4) {
             Button(action: {
-                viewModel.showFilterEditor = true
+                showFilterEditor = true
                 //                searchQueryViewModel.showQueryEditor = true
             }) {
                 BadgedFilterIcon()
@@ -293,26 +291,106 @@ struct FloatingActionBar: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.separator, lineWidth: 1)
         )
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
+        //        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
     }
     
-}
-
-struct BadgedFilterIcon: View {
-    var isFiltered = true
-    
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 14))
-                .foregroundColor(.gray)
-            
-            if isFiltered {
-                Circle()
-                    .fill(Color.orange)
-                    .frame(width: 8, height: 8)
-                    .offset(x: 5, y: -5)
+    struct BadgedFilterIcon: View {
+        var isFiltered = true
+        
+        var body: some View {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                
+                if isFiltered {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 8, height: 8)
+                        .offset(x: 5, y: -5)
+                }
             }
+        }
+    }
+    
+
+    
+    // MARK: - Action Buttons
+    struct DeleteActionButton: View {
+        let deleteCount: Int
+        let isProcessingBatch: Bool
+        let onDelete: () -> Void
+        
+        var body: some View {
+            Button(action: onDelete) {
+                HStack(spacing: 4) {
+                    if !isProcessingBatch {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                    }
+                    
+                    Text(isProcessingBatch ? "Deleting" : "\(deleteCount)")
+                        .font(.system(size: 12, weight: .light))
+                        .lineLimit(1)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
+                .cornerRadius(6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isProcessingBatch)
+            .transition(.scale.combined(with: .opacity))
+            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+            .keyboardShortcut("s", modifiers: .command)
+            .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "S"
+            ), spacing: 10)
+        }
+    }
+    
+    struct UpdateActionButton: View {
+        let updateCount: Int
+        let isProcessingBatch: Bool
+        let onUpdate: () -> Void
+        
+        var body: some View {
+            Button(action: onUpdate) {
+                HStack(alignment: .bottom, spacing: 4) {
+                    if isProcessingBatch {
+                        // Display a loading indicator when processing
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(width: 16, height: 16)
+                            .tint(.white)
+                    } else {
+                        // Display save icon when not processing
+                        Image(systemName: "icloud.and.arrow.up.fill")
+                            .font(.system(size: 12))
+                        
+                        Text("\(updateCount)")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(isProcessingBatch ? 0.8 : 1))
+                .cornerRadius(6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isProcessingBatch)
+            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+            .transition(.scale.combined(with: .opacity))
+            .keyboardShortcut("s", modifiers: .command)
+            .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "S"
+            ), spacing: 10)
         }
     }
 }
@@ -321,83 +399,4 @@ enum ActionBar: String, CaseIterable, Codable {
     case main = "main"
     case search = "search"
     case create = "create"
-}
-
-// MARK: - Action Buttons
-struct DeleteActionButton: View {
-    let deleteCount: Int
-    let isProcessingBatch: Bool
-    let onDelete: () -> Void
-    
-    var body: some View {
-        Button(action: onDelete) {
-            HStack(spacing: 4) {
-                if !isProcessingBatch {
-                    Image(systemName: "trash")
-                        .font(.system(size: 12))
-                }
-                
-                Text(isProcessingBatch ? "Deleting" : "\(deleteCount)")
-                    .font(.system(size: 12, weight: .light))
-                    .lineLimit(1)
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
-            .cornerRadius(6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isProcessingBatch)
-        .transition(.scale.combined(with: .opacity))
-        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-        .keyboardShortcut("s", modifiers: .command)
-        .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
-            modifiers: [.command],
-            key: "S"
-        ), spacing: 10)
-    }
-}
-
-struct UpdateActionButton: View {
-    let updateCount: Int
-    let isProcessingBatch: Bool
-    let onUpdate: () -> Void
-    
-    var body: some View {
-        Button(action: onUpdate) {
-            HStack(alignment: .bottom, spacing: 4) {
-                if isProcessingBatch {
-                    // Display a loading indicator when processing
-                    ProgressView()
-                        .controlSize(.mini)
-                        .frame(width: 16, height: 16)
-                        .tint(.white)
-                } else {
-                    // Display save icon when not processing
-                    Image(systemName: "icloud.and.arrow.up.fill")
-                        .font(.system(size: 12))
-                    
-                    Text("\(updateCount)")
-                        .font(.system(size: 12, weight: .medium))
-                }
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.orange.opacity(isProcessingBatch ? 0.8 : 1))
-            .cornerRadius(6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isProcessingBatch)
-        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-        .transition(.scale.combined(with: .opacity))
-        .keyboardShortcut("s", modifiers: .command)
-        .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
-            modifiers: [.command],
-            key: "S"
-        ), spacing: 10)
-    }
 }

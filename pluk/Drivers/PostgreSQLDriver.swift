@@ -717,7 +717,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 totalCount: databaseSchemaInfo.count
             )
             
-            // Cache the result for future use
+//             Cache the result for future use
             await databaseSchema.set(cacheKey, value: schemaResult)
             
             return schemaResult

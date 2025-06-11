@@ -31,15 +31,15 @@ struct TabBar: View {
                         }) {
                             EmptyView()
                         }
-                        .keyboardShortcut("w", modifiers: [.command])
-                        .opacity(0)
-                        .accessibilityHidden(true)
+                            .keyboardShortcut("w", modifiers: [.command])
+                            .opacity(0)
+                            .accessibilityHidden(true)
                     )
             }
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
         .frame(height: 36)
-
+        
     }
     
     private var navigationButtons: some View {
@@ -112,7 +112,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
     func makeNSView(context: Context) -> NSTabView {
         let tabView = NSTabView()
         tabView.delegate = context.coordinator
-        tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
+//        tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
         tabView.drawsBackground = false
         
         return tabView
@@ -166,7 +166,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     tabViewItem.image = NSImage(systemSymbolName: instance.connection.databaseType == .mongodb ? "document.fill" : "table", accessibilityDescription: nil)
                     
                     // Create the actual content view for the tab
-                    let tabContentView = TabContentView(tab: tab, instance: instance)
+                    let tabContentView = TabContentView(tab: tab, databaseType: instance.connection.databaseType, selectedTab: instance.selectedTab)
                     tabViewItem.view = tabContentView
                     
                     // Insert at correct position
@@ -252,60 +252,59 @@ struct CustomTabButton: View {
     @State private var isHovering = false
     
     var body: some View {
-        Button(action: onSelect) {
-            VStack {
-                ZStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: databaseType == .mongodb ? "document.fill" : "table")
-                            .font(.system(size: 12))
-                        
-                        Text(tab.name)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                    }
+        VStack {
+            ZStack {
+                HStack(spacing: 8) {
+                    Image(systemName: databaseType == .mongodb ? "document.fill" : "table")
+                        .font(.system(size: 12))
                     
-                    if isHovering {
-                        HStack {
-                            Spacer()
-                            Button(action: onClose) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 12))
-                            }
-                            .buttonStyle(TabCloseButtonStyle())
-                            .frame(width: 10, height: 10)
+                    Text(tab.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    Spacer()
+                }
+                
+                if isHovering {
+                    HStack {
+                        Spacer()
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12))
                         }
+                        .buttonStyle(TabCloseButtonStyle())
+                        .frame(width: 10, height: 10)
                     }
                 }
-                .padding(.bottom, 4)
             }
-            .frame(width: 160)
-            .padding(.vertical, 8)
-            .padding(.leading, 10)
-            .padding(.trailing, 12)
-            .background(
-                TabShape(isSelected: isSelected)
-                    .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.3) : Color.clear)
-            )
-            .overlay(
-                TabBorderShape(isSelected: isSelected)
-                    .stroke(isSelected ? Color(.separatorColor) : Color.clear, lineWidth: 1)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isHovering ? Color(.controlColor).opacity(0.5) : Color.clear)
-                    .padding(.bottom, 4)
-                    .opacity(isSelected ? 0 : 1)
-            )
+            .padding(.bottom, 4)
         }
-        .buttonStyle(.plain)
-        .onHover { hovering in
+        .frame(width: 160)
+        .padding(.vertical, 8)
+        .padding(.leading, 10)
+        .padding(.trailing, 12)
+        .background(
+            TabShape(isSelected: isSelected)
+                .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.3) : Color.clear)
+        )
+        .overlay(
+            TabBorderShape(isSelected: isSelected)
+                .stroke(isSelected ? Color(.separatorColor) : Color.clear, lineWidth: 1)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovering ? Color(.controlColor).opacity(0.5) : Color.clear)
+                .padding(.bottom, 4)
+                .opacity(isSelected ? 0 : 1)
+        ).onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
             }
+        }.onTapGesture {
+            onSelect()
         }
     }
+    
 }
 
 // Custom tab shape for styling

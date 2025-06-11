@@ -37,41 +37,30 @@ import AIProxy
     var connectionVersion: String?
     var lastError: Error?
     
+    @ObservationIgnored
     var documentViewModels: [UUID: DocumentListModel] = [:]
-    
-    // MARK: - Pagination Properties
-    var currentPage = 1
-    var totalPages = 0
-    var totalRows = 0
-    var rowsPerPage = 300
-    
-    var skip: Int {
-        return (currentPage - 1) * rowsPerPage
-    }
-    var limit: Int {
-        return rowsPerPage
-    }
     
     // UI State
     var tabs: [DatabaseTab] = []
-    var selectedTab: DatabaseTab?
+    private var selectedTabId: UUID?
+    
+    var selectedTab: DatabaseTab? {
+        get {
+            guard let selectedTabId = selectedTabId else { return nil }
+            return tabs.first { $0.id == selectedTabId }
+        }
+        set {
+            selectedTabId = newValue?.id
+        }
+    }
+    
+    var isLoadingAnimation: Bool = true
+    var isLoading = true
+    var error: Error?
+    var lastFetchTimestamp: Date = Date()
     
     init(connection: Connection) {
         self.connection = connection
-    }
-    
-    func viewModel(for tab: DatabaseTab) -> DocumentListModel {
-        if let existing = documentViewModels[tab.id] {
-            return existing
-        } else {
-            guard let databaseDriver, let connectedDatabase else {
-                fatalError("Database driver not set yet")
-            }
-            
-            let newModel = DocumentListModel(instance: self, databaseDriver: databaseDriver, connectedDatabase: connectedDatabase)
-            documentViewModels[tab.id] = newModel
-            return newModel
-        }
     }
     
     func processDatabaseCollections(previousDatabase: MongoDatabase?) async {
@@ -151,20 +140,19 @@ import AIProxy
         }
     }
     
+    @discardableResult
     func getSchema(for collectionName: String) async throws {
         guard let driver = _databaseDriver else { return }
         
         let schemaResult = try await driver.getSchema(for: collectionName)
         
-        await MainActor.run {
-            self.schema[collectionName] = schemaResult
-        }
+        self.schema[collectionName] = schemaResult
         
         // Load collections for current database
-        if let currentDb = connectedDatabase {
-            let collectionList = try await driver.listCollections()
-            self.collections[currentDb.name] = collectionList
-        }
+//        if let currentDb = connectedDatabase {
+//            let collectionList = try await driver.listCollections()
+//            self.collections[currentDb.name] = collectionList
+//        }
         
     }
     
@@ -185,11 +173,15 @@ import AIProxy
     /// Fetch documents from a collection
     /// - Parameter collectionName: The name of the collection to fetch from
     /// - Returns: Array of documents from the collection
-    @discardableResult
-    func fetchDocuments(from collectionName: String, filter: String = "") async throws -> [MongoKitten.Document] {
-        guard let driver = _databaseDriver,
-              let _database = connectedDatabase else {
+    func fetchDocuments(from collectionName: String, filter: String = "") async throws {
+        guard let driver = _databaseDriver, let selectedTab else {
             throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        await MainActor.run {
+            self.error = nil
+            self.isLoading = true
+            self.isLoadingAnimation = true
         }
         
         switch connection.databaseType {
@@ -200,17 +192,38 @@ import AIProxy
             }
             
             let cursor = collection.find()
-            return try await cursor.drain()
+            _ = try await cursor.drain()
+            
+            // Update documents for MongoDB (if needed)
+            await MainActor.run {
+                self.lastFetchTimestamp = Date()
+                self.isLoading = false
+                
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(800))
+                    self.isLoadingAnimation = false
+                }
+            }
             
         case .postgres, .supabase, .neon:
-            documents[collectionName] = try await driver.findDocuments(
+            let rows = try await driver.findDocuments(
                 in: collectionName,
                 filter: ["rawQuery": filter],
-                skip: skip,
-                limit: limit
+                skip: selectedTab.skip,
+                limit: selectedTab.limit
             ) as? PostgreSQLQueryResult
             
-            return []
+            await MainActor.run {
+                self.documents[collectionName] = rows
+                updateTotalRows(documents.count)
+                self.lastFetchTimestamp = Date()
+                self.isLoading = false
+                
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(800))
+                    self.isLoadingAnimation = false
+                }
+            }
             
         default:
             throw DatabaseError.operationFailed("Unsupported database type for document fetching")
@@ -319,7 +332,7 @@ import AIProxy
     // MARK: - Tab Management
     func createNewTab(name: String) {
         if let existingTab = tabs.first(where: { $0.name == name }) {
-            selectedTab = existingTab
+            selectedTabId = existingTab.id
             return
         }
         
@@ -355,7 +368,7 @@ import AIProxy
     }
     
     func selectTab(_ tab: DatabaseTab) {
-        selectedTab = tab
+        selectedTabId = tab.id
     }
     
     func nextTab(_ currentTab: DatabaseTab) {
@@ -370,6 +383,39 @@ import AIProxy
            currentIndex > 0 {
             selectedTab = tabs[currentIndex - 1]
         }
+    }
+    
+    // MARK: - Pagination Management (direct and simple)
+    
+    func updateCurrentPage(_ page: Int) {
+        guard let selectedTabId = selectedTabId,
+              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
+              page > 0 && page <= tabs[tabIndex].totalPages else { return }
+        
+        tabs[tabIndex].currentPage = page
+    }
+    
+    func updateRowsPerPage(_ count: Int) {
+        guard let selectedTabId = selectedTabId,
+              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
+              count > 0 else { return }
+        
+        tabs[tabIndex].rowsPerPage = count
+        
+        // Recalculate pagination
+        let totalPages = max(1, Int(ceil(Double(tabs[tabIndex].totalRows) / Double(count))))
+        tabs[tabIndex].totalPages = totalPages
+        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
+    }
+    
+    func updateTotalRows(_ count: Int) {
+        guard let selectedTabId = selectedTabId,
+              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }) else { return }
+        
+        tabs[tabIndex].totalRows = count
+        let totalPages = max(1, Int(ceil(Double(count) / Double(tabs[tabIndex].rowsPerPage))))
+        tabs[tabIndex].totalPages = totalPages
+        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
     }
 }
 

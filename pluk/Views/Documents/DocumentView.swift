@@ -10,8 +10,6 @@ import SwiftUI
 import AppKit
 
 struct DocumentView: View {
-    @Environment(ConnectionInstance.self) private var instance
-    
     var body: some View {
         VStack(spacing: 0) {
             TabBar()
@@ -33,12 +31,14 @@ struct DocumentView: View {
 
 class TabContentView: NSView {
     let tab: DatabaseTab
-    let instance: ConnectionInstance
+    let databaseType: DatabaseType
+    let selectedTab: DatabaseTab?
     private var contentView: NSView?
     
-    init(tab: DatabaseTab, instance: ConnectionInstance) {
+    init(tab: DatabaseTab, databaseType: DatabaseType, selectedTab: DatabaseTab?) {
         self.tab = tab
-        self.instance = instance
+        self.databaseType = databaseType
+        self.selectedTab = selectedTab
         super.init(frame: .zero)
         setupView()
     }
@@ -55,7 +55,7 @@ class TabContentView: NSView {
         layer?.borderColor = NSColor.separatorColor.cgColor
         layer?.cornerRadius = 8.0
         
-        switch instance.connection.databaseType {
+        switch databaseType {
         case .postgres:
             setupPostgresView()
             
@@ -68,7 +68,7 @@ class TabContentView: NSView {
     }
     
     private func setupPostgresView() {
-        if let selectedTab = instance.selectedTab {
+        if let selectedTab = selectedTab {
             let tableListView = TableListView(
                 selectedTab: selectedTab
             )
@@ -78,10 +78,10 @@ class TabContentView: NSView {
     }
     
     private func setupMongoDBView() {
-        let viewModel = instance.viewModel(for: tab)
-        let documentList = DocumentList(viewModel: viewModel)
-        let hostingView = NSHostingView(rootView: documentList)
-        setContentView(hostingView)
+//        let viewModel = instance.viewModel(for: tab)
+//        let documentList = DocumentList(viewModel: viewModel)
+//        let hostingView = NSHostingView(rootView: documentList)
+//        setContentView()
     }
     
     private func setupDefaultView() {

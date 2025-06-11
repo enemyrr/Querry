@@ -12,15 +12,18 @@ struct TableListView: View {
     let selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
     
+    @State private var isLoading = false
+    @State private var loadingError: Error?
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 VStack {
                     Group {
-                        if let selectedTabName = instance.selectedTab?.name,
-                           let schemaResult = instance.schema[selectedTabName] {
+                        if let selectedTab = instance.selectedTab,
+                           let schemaResult = instance.schema[selectedTab.name] {
                             TableListViewController(
-                                rows: instance.documents[selectedTabName],
+                                rows: instance.documents[selectedTab.name],
                                 schema: schemaResult
                             )
                             .background(Color(.controlBackgroundColor).opacity(0.3))
@@ -32,35 +35,59 @@ struct TableListView: View {
                                 .cornerRadius(10)
                         }
                     }
-                    .task(id: instance.selectedTab?.id) {
-                        guard let selectedTab = instance.selectedTab?.name else { return }
-                        
-                        do {
-                            try await instance.getSchema(for: selectedTab)
-                        } catch {
-                            // TODO: Show error page to the user
-                            print("Failed to get schema: \(error)")
-                        }
-                    }
-                    .task(id: instance.selectedTab?.id) {
-                        guard let selectedTab = instance.selectedTab?.name else { return }
-                        
-                        do {
-                            try await instance.fetchDocuments(from: selectedTab)
-                        } catch {
-                            // TODO: Show error page to the user
-                            print("Failed to get rows: \(error)")
-                        }
-                    }
                 }
                 
                 VStack {
                     Spacer()
-                    //                    FloatingActionBar(viewModel: viewModel, screenWidth: geometry.size.width)
-                    //                        .padding(.bottom, 10)
+                    FloatingActionBar(screenWidth: geometry.size.width)
+                        .padding(.bottom, 10)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .task(id: instance.selectedTab?.name) {
+                await loadTabData()
+            }
         }
+    }
+    
+    @MainActor
+    private func loadTabData() async {
+        guard let selectedTabName = instance.selectedTab?.name else {
+            return
+        }
+        
+        // Prevent redundant loading
+        let needsSchema = instance.schema[selectedTabName] == nil
+        let needsDocuments =  instance.documents[selectedTabName] == nil
+        
+        guard needsSchema || needsDocuments else {
+            return // Already loaded
+        }
+        
+        isLoading = true
+        loadingError = nil
+        
+        do {
+            // Run both requests concurrently using async let
+            if needsSchema && needsDocuments {
+                async let schemaTask: Void = instance.getSchema(for: selectedTabName)
+                async let documentsTask: Void = instance.fetchDocuments(from: selectedTabName)
+                
+                _ = try await schemaTask
+                _ = try await documentsTask
+                
+            } else if needsSchema {
+                try await instance.getSchema(for: selectedTabName)
+                
+            } else if needsDocuments {
+                _ = try await instance.fetchDocuments(from: selectedTabName)
+            }
+            
+        } catch {
+            loadingError = error
+            print("Failed to load tab data: \(error)")
+        }
+        
+        isLoading = false
     }
 }

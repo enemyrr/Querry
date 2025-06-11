@@ -68,7 +68,7 @@ public enum ProcessingStage: Int {
     func goBack() {
         Task { @MainActor in
             withAnimation(.spring(response: 0.3)) {
-                documentListModel.action = ActionBar.main
+//                documentListModel.action = ActionBar.main
             }
         }
     }

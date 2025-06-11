@@ -26,7 +26,7 @@ import SwiftUI
     var lastFetchTimestamp: Date = Date()
     
     // UI States
-    var action: ActionBar = ActionBar.main
+//    var action: ActionBar = ActionBar.main
     var formattedDocuments: Any = []
     var rowDocuments: PostgreSQLQueryResult?;
     var isLoading = true

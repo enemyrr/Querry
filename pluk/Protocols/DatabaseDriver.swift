@@ -124,6 +124,16 @@ struct DatabaseSchemaResult {
     var columnsWithDefaults: [DatabaseSchemaInfo] {
         return columns.filter { $0.columnDefault != nil }
     }
+    
+    var hashValue: Int {
+         var hasher = Hasher()
+         for column in columns {
+             hasher.combine(column.columnName)
+             hasher.combine(column.dataType)
+             // Add other relevant column properties if needed
+         }
+         return hasher.finalize()
+     }
 }
 
 // MARK: - Generic Database Wrapper
