@@ -13,9 +13,9 @@ import SwiftUI
 @Observable class DocumentListModel {
     let instance: ConnectionInstance
     let databaseDriver: any DatabaseDriver
-    private let paginationManager: PaginationManager
     var connectedDatabase: any DatabaseWrapper
-    
+    private let paginationManager: PaginationManager
+
     init(instance: ConnectionInstance, databaseDriver: any DatabaseDriver, connectedDatabase: any DatabaseWrapper) {
         self.instance = instance
         self.databaseDriver = databaseDriver
@@ -41,10 +41,11 @@ import SwiftUI
     // MARK: - Pagination Properties
     var currentPage: Int { paginationManager.currentPage }
     var totalPages: Int { paginationManager.totalPages }
-    var totalItems: Int { paginationManager.totalItems }
+    var totalRows: Int { paginationManager.totalRows }
+    var rowsPerPage: Int { paginationManager.rowsPerPage }
     
     // MARK: - Document Management
-    func loadDocuments(filter: Document = [:]) async {
+    func loadDocuments(filter: String = "") async {
         guard let selectedTab = instance.selectedTab else {
             error = MongoError.collectionNotFound
             return
@@ -60,23 +61,19 @@ import SwiftUI
         do {
             let documents = try await databaseDriver.findDocuments(
                 in: selectedTab.name,
-                filter: [:],
-//                skip: paginationManager.skip,
-//                limit: paginationManager.limit
+                filter: ["rawQuery": filter],
+                skip: paginationManager.skip,
+                limit: paginationManager.limit
             ) as? PostgreSQLQueryResult
             
-           // OPTIMIZED: Batch all UI updates in single MainActor call
             await MainActor.run {
-                // Update all properties at once to minimize SwiftUI updates
                 self.paginationManager.updateTotalItems(documents?.totalCount ?? 0)
-                self.formattedDocuments = documents
                 self.rowDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
                 
-                // Defer animation state change to avoid blocking cell rendering
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(100)) // Reduced from 600ms
+                    try? await Task.sleep(for: .milliseconds(800))
                     self.isLoadingAnimation = false
                 }
             }
@@ -96,7 +93,7 @@ import SwiftUI
             updatePendingActionsState()
             Task {
                 if let filter = filter {
-                    await loadDocuments(filter: filter)
+//                    await loadDocuments(filter: filter)
                 } else {
                     await loadDocuments()
                 }
@@ -109,7 +106,7 @@ import SwiftUI
             updatePendingActionsState()
             Task {
                 if let filter = filter {
-                    await loadDocuments(filter: filter)
+//                    await loadDocuments(filter: filter)
                 } else {
                     await loadDocuments()
                 }

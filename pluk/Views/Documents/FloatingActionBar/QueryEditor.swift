@@ -10,13 +10,12 @@ import LanguageSupport
 import OnTapOutsideGesture
 
 struct QueryEditor: View {
-    var viewModel: SearchQueryViewModel
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = Set()
-    
     @State private var isExpanded: Bool = false
     @State private var showEditor: Bool = false
     @Binding var showQueryEditor: Bool
+    @State private var showClearQueryButton: Bool = false
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -99,69 +98,70 @@ struct QueryEditor: View {
                 //                    .foregroundColor(.secondary)
                 //                    .font(.subheadline)
                 
-                    Button(action: viewModel.clearQuery) {
-                        Text("Clear")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(OutlineSecondaryButtonStyle())
-                    .opacity(viewModel.query == viewModel.defaultQuery ? 0 : 1)
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity),
-                        removal: .opacity
-                    ))
-                    .animation(.spring(response: 0.3), value: viewModel.query != viewModel.defaultQuery)
-                
-                Button(action: viewModel.executeQuery) {
-                    Image(systemName: displayedIcon)
-                        .foregroundColor(.secondary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: 10)
-                    Text("Run")
-                }
-                .keyboardShortcut(.return, modifiers: .command)
-                .buttonStyle(OutlineButtonStyle())
-                .disabled(viewModel.processingStage != .idle)
-                .customHelp("Run current query", delay: 0.5, position: .left, shortcut: KeyboardShortcut(
-                    modifiers: [.command],
-                    key: "Enter"
-                ), spacing: 8)
+                //                    Button(action: viewModel.clearQuery) {
+                //                        Text("Clear")
+                //                            .font(.system(size: 12))
+                //                    }
+                //                    .buttonStyle(OutlineSecondaryButtonStyle())
+                //                    .opacity(viewModel.query == viewModel.defaultQuery ? 0 : 1)
+                //                    .transition(.asymmetric(
+                //                        insertion: .scale.combined(with: .opacity),
+                //                        removal: .opacity
+                //                    ))
+                //                    .animation(.spring(response: 0.3), value: viewModel.query != viewModel.defaultQuery)
+                //                
+                //                Button(action: viewModel.executeQuery) {
+                //                    Image(systemName: displayedIcon)
+                //                        .foregroundColor(.secondary)
+                //                        .contentTransition(.symbolEffect(.replace))
+                //                        .frame(width: 10)
+                //                    Text("Run")
+                //                }
+                //                .keyboardShortcut(.return, modifiers: .command)
+                //                .buttonStyle(OutlineButtonStyle())
+                //                .disabled(viewModel.processingStage != .idle)
+                //                .customHelp("Run current query", delay: 0.5, position: .left, shortcut: KeyboardShortcut(
+                //                    modifiers: [.command],
+                //                    key: "Enter"
+                //                ), spacing: 8)
+                //            }
+                //            .padding([.top, .horizontal, .bottom], 8)
+                //            .onChange(of: viewModel.processingStage) { oldValue, newValue in
+                //                if newValue == .idle && oldValue != .idle {
+                //                    // When returning to idle from any non-idle state, delay the icon change
+                //                    // Keep showing the stop icon for a bit longer
+                //                    withAnimation {
+                //                        displayedIcon = "stop.fill"
+                //                    }
+                //                    
+                //                    // Then change back to play icon after delay
+                //                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.50) { // Adjust delay time as needed
+                //                        withAnimation(.easeInOut(duration: 0.3)) {
+                //                            displayedIcon = "play.fill"
+                //                        }
+                //                    }
+                //                } else if newValue != .idle {
+                //                    // Immediately show stop icon when starting a query
+                //                    withAnimation {
+                //                        displayedIcon = "stop.fill"
+                //                    }
+                //                }
+                //            }
+                //            
+                //            CodeEditor(text: Binding<String>(
+                //                get: { viewModel.query },
+                //                set: { viewModel.query = $0 }
+                //            ), position: $position, messages: $messages, language: .mongodb())
+                //            .environment(\.codeEditorTheme, Theme.defaultDark)
+                //            .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
+                //            .overlay(
+                //                RoundedRectangle(cornerRadius: 10)
+                //                    .stroke(.separator)
+                //            )
+                //            .padding(.bottom, 2)
+                //            .frame(height: 120)
+                //            .cornerRadius(10)
             }
-            .padding([.top, .horizontal, .bottom], 8)
-            .onChange(of: viewModel.processingStage) { oldValue, newValue in
-                if newValue == .idle && oldValue != .idle {
-                    // When returning to idle from any non-idle state, delay the icon change
-                    // Keep showing the stop icon for a bit longer
-                    withAnimation {
-                        displayedIcon = "stop.fill"
-                    }
-                    
-                    // Then change back to play icon after delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.50) { // Adjust delay time as needed
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            displayedIcon = "play.fill"
-                        }
-                    }
-                } else if newValue != .idle {
-                    // Immediately show stop icon when starting a query
-                    withAnimation {
-                        displayedIcon = "stop.fill"
-                    }
-                }
-            }
-            
-            CodeEditor(text: Binding<String>(
-                get: { viewModel.query },
-                set: { viewModel.query = $0 }
-            ), position: $position, messages: $messages, language: .mongodb())
-            .environment(\.codeEditorTheme, Theme.defaultDark)
-            .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator)
-            )
-            .padding(.bottom, 2)
-            .frame(height: 120)
-            .cornerRadius(10)
         }
     }
 }

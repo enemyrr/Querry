@@ -9,25 +9,24 @@ import Foundation
 
 @Observable class PaginationManager {
     private(set) var currentPage: Int
-    private(set) var itemsPerPage: Int
-    private(set) var totalItems: Int
+    private(set) var rowsPerPage: Int
+    private(set) var totalRows: Int
     
     var totalPages: Int {
-        return max(1, Int(ceil(Double(totalItems) / Double(itemsPerPage))))
+        return max(1, Int(ceil(Double(totalRows) / Double(rowsPerPage))))
     }
     
-    init(itemsPerPage: Int = 25) {
+    init(rowsPerPage: Int = 300) {
         self.currentPage = 1
-        self.itemsPerPage = itemsPerPage
-        self.totalItems = 0
+        self.rowsPerPage = rowsPerPage
+        self.totalRows = 0
     }
     
     func updateTotalItems(_ count: Int) {
-        self.totalItems = count
+        self.totalRows = count
     }
     
     func nextPage() -> Bool {
-        guard currentPage < totalPages else { return false }
         currentPage += 1
         return true
     }
@@ -45,10 +44,10 @@ import Foundation
     }
     
     var skip: Int {
-        return (currentPage - 1) * itemsPerPage
+        return (currentPage - 1) * rowsPerPage
     }
     
     var limit: Int {
-        return itemsPerPage
+        return rowsPerPage
     }
 } 

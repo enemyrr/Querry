@@ -352,12 +352,27 @@ class PostgreSQLDriver: DatabaseDriver {
 //        }
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> PostgreSQLQueryResult {
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> PostgreSQLQueryResult {
         let connection = try ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         do {
-            let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 300"
+            let query: PostgresQuery
+            
+            // Check if filter contains a raw query
+            if let rawQuery = filter["rawQuery"] as? String, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Use the raw query directly
+                query = PostgresQuery(stringLiteral: rawQuery)
+            } else {
+                // Build standard query with optional WHERE clause
+                let whereClause = buildWhereClause(from: filter)
+                if whereClause.isEmpty {
+                    query = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT \(limit) OFFSET \(skip)"
+                } else {
+                    query = "SELECT * FROM \(unescaped: sanitizedCollectionName) WHERE \(unescaped: whereClause) LIMIT \(limit) OFFSET \(skip)"
+                }
+            }
+            
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
             
             var columns: [PostgreSQLColumnInfo] = []
@@ -465,6 +480,103 @@ class PostgreSQLDriver: DatabaseDriver {
         return try await getSchema(for: collectionName, in: "public")
     }
     
+    
+    func buildSystemPrompt(for collectionName: String) async throws -> String {
+        let currentDate = Date().formatted(.iso8601)
+        
+        let schema = await buildSchemaPrompt(for: collectionName)
+        
+        return """
+        You are a PostgreSQL query assistant. Your primary task is to convert natural language user queries into valid PostgreSQL SQL queries.
+
+        Core Responsibilities: 
+        - Convert the user query into a PostgreSQL SQL query.
+        - Return ONLY the SQL query without explanation.
+        - Optimize the query for best performance.
+        - Support all PostgreSQL operators and query features.
+
+        # Database Schema
+        The current table schema is:
+        \(schema)
+
+        # Output Format
+        Return ONLY the PostgreSQL SQL query.
+        Do not include any explanation, preamble, or commentary.
+        Format the query for readability with proper indentation.
+        One-line queries are acceptable for simple filters.
+
+        # Examples
+
+        **Example 1:**
+        **Input:** Find all users where age is greater than 30
+        **Output:**
+        SELECT * FROM users WHERE age > 30;
+
+        **Example 2:**
+        **Input:** Get records where status is active and created date is in the last week
+        **Output:**
+        SELECT * FROM records 
+        WHERE status = 'active' 
+        AND created_at > CURRENT_DATE - INTERVAL '7 days';
+
+        **Example 3:**
+        **Input:** Show me customers from New York or California with at least 5 orders
+        **Output:**
+        SELECT * FROM customers 
+        WHERE (state = 'New York' OR state = 'California') 
+        AND order_count >= 5;
+
+        **Example 4:**
+        **Input:** Get user with id 12345
+        **Output:**
+        SELECT * FROM users WHERE id = 12345;
+
+        **Example 5:**
+        **Input:** Find products containing 'laptop' in name, ordered by price descending
+        **Output:**
+        SELECT * FROM products 
+        WHERE name ILIKE '%laptop%' 
+        ORDER BY price DESC;
+
+        # Notes
+        - NEVER provide explanations or ask clarifying questions.
+        - NEVER describe what the query does.
+        - Use the provided schema to understand available columns and data types.
+        - When user input is ambiguous, refer to the schema for proper column names.
+        - Use appropriate PostgreSQL operators (=, >, <, IN, LIKE, ILIKE, etc.) based on query requirements.
+        - Use ILIKE for case-insensitive string matching.
+        - Use proper PostgreSQL date/time functions (CURRENT_DATE, INTERVAL, etc.).
+        - Default to SELECT * unless specific columns are mentioned.
+        - Include proper semicolon termination.
+
+        Current Date: \(currentDate)
+        """
+    }
+    
+    
+    private func buildSchemaPrompt(for collectionName: String) async -> String {
+        do {
+            let schemaResult = try await getSchema(for: collectionName)
+            let columnInfo = schemaResult.columns
+                .map { column in
+                    let nullable = column.isNullable == "YES" ? "NULL" : "NOT NULL"
+                    let defaultValue = column.columnDefault.map { " DEFAULT \($0)" } ?? ""
+                    return "\(column.columnName): \(column.dataType) \(nullable)\(defaultValue)"
+                }
+                .joined(separator: "\n")
+            
+            return """
+            Table: \(schemaResult.tableName)
+            Schema: \(schemaResult.schemaName)
+            Columns:
+            \(columnInfo)
+            """
+        } catch {
+            return "No schema found for \(collectionName)\n"
+        }
+    }
+
+
    
     // MARK: - Schema Cache
     
@@ -703,9 +815,12 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     private func buildWhereClause(from filter: [String: Any]) -> String {
-        guard !filter.isEmpty else { return "" }
+        // Filter out the rawQuery key as it's not meant for WHERE clause building
+        let filteredDict = filter.filter { key, _ in key != "rawQuery" }
         
-        let conditions = filter.map { key, value in
+        guard !filteredDict.isEmpty else { return "" }
+        
+        let conditions = filteredDict.map { key, value in
             if let stringValue = value as? String {
                 return "\(key) = '\(stringValue)'"
             } else if let numberValue = value as? NSNumber {

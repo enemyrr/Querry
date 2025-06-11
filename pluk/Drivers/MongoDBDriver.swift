@@ -44,7 +44,11 @@ struct MongoCollectionWrapper: CollectionWrapper {
 
 // MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> BSON.Document.FormattedDocument {
+    func buildSystemPrompt(for collectionName: String) async throws -> String {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> BSON.Document.FormattedDocument {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
@@ -113,7 +117,7 @@ class MongoDBDriver: DatabaseDriver {
         let collection = mongoDatabase[collectionName]
         
         let documents = try await collection.find().drain()
-        return await formatDocuments(documents)
+        return await formatDocuments(documents, skip: 1, limit: 1)
     }
     
     func createDocument(in collectionName: String, database: MongoDBWrapper, document: [String: Any]) async throws {
@@ -178,7 +182,7 @@ class MongoDBDriver: DatabaseDriver {
     }
     
     // MARK: - Document Formatting
-    private func formatDocuments(_ documents: [Document]) async -> [MongoKitten.Document.FormattedDocument] {
+    private func formatDocuments(_ documents: [Document], skip: Int, limit: Int) async -> [MongoKitten.Document.FormattedDocument] {
         let chunkSize = 10
         var formattedDocs: [MongoKitten.Document.FormattedDocument] = []
         

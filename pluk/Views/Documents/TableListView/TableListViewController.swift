@@ -87,7 +87,7 @@ struct TableListViewController: NSViewRepresentable {
             
             // Create custom clip view
             let customClipView = ExtendedClipView()
-            customClipView.bottomExtension = 80 // Your floating bar height
+            customClipView.bottomExtension = 88 // Your floating bar height
             
             scrollView.contentView = customClipView
             

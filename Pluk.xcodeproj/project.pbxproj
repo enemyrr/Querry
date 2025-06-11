@@ -265,6 +265,7 @@
 				9A2923032DBBA5830032F301 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				9A3747D32DE8B1CC00033535 /* XCLocalSwiftPackageReference "BSON" */,
 				9AC676C32DEAD6DB009B6D2A /* XCRemoteSwiftPackageReference "postgres-nio" */,
+				9AE244A42DF93C3A00106B17 /* XCLocalSwiftPackageReference "LiquidGlass" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -651,6 +652,10 @@
 		9A3747D32DE8B1CC00033535 /* XCLocalSwiftPackageReference "BSON" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = BSON;
+		};
+		9AE244A42DF93C3A00106B17 /* XCLocalSwiftPackageReference "LiquidGlass" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = LiquidGlass;
 		};
 /* End XCLocalSwiftPackageReference section */
 

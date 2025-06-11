@@ -94,6 +94,159 @@ public enum ProcessingStage: Int {
                 serviceURL: "https://api.aiproxy.pro/4c1638f9/2f62a0df"
             )
             
+            // Get schema for the AI to understand the table structure
+            var schema = "No schema available"
+            if let selectedTable = documentListModel.instance.selectedTab {
+                do {
+                    let schemaResult = try await documentListModel.databaseDriver.getSchema(for: selectedTable.name)
+                    // Format schema information for AI prompt
+                    let columnInfo = schemaResult.columns.map { column in
+                        let nullable = column.isNullable == "YES" ? "NULL" : "NOT NULL"
+                        let defaultValue = column.columnDefault != nil ? " DEFAULT \(column.columnDefault!)" : ""
+                        return "\(column.columnName): \(column.dataType) \(nullable)\(defaultValue)"
+                    }.joined(separator: "\n")
+                    
+                    schema = """
+Table: \(schemaResult.tableName)
+Schema: \(schemaResult.schemaName)
+Columns:
+\(columnInfo)
+"""
+                } catch {
+                    // Keep default schema message if error occurs
+                    print("Error getting schema: \(error)")
+                }
+            }
+            
+            let currentDate = Date()
+        
+            let stream = try await openAIService.streamingChatCompletionRequest(body: .init(
+                model: "gpt-4.1-mini",
+                messages: [
+                    .user(content: .text(search)),
+                    .system(content: .text("""
+You are a PostgreSQL query assistant. Your primary task is to convert natural language user queries into valid PostgreSQL SQL queries.
+
+Core Responsibilities: 
+- Convert the user query into a PostgreSQL SQL query.
+- Return ONLY the SQL query without explanation.
+- Optimize the query for best performance.
+- Support all PostgreSQL operators and query features.
+
+# Database Schema
+The current table schema is:
+\(schema)
+
+# Output Format
+Return ONLY the PostgreSQL SQL query.
+Do not include any explanation, preamble, or commentary.
+Format the query for readability with proper indentation.
+One-line queries are acceptable for simple filters.
+
+# Examples
+
+**Example 1:**
+**Input:** Find all users where age is greater than 30
+**Output:**
+SELECT * FROM users WHERE age > 30;
+
+**Example 2:**
+**Input:** Get records where status is active and created date is in the last week
+**Output:**
+SELECT * FROM records 
+WHERE status = 'active' 
+AND created_at > CURRENT_DATE - INTERVAL '7 days';
+
+**Example 3:**
+**Input:** Show me customers from New York or California with at least 5 orders
+**Output:**
+SELECT * FROM customers 
+WHERE (state = 'New York' OR state = 'California') 
+AND order_count >= 5;
+
+**Example 4:**
+**Input:** Get user with id 12345
+**Output:**
+SELECT * FROM users WHERE id = 12345;
+
+**Example 5:**
+**Input:** Find products containing 'laptop' in name, ordered by price descending
+**Output:**
+SELECT * FROM products 
+WHERE name ILIKE '%laptop%' 
+ORDER BY price DESC;
+
+# Notes
+- NEVER provide explanations or ask clarifying questions.
+- NEVER describe what the query does.
+- Use the provided schema to understand available columns and data types.
+- When user input is ambiguous, refer to the schema for proper column names.
+- Use appropriate PostgreSQL operators (=, >, <, IN, LIKE, ILIKE, etc.) based on query requirements.
+- Use ILIKE for case-insensitive string matching.
+- Use proper PostgreSQL date/time functions (CURRENT_DATE, INTERVAL, etc.).
+- Default to SELECT * unless specific columns are mentioned.
+- Include proper semicolon termination.
+
+Current Date: \(currentDate)
+"""))
+                ],
+            ))
+            
+            // Process the stream
+            for try await chunk in stream {
+                if let chunkContent = chunk.choices.first?.delta.content {
+                    // Update the UI immediately with each new chunk
+                    await MainActor.run { [weak self, chunkContent] in
+                        self?.query += chunkContent
+                    }
+                }
+            }
+            
+            // All stream processing is complete at this point
+            // Now process the final result on the main thread
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                self.search = ""
+                executeQuery()
+
+                Task {
+                    try? await Task.sleep(for: .seconds(1.10))
+                    self.processingStage = .idle
+                }
+            }
+        } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
+            await MainActor.run { [weak self] in
+                print("Error: Received \(statusCode) status code with response body: \(responseBody)")
+                self?.processingStage = .idle
+            }
+        } catch {
+            await MainActor.run { [weak self] in
+                print("Error: Could not create Message: \(error.localizedDescription)")
+                self?.processingStage = .idle
+            }
+        }
+    }
+
+    
+    func processNaturalLanguageQueryMongodb(search: String) async {
+        guard !search.isEmpty else { return }
+        
+        // Update processing stage to writing query
+        await MainActor.run { [weak self] in
+            self?.processingStage = .writingQuery
+            self?.lastQuery = search
+        }
+        
+        do {
+            await MainActor.run { [weak self] in
+                self?.query = ""
+            }
+            
+            let openAIService = AIProxy.openAIService(
+                partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",
+                serviceURL: "https://api.aiproxy.pro/4c1638f9/2f62a0df"
+            )
+            
             // Get a sample document for the AI to understand the schema
             var sampleDocument = Document()
 //            if let document = documentListModel.formattedDocuments.first?.rawDocument {
@@ -258,6 +411,25 @@ Current Date: \(currentDate)
         
         Task {
             do {
+                await documentListModel.loadDocuments(filter: query)
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    processingStage = .idle
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.processingStage = .idle
+                }
+                print("Error during query execution: \(error)")
+            }
+        }
+    }
+    
+    func executeQueryMongodb() {
+        processingStage = .fetchingData
+        
+        Task {
+            do {
                 if query == defaultQuery {
                     await documentListModel.loadDocuments()
                 } else {
@@ -267,7 +439,7 @@ Current Date: \(currentDate)
                     
                     let serializeQuery = MongoKittenQueryHandler.serialize(document: document)
                     
-                    await documentListModel.loadDocuments(filter: serializeQuery as! Document)
+//                    await documentListModel.loadDocuments(filter: serializeQuery as! Document)
                 }
                 
                 await MainActor.run { [weak self] in

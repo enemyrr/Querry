@@ -11,18 +11,21 @@ import MongoKitten
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
     var viewModel: DocumentListModel
-    @Bindable var searchQueryViewModel: SearchQueryViewModel
-    @State private var containerWidth: CGFloat = 0
     
-    init(viewModel: DocumentListModel, searchQueryViewModel: SearchQueryViewModel,  screenWidth: CGFloat) {
+    @State private var containerWidth: CGFloat = 0
+    @State var lastQuery: String?
+    @State var showQueryEditor: Bool = false
+    @State var showCreateDocumentSheet: Bool = false
+    @State var filter: String?
+    
+    init(viewModel: DocumentListModel, screenWidth: CGFloat) {
         self.viewModel = viewModel
-        self.searchQueryViewModel = searchQueryViewModel
         self.screenWidth = screenWidth
     }
     
     var body: some View {
         Button("") {
-            searchQueryViewModel.showQueryEditor = true
+            showQueryEditor = true
         }
         .keyboardShortcut("f", modifiers: [.command])
         .padding(0)
@@ -30,21 +33,21 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-            if !searchQueryViewModel.showQueryEditor && !searchQueryViewModel.showCreateDocumentSheet {
+            if !showQueryEditor && !showCreateDocumentSheet {
                 topRectangleView
                     .padding(.horizontal, 10)
                     .frame(width: containerWidth)
-                    .animation(.smooth, value: searchQueryViewModel.showQueryEditor || searchQueryViewModel.showCreateDocumentSheet)
-            }
-
-            if !searchQueryViewModel.showCreateDocumentSheet && searchQueryViewModel.showQueryEditor {
-                QueryEditor(viewModel: searchQueryViewModel, showQueryEditor: $searchQueryViewModel.showQueryEditor)
-                    .frame(width: screenWidth * 0.9)
+                    .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
             }
             
-            if searchQueryViewModel.showCreateDocumentSheet {
-                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
-                        .frame(width: screenWidth * (0.9))
+            if !showCreateDocumentSheet && showQueryEditor {
+                //                QueryEditor(showQueryEditor: $searchQueryViewModel.showQueryEditor)
+                //                    .frame(width: screenWidth * 0.9)
+            }
+            
+            if showCreateDocumentSheet {
+                //                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
+                //                        .frame(width: screenWidth * (0.9))
             }
             
             HStack {
@@ -52,16 +55,18 @@ struct FloatingActionBar: View {
                 case .main:
                     mainView
                 case .search:
-                    AISearchView(viewModel: searchQueryViewModel, DocumentListModel: viewModel)
-                        .frame(width: screenWidth * 0.55)
+                    if let selectedTab = viewModel.instance.selectedTab {
+                        AISearchView(viewModel: viewModel, selectedTab: selectedTab)
+                            .frame(width: screenWidth * 0.55)
+                    }
                 default:
                     mainView
                 }
                 
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: 8))
+            .modifier(GlassBackgroundStyle(cornerRadius: 12))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 12)
                     .stroke(.separator, lineWidth: 1)
             )
             .background(
@@ -99,27 +104,29 @@ struct FloatingActionBar: View {
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(.gray)
-
-                Spacer()
                 
-                if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
-                    Button(action: {
-                        searchQueryViewModel.clearQuery()
-                    }) {
-                        Text("Clear")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
-                    .padding([.vertical, .trailing], -4)
-                }
+                Spacer()
+                //
+                //                if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
+                //                    Button(action: {
+                //                        searchQueryViewModel.clearQuery()
+                //                    }) {
+                //                        Text("Clear")
+                //                            .font(.caption)
+                //                            .foregroundColor(.gray)
+                //                    }
+                //                    .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
+                //                    .padding([.vertical, .trailing], -4)
+                //                }
             }
         }
         .padding(.top, 6)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
         .padding(.bottom, isHoveringTopRectangle ? 8 : 5)
-        .modifier(GlassBackgroundStyleRoundedTop())
+        .modifier(
+            GlassBackgroundStyleRoundedTop()
+        )
         .overlay(
             RoundedCorners(tl: 8, tr: 8, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
@@ -131,7 +138,7 @@ struct FloatingActionBar: View {
         }
         .animation(.spring(response: 0.2), value: isHoveringTopRectangle)
         .onTapGesture {
-            searchQueryViewModel.openQueryEditor()
+            //            searchQueryViewModel.openQueryEditor()
         }
     }
     
@@ -143,21 +150,21 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-            Button(action: searchQueryViewModel.executeQuery) {
-                let iconName = viewModel.isLoadingAnimation ? "xmark" : "arrow.clockwise"
-                Image(systemName: iconName)
-                    .font(.system(size: 14))
-                    .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
-                    .frame(width: 16, height: 16)
-                    .contentShape(Rectangle()) // Keep this for hit testing
-            }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: viewModel.isLoading))
-            .keyboardShortcut("r", modifiers: .command)
-            .disabled(viewModel.isLoading)
-            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
-                modifiers: [.command],
-                key: "R"
-            ), spacing: 10)
+            //            Button(action: searchQueryViewModel.executeQuery) {
+            //                let iconName = viewModel.isLoadingAnimation ? "xmark" : "arrow.clockwise"
+            //                Image(systemName: iconName)
+            //                    .font(.system(size: 14))
+            //                    .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+            //                    .frame(width: 16, height: 16)
+            //                    .contentShape(Rectangle()) // Keep this for hit testing
+            //            }
+            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: viewModel.isLoading))
+            //            .keyboardShortcut("r", modifiers: .command)
+            //            .disabled(viewModel.isLoading)
+            //            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
+            //                modifiers: [.command],
+            //                key: "R"
+            //            ), spacing: 10)
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
@@ -202,14 +209,14 @@ struct FloatingActionBar: View {
             
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
-                    searchQueryViewModel.showCreateDocumentSheet = true
+                    //                    searchQueryViewModel.showCreateDocumentSheet = true
                 }
             }) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: searchQueryViewModel.showCreateDocumentSheet))
+            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: searchQueryViewModel.showCreateDocumentSheet))
             .keyboardShortcut("n", modifiers: .command)
             .customHelp("Create documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
@@ -249,15 +256,15 @@ struct FloatingActionBar: View {
             //            }
             //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
     
     private var FilterIcon: some View {
         HStack(spacing: 4) {
             Button(action: {
                 viewModel.showFilterEditor = true
-                searchQueryViewModel.showQueryEditor = true
+                //                searchQueryViewModel.showQueryEditor = true
             }) {
                 BadgedFilterIcon()
             }

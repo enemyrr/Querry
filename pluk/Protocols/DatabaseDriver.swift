@@ -19,7 +19,7 @@ protocol DatabaseDriver {
     // Collection operations
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [FormattedDocument]
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> FormattedDocument
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> FormattedDocument
     func createDocument(in collectionName: String, database: Database, document: [String: Any]) async throws
     func updateDocument(in collectionName: String, database: Database, id: Any, data: [String: Any]) async throws
     func deleteDocument(in collectionName: String, database: Database, id: Any) async throws
@@ -29,6 +29,9 @@ protocol DatabaseDriver {
     // Collection management
     func createCollection(named collectionName: String) async throws
     func renameCollection(from oldName: String, to newName: String) async throws
+    
+    // AI Functions
+    func buildSystemPrompt(for collectionName: String) async throws -> String
 }
 
 // MARK: - Build Info Structure

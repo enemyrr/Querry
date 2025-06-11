@@ -12,6 +12,18 @@ struct MySQLCollectionWrapper: CollectionWrapper {
 
 // MARK: - MySQL Driver (Placeholder)
 class MySQLDriver: DatabaseDriver {
+    func buildSystemPrompt(for collectionName: String) async throws -> String {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [[String : Any]] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> [String : Any] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [String : Any] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
@@ -46,7 +58,7 @@ class MySQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String,  filter: [String: Any]) async throws -> [[String: Any]] {
+    func findDocuments(in collectionName: String,  filter: [String: Any], skip: Int, limit: Int) async throws -> [[String: Any]] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     

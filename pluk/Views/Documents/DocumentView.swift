@@ -19,9 +19,9 @@ struct DocumentView: View {
                 .zIndex(1)
             
             NSTabViewWrapper(instance: instance)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding([.leading, .trailing, .bottom], 8)
-            .zIndex(-1)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding([.leading, .trailing, .bottom], 8)
+                .zIndex(-1)
         }
         .padding(.top, 8)
         .ignoresSafeArea(.all)

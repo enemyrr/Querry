@@ -29,7 +29,7 @@ struct TableListView: View {
                                 rows: viewModel.rowDocuments,
                                 schema: customSchema
                             )
-                            .background(Color(.controlBackgroundColor).opacity(0.5))
+                            .background(Color(.controlBackgroundColor).opacity(0.3))
                             .cornerRadius(10)
                         } else {
                             VStack {}
@@ -58,7 +58,7 @@ struct TableListView: View {
                 
                 VStack {
                     Spacer()
-                    FloatingActionBar(viewModel: viewModel, searchQueryViewModel: searchQueryViewModel, screenWidth: geometry.size.width)
+                    FloatingActionBar(viewModel: viewModel, screenWidth: geometry.size.width)
                         .padding(.bottom, 10)
                 }
             }

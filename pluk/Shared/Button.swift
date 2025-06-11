@@ -53,7 +53,7 @@ struct ActionButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering || isActive
-                    ? (colorScheme == .dark ? Color.black : Color.white)
+                    ? (colorScheme == .dark ? Color.black : Color.black)
                         .opacity(0.3)
                     : Color.clear
                 )

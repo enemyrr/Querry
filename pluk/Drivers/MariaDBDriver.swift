@@ -12,7 +12,7 @@ struct MariaDBCollectionWrapper: CollectionWrapper {
 
 // MARK: - MariaDB Driver (Placeholder)
 class MariaDBDriver: DatabaseDriver {
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [String : Any] {
+    func buildSystemPrompt(for collectionName: String) async throws -> String {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
@@ -46,7 +46,15 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [[String: Any]] {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [[String : Any]] {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> [String : Any] {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [String : Any] {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
