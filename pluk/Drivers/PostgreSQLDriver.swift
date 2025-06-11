@@ -288,14 +288,14 @@ class PostgreSQLDriver: DatabaseDriver {
                            logger: Logger(label: "postgres")
             )
             
+            var collections: [PostgreSQLCollectionWrapper] = []
             for try await (oid, tableName, _) in rows.decode((Int64, String, String).self) {
-                self.collections.append(PostgreSQLCollectionWrapper(
+                collections.append(PostgreSQLCollectionWrapper(
                     id: ObjectIdentifier(NSString(string: tableName)),
                     name: tableName,
                     oid: oid.description
                 ))
             }
-            
             
             return collections
         } catch let error as PSQLError {

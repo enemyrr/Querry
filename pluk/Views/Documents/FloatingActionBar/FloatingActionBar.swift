@@ -144,7 +144,7 @@ struct FloatingActionBar: View {
     
     private var mainView: some View {
         HStack(spacing: 5) {
-            Pagination(viewModel: viewModel, filter: searchQueryViewModel.getFilter())
+//            Pagination(viewModel: viewModel, filter: searchQueryViewModel.getFilter())
             
             Divider()
                 .frame(height: 22)

@@ -50,7 +50,8 @@ struct MainWindow: View {
                         HomeView()
                     case .connection(_):
                         if let activeConnection = sidebarViewModel.activeConnection {
-                            DocumentView(instance: activeConnection)
+                            DocumentView()
+                                .environment(activeConnection)
                         } else {
                             ConnectionErrorView()
                         }

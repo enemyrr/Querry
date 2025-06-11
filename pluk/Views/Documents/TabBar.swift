@@ -9,7 +9,7 @@ import AppKit
 
 struct TabBar: View {
     @Environment(AppViewModel.self) private var appViewModel
-    var instance: ConnectionInstance
+    @Environment(ConnectionInstance.self) private var instance
     
     var body: some View {
         HStack(spacing: 0) {
@@ -107,7 +107,7 @@ struct TabBar: View {
 }
 
 struct NSTabViewWrapper: NSViewRepresentable {
-    let instance: ConnectionInstance
+    @Environment(ConnectionInstance.self) private var instance
     
     func makeNSView(context: Context) -> NSTabView {
         let tabView = NSTabView()

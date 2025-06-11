@@ -10,15 +10,15 @@ import SwiftUI
 import AppKit
 
 struct DocumentView: View {
-    var instance: ConnectionInstance
+    @Environment(ConnectionInstance.self) private var instance
     
     var body: some View {
         VStack(spacing: 0) {
-            TabBar(instance: instance)
+            TabBar()
                 .padding(.bottom, -1)
                 .zIndex(1)
             
-            NSTabViewWrapper(instance: instance)
+            NSTabViewWrapper()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding([.leading, .trailing, .bottom], 8)
                 .zIndex(-1)
@@ -68,10 +68,13 @@ class TabContentView: NSView {
     }
     
     private func setupPostgresView() {
-        let viewModel = instance.viewModel(for: tab)
-        let tableListView = TableListView(viewModel: viewModel)
-        let hostingView = NSHostingView(rootView: tableListView)
-        setContentView(hostingView)
+        if let selectedTab = instance.selectedTab {
+            let tableListView = TableListView(
+                selectedTab: selectedTab
+            )
+            let hostingView = NSHostingView(rootView: tableListView)
+            setContentView(hostingView)
+        }
     }
     
     private func setupMongoDBView() {

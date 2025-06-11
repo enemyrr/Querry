@@ -7,7 +7,7 @@
 
 import Foundation
 
-@Observable class PaginationManager {
+class PaginationManager {
     private(set) var currentPage: Int
     private(set) var rowsPerPage: Int
     private(set) var totalRows: Int

@@ -26,15 +26,31 @@ import AIProxy
     var collections: [String: [any CollectionWrapper]] = [:]
     var databases: [any DatabaseWrapper] = []
     
+    var documents: [String: PostgreSQLQueryResult] = [:]
+    var schema: [String: DatabaseSchemaResult] = [:]
+    
     // Legacy MongoDB support - these will be deprecated gradually
     var database: MongoDatabase?
-
+    
     // Connection state
     var connectionStatus: ConnectionStatus = .connecting
     var connectionVersion: String?
     var lastError: Error?
     
     var documentViewModels: [UUID: DocumentListModel] = [:]
+    
+    // MARK: - Pagination Properties
+    var currentPage = 1
+    var totalPages = 0
+    var totalRows = 0
+    var rowsPerPage = 300
+    
+    var skip: Int {
+        return (currentPage - 1) * rowsPerPage
+    }
+    var limit: Int {
+        return rowsPerPage
+    }
     
     // UI State
     var tabs: [DatabaseTab] = []
@@ -65,12 +81,12 @@ import AIProxy
         
         if shouldUpdate {
             do {
-//                let collections = try await databaseService?.listCollections()
-//                self.collections[currentDatabase.name] = collections
+                //                let collections = try await databaseService?.listCollections()
+                //                self.collections[currentDatabase.name] = collections
                 
                 let result = try await currentDatabase.pool.listDatabases()
                 await MainActor.run {
-//                    self.databases = result
+                    //                    self.databases = result
                 }
             } catch {
                 lastError = error
@@ -135,6 +151,23 @@ import AIProxy
         }
     }
     
+    func getSchema(for collectionName: String) async throws {
+        guard let driver = _databaseDriver else { return }
+        
+        let schemaResult = try await driver.getSchema(for: collectionName)
+        
+        await MainActor.run {
+            self.schema[collectionName] = schemaResult
+        }
+        
+        // Load collections for current database
+        if let currentDb = connectedDatabase {
+            let collectionList = try await driver.listCollections()
+            self.collections[currentDb.name] = collectionList
+        }
+        
+    }
+    
     func loadCollectionsForCurrentDatabase() async {
         guard let driver = _databaseDriver,
               let currentDatabase = connectedDatabase else { return }
@@ -147,6 +180,43 @@ import AIProxy
             collections[currentDatabase.name] = []
         }
     }
+    
+    
+    /// Fetch documents from a collection
+    /// - Parameter collectionName: The name of the collection to fetch from
+    /// - Returns: Array of documents from the collection
+    @discardableResult
+    func fetchDocuments(from collectionName: String, filter: String = "") async throws -> [MongoKitten.Document] {
+        guard let driver = _databaseDriver,
+              let _database = connectedDatabase else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        switch connection.databaseType {
+        case .mongodb:
+            // For MongoDB, use the legacy MongoDB methods until we refactor them
+            guard let collection = self.database?[collectionName] else {
+                throw MongoError.collectionNotFound
+            }
+            
+            let cursor = collection.find()
+            return try await cursor.drain()
+            
+        case .postgres, .supabase, .neon:
+            documents[collectionName] = try await driver.findDocuments(
+                in: collectionName,
+                filter: ["rawQuery": filter],
+                skip: skip,
+                limit: limit
+            ) as? PostgreSQLQueryResult
+            
+            return []
+            
+        default:
+            throw DatabaseError.operationFailed("Unsupported database type for document fetching")
+        }
+    }
+    
     
     // Legacy MongoDB methods - these will be gradually refactored
     func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder {
@@ -174,7 +244,7 @@ import AIProxy
         }
         
         do {
-//            try await driver.deleteDocument(in: collectionName, database: database, id: id)
+            //            try await driver.deleteDocument(in: collectionName, database: database, id: id)
         } catch {
             lastError = error
             throw error
@@ -194,7 +264,7 @@ import AIProxy
                 throw DatabaseError.operationFailed("Invalid JSON data")
             }
             
-//            try await driver.updateDocument(in: collectionName, database: database, id: id, data: documentDict)
+            //            try await driver.updateDocument(in: collectionName, database: database, id: id, data: documentDict)
         } catch {
             lastError = error
             throw error
@@ -215,7 +285,7 @@ import AIProxy
                 documentDict[key] = value
             }
             
-//            try await driver.createDocument(in: collectionName, database: database, document: documentDict)
+            //            try await driver.createDocument(in: collectionName, database: database, document: documentDict)
         } catch {
             throw error
         }
@@ -245,7 +315,7 @@ import AIProxy
             throw error
         }
     }
-
+    
     // MARK: - Tab Management
     func createNewTab(name: String) {
         if let existingTab = tabs.first(where: { $0.name == name }) {
