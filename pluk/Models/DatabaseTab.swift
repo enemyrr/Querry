@@ -16,19 +16,6 @@ struct DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var queryState: QueryState
     var documents: [Document] = []
 
-    // MARK: - Pagination Properties
-    var currentPage = 1
-    var totalPages = 1
-    var totalRows = 0
-    var rowsPerPage = 300
-
-    var skip: Int {
-        return (currentPage - 1) * rowsPerPage
-    }
-    var limit: Int {
-        return rowsPerPage
-    }
-    
     init(name: String, type: TabType, queryState: QueryState) {
            self.id = UUID()
            self.name = name

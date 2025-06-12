@@ -11,10 +11,10 @@ import MongoKitten
 
 // MARK: - Database List
 struct DatabaseHeader: View {
+    @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     var viewModel: SidebarViewModel
-    var database: (any DatabaseWrapper)?
 
     var body: some View {
         VStack {
@@ -23,7 +23,7 @@ struct DatabaseHeader: View {
             HStack {
                 HStack(spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(database?.name ?? "No Database")
+                        Text(instance.connectedDatabase?.name ?? "No Database")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -64,6 +64,13 @@ struct DatabaseHeader: View {
                 }
             }
 
+        }
+        .task(id: instance.connectionStatus) {
+            do {
+                await instance.loadDatabases()
+            } catch {
+                print(error)
+            }
         }
     }
 }

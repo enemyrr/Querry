@@ -14,12 +14,22 @@ import AIProxy
 @Observable class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
+    //    var connectedDatabase: (any DatabaseWrapper)?
+    
     private var _databaseDriver: (any DatabaseDriver)?
-    var connectedDatabase: (any DatabaseWrapper)?
+    private var _databaseService = DatabaseService()
     
     // Public getter for database driver (needed by ConnectionService)
     var databaseDriver: (any DatabaseDriver)? {
         return _databaseDriver
+    }
+    
+    var databaseService: DatabaseService? {
+        return _databaseService
+    }
+    
+    var connectedDatabase: (any DatabaseWrapper)? {
+        _databaseService.connectedDatabase
     }
     
     // Generic collections and databases storage
@@ -45,12 +55,8 @@ import AIProxy
     private var selectedTabId: UUID?
     
     var selectedTab: DatabaseTab? {
-        get {
-            guard let selectedTabId = selectedTabId else { return nil }
-            return tabs.first { $0.id == selectedTabId }
-        }
-        set {
-            selectedTabId = newValue?.id
+        didSet {
+            tabs.first { $0.id == selectedTabId }
         }
     }
     
@@ -83,6 +89,7 @@ import AIProxy
             }
         }
     }
+
     
     func connect() async throws {
         guard connectionStatus != .connected else { return }
@@ -90,32 +97,31 @@ import AIProxy
         connectionStatus = .connecting
         
         do {
-            _databaseDriver = DatabaseDriverFactory.createDriver(for: connection.databaseType)
-            
-            guard let driver = _databaseDriver else {
-                throw DatabaseError.operationFailed("Failed to create database driver")
-            }
-            
-            // Connect and store the database
-            connectedDatabase = try await driver.connect(to: connection.connectionUri)
+            try await _databaseService.setActiveConnection(
+                connection
+            )
             connectionStatus = .connected
             
-            do {
-                let buildInfo = try await driver.getBuildInfo()
-                connectionVersion = buildInfo.version
-            } catch {
-                // Non-critical error, continue with connection
-                print("Could not get build info: \(error)")
-            }
+            let buildInfo = try await _databaseService.getBuildInfo()
+            connectionVersion = buildInfo?.version
             
-            // Load databases and collections
-            await loadDatabasesAndCollections()
-            
+            await loadDatabases()
+            try await loadCollectionsForCurrentDatabase()
             lastError = nil
         } catch {
             lastError = error
             connectionStatus = .error
             throw error
+        }
+    }
+    
+    func loadDatabases() async {
+        do {
+            let databaseList = try await _databaseService.listDatabases()
+            self.databases = databaseList
+        } catch {
+            lastError = error
+            print("Failed to load databases \(error)")
         }
     }
     
@@ -141,31 +147,54 @@ import AIProxy
     }
     
     @discardableResult
-    func getSchema(for collectionName: String) async throws {
-        guard let driver = _databaseDriver else { return }
+    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
+        guard let driver = _databaseDriver else { return nil }
         
         let schemaResult = try await driver.getSchema(for: collectionName)
         
         self.schema[collectionName] = schemaResult
+        return schemaResult
         
         // Load collections for current database
-//        if let currentDb = connectedDatabase {
-//            let collectionList = try await driver.listCollections()
-//            self.collections[currentDb.name] = collectionList
-//        }
+        //        if let currentDb = connectedDatabase {
+        //            let collectionList = try await driver.listCollections()
+        //            self.collections[currentDb.name] = collectionList
+        //        }
         
     }
     
-    func loadCollectionsForCurrentDatabase() async {
-        guard let driver = _databaseDriver,
-              let currentDatabase = connectedDatabase else { return }
+//    func loadCollectionsForCurrentDatabase() async {
+//        guard let driver = _databaseDriver,
+//              let currentDatabase = connectedDatabase else { return }
+//        
+//        do {
+//            let collectionList = try await driver.listCollections()
+//            self.collections[currentDatabase.name] = collectionList
+//        } catch {
+//            lastError = error
+//            collections[currentDatabase.name] = []
+//        }
+//    }
+    
+    func loadCollectionsForCurrentDatabase() async throws {
+        guard let database = connectedDatabase else {
+            return
+        }
+        
+        let databaseName = database.name
         
         do {
-            let collectionList = try await driver.listCollections()
-            self.collections[currentDatabase.name] = collectionList
+            let collectionResult = try await _databaseService.listCollections()
+            
+            await MainActor.run {
+                self.collections[databaseName] = collectionResult
+            }
+            
         } catch {
-            lastError = error
-            collections[currentDatabase.name] = []
+            await MainActor.run {
+                self.collections[databaseName] = []
+            }
+            throw error
         }
     }
     
@@ -173,7 +202,7 @@ import AIProxy
     /// Fetch documents from a collection
     /// - Parameter collectionName: The name of the collection to fetch from
     /// - Returns: Array of documents from the collection
-    func fetchDocuments(from collectionName: String, filter: String = "") async throws {
+    func fetchDocuments(from collectionName: String, filter: String = "") async throws -> PostgreSQLQueryResult? {
         guard let driver = _databaseDriver, let selectedTab else {
             throw DatabaseError.operationFailed("No active database connection")
         }
@@ -205,12 +234,14 @@ import AIProxy
                 }
             }
             
+            return nil
+            
         case .postgres, .supabase, .neon:
             let rows = try await driver.findDocuments(
                 in: collectionName,
                 filter: ["rawQuery": filter],
-                skip: selectedTab.skip,
-                limit: selectedTab.limit
+                //                skip: selectedTab.skip,
+                //                limit: selectedTab.limit
             ) as? PostgreSQLQueryResult
             
             await MainActor.run {
@@ -225,6 +256,7 @@ import AIProxy
                 }
             }
             
+            return rows
         default:
             throw DatabaseError.operationFailed("Unsupported database type for document fetching")
         }
@@ -388,34 +420,34 @@ import AIProxy
     // MARK: - Pagination Management (direct and simple)
     
     func updateCurrentPage(_ page: Int) {
-        guard let selectedTabId = selectedTabId,
-              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
-              page > 0 && page <= tabs[tabIndex].totalPages else { return }
-        
-        tabs[tabIndex].currentPage = page
+        //        guard let selectedTabId = selectedTabId,
+        //              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
+        //              page > 0 && page <= tabs[tabIndex].totalPages else { return }
+        //
+        //        tabs[tabIndex].currentPage = page
     }
     
     func updateRowsPerPage(_ count: Int) {
-        guard let selectedTabId = selectedTabId,
-              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
-              count > 0 else { return }
-        
-        tabs[tabIndex].rowsPerPage = count
-        
-        // Recalculate pagination
-        let totalPages = max(1, Int(ceil(Double(tabs[tabIndex].totalRows) / Double(count))))
-        tabs[tabIndex].totalPages = totalPages
-        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
+        //        guard let selectedTabId = selectedTabId,
+        //              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
+        //              count > 0 else { return }
+        //
+        //        tabs[tabIndex].rowsPerPage = count
+        //
+        //        // Recalculate pagination
+        //        let totalPages = max(1, Int(ceil(Double(tabs[tabIndex].totalRows) / Double(count))))
+        //        tabs[tabIndex].totalPages = totalPages
+        //        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
     }
     
     func updateTotalRows(_ count: Int) {
-        guard let selectedTabId = selectedTabId,
-              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }) else { return }
-        
-        tabs[tabIndex].totalRows = count
-        let totalPages = max(1, Int(ceil(Double(count) / Double(tabs[tabIndex].rowsPerPage))))
-        tabs[tabIndex].totalPages = totalPages
-        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
+        //        guard let selectedTabId = selectedTabId,
+        //              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }) else { return }
+        //
+        //        tabs[tabIndex].totalRows = count
+        //        let totalPages = max(1, Int(ceil(Double(count) / Double(tabs[tabIndex].rowsPerPage))))
+        //        tabs[tabIndex].totalPages = totalPages
+        //        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
     }
 }
 

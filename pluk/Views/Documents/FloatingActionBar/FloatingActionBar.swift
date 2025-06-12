@@ -20,6 +20,7 @@ struct FloatingActionBar: View {
     
     @State var action: ActionBar = ActionBar.main
     @State var showFilterEditor: Bool = false
+    @State var paginationManager = PaginationManager()
     
     var body: some View {
         Button("") {
@@ -142,7 +143,7 @@ struct FloatingActionBar: View {
     
     private var mainView: some View {
         HStack(spacing: 5) {
-//            Pagination(viewModel: viewModel, filter: searchQueryViewModel.getFilter())
+            Pagination(paginationManager: paginationManager)
             
             Divider()
                 .frame(height: 22)

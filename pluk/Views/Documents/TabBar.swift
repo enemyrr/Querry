@@ -112,7 +112,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
     func makeNSView(context: Context) -> NSTabView {
         let tabView = NSTabView()
         tabView.delegate = context.coordinator
-//        tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
+        tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
         tabView.drawsBackground = false
         
         return tabView

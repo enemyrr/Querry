@@ -12,29 +12,53 @@ struct TableListView: View {
     let selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
     
+    enum ViewState {
+        case loading
+        case error(String)
+        case loaded(DatabaseService.QueryResult, DatabaseSchemaResult)
+    }
+    
+    @State private var viewState: ViewState = .loading
+    @State private var searchFilter: String = ""
+    
     @State private var isLoading = false
     @State private var loadingError: Error?
+    
+    @State private var schema: DatabaseSchemaResult?
+    @State private var documents: PostgreSQLQueryResult?
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 VStack {
-                    Group {
-                        if let selectedTab = instance.selectedTab,
-                           let schemaResult = instance.schema[selectedTab.name] {
-                            TableListViewController(
-                                rows: instance.documents[selectedTab.name],
-                                schema: schemaResult
-                            )
-                            .background(Color(.controlBackgroundColor).opacity(0.3))
-                            .cornerRadius(10)
-                        } else {
-                            VStack {}
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(Color(.controlBackgroundColor).opacity(0.5))
-                                .cornerRadius(10)
-                        }
+                        switch viewState {
+                             case .loading:
+                                Text("")
+                             case .error(let message):
+                                Text(message)
+//                                 ErrorStateView(
+//                                     message: message,
+//                                     retryAction: { await loadDocuments() }
+//                                 )
+                                 
+                             case .loaded(let queryResult, let schema):
+                                 if let postgresData = queryResult.data as? PostgreSQLQueryResult {
+                                     TableListViewController(
+                                         rows: postgresData,
+                                         schema: schema
+                                     )
+                                 }
+                             }
                     }
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity
+                )
+                .background(
+                    Color(.controlBackgroundColor).opacity(0.5)
+                )
+                .cornerRadius(10)
+
                 }
                 
                 VStack {
@@ -42,52 +66,57 @@ struct TableListView: View {
                     FloatingActionBar(screenWidth: geometry.size.width)
                         .padding(.bottom, 10)
                 }
-            }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .task(id: instance.selectedTab?.name) {
-                await loadTabData()
+                if let selectedTab = instance.selectedTab {
+                    do {
+                        documents = try await instance
+                            .fetchDocuments(from: selectedTab.name)
+                    } catch {
+                        print(error)
+                    }
+                }
             }
+            .task { await loadDocuments() }
+            .task(id: selectedTab.name) { await loadDocuments() }
+            .refreshable { await loadDocuments() }
+            //            .task(id: instance.selectedTab?.name) {
+            //                if let selectedTab = instance.selectedTab {
+            //                    do {
+            //                        schema = try await instance.getSchema(for: selectedTab.name)
+            //                    } catch {
+            //                        print(error)
+            //                    }
+            //                }
+            //            }
         }
+        
     }
     
-    @MainActor
-    private func loadTabData() async {
-        guard let selectedTabName = instance.selectedTab?.name else {
-            return
-        }
-        
-        // Prevent redundant loading
-        let needsSchema = instance.schema[selectedTabName] == nil
-        let needsDocuments =  instance.documents[selectedTabName] == nil
-        
-        guard needsSchema || needsDocuments else {
-            return // Already loaded
-        }
-        
-        isLoading = true
-        loadingError = nil
-        
+    private func loadDocuments() async {
         do {
-            // Run both requests concurrently using async let
-            if needsSchema && needsDocuments {
-                async let schemaTask: Void = instance.getSchema(for: selectedTabName)
-                async let documentsTask: Void = instance.fetchDocuments(from: selectedTabName)
-                
-                _ = try await schemaTask
-                _ = try await documentsTask
-                
-            } else if needsSchema {
-                try await instance.getSchema(for: selectedTabName)
-                
-            } else if needsDocuments {
-                _ = try await instance.fetchDocuments(from: selectedTabName)
+            viewState = .loading
+               
+//            async let schemaTask = databaseService.getSchema(
+//                for: selectedTab.name
+//            )
+//            async let documentsTask = databaseService.findDocuments(
+//                in: selectedTab.name,
+//                filter: searchFilter,
+//                skip: selectedTab.skip,
+//                limit: selectedTab.limit
+//            )
+               
+//            let (schema, documents) = try await (schemaTask, documentsTask)
+               
+            guard let schema = schema else {
+                viewState = .error("Could not load schema")
+                return
             }
-            
+               
+//            viewState = .loaded(documents, schema)
         } catch {
-            loadingError = error
-            print("Failed to load tab data: \(error)")
+            viewState = .error(error.localizedDescription)
         }
-        
-        isLoading = false
     }
 }

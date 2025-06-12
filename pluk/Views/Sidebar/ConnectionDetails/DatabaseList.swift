@@ -9,7 +9,22 @@ import SwiftUI
 import MongoKitten
 
 struct DatabaseList: View {
+    @Environment(ConnectionInstance.self) private var instance
     var viewModel: SidebarViewModel
+    
+    @State private var isLoading = false
+    @State private var loadError: Error?
+    
+    // Computed property for filtered collections
+    private var filteredCollections: [any CollectionWrapper]? {
+        guard let connectedDatabase = viewModel.activeConnection?.connectedDatabase else {
+            return nil
+        }
+        guard !viewModel.searchText.isEmpty else { return instance.collections[connectedDatabase.name] ?? [] }
+        return instance.collections[connectedDatabase.name]?.filter { collection in
+            collection.name.localizedCaseInsensitiveContains(viewModel.searchText)
+        } ?? []
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -21,28 +36,39 @@ struct DatabaseList: View {
     
     private var connectionContent: some View {
         VStack(spacing: 0) {
-            if let activeConnection = viewModel.activeConnection {
-                if let connectedDatabase = activeConnection.connectedDatabase {
-                    let filteredCollections = (activeConnection.collections[connectedDatabase.name] ?? [])
-                        .filter {
-                            viewModel.searchText.isEmpty ||
-                            $0.name.localizedCaseInsensitiveContains(viewModel.searchText)
-                        }
-                    
+            if instance.connectionStatus == .connected {
+                if let filteredCollections = filteredCollections {
                     CollectionsSection(
-                        instance: activeConnection,
+                        instance: instance,
                         collections: filteredCollections
-                    ).padding(.horizontal, 16)
-                } else {
-                    if activeConnection.connectionStatus != .error {
-                        ProgressView()
-                            .controlSize(.small)
-                            .padding()
+                    )
+                    .padding(.horizontal, 16)
+                    
+                    if !viewModel.searchText.isEmpty && filteredCollections.isEmpty  {
+                        ContentUnavailableView(
+                            "No Collections",
+                            systemImage: "folder.badge.questionmark",
+                            description: Text("This database doesn't contain any collections.")
+                        )
                     }
                 }
+            } else if instance.connectionStatus == .error {
+                // Show error state
+                ContentUnavailableView(
+                    "Connection Failed",
+                    systemImage: "wifi.exclamationmark",
+                    description: Text("Unable to connect to the database.")
+                )
             }
             
             Spacer()
+        }
+        .onChange(of: instance.connectionStatus) { oldStatus, newStatus in
+            if newStatus == .connected && oldStatus != .connected {
+                Task {
+                    await loadCollectionsForCurrentDatabase()
+                }
+            }
         }
         .alert("Connection Error",
                isPresented: Binding(
@@ -60,6 +86,38 @@ struct DatabaseList: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        .alert("Load Error",
+               isPresented: Binding(
+                get: { loadError != nil },
+                set: { _ in loadError = nil }
+               ),
+               presenting: loadError
+        ) { _ in
+            Button("Retry") {
+                Task {
+                    await loadCollectionsForCurrentDatabase()
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+    }
+    
+    // MARK: - Private Methods
+    @MainActor
+    private func loadCollectionsForCurrentDatabase() async {
+        isLoading = true
+        loadError = nil
+        
+        do {
+            try await instance.loadCollectionsForCurrentDatabase()
+        } catch {
+            loadError = error
+            print("Failed to load collections: \(error)")
+        }
+        
+        isLoading = false
     }
 }
 
@@ -70,7 +128,7 @@ struct DatabasesSection: View {
         DisclosureGroup("Databases") {
             ForEach(instance.databases, id: \.name) { database in
                 Button(action: {
-                    instance.connectedDatabase = database
+                    //                    instance.connectedDatabase = database
                 }) {
                     HStack {
                         Image(systemName: databaseIcon)
@@ -87,20 +145,20 @@ struct DatabasesSection: View {
     }
     
     private var databaseIcon: String {
-            switch instance.connection.databaseType {
-            case .mongodb:
-                return "folder.fill"
-            default:
-                return "table.fill"
-            }
+        switch instance.connection.databaseType {
+        case .mongodb:
+            return "folder.fill"
+        default:
+            return "table.fill"
         }
+    }
 }
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
     var instance: ConnectionInstance
     let collections: [any CollectionWrapper]
- 
+    
     @State private var showDeleteConfirmation = false
     @State private var collectionToDelete: (any CollectionWrapper)?
     
@@ -164,13 +222,13 @@ struct CollectionsSection: View {
     }
     
     private var databaseIcon: String {
-            switch instance.connection.databaseType {
-            case .mongodb:
-                return "folder"
-            default:
-                return "table"
-            }
+        switch instance.connection.databaseType {
+        case .mongodb:
+            return "folder"
+        default:
+            return "table"
         }
+    }
     
     // MARK: - Inline Rename View
     @State private var renamingCollection: String? = nil
@@ -289,7 +347,7 @@ struct CollectionsSection: View {
     private func performRename(from oldName: String, to newName: String) async {
         do {
             try await instance.renameCollection(from: oldName, to: newName)
-            await instance.loadCollectionsForCurrentDatabase()
+            //            await instance.loadCollectionsForCurrentDatabase()
             
             withAnimation(.easeInOut(duration: 0.2)) {
                 renamingCollection = nil

@@ -15,8 +15,11 @@ struct Sidebar: View {
                 .frame(width: 50)
             
             if viewModel.activeSidebarItem != .home {
-                ConnectionDetailsSidebar()
-                    .environment(viewModel)
+                if let activeConnection = viewModel.activeConnection {
+                    ConnectionDetailsSidebar()
+                        .environment(activeConnection)
+                        .environment(viewModel)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

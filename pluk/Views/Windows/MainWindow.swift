@@ -43,6 +43,7 @@ struct MainWindow: View {
             CustomSplitView(
                 sidebar: {
                     Sidebar()
+                        .environment(sidebarViewModel.activeConnection)
                 },
                 detail: {
                     switch sidebarViewModel.activeSidebarItem {

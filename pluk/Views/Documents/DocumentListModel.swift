@@ -38,12 +38,6 @@ import SwiftUI
     var intialLoadComplete: Bool = false
     var isLoadingAnimation: Bool = false
     
-    // MARK: - Pagination Properties
-    var currentPage: Int { paginationManager.currentPage }
-    var totalPages: Int { paginationManager.totalPages }
-    var totalRows: Int { paginationManager.totalRows }
-    var rowsPerPage: Int { paginationManager.rowsPerPage }
-    
     // MARK: - Document Management
     func loadDocuments(filter: String = "") async {
         guard let selectedTab = instance.selectedTab else {
