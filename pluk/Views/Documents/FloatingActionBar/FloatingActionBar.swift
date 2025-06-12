@@ -9,8 +9,11 @@ import SwiftUI
 import MongoKitten
 
 struct FloatingActionBar: View {
-    @Environment(ConnectionInstance.self) private var instance
     let screenWidth: CGFloat
+    var viewState: TableListViewState
+    let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int) -> Void
+    
+    @Environment(ConnectionInstance.self) private var instance
     
     @State private var containerWidth: CGFloat = 0
     @State var lastQuery: String?
@@ -21,6 +24,29 @@ struct FloatingActionBar: View {
     @State var action: ActionBar = ActionBar.main
     @State var showFilterEditor: Bool = false
     @State var paginationManager = PaginationManager()
+    
+    @State private var loadingTask: Task<Void, Never>?
+    @State private var errorTask: Task<Void, Never>?
+    
+    // MARK: - Computed Properties
+    private var totalCount: Int {
+        if case .loaded(let queryResult, _) = viewState {
+            return queryResult.totalCount
+        }
+        return 0
+    }
+    
+    // MARK: - Pagination
+    @State var currentPage = 1
+    @State var per = 1
+    @State var totalPages = 1
+    @State var totalPerPage = 300
+    private var isLoading: Bool {
+        if case .loading = viewState {
+            return true
+        }
+        return false
+    }
     
     var body: some View {
         Button("") {
@@ -70,11 +96,11 @@ struct FloatingActionBar: View {
             )
             .background(
                 Group {
-                    if instance.isLoadingAnimation {
-                        GlowingBubbleLoader()
-                    }
+                    GlowingBubbleLoader(
+                        isLoading: isLoading
+                    )
                     
-                    if instance.error != nil {
+                    if case .error( _) = viewState {
                         LoadingErrorIndicator()
                     }
                 }
@@ -143,7 +169,13 @@ struct FloatingActionBar: View {
     
     private var mainView: some View {
         HStack(spacing: 5) {
-            Pagination(paginationManager: paginationManager)
+            Pagination(
+                currentPage: $currentPage,
+                totalPages: totalPages,
+                totalCount: totalCount,
+                totalPerPage: totalPerPage,
+                onRefresh: { onRefresh(currentPage, totalPerPage) }
+            )
             
             Divider()
                 .frame(height: 22)
@@ -314,7 +346,7 @@ struct FloatingActionBar: View {
         }
     }
     
-
+    
     
     // MARK: - Action Buttons
     struct DeleteActionButton: View {

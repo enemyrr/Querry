@@ -9,21 +9,19 @@ import SwiftUI
 import MongoKitten
 
 struct Pagination: View {
+    @Binding var currentPage: Int
+    var totalPages: Int
+    var totalCount: Int
+    var totalPerPage: Int
+    let onRefresh: () -> Void
+    
     @Environment(ConnectionInstance.self) private var instance
-    let paginationManager: PaginationManager
     @State private var filter: String?
     @State private var isHovering = false
     
-    
-    // MARK: - Pagination Properties
-    var currentPage: Int { paginationManager.currentPage }
-    var totalPages: Int { paginationManager.totalPages }
-    var totalRows: Int { paginationManager.totalRows }
-    var rowsPerPage: Int { paginationManager.rowsPerPage }
-    
     var body: some View {
         let isPreviousDisabled = currentPage <= 1
-        let isNextDisabled = totalRows != rowsPerPage
+        let isNextDisabled = totalCount != totalPerPage
         
         HStack(spacing: 0) {
             Button(action: {
@@ -56,7 +54,7 @@ struct Pagination: View {
             Button(action: {
                 // Open Modal
             }) {
-                Text(isHovering ? "Page \(paginationManager.currentPage)" : "\(paginationManager.totalRows) rows")
+                Text(isHovering ? "Page \(currentPage)" : "\(totalCount) rows")
                     .foregroundColor(.gray)
                     .frame(width: 60)
             }
@@ -96,27 +94,13 @@ struct Pagination: View {
     
     // MARK: - Pagination Methods
     func nextPage(filter: String?) {
-        if paginationManager.nextPage() {
-            Task {
-                if let filter = filter {
-//                    try await instance.fetchDocuments(from: selectedTab.name)
-                    //                    await loadDocuments(filter: filter)
-                } else {
-//                    documents = try await instance.fetchDocuments(from: selectedTab.name)
-                }
-            }
-        }
+        currentPage += 1
+        onRefresh() // Call the refresh function from TableListView
     }
     
     func previousPage(filter: String?) {
-        if paginationManager.previousPage() {
-            Task {
-                if let filter = filter {
-//                    await loadDocuments(filter: filter)
-                } else {
-//                    await loadDocuments()
-                }
-            }
-        }
+        guard currentPage > 1 else { return }
+        self.currentPage -= 1
+        onRefresh() // Call the refresh function from TableListView
     }
 }

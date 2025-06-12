@@ -12,13 +12,7 @@ struct TableListView: View {
     let selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
     
-    enum ViewState {
-        case loading
-        case error(String)
-        case loaded(DatabaseService.QueryResult, DatabaseSchemaResult)
-    }
-    
-    @State private var viewState: ViewState = .loading
+    @State private var viewState: TableListViewState = .loading
     @State private var searchFilter: String = ""
     
     @State private var cachedSchema: DatabaseSchemaResult?
@@ -57,17 +51,29 @@ struct TableListView: View {
             
             VStack {
                 Spacer()
-                // FloatingActionBar(screenWidth: geometry.size.width)
-                //     .padding(.bottom, 10)
+                FloatingActionBar(
+                    screenWidth: geometry.size.width, 
+                    viewState: viewState,
+                    onRefresh: { currentPage, itemsPerPage in
+                        Task { 
+                            await loadDocuments(
+                                forceFetch: true, 
+                                fetchSchema: true, 
+                                page: currentPage, 
+                                limit: itemsPerPage
+                            ) 
+                        } 
+                    }
+                )
+                .padding(.bottom, 10)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .task(id: selectedTab.name) {
                 await loadDocumentsIfNeeded()
             }
             .onChange(of: searchFilter) { _, newValue in
-                // Only refetch documents when search filter changes, keep schema cached
                 Task {
-                    await loadDocuments(forceFetch: true, fetchSchema: false)
+                    await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
                 }
             }
         }
@@ -76,11 +82,11 @@ struct TableListView: View {
     /// Load documents only if they don't exist in cache or tab has changed
     private func loadDocumentsIfNeeded() async {
         let shouldFetch = cachedTabName != selectedTab.name ||
-                         cachedSchema == nil ||
-                         cachedDocuments == nil
+        cachedSchema == nil ||
+        cachedDocuments == nil
         
         if shouldFetch {
-            await loadDocuments(forceFetch: true, fetchSchema: true)
+            await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
         } else {
             // Use cached data
             if let cachedDocuments = cachedDocuments,
@@ -91,7 +97,7 @@ struct TableListView: View {
     }
     
     /// Load documents with options to force fetch and control schema fetching
-    private func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true) async {
+    private func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300) async {
         guard let driver = instance.databaseService else {
             viewState = .error("Driver not set")
             return
@@ -118,7 +124,9 @@ struct TableListView: View {
                 async let schemaTask = instance.getSchema(for: selectedTab.name)
                 async let documentsTask = driver.findDocuments(
                     in: selectedTab.name,
-                    filter: searchFilter
+                    filter: searchFilter,
+                    skip: (page - 1) * limit,
+                    limit: limit
                 )
                 
                 let (schema, documents) = try await (schemaTask, documentsTask)
@@ -146,7 +154,9 @@ struct TableListView: View {
                 
                 let documents = try await driver.findDocuments(
                     in: selectedTab.name,
-                    filter: searchFilter
+                    filter: searchFilter,
+                    skip: (page - 1) * limit,
+                    limit: limit
                 )
                 
                 schemaToUse = schema
@@ -170,7 +180,7 @@ struct TableListView: View {
     
     /// Public method to refresh data when needed (e.g., from parent view)
     func refreshData() async {
-        await loadDocuments(forceFetch: true, fetchSchema: true)
+        await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
     }
     
     /// Clear cache when needed (e.g., connection changes)
@@ -180,4 +190,10 @@ struct TableListView: View {
         cachedTabName = nil
         viewState = .loading
     }
+}
+
+enum TableListViewState {
+    case loading
+    case error(String)
+    case loaded(DatabaseService.QueryResult, DatabaseSchemaResult)
 }

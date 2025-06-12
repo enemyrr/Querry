@@ -10,14 +10,18 @@ struct GlowingBubbleLoader: View {
     var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
     var height: CGFloat = 6
     var animationDuration: Double = 1
+    var isLoading: Bool
     
     // Trigger to start each animation cycle
     @State private var animationTrigger = UUID()
+    @State private var shouldContinueAnimating = false
+    @State private var currentCycleStarted = false
     
     var body: some View {
         Color.clear
             .keyframeAnimator(
                 initialValue: LoaderAnimationValues(),
+                trigger: animationTrigger
             ) { content, value in
                 // The moving triangle gradient shape
                 LongTailTriangleShape()
@@ -62,6 +66,43 @@ struct GlowingBubbleLoader: View {
             }
             .frame(height: max(height * 6, 40))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .onChange(of: isLoading) { _, newValue in
+                if newValue && !shouldContinueAnimating {
+                    // Start loading
+                    shouldContinueAnimating = true
+                    startNextCycle()
+                } else if !newValue {
+                    // Stop loading after current cycle
+                    shouldContinueAnimating = false
+                }
+            }
+            .onAppear {
+                if isLoading {
+                    shouldContinueAnimating = true
+                    startNextCycle()
+                }
+            }
+            .onReceive(Timer.publish(every: animationDuration + 0.1, on: .main, in: .common).autoconnect()) { _ in
+                // Only process timer if we have a cycle running
+                if currentCycleStarted {
+                    currentCycleStarted = false
+                    
+                    // Start next cycle if still loading
+                    if shouldContinueAnimating {
+                        startNextCycle()
+                    }
+                }
+            }
+    }
+    
+    private func startNextCycle() {
+        guard !currentCycleStarted else { return }
+        currentCycleStarted = true
+        
+        // Small delay before starting next cycle for smooth continuous animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            animationTrigger = UUID()
+        }
     }
 }
 
@@ -90,5 +131,26 @@ struct LongTailTriangleShape: Shape {
         path.closeSubpath()
         
         return path
+    }
+}
+
+// MARK: - Preview
+struct GlowingBubbleLoader_Previews: PreviewProvider {
+    @State static var isLoading = true
+    
+    static var previews: some View {
+        VStack(spacing: 20) {
+            GlowingBubbleLoader(isLoading: isLoading)
+            
+            Button(isLoading ? "Stop Loading" : "Start Loading") {
+                isLoading.toggle()
+            }
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+        }
+        .padding()
+        .background(Color.black)
     }
 }
