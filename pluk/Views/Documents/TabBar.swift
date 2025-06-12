@@ -285,7 +285,7 @@ struct CustomTabButton: View {
         .padding(.trailing, 12)
         .background(
             TabShape(isSelected: isSelected)
-                .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.3) : Color.clear)
+                .fill(isSelected ? Color(.controlBackgroundColor).opacity(0.2) : Color.clear)
         )
         .overlay(
             TabBorderShape(isSelected: isSelected)
@@ -304,7 +304,6 @@ struct CustomTabButton: View {
             onSelect()
         }
     }
-    
 }
 
 // Custom tab shape for styling

@@ -148,19 +148,10 @@ import AIProxy
     
     @discardableResult
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
-        guard let driver = _databaseDriver else { return nil }
-        
-        let schemaResult = try await driver.getSchema(for: collectionName)
+        let schemaResult = try await _databaseService.getSchema(for: collectionName)
         
         self.schema[collectionName] = schemaResult
         return schemaResult
-        
-        // Load collections for current database
-        //        if let currentDb = connectedDatabase {
-        //            let collectionList = try await driver.listCollections()
-        //            self.collections[currentDb.name] = collectionList
-        //        }
-        
     }
     
 //    func loadCollectionsForCurrentDatabase() async {
@@ -400,7 +391,7 @@ import AIProxy
     }
     
     func selectTab(_ tab: DatabaseTab) {
-        selectedTabId = tab.id
+        selectedTab = tab
     }
     
     func nextTab(_ currentTab: DatabaseTab) {
