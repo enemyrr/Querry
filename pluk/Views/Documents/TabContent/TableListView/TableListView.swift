@@ -25,9 +25,7 @@ struct TableListView: View {
                 VStack {
                     switch viewState {
                     case .loading:
-                        ProgressView("Loading...")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        
+                        EmptyView()
                     case .error(let message):
                         ContentUnavailableView {
                             Label("Failed to Load", systemImage: "exclamationmark.triangle")
@@ -54,15 +52,24 @@ struct TableListView: View {
                 FloatingActionBar(
                     screenWidth: geometry.size.width, 
                     viewState: viewState,
-                    onRefresh: { currentPage, itemsPerPage in
-                        Task { 
+                    onRefresh: { currentPage, itemsPerPage, fetchSchema in
+                        Task {
                             await loadDocuments(
                                 forceFetch: true, 
-                                fetchSchema: true, 
+                                fetchSchema: fetchSchema, 
                                 page: currentPage, 
                                 limit: itemsPerPage
                             ) 
                         } 
+                    },
+                    onLoadDocuments: { filter in
+                        if let filter = filter {
+                            searchFilter = filter
+                        }
+                        
+                        Task {
+                            await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+                        }
                     }
                 )
                 .padding(.bottom, 10)

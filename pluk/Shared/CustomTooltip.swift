@@ -320,7 +320,7 @@ extension View {
     /// Convenience version for simple text tooltips with position control
     func customHelp(
         _ text: String,
-        delay: Double = 1,
+        delay: Double = 1.5,
         position: TooltipPosition = .bottom,
         shortcut: KeyboardShortcut? = nil,
         alignment: TooltipPosition? = nil,

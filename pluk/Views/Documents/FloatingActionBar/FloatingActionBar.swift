@@ -11,7 +11,8 @@ import MongoKitten
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
     var viewState: TableListViewState
-    let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int) -> Void
+    let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
+    let onLoadDocuments: (_ filter: String?) -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     
@@ -19,16 +20,18 @@ struct FloatingActionBar: View {
     @State var lastQuery: String?
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
-    @State var filter: String?
+    @State var filter: String = ""
     
     @State var action: ActionBar = ActionBar.main
     @State var showFilterEditor: Bool = false
-    @State var paginationManager = PaginationManager()
     
     @State private var loadingTask: Task<Void, Never>?
     @State private var errorTask: Task<Void, Never>?
     
-    // MARK: - Computed Properties
+    // MARK: - Pagination
+    @State var currentPage = 1
+    @State var totalPages = 1
+    @State var totalPerPage = 300
     private var totalCount: Int {
         if case .loaded(let queryResult, _) = viewState {
             return queryResult.totalCount
@@ -36,17 +39,17 @@ struct FloatingActionBar: View {
         return 0
     }
     
-    // MARK: - Pagination
-    @State var currentPage = 1
-    @State var per = 1
-    @State var totalPages = 1
-    @State var totalPerPage = 300
+    
     private var isLoading: Bool {
         if case .loading = viewState {
             return true
         }
         return false
     }
+    
+    
+    @State private var debouncedIsLoading: Bool = false
+    @State private var debounceTask: Task<Void, Never>?
     
     var body: some View {
         Button("") {
@@ -66,8 +69,8 @@ struct FloatingActionBar: View {
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
-                //                QueryEditor(showQueryEditor: $searchQueryViewModel.showQueryEditor)
-                //                    .frame(width: screenWidth * 0.9)
+                QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
+                    .frame(width: screenWidth * 0.9)
             }
             
             if showCreateDocumentSheet {
@@ -80,10 +83,16 @@ struct FloatingActionBar: View {
                 case .main:
                     mainView
                 case .search:
-                    if let selectedTab = instance.selectedTab {
-                        //                        AISearchView(viewModel: viewModel, selectedTab: selectedTab)
-                        //                            .frame(width: screenWidth * 0.55)
-                    }
+                    AISearchView(
+                        filter: $filter,
+                        showQueryEditor: showQueryEditor,
+                        onBack: {
+                            withAnimation(.spring(response: 0.3)) {
+                                action = .main
+                            }
+                        },
+                        onLoadDocuments: onLoadDocuments)
+                    .frame(width: screenWidth * 0.55)
                 default:
                     mainView
                 }
@@ -96,9 +105,11 @@ struct FloatingActionBar: View {
             )
             .background(
                 Group {
-                    GlowingBubbleLoader(
-                        isLoading: isLoading
-                    )
+                    if action == .main {
+                        GlowingBubbleLoader(
+                            isLoading: isLoading
+                        )
+                    }
                     
                     if case .error( _) = viewState {
                         LoadingErrorIndicator()
@@ -131,18 +142,19 @@ struct FloatingActionBar: View {
                     .foregroundColor(.gray)
                 
                 Spacer()
-                //
-                //                if searchQueryViewModel.query != searchQueryViewModel.defaultQuery {
-                //                    Button(action: {
-                //                        searchQueryViewModel.clearQuery()
-                //                    }) {
-                //                        Text("Clear")
-                //                            .font(.caption)
-                //                            .foregroundColor(.gray)
-                //                    }
-                //                    .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
-                //                    .padding([.vertical, .trailing], -4)
-                //                }
+                
+                if !filter.isEmpty {
+                    Button(action: {
+                        filter = ""
+                        onLoadDocuments(filter)
+                    }) {
+                        Text("Clear")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
+                    .padding([.vertical, .trailing], -4)
+                }
             }
         }
         .padding(.top, 6)
@@ -163,7 +175,7 @@ struct FloatingActionBar: View {
         }
         .animation(.spring(response: 0.2), value: isHoveringTopRectangle)
         .onTapGesture {
-            //            searchQueryViewModel.openQueryEditor()
+            openQueryEditor()
         }
     }
     
@@ -174,35 +186,59 @@ struct FloatingActionBar: View {
                 totalPages: totalPages,
                 totalCount: totalCount,
                 totalPerPage: totalPerPage,
-                onRefresh: { onRefresh(currentPage, totalPerPage) }
+                onRefresh: { onRefresh(currentPage, totalPerPage, false) }
             )
             
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-            //            Button(action: searchQueryViewModel.executeQuery) {
-            //                let iconName = viewModel.isLoadingAnimation ? "xmark" : "arrow.clockwise"
-            //                Image(systemName: iconName)
-            //                    .font(.system(size: 14))
-            //                    .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
-            //                    .frame(width: 16, height: 16)
-            //                    .contentShape(Rectangle()) // Keep this for hit testing
-            //            }
-            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: viewModel.isLoading))
-            //            .keyboardShortcut("r", modifiers: .command)
-            //            .disabled(viewModel.isLoading)
-            //            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
-            //                modifiers: [.command],
-            //                key: "R"
-            //            ), spacing: 10)
+            Button(action: {
+                if !isLoading {
+                    onRefresh(currentPage, totalPerPage, true)
+                }
+            }) {
+                let iconName = debouncedIsLoading ? "xmark" : "arrow.clockwise"
+                
+                Image(systemName: iconName)
+                    .font(.system(size: 14))
+                    .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+                    .onChange(of: isLoading) { oldValue, newValue in
+                        // Cancel previous debounce
+                        debounceTask?.cancel()
+                        
+                        if newValue {
+                            // Show loading immediately
+                            debouncedIsLoading = true
+                        } else {
+                            // Debounce the loading -> stopped transition
+                            debounceTask = Task {
+                                try? await Task.sleep(for: .milliseconds(400))
+                                if !Task.isCancelled {
+                                    await MainActor.run {
+                                        debouncedIsLoading = false
+                                    }
+                                }
+                            }
+                        }
+                    }
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: debouncedIsLoading))
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(isLoading)
+            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "R"
+            ), spacing: 10)
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
                 //                if viewModel.pendingActionsCount(for: .delete) > 0 {
-                Divider()
-                    .frame(height: 22)
-                    .padding(.vertical, 6)
+                //                Divider()
+                //                    .frame(height: 22)
+                //                    .padding(.vertical, 6)
                 
                 //                    DeleteActionButton(
                 //                        deleteCount: viewModel.pendingActionsCount(for: .delete),
@@ -247,7 +283,7 @@ struct FloatingActionBar: View {
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
             }
-            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: searchQueryViewModel.showCreateDocumentSheet))
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: false))
             .keyboardShortcut("n", modifiers: .command)
             .customHelp("Create documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
@@ -426,6 +462,19 @@ struct FloatingActionBar: View {
             ), spacing: 10)
         }
     }
+    
+    /// Open the full query editor view with animation
+    func openQueryEditor() {
+        Task { @MainActor in
+            // Only perform animation if the editor is currently open
+            if !showQueryEditor {
+                withAnimation(.spring(response: 0.15)) {
+                    showQueryEditor = true
+                }
+            }
+        }
+    }
+    
 }
 
 enum ActionBar: String, CaseIterable, Codable {

@@ -71,16 +71,16 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "2EDBA1AB-1032-4E5F-BB76-4F12D6FF8A11"
+            uuid = "6F5F0D79-8C33-4158-BA2E-36B3A1883D58"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift"
+            filePath = "pluk/Views/Documents/FloatingActionBar/QueryEditor.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "99"
-            endingLineNumber = "99"
-            landmarkName = "body"
+            startingLineNumber = "35"
+            endingLineNumber = "35"
+            landmarkName = "queryExecutionTime"
             landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>

@@ -393,17 +393,6 @@ Current Date: \(currentDate)
     }
     
     
-    /// Open the full query editor view with animation
-    func openQueryEditor() {
-        Task { @MainActor in
-            // Only perform animation if the editor is currently open
-            if !showQueryEditor {
-                withAnimation(.spring(response: 0.15)) {
-                    showQueryEditor = true
-                }
-            }
-        }
-    }
     
     /// Execute the current query and update results
     func executeQuery() {

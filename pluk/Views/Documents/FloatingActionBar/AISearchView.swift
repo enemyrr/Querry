@@ -10,20 +10,38 @@ import AIProxy
 import Combine
 
 struct AISearchView: View {
-    var viewModel: DocumentListModel
-    var selectedTab: DatabaseTab
+    @Binding var filter: String
+    let showQueryEditor: Bool
+    let onBack: () -> Void
+    let onLoadDocuments: (_ filter: String) -> Void
     
+    @Environment(ConnectionInstance.self) private var instance
     @FocusState private var isSearchFocused: Bool
     @State private var filterQuery: String = ""
     @State private var processingStage: ProcessingStage = .idle
     @State private var search: String = ""
     @State private var animationDots: String = ""
+    @State private var isSubmitAnimating: Bool = false
     
     // Timer using async/await instead of Timerd
     @State private var animationTask: Task<Void, Never>?
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
+            Button(action: {
+                onBack()
+            }) {
+                Image(systemName: "arrow.backward")
+                    .font(.system(size: 14))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8), isActive: true))
+            .keyboardShortcut(.escape, modifiers: [])
+            .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [],
+                key: "Escape"
+            ), spacing: 10)
+            
             searchInputSection
             actionButtonSection
         }
@@ -31,6 +49,8 @@ struct AISearchView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(IntelligenceUIPlatterView())
+        .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isSubmitAnimating)
         .task(id: processingStage) {
             await handleProcessingStageChange()
         }
@@ -85,6 +105,9 @@ struct AISearchView: View {
             }
             .transition(.opacity)
             .animation(.easeInOut(duration: 0.3), value: processingStage)
+            .onChange(of: showQueryEditor, {
+                isSearchFocused = true
+            })
     }
     
     @ViewBuilder
@@ -143,22 +166,28 @@ struct AISearchView: View {
     
     /// Submits a natural language query to AI service and processes the result
     private func processNaturalLanguageQuery(search: String) async {
+        guard let databaseService = instance.databaseService else {
+            fatalError("Database driver not set yet")
+        }
         guard !search.isEmpty else { return }
         
         processingStage = .writingQuery
         
         do {
-            let result = try await performAIQuery(search: search)
-            await processQueryResult(result)
+            filter = try await performAIQuery(databaseService: databaseService, search: search)
+            
+            await processQueryResult(filter)
         } catch {
             await handleQueryError(error)
         }
     }
     
-    private func performAIQuery(search: String) async throws -> String {
-        guard let prompt = try await viewModel.instance.databaseDriver?.buildSystemPrompt(for: selectedTab.name) else {
+    private func performAIQuery(databaseService: DatabaseService, search: String) async throws -> String {
+        guard let databaseService = instance.databaseService, let selectedTab = instance.selectedTab?.name else {
             fatalError("Database driver not set yet")
         }
+        
+        let prompt = try await databaseService.buildSystemPrompt(for: selectedTab)
         
         let openAIService = AIProxy.openAIService(
             partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",
@@ -190,12 +219,23 @@ struct AISearchView: View {
         filterQuery = result
         search = ""
         
-        await viewModel.loadDocuments(filter: filterQuery)
+        onLoadDocuments(filterQuery)
         
-        // Delay before resetting state
-        try? await Task.sleep(for: .seconds(1.1))
-        processingStage = .idle
-        isSearchFocused = false
+        // Trigger scale animation on submit
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isSubmitAnimating = true
+        }
+        
+        // Reset animation after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isSubmitAnimating = false
+                processingStage = .idle
+                isSearchFocused = false
+                
+            }
+        }
+        
     }
     
     @MainActor
@@ -209,3 +249,4 @@ struct AISearchView: View {
         processingStage = .idle
     }
 }
+

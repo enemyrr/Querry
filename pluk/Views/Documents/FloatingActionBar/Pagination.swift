@@ -17,7 +17,15 @@ struct Pagination: View {
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var filter: String?
-    @State private var isHovering = false
+    @State private var isPreviousHovering = false
+    @State private var isNextHovering = false
+    @State private var previousClickCooldown = false
+    @State private var nextClickCooldown = false
+    
+    // Computed property to determine if either button is being hovered
+    private var isAnyButtonHovering: Bool {
+        isPreviousHovering || isNextHovering
+    }
     
     var body: some View {
         let isPreviousDisabled = currentPage <= 1
@@ -45,7 +53,7 @@ struct Pagination: View {
             .onHover { hovering in
                 if !isPreviousDisabled {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        isHovering = hovering
+                        isPreviousHovering = hovering
                     }
                 }
             }
@@ -54,7 +62,7 @@ struct Pagination: View {
             Button(action: {
                 // Open Modal
             }) {
-                Text(isHovering ? "Page \(currentPage)" : "\(totalCount) rows")
+                Text(isAnyButtonHovering ? "Page \(currentPage)" : "\(totalCount) rows")
                     .foregroundColor(.gray)
                     .frame(width: 60)
             }
@@ -82,25 +90,51 @@ struct Pagination: View {
             .onHover { hovering in
                 if !isNextDisabled {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        isHovering = hovering
+                        isNextHovering = hovering
                     }
                 }
             }
             .transition(.scale.combined(with: .opacity))
+        }
+        .onChange(of: currentPage) { _, _ in
+            // Reset hover states when pagination changes
+            let isPreviousDisabled = currentPage <= 1
+            let isNextDisabled = totalCount != totalPerPage
+            
+            if isPreviousDisabled {
+                isPreviousHovering = false
+            }
+            if isNextDisabled {
+                isNextHovering = false
+            }
+        }
+        .onChange(of: totalCount) { _, _ in
+            // Reset hover states when total count changes
+            let isPreviousDisabled = currentPage <= 1
+            let isNextDisabled = totalCount != totalPerPage
+            
+            if isPreviousDisabled {
+                isPreviousHovering = false
+            }
+            if isNextDisabled {
+                isNextHovering = false
+            }
         }
     }
     
     
     
     // MARK: - Pagination Methods
+    @MainActor
     func nextPage(filter: String?) {
         currentPage += 1
-        onRefresh() // Call the refresh function from TableListView
+        onRefresh()
     }
     
+    @MainActor
     func previousPage(filter: String?) {
         guard currentPage > 1 else { return }
         self.currentPage -= 1
-        onRefresh() // Call the refresh function from TableListView
+        onRefresh()
     }
 }
