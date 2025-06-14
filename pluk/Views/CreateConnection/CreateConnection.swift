@@ -103,6 +103,7 @@ struct CreateConnectionForm: View {
     @State private var showDatabaseField = false
     @State private var isWebViewLoading = false
     @FocusState private var uriFieldIsFocused: Bool
+    @FocusState private var nameFieldIsFocused: Bool
     
     private let connection: Connection?
     
@@ -149,7 +150,10 @@ struct CreateConnectionForm: View {
             if let _ = connectionSettings.targetDatabase {
                 showDatabaseField = false
             } else {
-                defaultDatabase = ""
+                // Only clear defaultDatabase if not editing an existing connection
+                if connection == nil {
+                    defaultDatabase = ""
+                }
                 showDatabaseField = true
             }
             uriError = nil
@@ -163,6 +167,29 @@ struct CreateConnectionForm: View {
     private func validatePostgresUri(_ uri: String) {
         if uri.hasPrefix("postgresql://") || uri.hasPrefix("postgres://") {
             uriError = nil
+            
+            // Check if database is specified in the URI
+            if let url = URL(string: uri) {
+                let pathComponents = url.path.components(separatedBy: "/").filter { !$0.isEmpty }
+                if pathComponents.isEmpty {
+                    // No database specified in URI, show database field
+                    // Only clear defaultDatabase if not editing an existing connection
+                    if connection == nil {
+                        defaultDatabase = ""
+                    }
+                    showDatabaseField = true
+                } else {
+                    // Database is specified in URI, hide database field
+                    showDatabaseField = false
+                }
+            } else {
+                // Invalid URL format, show database field as fallback
+                // Only clear defaultDatabase if not editing an existing connection
+                if connection == nil {
+                    defaultDatabase = ""
+                }
+                showDatabaseField = true
+            }
         } else {
             uriError = "PostgreSQL URI should start with postgresql:// or postgres://"
         }
@@ -211,6 +238,22 @@ struct CreateConnectionForm: View {
         }
         .onAppear {
             mapExistingConnectionData()
+            
+            // Focus on first field when form appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                nameFieldIsFocused = true
+            }
+        }
+        .onChange(of: selectedDatabaseType) { oldValue, newValue in
+            // Reset form when switching database types (but not on initial load or when editing)
+            if connection == nil && oldValue != nil && newValue != oldValue {
+                resetForm()
+                
+                // Focus on first field after switching database types
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    nameFieldIsFocused = true
+                }
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: selectedDatabaseType)
     }
@@ -349,6 +392,7 @@ struct CreateConnectionForm: View {
                             FormField(label: "Name") {
                                 TextField("e.g first connection", text: $name)
                                     .textFieldStyle(CustomTextFieldStyle())
+                                    .focused($nameFieldIsFocused)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
@@ -433,6 +477,16 @@ struct CreateConnectionForm: View {
         }
     }
     
+    private func resetForm() {
+        uri = ""
+        name = ""
+        defaultDatabase = ""
+        uriError = nil
+        showDatabaseField = false
+        selectedEnvironment = .local
+        color = .blue
+    }
+    
     private func mapExistingConnectionData() {
         if let connection = connection {
             uri = connection.url
@@ -440,10 +494,11 @@ struct CreateConnectionForm: View {
             color = connection.color
             selectedEnvironment = connection.environment
             selectedDatabaseType = DatabaseType(rawValue: connection.databaseType.rawValue)
+            defaultDatabase = connection.defaultDatabase ?? ""
             
-            if connection.defaultDatabase != nil {
-                showDatabaseField = true
-                defaultDatabase = connection.defaultDatabase ?? ""
+            // Validate the URI to properly set showDatabaseField
+            if let databaseType = selectedDatabaseType {
+                validateConnectionString(uri, for: databaseType)
             }
         }
     }

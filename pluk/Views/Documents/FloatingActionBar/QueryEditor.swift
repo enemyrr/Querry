@@ -23,7 +23,6 @@ struct QueryEditor: View {
     @State private var showClearQueryButton: Bool = false
     @State private var queryStartTime: Date?
     @State private var lastExecutionTime: TimeInterval = 0
-    @State private var lastQueryCompletionTime: Date?
     @State private var displayedQueryExecutionTime: String = ""
     
     private var queryExecutionTime: String {
@@ -31,27 +30,6 @@ struct QueryEditor: View {
             return "executing..."
         } else if !displayedQueryExecutionTime.isEmpty {
             return displayedQueryExecutionTime
-        } else {
-            return ""
-        }
-    }
-    
-    private var lastQueryTime: String {
-        if let completionTime = lastQueryCompletionTime {
-            let timeInterval = Date().timeIntervalSince(completionTime)
-            
-            if timeInterval < 1 {
-                let milliseconds = Int(timeInterval * 1000)
-                return "\(milliseconds)ms ago"
-            } else if timeInterval < 60 {
-                return String(format: "%.0fs ago", timeInterval)
-            } else if timeInterval < 3600 {
-                let minutes = Int(timeInterval / 60)
-                return "\(minutes)m ago"
-            } else {
-                let hours = Int(timeInterval / 3600)
-                return "\(hours)h ago"
-            }
         } else {
             return ""
         }
@@ -134,10 +112,6 @@ struct QueryEditor: View {
                 }
                 .buttonStyle(.plain)
                 
-                Text(lastQueryTime)
-                    .foregroundColor(.secondary)
-                    .font(.subheadline)
-                
                 Button(action: {
                     filter = ""
                     queryStartTime = Date()
@@ -174,14 +148,6 @@ struct QueryEditor: View {
             }
             .padding([.top, .horizontal, .bottom], 8)
             .onChange(of: isLoading) { oldValue, newValue in
-                // Calculate execution time when query completes
-                if oldValue && !newValue, let startTime = queryStartTime {
-                    let completionTime = Date()
-                    lastExecutionTime = completionTime.timeIntervalSince(startTime)
-                    lastQueryCompletionTime = completionTime
-                    displayedQueryExecutionTime = String(format: "in %.2fs", lastExecutionTime)
-                }
-                
                 if oldValue != newValue {
                     // When returning to idle from any non-idle state, delay the icon change
                     // Keep showing the stop icon for a bit longer
