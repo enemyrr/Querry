@@ -83,6 +83,12 @@ struct TableListView: View {
                     await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
                 }
             }
+            .onChange(of: instance.id) { _, _ in
+                clearCache()
+                Task {
+                    await loadDocumentsIfNeeded()
+                }
+            }
         }
     }
     

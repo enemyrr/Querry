@@ -652,10 +652,6 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = BSON;
 		};
-		9AE244A42DF93C3A00106B17 /* XCLocalSwiftPackageReference "LiquidGlass" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = LiquidGlass;
-		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -665,14 +661,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 3.24.2;
-			};
-		};
-		9A2EAA372DFAF9FB0050F411 /* XCRemoteSwiftPackageReference "liquid-glass" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/archisvaze/liquid-glass.git";
-			requirement = {
-				branch = main;
-				kind = branch;
 			};
 		};
 		9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */ = {

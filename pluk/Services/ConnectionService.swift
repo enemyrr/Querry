@@ -8,6 +8,7 @@
 import Foundation
 import MongoKitten
 import SwiftUI
+import AppKit
 
 @Observable
 class ConnectionService {
@@ -36,16 +37,14 @@ class ConnectionService {
     
     @discardableResult
     func createNewConnectionInstance(for connection: Connection) -> UUID {
-        if let existingInstance = connectionInstances.first(where: { instance in
-            instance.connection.persistentModelID == connection.persistentModelID
-        }) {
-            activeConnectionInstanceId = existingInstance.id
-            return existingInstance.id
-        }
-        
+        // Always create a new instance for each call to get a new tab
         let newInstance = ConnectionInstance(connection: connection)
         connectionInstances.append(newInstance)
         activeConnectionInstanceId = newInstance.id
+        
+        // Create new tab for the new connection instance
+        TabManager.shared.createConnectionTab(for: newInstance)
+        
         return newInstance.id
     }
     
@@ -54,6 +53,9 @@ class ConnectionService {
         if let instanceToDisconnect = getInstance(instanceId) {
             // Properly disconnect
             _ = await disconnectDBInstance(instanceToDisconnect)
+            
+            // Close the tab
+            TabManager.shared.closeTab(instanceId)
             
             // Now remove from the array
             connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
@@ -90,5 +92,15 @@ class ConnectionService {
         } catch {
             print("Connection failed: \(error)")
         }
+    }
+    
+    // MARK: - Tab Management
+    
+    func updateTabTitle(for instanceId: UUID, title: String) {
+        TabManager.shared.updateTabTitle(instanceId, title: title)
+    }
+    
+    func closeTab(for instanceId: UUID) async {
+        await removeConnectionInstance(instanceId)
     }
 }
