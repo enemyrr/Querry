@@ -10,6 +10,7 @@ import SwiftUI
 import AppKit
 
 struct DocumentView: View {
+    @Environment(ConnectionInstance.self) private var instance
     var body: some View {
         VStack(spacing: 0) {
             TabBar()
@@ -21,6 +22,7 @@ struct DocumentView: View {
                 .padding([.leading, .trailing, .bottom], 8)
                 .zIndex(-1)
         }
+        .id(instance.id)
         .padding(.top, 8)
         .ignoresSafeArea(.all)
         .zIndex(-1)

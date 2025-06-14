@@ -114,50 +114,6 @@
             endingLineNumber = "136"
             landmarkName = "Coordinator"
             landmarkType = "3">
-            <Locations>
-               <Location
-                  uuid = "52E92479-5148-4DE6-B62A-C5113D1407FC - 8a4ce4deb5876f9c"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.NSTabViewWrapper.Coordinator.__allocating_init(instance: Pluk.ConnectionInstance) -&gt; Pluk.NSTabViewWrapper.Coordinator"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabBar.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "0"
-                  endingLineNumber = "0">
-               </Location>
-               <Location
-                  uuid = "52E92479-5148-4DE6-B62A-C5113D1407FC - 420b3acbcc57d5c5"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.NSTabViewWrapper.Coordinator.init(instance: Pluk.ConnectionInstance) -&gt; Pluk.NSTabViewWrapper.Coordinator"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabBar.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "136"
-                  endingLineNumber = "136">
-               </Location>
-               <Location
-                  uuid = "52E92479-5148-4DE6-B62A-C5113D1407FC - ceb5835500738b76"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.NSTabViewWrapper.Coordinator.updateTabs(__C.NSTabView) -&gt; ()"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabBar.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "137"
-                  endingLineNumber = "137">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
