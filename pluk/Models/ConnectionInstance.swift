@@ -32,6 +32,10 @@ import AIProxy
         _databaseService.connectedDatabase
     }
     
+    var databaseType: DatabaseType? {
+        connection.databaseType
+    }
+    
     // Generic collections and databases storage
     var collections: [String: [any CollectionWrapper]] = [:]
     var databases: [any DatabaseWrapper] = []

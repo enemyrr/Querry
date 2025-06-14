@@ -35,6 +35,7 @@ struct DatabaseList: View {
     }
     
     private var connectionContent: some View {
+        
         VStack(spacing: 0) {
             if instance.connectionStatus == .connected {
                 if let filteredCollections = filteredCollections {
@@ -46,7 +47,7 @@ struct DatabaseList: View {
                     
                     if !viewModel.searchText.isEmpty && filteredCollections.isEmpty  {
                         ContentUnavailableView(
-                            "No Collections",
+                            "No Tables",
                             systemImage: "folder.badge.questionmark",
                             description: Text("This database doesn't contain any collections.")
                         )

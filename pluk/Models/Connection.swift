@@ -109,6 +109,15 @@ enum DatabaseType: String, Codable, CaseIterable {
             return .database
         }
     }
+    
+    var dataModelType: DataModelType {
+            switch self {
+            case .mongodb:
+                return .noSQL
+            case .supabase, .neon, .postgres, .mysql, .mariadb:
+                return .sql
+            }
+        }
 }
 
 enum DatabaseCategory: String, CaseIterable {
@@ -131,6 +140,19 @@ enum ConnectionEnvironment: String, CaseIterable, Codable {
     case production = "Production"
 }
 
+enum DataModelType: String, CaseIterable {
+    case sql = "SQL"
+    case noSQL = "NoSQL"
+    
+    var description: String {
+        switch self {
+        case .sql:
+            return "Structured data with predefined schema and relationships"
+        case .noSQL:
+            return "Flexible data models without fixed schema requirements"
+        }
+    }
+}
 
 @Model
 final class Connection {

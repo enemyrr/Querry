@@ -62,8 +62,8 @@
             filePath = "pluk/Models/ConnectionInstance.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "390"
-            endingLineNumber = "390"
+            startingLineNumber = "394"
+            endingLineNumber = "394"
             landmarkName = "selectTab(_:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -94,8 +94,8 @@
             filePath = "pluk/Models/ConnectionInstance.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "353"
-            endingLineNumber = "353"
+            startingLineNumber = "357"
+            endingLineNumber = "357"
             landmarkName = "createNewTab(name:)"
             landmarkType = "7">
          </BreakpointContent>
