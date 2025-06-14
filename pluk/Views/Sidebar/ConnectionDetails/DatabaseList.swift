@@ -162,8 +162,6 @@ struct CollectionsSection: View {
     @State private var showDeleteConfirmation = false
     @State private var collectionToDelete: (any CollectionWrapper)?
     
-    @Environment(\.colorScheme) var colorScheme
-    
     private var hasTextChanged: Bool {
         guard let renamingCollectionName = renamingCollection else { return false }
         return renameText.trimmingCharacters(in: .whitespacesAndNewlines) != renamingCollectionName
@@ -286,7 +284,7 @@ struct CollectionsSection: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.1))
+                .fill(Color(.controlBackgroundColor).opacity(0.1))
         )
         .onKeyPress(.escape) {
             cancelRename()

@@ -116,7 +116,7 @@ struct FloatingActionBar: View {
                     }
                 }
             )
-            //            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
             .background(
                 GeometryReader { geometry in
                     Color.clear

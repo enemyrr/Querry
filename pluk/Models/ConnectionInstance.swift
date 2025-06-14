@@ -52,13 +52,8 @@ import AIProxy
     
     // UI State
     var tabs: [DatabaseTab] = []
-    private var selectedTabId: UUID?
     
-    var selectedTab: DatabaseTab? {
-        didSet {
-            tabs.first { $0.id == selectedTabId }
-        }
-    }
+    var selectedTab: DatabaseTab?
     
     var isLoadingAnimation: Bool = true
     var isLoading = true
@@ -355,7 +350,7 @@ import AIProxy
     // MARK: - Tab Management
     func createNewTab(name: String) {
         if let existingTab = tabs.first(where: { $0.name == name }) {
-            selectedTabId = existingTab.id
+            selectedTab = existingTab
             return
         }
         

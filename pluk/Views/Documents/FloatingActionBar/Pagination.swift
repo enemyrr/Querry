@@ -51,10 +51,8 @@ struct Pagination: View {
                 key: "←"
             ))
             .onHover { hovering in
-                if !isPreviousDisabled {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isPreviousHovering = hovering
-                    }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isPreviousHovering = hovering
                 }
             }
             .transition(.scale.combined(with: .opacity))
@@ -66,7 +64,7 @@ struct Pagination: View {
                     .foregroundColor(.gray)
                     .frame(width: 60)
             }
-           
+            
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), disableScaleEffect: true))
             
             Button(action: {
@@ -88,37 +86,11 @@ struct Pagination: View {
                 key: "→"
             ))
             .onHover { hovering in
-                if !isNextDisabled {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isNextHovering = hovering
-                    }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isNextHovering = hovering
                 }
             }
             .transition(.scale.combined(with: .opacity))
-        }
-        .onChange(of: currentPage) { _, _ in
-            // Reset hover states when pagination changes
-            let isPreviousDisabled = currentPage <= 1
-            let isNextDisabled = totalCount != totalPerPage
-            
-            if isPreviousDisabled {
-                isPreviousHovering = false
-            }
-            if isNextDisabled {
-                isNextHovering = false
-            }
-        }
-        .onChange(of: totalCount) { _, _ in
-            // Reset hover states when total count changes
-            let isPreviousDisabled = currentPage <= 1
-            let isNextDisabled = totalCount != totalPerPage
-            
-            if isPreviousDisabled {
-                isPreviousHovering = false
-            }
-            if isNextDisabled {
-                isNextHovering = false
-            }
         }
     }
     
