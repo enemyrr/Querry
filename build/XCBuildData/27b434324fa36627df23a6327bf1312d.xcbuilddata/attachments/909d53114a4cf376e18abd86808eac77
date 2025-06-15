@@ -1,4 +1,0 @@
-module MongoKitten {
-header "MongoKitten-Swift.h"
-export *
-}

@@ -1,4 +1,0 @@
-module phlibwebp {
-umbrella "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/posthog-ios/vendor/libwebp"
-export *
-}

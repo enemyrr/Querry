@@ -1,4 +1,0 @@
-module MongoClient {
-header "MongoClient-Swift.h"
-export *
-}

@@ -1,4 +1,0 @@
-module BSON {
-header "BSON-Swift.h"
-export *
-}
