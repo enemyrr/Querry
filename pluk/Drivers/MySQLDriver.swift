@@ -16,22 +16,16 @@ class MySQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [[String : Any]] {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> [String : Any] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
-    }
-    
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [String : Any] {
+    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
     typealias Database = MySQLDatabaseWrapper
     typealias Collection = MySQLCollectionWrapper
-    typealias Document = [String: Any]
-    typealias FormattedDocument = [String: Any]
     
     func connect(to connectionUri: String) async throws -> MySQLDatabaseWrapper {
         // TODO: Implement MySQL connection
@@ -58,9 +52,6 @@ class MySQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String,  filter: [String: Any], skip: Int, limit: Int) async throws -> [[String: Any]] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
-    }
     
     func createDocument(in collectionName: String, database: MySQLDatabaseWrapper, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")

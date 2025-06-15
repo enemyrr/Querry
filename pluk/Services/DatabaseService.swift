@@ -19,12 +19,6 @@ class DatabaseService {
     private var queryCache: [String: QueryResult] = [:]
     private var schemaCache: [String: DatabaseSchemaResult] = [:]
     
-    struct QueryResult {
-        let data: Any // Could be PostgreSQLQueryResult or MongoDB results
-        let timestamp: Date
-        let totalCount: Int
-    }
-    
     // MARK: - Connection Management
     func setActiveConnection(_ connection: Connection) async throws {
         self.activeConnection = connection
@@ -82,7 +76,7 @@ class DatabaseService {
         let cacheKey = "\(collectionName)_\(filter)_\(skip)_\(limit)"
         
         // Check cache first
-        if let cached = queryCache[cacheKey], 
+        if let cached = queryCache[cacheKey],
            Date().timeIntervalSince(cached.timestamp) < 30 { // 30 second cache
             return cached
         }
@@ -91,33 +85,19 @@ class DatabaseService {
         
         switch connection.databaseType {
         case .postgres, .supabase, .neon:
-            let data = try await driver.findDocuments(
+            result = try await driver.findDocuments(
                 in: collectionName,
                 filter: ["rawQuery": filter],
                 skip: skip,
                 limit: limit
             )
             
-            if let postgresData = data as? PostgreSQLQueryResult {
-                result = QueryResult(
-                    data: postgresData,
-                    timestamp: Date(),
-                    totalCount: postgresData.totalCount
-                )
-            } else {
-                throw DatabaseError.operationFailed("Invalid result type")
-            }
-            
         case .mongodb:
-            let data = try await driver.findDocuments(
+            result = try await driver.findDocuments(
                 in: collectionName,
-                filter: [:]  // MongoDB filter logic here
-            )
-            
-            result = QueryResult(
-                data: data,
-                timestamp: Date(),
-                totalCount: (data as? [Any])?.count ?? 0
+                filter: [:],  // MongoDB filter logic here
+                skip: skip,
+                limit: limit
             )
             
         case .mysql, .mariadb:

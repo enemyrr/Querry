@@ -121,14 +121,12 @@ struct PostgreSQLQueryResult {
 
 // MARK: - PostgreSQL Driver
 class PostgreSQLDriver: DatabaseDriver {
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [PostgreSQLQueryResult] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
+        throw DatabaseError.notImplemented("PostgreSQL bulk find not yet implemented")
     }
     
     typealias Database = PostgreSQLDatabaseWrapper
     typealias Collection = PostgreSQLCollectionWrapper
-    typealias Document = [String: Any]
-    typealias FormattedDocument = PostgreSQLQueryResult
     
     // Store connection and event loop group for proper cleanup
     private var connection: PostgresConnection?
@@ -352,7 +350,7 @@ class PostgreSQLDriver: DatabaseDriver {
 //        }
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> PostgreSQLQueryResult {
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
         let connection = try ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -375,19 +373,21 @@ class PostgreSQLDriver: DatabaseDriver {
             
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
             
-            var columns: [PostgreSQLColumnInfo] = []
-            var rawRows: [PostgresRandomAccessRow] = []
+            // Single-pass processing: build everything in one loop
+            var queryColumns: [QueryColumnInfo] = []
+            var convertedRows: [[String: Any?]] = []
+            var convertedRawRows: [[String: Any?]] = []
             var columnsInitialized = false
             
             for try await row in results {
-                // Extract column info only once
+                // Extract and convert column info only once
                 if !columnsInitialized {
                     var columnIndex = 0
                     for cell in row {
-                        columns.append(PostgreSQLColumnInfo(
+                        queryColumns.append(QueryColumnInfo(
                             name: cell.columnName,
-                            dataType: cell.dataType,
-                            format: cell.format,
+                            dataType: String(describing: cell.dataType),
+                            format: String(describing: cell.format),
                             index: columnIndex
                         ))
                         columnIndex += 1
@@ -396,14 +396,43 @@ class PostgreSQLDriver: DatabaseDriver {
                 }
                 
                 // Convert to random access row for O(1) cell access
-                rawRows.append(row.makeRandomAccess())
+                let randomAccessRow = row.makeRandomAccess()
+                
+                // Process row data in a single pass
+                var processedRowData: [String: Any?] = [:]
+                var rawRowData: [String: Any?] = [:]
+                
+                for column in queryColumns {
+                    let columnName = column.name
+                    if randomAccessRow.contains(columnName) {
+                        let cell = randomAccessRow[columnName]
+                        
+                        // Store raw cell data
+                        rawRowData[columnName] = cell
+                        
+                        // Convert to standard type for processed row
+                        do {
+                            processedRowData[columnName] = try extractValue(from: cell)
+                        } catch {
+                            processedRowData[columnName] = nil
+                        }
+                    } else {
+                        processedRowData[columnName] = nil
+                        rawRowData[columnName] = nil
+                    }
+                }
+                
+                convertedRows.append(processedRowData)
+                convertedRawRows.append(rawRowData)
             }
             
-            return PostgreSQLQueryResult(
-                columns: columns,
-                rows: rawRows,
-                totalCount: rawRows.count,
-                rawRows: rawRows
+            // Return unified QueryResult directly
+            return QueryResult(
+                columns: queryColumns,
+                rows: convertedRows,
+                totalCount: convertedRows.count,
+                rawRows: convertedRawRows,
+                timestamp: Date()
             )
             
         } catch let error as PSQLError {
@@ -415,6 +444,59 @@ class PostgreSQLDriver: DatabaseDriver {
 
     func createDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
+    // Convert PostgreSQL specific result to unified QueryResult
+    private func convertToQueryResult(columns: [PostgreSQLColumnInfo], rawRows: [PostgresRandomAccessRow], totalCount: Int) throws -> QueryResult {
+        // Convert column info
+        let queryColumns = columns.map { column in
+            QueryColumnInfo(
+                name: column.name,
+                dataType: String(describing: column.dataType),
+                format: String(describing: column.format),
+                index: column.index
+            )
+        }
+        
+        // Convert rows
+        var convertedRows: [[String: Any?]] = []
+        var convertedRawRows: [[String: Any?]] = []
+        
+        for rawRow in rawRows {
+            var rowData: [String: Any?] = [:]
+            var rawRowData: [String: Any?] = [:]
+            
+            for column in columns {
+                let columnName = column.name
+                if rawRow.contains(columnName) {
+                    let cell = rawRow[columnName]
+                    
+                    // Store raw cell data
+                    rawRowData[columnName] = cell
+                    
+                    // Convert to standard type for processed row
+                    do {
+                        rowData[columnName] = try extractValue(from: cell)
+                    } catch {
+                        rowData[columnName] = nil
+                    }
+                } else {
+                    rowData[columnName] = nil
+                    rawRowData[columnName] = nil
+                }
+            }
+            
+            convertedRows.append(rowData)
+            convertedRawRows.append(rawRowData)
+        }
+        
+        return QueryResult(
+            columns: queryColumns,
+            rows: convertedRows,
+            totalCount: totalCount,
+            rawRows: convertedRawRows,
+            timestamp: Date()
+        )
     }
     
     private func extractValue(from cell: PostgresCell) throws -> Any? {

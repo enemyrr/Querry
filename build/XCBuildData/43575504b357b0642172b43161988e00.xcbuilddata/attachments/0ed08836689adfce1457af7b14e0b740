@@ -1,0 +1,4 @@
+module OnTapOutsideGesture {
+header "OnTapOutsideGesture-Swift.h"
+export *
+}

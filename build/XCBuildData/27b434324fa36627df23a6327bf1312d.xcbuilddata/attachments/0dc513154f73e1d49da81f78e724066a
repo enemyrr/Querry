@@ -1,0 +1,4 @@
+module Rearrange {
+header "Rearrange-Swift.h"
+export *
+}

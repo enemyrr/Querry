@@ -1,0 +1,78 @@
+{
+  "" : {
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/_MongoKittenCrypto-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/_MongoKittenCrypto-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/_MongoKittenCrypto-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/_MongoKittenCrypto-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/HMAC.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/HMAC~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/Hash.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hash~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/Hex.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/Hex~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/MD5.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/MD5~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/PBKDF2.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/PBKDF2~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/SHA1.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA1~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/Sources/_MongoKittenCrypto/SHA256.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.dia",
+    "index-unit-output-path" : "/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/MongoKitten/build/MongoKitten.build/Debug/_MongoKittenCrypto.build/Objects-normal/arm64/SHA256~partial.swiftmodule"
+  }
+}

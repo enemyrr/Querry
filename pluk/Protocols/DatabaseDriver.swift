@@ -1,11 +1,63 @@
 import Foundation
 
+// MARK: - Unified Query Result Types
+struct QueryColumnInfo {
+    let name: String
+    let dataType: String
+    let format: String?
+    let index: Int
+}
+
+struct QueryResult {
+    let columns: [QueryColumnInfo]
+    let rows: [[String: Any?]]
+    let totalCount: Int
+    let rawRows: [[String: Any?]]
+    let timestamp: Date
+    
+    // Convenience computed properties
+    var columnNames: [String] {
+        return columns.map { $0.name }
+    }
+    
+    var columnCount: Int {
+        return columns.count
+    }
+    
+    // Get specific column info by name
+    func column(named name: String) -> QueryColumnInfo? {
+        return columns.first { $0.name == name }
+    }
+    
+    // Get column info by index
+    func column(at index: Int) -> QueryColumnInfo? {
+        guard index >= 0 && index < columns.count else { return nil }
+        return columns[index]
+    }
+    
+    // Get value from row by column name
+    func value(row: Int, column: String) -> Any? {
+        guard row < rows.count else { return nil }
+        return rows[row][column] ?? nil
+    }
+    
+    // Get raw value from row by column name (for lazy decoding)
+    func rawValue(row: Int, column: String) -> Any? {
+        guard row < rawRows.count else { return nil }
+        return rawRows[row][column] ?? nil
+    }
+    
+    // Get raw cell for lazy decoding - compatible with PostgresCell usage
+    func rawCell(row: Int, column: String) -> Any? {
+        guard row < rawRows.count else { return nil }
+        return rawRows[row][column] ?? nil
+    }
+}
+
 // MARK: - Database Driver Protocol
 protocol DatabaseDriver {
     associatedtype Database: DatabaseWrapper
     associatedtype Collection: CollectionWrapper
-    associatedtype Document
-    associatedtype FormattedDocument
     
     // Connection management
     func connect(to connectionUri: String) async throws -> Database
@@ -18,8 +70,8 @@ protocol DatabaseDriver {
     
     // Collection operations
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [FormattedDocument]
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> FormattedDocument
+    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult]
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult
     func createDocument(in collectionName: String, database: Database, document: [String: Any]) async throws
     func updateDocument(in collectionName: String, database: Database, id: Any, data: [String: Any]) async throws
     func deleteDocument(in collectionName: String, database: Database, id: Any) async throws

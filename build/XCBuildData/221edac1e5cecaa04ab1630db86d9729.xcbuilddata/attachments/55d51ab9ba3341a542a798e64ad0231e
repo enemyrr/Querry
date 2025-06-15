@@ -1,0 +1,18 @@
+{
+  "" : {
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/Sources/Metrics/Metrics.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.dia",
+    "index-unit-output-path" : "/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-metrics/build/swift-metrics.build/Debug/Metrics.build/Objects-normal/arm64/Metrics~partial.swiftmodule"
+  }
+}

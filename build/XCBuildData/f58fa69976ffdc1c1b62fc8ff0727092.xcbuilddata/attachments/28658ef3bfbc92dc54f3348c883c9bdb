@@ -1,0 +1,28 @@
+{
+  "" : {
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignals-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignals-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignals-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignals-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/Sources/UnixSignals/UnixSignal.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.dia",
+    "index-unit-output-path" : "/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignal~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/Sources/UnixSignals/UnixSignalsSequence.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.dia",
+    "index-unit-output-path" : "/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/swift-service-lifecycle/build/swift-service-lifecycle.build/Debug/UnixSignals.build/Objects-normal/arm64/UnixSignalsSequence~partial.swiftmodule"
+  }
+}

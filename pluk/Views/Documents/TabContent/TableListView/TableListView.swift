@@ -16,7 +16,7 @@ struct TableListView: View {
     @State private var searchFilter: String = ""
     
     @State private var cachedSchema: DatabaseSchemaResult?
-    @State private var cachedDocuments: DatabaseService.QueryResult?
+    @State private var cachedDocuments: QueryResult?
     @State private var cachedTabName: String?
     
     var body: some View {
@@ -34,12 +34,10 @@ struct TableListView: View {
                         }
                         
                     case .loaded(let queryResult, let schema):
-                        if let postgresData = queryResult.data as? PostgreSQLQueryResult {
-                            TableListViewController(
-                                rows: postgresData,
-                                schema: schema
-                            )
-                        }
+                        TableListViewController(
+                            schema: schema,
+                            queryResult: queryResult,
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -130,7 +128,7 @@ struct TableListView: View {
             
             // Determine what to fetch
             let schemaToUse: DatabaseSchemaResult
-            let documentsResult: DatabaseService.QueryResult
+            let documentsResult: QueryResult
             
             if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
                 // Fetch both schema and documents
@@ -150,11 +148,7 @@ struct TableListView: View {
                 }
                 
                 schemaToUse = schema
-                documentsResult = DatabaseService.QueryResult(
-                    data: documents.data,
-                    timestamp: Date(),
-                    totalCount: documents.totalCount
-                )
+                documentsResult = documents
                 
                 // Cache the schema
                 cachedSchema = schema
@@ -173,11 +167,7 @@ struct TableListView: View {
                 )
                 
                 schemaToUse = schema
-                documentsResult = DatabaseService.QueryResult(
-                    data: documents.data,
-                    timestamp: Date(),
-                    totalCount: documents.totalCount
-                )
+                documentsResult = documents
             }
             
             // Cache the results
@@ -208,5 +198,5 @@ struct TableListView: View {
 enum TableListViewState {
     case loading
     case error(String)
-    case loaded(DatabaseService.QueryResult, DatabaseSchemaResult)
+    case loaded(QueryResult, DatabaseSchemaResult)
 }

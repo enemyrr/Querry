@@ -1,0 +1,38 @@
+{
+  "" : {
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/Sources/UInt128/Common.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.dia",
+    "index-unit-output-path" : "/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Common~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/Sources/UInt128/Int128.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.dia",
+    "index-unit-output-path" : "/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/Int128~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/Sources/UInt128/UInt128.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.dia",
+    "index-unit-output-path" : "/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/UInt128/build/UInt128.build/Debug/UInt128.build/Objects-normal/arm64/UInt128-971f4e88f459843b58f33f7f40f25198~partial.swiftmodule"
+  }
+}

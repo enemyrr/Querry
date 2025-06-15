@@ -9,17 +9,19 @@ import SwiftUI
 import AppKit
 
 struct TableListViewController: NSViewRepresentable {
-    let rows: PostgreSQLQueryResult?
     let schema: DatabaseSchemaResult?
+    let queryResult: QueryResult?
     
-    init(rows: PostgreSQLQueryResult?, schema: DatabaseSchemaResult? = nil) {
-        self.rows = rows
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?) {
         self.schema = schema
+        self.queryResult = queryResult
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
-        var rows: PostgreSQLQueryResult?
+        var rows: [[String: Any?]]
         var schema: DatabaseSchemaResult?
+        let totalCount: Int
+        let queryResult: QueryResult?
         
         private let containerView = NSView()
         private let scrollView = NSScrollView()
@@ -31,8 +33,18 @@ struct TableListViewController: NSViewRepresentable {
             static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
         }
         
-        init(schema: DatabaseSchemaResult?) {
+        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?) {
             self.schema = schema
+            self.queryResult = queryResult
+            
+            if let queryResult = queryResult {
+                self.rows = queryResult.rows
+                self.totalCount = queryResult.totalCount
+            } else {
+                self.rows = []
+                self.totalCount = 0
+            }
+            
             super.init()
         }
         
@@ -43,9 +55,11 @@ struct TableListViewController: NSViewRepresentable {
             return containerView
         }
         
-        func updateRows(_ newRows: PostgreSQLQueryResult?, schema: DatabaseSchemaResult? = nil) {
+        func updateRows(_ newRows: [[String: Any?]]?, schema: DatabaseSchemaResult? = nil) {
             // Store the new data
-            self.rows = newRows
+            if let newRows = newRows {
+                self.rows = newRows
+            }
             
             DispatchQueue.main.async { [weak self] in
                 self?.tableView.reloadData()
@@ -165,7 +179,7 @@ struct TableListViewController: NSViewRepresentable {
         
         // MARK: - NSTableViewDataSource
         func numberOfRows(in tableView: NSTableView) -> Int {
-            return rows?.rowCount ?? 0
+            return self.totalCount
         }
         
         @objc private func onItemClicked() {
@@ -188,7 +202,7 @@ struct TableListViewController: NSViewRepresentable {
         
         func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
             guard let tableColumn = tableView.tableColumns[safe: column],
-                  let rows = self.rows else {
+                  let queryResult = self.queryResult else {
                 return 100 // Default width
             }
             
@@ -202,10 +216,10 @@ struct TableListViewController: NSViewRepresentable {
             
             // Calculate content width by sampling some rows
             var maxContentWidth: CGFloat = 0
-            let sampleSize = min(10, rows.rowCount) // Sample first 100 rows for performance
+            let sampleSize = min(10, self.totalCount)
             
             for row in 0..<sampleSize {
-                if let value = rows.value(row: row, column: columnIdentifier) {
+                if let value = queryResult.value(row: row, column: columnIdentifier) {
                     let contentString = String(describing: value)
                     let contentFont = NSFont.systemFont(ofSize: 13) // Match your cell font
                     let contentAttributes = [NSAttributedString.Key.font: contentFont]
@@ -227,8 +241,8 @@ struct TableListViewController: NSViewRepresentable {
         // MARK: - NSTableViewDelegate
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,
-                  let result = rows,
-                  row < result.rowCount else {
+                  let queryResult = queryResult,
+                  row < self.totalCount else {
                 return NSTextField(labelWithString: "No data")
             }
             
@@ -241,8 +255,8 @@ struct TableListViewController: NSViewRepresentable {
             
             // Use the new configure method with raw cell
             let columnName = tableColumn.identifier.rawValue
-            let rawCell = result.rawCell(row: row, column: columnName)
-            let columnInfo = result.column(named: columnName)
+            let rawCell = queryResult.rawCell(row: row, column: columnName)
+            let columnInfo = queryResult.column(named: columnName)
             
             if columnInfo != nil {
                 cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!)
@@ -253,7 +267,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(schema: schema)
+        return Coordinator(schema: schema, queryResult: queryResult)
     }
     
     func makeNSView(context: Context) -> NSView {
@@ -261,7 +275,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
-        context.coordinator.updateRows(rows, schema: schema)
+        context.coordinator.updateRows(queryResult?.rows, schema: schema)
     }
 }
 

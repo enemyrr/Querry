@@ -1,0 +1,4 @@
+module Meow {
+header "Meow-Swift.h"
+export *
+}

@@ -1,0 +1,4 @@
+module _MongoKittenCrypto {
+header "_MongoKittenCrypto-Swift.h"
+export *
+}

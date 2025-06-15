@@ -1,0 +1,4 @@
+module PostHog {
+header "PostHog-Swift.h"
+export *
+}

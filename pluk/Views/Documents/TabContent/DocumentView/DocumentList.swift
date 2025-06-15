@@ -3,13 +3,8 @@ import AppKit
 import MongoKitten
 
 struct DocumentList: View {
-    @State private var viewModel: DocumentListModel
-    @State private var searchQueryViewModel: SearchQueryViewModel
-    
-    init(viewModel: DocumentListModel) {
-        self._viewModel = State(wrappedValue: viewModel)
-        self.searchQueryViewModel = SearchQueryViewModel(documentListModel: viewModel)
-    }
+    let selectedTab: DatabaseTab
+    @Environment(ConnectionInstance.self) private var instance
     
     var body: some View {
         GeometryReader { geometry in
@@ -27,9 +22,8 @@ struct DocumentList: View {
 //                                .padding(.horizontal)
 //                            }
                         }
-//                        .id("\(viewModel.lastFetchTimestamp)")
                         .padding(.top)
-                        .padding(.bottom, 24) // Space for Floating Action bar
+                        .padding(.bottom, 24)
                         
                         Spacer()
                             .frame(height: 40) // Fixed height spacer at the bottom
@@ -61,11 +55,6 @@ struct DocumentList: View {
 //                                }
 //                            }
 //                        }
-                    }
-                }
-                .task {
-                    if !viewModel.intialLoadComplete {
-                        await viewModel.loadDocuments()
                     }
                 }
                 .background {

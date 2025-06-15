@@ -80,15 +80,16 @@ class TabContentView: NSView {
     }
     
     private func setupMongoDBView() {
-//        let viewModel = instance.viewModel(for: tab)
-//        let documentList = DocumentList(viewModel: viewModel)
-//        let hostingView = NSHostingView(rootView: documentList)
-//        setContentView()
+        if let selectedTab = selectedTab {
+            let documentList = DocumentList(selectedTab: selectedTab)
+            let hostingView = NSHostingView(rootView: documentList)
+            setContentView(hostingView)
+        }
     }
     
     private func setupDefaultView() {
         let noSelectionView = NSView()
-        let label = NSTextField(labelWithString: "No collection selected")`
+        let label = NSTextField(labelWithString: "No collection selected")
         label.font = NSFont.systemFont(ofSize: 18, weight: .medium)
         label.textColor = NSColor.secondaryLabelColor
         label.alignment = .center

@@ -1,0 +1,4 @@
+module DNSClient {
+header "DNSClient-Swift.h"
+export *
+}

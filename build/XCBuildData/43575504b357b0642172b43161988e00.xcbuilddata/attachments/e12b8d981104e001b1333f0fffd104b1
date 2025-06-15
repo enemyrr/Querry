@@ -1,0 +1,108 @@
+{
+  "" : {
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/Rearrange-master.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/Rearrange-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/Rearrange-master-emit-module.dia",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/Rearrange-master.swiftdeps"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/IndexSet+ApplyMutation.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+ApplyMutation~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/IndexSet+NSRange.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/IndexSet+NSRange~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/NSRange+ApplyMutation.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+ApplyMutation~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/NSRange+Convenience.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Convenience~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/NSRange+Shift.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSRange+Shift~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/NSTextLocation+Comparable.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextLocation+Comparable~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/NSTextRange+NSRange.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/NSTextRange+NSRange~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/RangeMutation.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/RangeMutation~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/String+NSRange.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/String+NSRange~partial.swiftmodule"
+  },
+  "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/Sources/Rearrange/UITextRange+Convenience.swift" : {
+    "const-values" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.swiftconstvalues",
+    "dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.d",
+    "diagnostics" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.dia",
+    "index-unit-output-path" : "/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.o",
+    "llvm-bc" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.bc",
+    "object" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.o",
+    "swift-dependencies" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience.swiftdeps",
+    "swiftmodule" : "/Users/fauzaan/Library/Developer/Xcode/DerivedData/Pluk-gplrugxbpehlgabhngmhnwnekkqv/SourcePackages/checkouts/Rearrange/build/Rearrange.build/Debug/Rearrange.build/Objects-normal/arm64/UITextRange+Convenience~partial.swiftmodule"
+  }
+}

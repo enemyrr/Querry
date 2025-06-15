@@ -384,8 +384,8 @@ class TextCellView: NSView {
         }
     }
     
-    func configure(rawCell: PostgresCell?, columnInfo: PostgreSQLColumnInfo) {
-         guard let cell = rawCell else {
+    func configure(rawCell: Any?, columnInfo: QueryColumnInfo) {
+         guard let rawCell = rawCell else {
                  textField.stringValue = "(NULL)"
                  createBorderViewIfNeeded()
                  return
@@ -393,8 +393,15 @@ class TextCellView: NSView {
         
          do {
              textField.stringValue = "(NULL)"
-             let value = try decodeValue(from: cell)
-             configureWithValue(value, columnInfo: columnInfo)
+             
+             // Handle the case where rawCell is a PostgresCell
+             if let postgresCell = rawCell as? PostgresCell {
+                 let value = try decodeValue(from: postgresCell)
+                 configureWithValue(value, columnInfo: columnInfo)
+             } else {
+                 // Handle other database types or direct values
+                 configureWithValue(rawCell, columnInfo: columnInfo)
+             }
          } catch {
              textField.stringValue = "Error: \(error.localizedDescription)"
              textField.textColor = NSColor.systemRed
@@ -402,7 +409,7 @@ class TextCellView: NSView {
          
          createBorderViewIfNeeded()
     }
-    private func configureWithValue(_ value: Any?, columnInfo: PostgreSQLColumnInfo) {
+    private func configureWithValue(_ value: Any?, columnInfo: QueryColumnInfo) {
         if let value = value {
             let displayValue = formatValueForDisplay(value, columnInfo: columnInfo)
             
@@ -419,34 +426,34 @@ class TextCellView: NSView {
         }
     }
     
-    private func formatValueForDisplay(_ value: Any?, columnInfo: PostgreSQLColumnInfo) -> String {
+    private func formatValueForDisplay(_ value: Any?, columnInfo: QueryColumnInfo) -> String {
         guard let value = value else { return "(NULL)" }
         
-        // Format based on PostgreSQL data type for better display
-        switch columnInfo.dataType {
-        case .timestamp, .timestamptz:
+        // Format based on data type for better display
+        switch columnInfo.dataType.lowercased() {
+        case "timestamp", "timestamptz":
             if let date = value as? Date {
                 let formatter = DateFormatter()
                 formatter.dateStyle = .medium
                 formatter.timeStyle = .medium
                 return formatter.string(from: date)
             }
-        case .date:
+        case "date":
             if let date = value as? Date {
                 let formatter = DateFormatter()
                 formatter.dateStyle = .medium
                 return formatter.string(from: date)
             }
-        case .bool:
+        case "bool", "boolean":
             if let bool = value as? Bool {
                 return bool ? "true" : "false"
             }
-        case .json, .jsonb:
+        case "json", "jsonb":
             // For JSON, you might want to pretty-print or validate
             if let jsonString = value as? String {
                 return jsonString
             }
-        case .numeric:
+        case "numeric", "decimal":
             // Format numbers nicely
             if let numericString = value as? String {
                 return numericString
@@ -459,7 +466,7 @@ class TextCellView: NSView {
     }
 
     // Rename the old method to avoid conflicts and keep it for backward compatibility
-    func configureLegacy(value: Any?, columnInfo: PostgreSQLColumnInfo) {
+    func configureLegacy(value: Any?, columnInfo: QueryColumnInfo) {
         configureWithValue(value, columnInfo: columnInfo)
         createBorderViewIfNeeded()
     }
