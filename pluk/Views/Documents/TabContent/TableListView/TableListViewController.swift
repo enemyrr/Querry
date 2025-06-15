@@ -20,8 +20,8 @@ struct TableListViewController: NSViewRepresentable {
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
         var rows: [[String: Any?]]
         var schema: DatabaseSchemaResult?
-        let totalCount: Int
-        let queryResult: QueryResult?
+        var totalCount: Int
+        var queryResult: QueryResult?
         
         private let containerView = NSView()
         private let scrollView = NSScrollView()
@@ -55,14 +55,36 @@ struct TableListViewController: NSViewRepresentable {
             return containerView
         }
         
-        func updateRows(_ newRows: [[String: Any?]]?, schema: DatabaseSchemaResult? = nil) {
-            // Store the new data
-            if let newRows = newRows {
-                self.rows = newRows
+        func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
+            let oldRowCount = self.totalCount
+            let oldColumnCount = self.schema?.columns.count ?? 0
+            
+            // Update ALL references
+            self.queryResult = newQueryResult
+            self.schema = newSchema
+            
+            if let newQueryResult = newQueryResult {
+                self.rows = newQueryResult.rows
+                self.totalCount = newQueryResult.totalCount
+            } else {
+                self.rows = []
+                self.totalCount = 0
             }
             
+            let newColumnCount = self.schema?.columns.count ?? 0
+            
             DispatchQueue.main.async { [weak self] in
-                self?.tableView.reloadData()
+                guard let self = self else { return }
+                
+                // Check if table structure changed (columns added/removed)
+                if newColumnCount != oldColumnCount {
+                    // TODO: Update schema
+                    //                           self.rebuildTableStructure()
+                } else if self.totalCount != oldRowCount {
+                    self.tableView.noteNumberOfRowsChanged()
+                } else {
+                    self.tableView.reloadData()
+                }
             }
         }
         
@@ -232,11 +254,11 @@ struct TableListViewController: NSViewRepresentable {
             let calculatedWidth = max(headerWidth, maxContentWidth)
             return max(60, min(calculatedWidth, 300)) // Min 60px, max 300px
         }
-
+        
         
         func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
             return 28
-        } 
+        }
         
         // MARK: - NSTableViewDelegate
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -275,7 +297,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
-        context.coordinator.updateRows(queryResult?.rows, schema: schema)
+        context.coordinator.updateRows(queryResult, newSchema: schema)
     }
 }
 

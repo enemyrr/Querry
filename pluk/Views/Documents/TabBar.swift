@@ -123,7 +123,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(instance: instance)
+        return Coordinator(instance: instance)
     }
     
     class Coordinator: NSObject, NSTabViewDelegate {

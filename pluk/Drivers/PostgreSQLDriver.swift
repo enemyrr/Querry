@@ -432,7 +432,6 @@ class PostgreSQLDriver: DatabaseDriver {
                 rows: convertedRows,
                 totalCount: convertedRows.count,
                 rawRows: convertedRawRows,
-                timestamp: Date()
             )
             
         } catch let error as PSQLError {
@@ -495,7 +494,6 @@ class PostgreSQLDriver: DatabaseDriver {
             rows: convertedRows,
             totalCount: totalCount,
             rawRows: convertedRawRows,
-            timestamp: Date()
         )
     }
     

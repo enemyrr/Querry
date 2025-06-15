@@ -23,22 +23,27 @@ struct TableListView: View {
         GeometryReader { geometry in
             ZStack {
                 VStack {
-                    switch viewState {
-                    case .loading:
-                        EmptyView()
-                    case .error(let message):
-                        ContentUnavailableView {
-                            Label("Failed to Load", systemImage: "exclamationmark.triangle")
-                        } description: {
-                            Text(message)
-                        }
-                        
-                    case .loaded(let queryResult, let schema):
+                    if cachedSchema != nil {
                         TableListViewController(
-                            schema: schema,
-                            queryResult: queryResult,
+                            schema: cachedSchema,
+                            queryResult: currentQueryResult
                         )
                     }
+                    
+//                    switch viewState {
+//                    case .loading:
+//                        EmptyView()
+//                    case .error(let message):
+//                        ContentUnavailableView {
+//                            Label("Failed to Load", systemImage: "exclamationmark.triangle")
+//                        } description: {
+//                            Text(message)
+//                        }
+//                        
+//                    case .loaded(let queryResult, let schema):
+//                        
+//                    }
+//
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.controlBackgroundColor).opacity(0.2))
@@ -192,6 +197,22 @@ struct TableListView: View {
         cachedDocuments = nil
         cachedTabName = nil
         viewState = .loading
+    }
+    
+    /// Extract current schema from viewState
+    private var currentSchema: DatabaseSchemaResult? {
+        if case .loaded(_, let schema) = viewState {
+            return schema
+        }
+        return nil
+    }
+    
+    /// Extract current query result from viewState
+    private var currentQueryResult: QueryResult? {
+        if case .loaded(let queryResult, _) = viewState {
+            return queryResult
+        }
+        return nil
     }
 }
 

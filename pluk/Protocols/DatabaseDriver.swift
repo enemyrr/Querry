@@ -13,7 +13,6 @@ struct QueryResult {
     let rows: [[String: Any?]]
     let totalCount: Int
     let rawRows: [[String: Any?]]
-    let timestamp: Date
     
     // Convenience computed properties
     var columnNames: [String] {

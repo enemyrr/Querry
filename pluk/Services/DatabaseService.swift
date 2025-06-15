@@ -76,10 +76,10 @@ class DatabaseService {
         let cacheKey = "\(collectionName)_\(filter)_\(skip)_\(limit)"
         
         // Check cache first
-        if let cached = queryCache[cacheKey],
-           Date().timeIntervalSince(cached.timestamp) < 30 { // 30 second cache
-            return cached
-        }
+//        if let cached = queryCache[cacheKey],
+//           Date().timeIntervalSince(cached.timestamp) < 30 { // 30 second cache
+//            return cached
+//        }
         
         let result: QueryResult
         

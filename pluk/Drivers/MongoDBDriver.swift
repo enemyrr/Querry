@@ -233,7 +233,6 @@ class MongoDBDriver: DatabaseDriver {
             rows: rows,
             totalCount: formattedDocs.count,
             rawRows: rawRows,
-            timestamp: Date()
         )
     }
     
