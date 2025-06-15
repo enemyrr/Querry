@@ -6,102 +6,211 @@
 //
 
 import Foundation
-import MongoKitten
-import MongoCore
+import SwiftUI
 
+@Observable
 class DatabaseService {
-    private let database: MongoDatabase
+    // MARK: - Current Connection State
+    private var activeConnection: Connection?
+    private var activeDriver: (any DatabaseDriver)?
+    public var connectedDatabase: (any DatabaseWrapper)?
     
-    init(database: MongoDatabase) {
-        self.database = database
+    // MARK: - Results Cache
+    private var queryCache: [String: QueryResult] = [:]
+    private var schemaCache: [String: DatabaseSchemaResult] = [:]
+    
+    // MARK: - Connection Management
+    func setActiveConnection(_ connection: Connection) async throws {
+        self.activeConnection = connection
+        
+        // Create appropriate driver
+        self.activeDriver = DatabaseDriverFactory.createDriver(for: connection.databaseType)
+        
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("Failed to create database driver")
+        }
+        
+        // Connect to database
+        self.connectedDatabase = try await driver.connect(to: connection.connectionUri)
     }
     
-    // MARK: - Collection Operations
-    func listCollections() async throws -> [MongoCollection] {
-        let collections = try await database.listCollections()
-        return collections.sorted { $0.name < $1.name }
+    func disconnect() async {
+        await activeDriver?.disconnect()
+        activeConnection = nil
+        activeDriver = nil
+        connectedDatabase = nil
+        clearCache()
+    }
+    
+    // MARK: - Database Operations
+    func getBuildInfo() async throws -> BuildInfo? {
+        guard let driver = activeDriver else { return nil }
+        return try await driver.getBuildInfo()
+    }
+    
+    func listDatabases() async throws -> [any DatabaseWrapper] {
+        guard let driver = activeDriver else { return [] }
+        
+        // Use type erasure to handle different database types
+        return try await driver.listDatabases().map { $0 as any DatabaseWrapper }
+    }
+    
+    func listCollections() async throws -> [any CollectionWrapper] {
+        guard let driver = activeDriver else { return [] }
+        
+        return try await driver.listCollections().map { $0 as any CollectionWrapper }
     }
     
     // MARK: - Document Operations
-    func getDocumentCount(for collectionName: String, filter: Document = [:]) async throws -> Int {
-        let collection = database[collectionName]
-        return try await collection.count(filter)
-    }
-    
-    func findDocuments(in collectionName: String,
-                       filter: Document = [:],
-                       skip: Int? = nil,
-                       limit: Int? = nil) async throws -> [Document] {
-        let collection = database[collectionName]
-        var query = collection.find(filter)
-        
-        if let skip = skip {
-            query = query.skip(skip)
+    func findDocuments(
+        in collectionName: String,
+        filter: String = "",
+        skip: Int = 0,
+        limit: Int = 300
+    ) async throws -> QueryResult {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
+            throw DatabaseError.operationFailed("No active database connection")
         }
         
-        if let limit = limit {
-            query = query.limit(limit)
+        let result: QueryResult
+        
+        switch connection.databaseType {
+        case .postgres, .supabase, .neon:
+            result = try await driver.findDocuments(
+                in: collectionName,
+                filter: ["rawQuery": filter],
+                skip: skip,
+                limit: limit
+            )
+            
+        case .mongodb:
+            result = try await driver.findDocuments(
+                in: collectionName,
+                filter: [:],  // MongoDB filter logic here
+                skip: skip,
+                limit: limit
+            )
+            
+        case .mysql, .mariadb:
+            throw DatabaseError.notImplemented("MySQL/MariaDB not yet implemented")
         }
         
-        var documents: [Document] = []
-        for try await document in query {
-            documents.append(document)
-        }
-        return documents
+        return result
     }
     
-    func createDocument(_ document: Document, in collectionName: String) async throws {
-        let collection = database[collectionName]
-        let result = try await collection.insert(document)
-        if result.insertCount == 0 {
-            throw MongoError.invalidData
-        }
-    }
-    
-    func updateDocument(in collectionName: String,
-                        withId id: ObjectId,
-                        withData document: Document) async throws {
-        let collection = database[collectionName]
-        let result = try await collection.updateOne(
-            where: ["_id": id],
-            to: document
-        )
+    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
+        guard let driver = activeDriver else { return nil }
         
-        if result.updatedCount == 0 {
-            throw MongoError.invalidData
+        // Check cache first
+        if let cached = schemaCache[collectionName] {
+            return cached
         }
-    }
-    
-    func deleteDocument(from collectionName: String, withId id: ObjectId) async throws {
-        let collection = database[collectionName]
-        try await collection.deleteOne(where: ["_id": id])
-    }
-    
-    func createCollection(_ collectionName: String) async throws {
-        let createCommand: Document = ["create": collectionName]
         
-        let connection = try await database.pool.next(for: .basic)
-        _ = try await connection.execute(
-            createCommand,
-            namespace: database.commandNamespace
-        )
+        let schema = try await driver.getSchema(for: collectionName)
+        schemaCache[collectionName] = schema
+        return schema
+    }
+    
+    func getDocumentCount(for collectionName: String, filter: [String: Any] = [:]) async throws -> Int {
+        guard let driver = activeDriver else { return 0 }
+        return try await driver.getDocumentCount(for: collectionName, filter: filter)
+    }
+    
+    // MARK: - Collection Management
+    func createCollection(named collectionName: String) async throws {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        try await driver.createCollection(named: collectionName)
+        clearCache() // Clear cache after structural changes
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
-        let renameCommand: Document = [
-            "renameCollection": "\(database.name).\(oldName)",
-            "to": "\(database.name).\(newName)"
-        ]
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
         
-        let connection = try await database.pool.next(for: .basic)
-        
-        _ = try await connection.execute(
-            renameCommand,
-            namespace: .administrativeCommand
-        )
+        try await driver.renameCollection(from: oldName, to: newName)
+        clearCache() // Clear cache after structural changes
     }
     
-    func getBuildInfo() async throws -> BuildInfo {
-        return try await database.getBuildInfo()
+    // MARK: - Document Modification
+    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+        guard let driver = activeDriver,
+              let database = connectedDatabase else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        try await driver.performOperation(with: database) { typedDatabase in
+//            try await driver.createDocument(
+//                in: collectionName,
+//                database: typedDatabase,
+//                document: document
+//            )
+        }
+        
+        clearDocumentCache(for: collectionName)
     }
+    
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+        guard let driver = activeDriver,
+              let database = connectedDatabase else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        try await driver.performOperation(with: database) { typedDatabase in
+//            try await driver.updateDocument(
+//                in: collectionName,
+//                database: typedDatabase,
+//                id: id,
+//                data: data
+//            )
+        }
+        
+        clearDocumentCache(for: collectionName)
+    }
+    
+    func deleteDocument(in collectionName: String, id: Any) async throws {
+        guard let driver = activeDriver,
+              let database = connectedDatabase else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        try await driver.performOperation(with: database) { typedDatabase in
+//            try await driver.deleteDocument(
+//                in: collectionName,
+//                database: typedDatabase,
+//                id: id
+//            )
+        }
+        
+        clearDocumentCache(for: collectionName)
+    }
+    
+    // MARK: - AI Operations
+    func buildSystemPrompt(for collectionName: String) async throws -> String {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        return try await driver.buildSystemPrompt(for: collectionName)
+    }
+    
+    // MARK: - Cache Management
+    private func clearCache() {
+        queryCache.removeAll()
+        schemaCache.removeAll()
+    }
+    
+    private func clearDocumentCache(for collectionName: String) {
+        let keysToRemove = queryCache.keys.filter { $0.hasPrefix(collectionName) }
+        keysToRemove.forEach { queryCache.removeValue(forKey: $0) }
+    }
+    
+    // MARK: - Getters for Current State
+    var currentConnection: Connection? { activeConnection }
+    var currentDatabase: (any DatabaseWrapper)? { connectedDatabase }
+    var isConnected: Bool { activeDriver != nil && connectedDatabase != nil }
 }

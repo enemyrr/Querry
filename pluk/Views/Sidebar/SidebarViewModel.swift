@@ -35,8 +35,15 @@ import SwiftUI
     // Actions
     func changeActiveSidebarItem(_ item: SidebarItem) {
         activeSidebarItem = item
-        if case .connection(let instanceId) = item {
+        
+        switch item {
+        case .home:
+            // Switch to home tab
+            TabManager.shared.switchToHome()
+        case .connection(let instanceId):
             connectionService.activeConnectionInstanceId = instanceId
+            // Switch to connection tab
+            TabManager.shared.switchToTab(instanceId)
         }
     }
     

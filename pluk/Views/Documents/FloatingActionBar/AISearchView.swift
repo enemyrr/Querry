@@ -9,164 +9,244 @@ import SwiftUI
 import AIProxy
 import Combine
 
-// MARK: - View
-
 struct AISearchView: View {
-    @Bindable var viewModel: SearchQueryViewModel
-    var DocumentListModel: DocumentListModel
+    @Binding var filter: String
+    let showQueryEditor: Bool
+    let onBack: () -> Void
+    let onLoadDocuments: (_ filter: String) -> Void
     
-    // Focus state for the search field
+    @Environment(ConnectionInstance.self) private var instance
     @FocusState private var isSearchFocused: Bool
-    
-    // Original user query
-    @State private var originalQuery: String = ""
-    
-    // Animation timer
-    @State private var animationTimer: Timer? = nil
+    @State private var filterQuery: String = ""
+    @State private var processingStage: ProcessingStage = .idle
+    @State private var search: String = ""
     @State private var animationDots: String = ""
+    @State private var isSubmitAnimating: Bool = false
+    
+    // Timer using async/await instead of Timerd
+    @State private var animationTask: Task<Void, Never>?
     
     var body: some View {
-        HStack(spacing: 8) {
-            // Back button
-            Button(action: viewModel.goBack) {
+        HStack(spacing: 4) {
+            Button(action: {
+                onBack()
+            }) {
                 Image(systemName: "arrow.backward")
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 7, bottom: 7, trailing: 7), isActive: true))
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8), isActive: true))
             .keyboardShortcut(.escape, modifiers: [])
             .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [],
                 key: "Escape"
             ), spacing: 10)
-            .padding(.leading, 3)
             
-            HStack(spacing: 12) {
-                // Main TextField with dynamic display text
-                if viewModel.processingStage != .idle {
-                    Text(viewModel.processingStage.description + animationDots)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.push(from: .bottom))
-                        .id("processing-\(viewModel.processingStage.description)")
-                        .animation(
-                            .interpolatingSpring(stiffness: 50, damping: 10),
-                            value: viewModel.processingStage
-                        )
-                } else {
-                    TextField("Tell Pluk what to find (e.g. fruits: \"Apple\")...", text: $viewModel.search)
-                        .focusSection()
-                        .font(
-                            Font.system(.body, design: .monospaced)
-                        )
-                        .focused($isSearchFocused)
-                        .textFieldStyle(.plain)
-                        .onSubmit {
-                            submitQuery()
-                        }
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                isSearchFocused = true
-                            }
-                        }
-                        .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.3), value: viewModel.processingStage)
-                }
-            }
-            .padding(.vertical, 8)
-            .animation(.easeInOut, value: viewModel.processingStage)
-            
-            HStack {
-                if viewModel.processingStage != .idle {
-                    Button(action: {
-                        // TODO: Ability to disable
-                    }) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 12))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(
-                                Color.white.opacity(0.1)
-                            )
-                    )
-                    .onAppear {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                            // Animate to full opacity and size
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                // Use withAnimation to trigger the state change animation
-                            }
-                        }
-                    }
-                }
-//                Text("Enter")
-//                    .font(.system(size: 12))
-//                    .padding(.vertical, 4)
-//                    .padding(.horizontal, 6)
-//                    .foregroundColor(.white.opacity(0.2))
-//                    .background(
-//                        RoundedRectangle(cornerRadius: 4)
-//                            .stroke(.white.opacity(0.2))
-//                    )
-
-            }
-            .padding(.vertical, 4)
-            .padding(.trailing, 2)
-
-//            Divider()
-//                .frame(height: 22)
-//                .padding(.vertical, 6)
-//            
-//            PaginationMinimal(viewModel: DocumentListModel)
+            searchInputSection
+            actionButtonSection
         }
         .frame(height: 34)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(
-            IntelligenceUIPlatterView()
-        )
-        .onChange(of: viewModel.processingStage) { _, isProcessing in
-            if viewModel.processingStage != .idle {
-                startProcessingAnimation()
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(IntelligenceUIPlatterView())
+        .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isSubmitAnimating)
+        .task(id: processingStage) {
+            await handleProcessingStageChange()
+        }
+        .onDisappear {
+            animationTask?.cancel()
+        }
+    }
+    
+    // MARK: - View Components
+    
+    @ViewBuilder
+    private var searchInputSection: some View {
+        HStack(spacing: 12) {
+            if processingStage != .idle {
+                processingText
             } else {
-                stopProcessingAnimation()
+                searchTextField
             }
         }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .animation(.easeInOut, value: processingStage)
     }
     
-    // MARK: - Private Methods
-    private func submitQuery() {
-        guard !viewModel.search.isEmpty else { return }
-        
-        // Save original query for potential future use
-        originalQuery = viewModel.search
-        
-        // Submit the query - the ViewModel handles all the stages
-        Task {
-            await viewModel.processNaturalLanguageQuery(search: viewModel.search)
+    @ViewBuilder
+    private var processingText: some View {
+        Text(processingStage.description + animationDots)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(.push(from: .bottom))
+            .id("processing-\(processingStage.description)")
+            .animation(
+                .interpolatingSpring(stiffness: 50, damping: 10),
+                value: processingStage
+            )
+    }
+    
+    @ViewBuilder
+    private var searchTextField: some View {
+        TextField("Ask what to find (e.g. id: 2)...", text: $search)
+            .focusSection()
+            .font(.system(.body, design: .monospaced))
+            .focused($isSearchFocused)
+            .textFieldStyle(.plain)
+            .onSubmit {
+                Task {
+                    await processNaturalLanguageQuery(search: search)
+                }
+            }
+            .task {
+                isSearchFocused = true
+            }
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.3), value: processingStage)
+            .onChange(of: showQueryEditor, {
+                isSearchFocused = true
+            })
+    }
+    
+    @ViewBuilder
+    private var actionButtonSection: some View {
+        HStack {
+            if processingStage != .idle {
+                Button("Stop", systemImage: "stop.fill") {
+                    cancelProcessing()
+                }
+                .labelStyle(.iconOnly)
+                .font(.system(size: 12))
+                .buttonStyle(.plain)
+                .padding(6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.white.opacity(0.1))
+                )
+            }
         }
-        isSearchFocused = false
+        .padding(.vertical, 4)
+        .padding(.trailing, 2)
     }
     
-    private func startProcessingAnimation() {
-        // Start animation timer
-        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            if animationDots.count >= 3 {
-                animationDots = ""
-            } else {
-                animationDots += "."
+    // MARK: - Processing Logic
+    
+    private func handleProcessingStageChange() async {
+        if processingStage != .idle {
+            await startProcessingAnimation()
+        } else {
+            stopProcessingAnimation()
+        }
+    }
+    
+    private func startProcessingAnimation() async {
+        animationTask = Task {
+            while !Task.isCancelled && processingStage != .idle {
+                animationDots = animationDots.count >= 3 ? "" : animationDots + "."
+                try? await Task.sleep(for: .milliseconds(500))
             }
         }
     }
     
     private func stopProcessingAnimation() {
-        // Stop animation timer
-        animationTimer?.invalidate()
-        animationTimer = nil
+        animationTask?.cancel()
+        animationTask = nil
         animationDots = ""
+    }
+    
+    private func cancelProcessing() {
+        animationTask?.cancel()
+        processingStage = .idle
+        // Cancel any ongoing AI request if possible
+    }
+    
+    // MARK: - AI Request Methods
+    
+    /// Submits a natural language query to AI service and processes the result
+    private func processNaturalLanguageQuery(search: String) async {
+        guard let databaseService = instance.databaseService else {
+            fatalError("Database driver not set yet")
+        }
+        guard !search.isEmpty else { return }
+        
+        processingStage = .writingQuery
+        
+        do {
+            filter = try await performAIQuery(databaseService: databaseService, search: search)
+            
+            await processQueryResult(filter)
+        } catch {
+            await handleQueryError(error)
+        }
+    }
+    
+    private func performAIQuery(databaseService: DatabaseService, search: String) async throws -> String {
+        guard let databaseService = instance.databaseService, let selectedTab = instance.selectedTab?.name else {
+            fatalError("Database driver not set yet")
+        }
+        
+        let prompt = try await databaseService.buildSystemPrompt(for: selectedTab)
+        
+        let openAIService = AIProxy.openAIService(
+            partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",
+            serviceURL: "https://api.aiproxy.pro/4c1638f9/2f62a0df"
+        )
+        
+        let stream = try await openAIService.streamingChatCompletionRequest(
+            body: .init(
+                model: "gpt-4.1-mini",
+                messages: [
+                    .user(content: .text(search)),
+                    .system(content: .text(prompt))
+                ]
+            )
+        )
+        
+        var result = ""
+        for try await chunk in stream {
+            if let content = chunk.choices.first?.delta.content {
+                result += content
+            }
+        }
+        
+        return result
+    }
+    
+    @MainActor
+    private func processQueryResult(_ result: String) async {
+        filterQuery = result
+        search = ""
+        
+        onLoadDocuments(filterQuery)
+        
+        // Trigger scale animation on submit
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isSubmitAnimating = true
+        }
+        
+        // Reset animation after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isSubmitAnimating = false
+                processingStage = .idle
+                isSearchFocused = false
+                
+            }
+        }
+        
+    }
+    
+    @MainActor
+    private func handleQueryError(_ error: Error) async {
+        if let aiError = error as? AIProxyError,
+           case .unsuccessfulRequest(let statusCode, let responseBody) = aiError {
+            print("Error: Received \(statusCode) status code with response body: \(responseBody)")
+        } else {
+            print("Error: Could not create Message: \(error.localizedDescription)")
+        }
+        processingStage = .idle
     }
 }
 

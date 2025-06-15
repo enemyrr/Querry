@@ -9,7 +9,22 @@ import SwiftUI
 import MongoKitten
 
 struct DatabaseList: View {
+    @Environment(ConnectionInstance.self) private var instance
     var viewModel: SidebarViewModel
+    
+    @State private var isLoading = false
+    @State private var loadError: Error?
+    
+    // Computed property for filtered collections
+    private var filteredCollections: [any CollectionWrapper]? {
+        guard let connectedDatabase = viewModel.activeConnection?.connectedDatabase else {
+            return nil
+        }
+        guard !viewModel.searchText.isEmpty else { return instance.collections[connectedDatabase.name] ?? [] }
+        return instance.collections[connectedDatabase.name]?.filter { collection in
+            collection.name.localizedCaseInsensitiveContains(viewModel.searchText)
+        } ?? []
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -20,29 +35,41 @@ struct DatabaseList: View {
     }
     
     private var connectionContent: some View {
+        
         VStack(spacing: 0) {
-            if let activeConnection = viewModel.activeConnection {
-                if let selectedDb = activeConnection.database {
-                    let filteredCollections = (activeConnection.collections[selectedDb.name] ?? [])
-                        .filter {
-                            viewModel.searchText.isEmpty ||
-                            $0.name.localizedCaseInsensitiveContains(viewModel.searchText)
-                        }
-                    
+            if instance.connectionStatus == .connected {
+                if let filteredCollections = filteredCollections {
                     CollectionsSection(
-                            instance: activeConnection,
-                            collections: filteredCollections
-                        ).padding(.horizontal, 16)
-                } else {
-                    if activeConnection.connectionStatus != .error {
-                        ProgressView()
-                            .controlSize(.small)
-                            .padding()
+                        instance: instance,
+                        collections: filteredCollections
+                    )
+                    .padding(.horizontal, 16)
+                    
+                    if !viewModel.searchText.isEmpty && filteredCollections.isEmpty  {
+                        ContentUnavailableView(
+                            "No Tables",
+                            systemImage: "folder.badge.questionmark",
+                            description: Text("This database doesn't contain any collections.")
+                        )
                     }
                 }
+            } else if instance.connectionStatus == .error {
+                // Show error state
+                ContentUnavailableView(
+                    "Connection Failed",
+                    systemImage: "wifi.exclamationmark",
+                    description: Text("Unable to connect to the database.")
+                )
             }
             
             Spacer()
+        }
+        .onChange(of: instance.connectionStatus) { oldStatus, newStatus in
+            if newStatus == .connected && oldStatus != .connected {
+                Task {
+                    await loadCollectionsForCurrentDatabase()
+                }
+            }
         }
         .alert("Connection Error",
                isPresented: Binding(
@@ -60,6 +87,38 @@ struct DatabaseList: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        .alert("Load Error",
+               isPresented: Binding(
+                get: { loadError != nil },
+                set: { _ in loadError = nil }
+               ),
+               presenting: loadError
+        ) { _ in
+            Button("Retry") {
+                Task {
+                    await loadCollectionsForCurrentDatabase()
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+    }
+    
+    // MARK: - Private Methods
+    @MainActor
+    private func loadCollectionsForCurrentDatabase() async {
+        isLoading = true
+        loadError = nil
+        
+        do {
+            try await instance.loadCollectionsForCurrentDatabase()
+        } catch {
+            loadError = error
+            print("Failed to load collections: \(error)")
+        }
+        
+        isLoading = false
     }
 }
 
@@ -70,10 +129,10 @@ struct DatabasesSection: View {
         DisclosureGroup("Databases") {
             ForEach(instance.databases, id: \.name) { database in
                 Button(action: {
-                    instance.database = database
+                    //                    instance.connectedDatabase = database
                 }) {
                     HStack {
-                        Image(systemName: "folder.fill")
+                        Image(systemName: databaseIcon)
                             .foregroundStyle(.secondary)
                         Text(database.name)
                         Spacer()
@@ -85,21 +144,24 @@ struct DatabasesSection: View {
             }
         }
     }
+    
+    private var databaseIcon: String {
+        switch instance.connection.databaseType {
+        case .mongodb:
+            return "folder.fill"
+        default:
+            return "table.fill"
+        }
+    }
 }
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
     var instance: ConnectionInstance
-    let collections: [MongoCollection]
+    let collections: [any CollectionWrapper]
     
-    // State for inline rename functionality
-    @State private var renamingCollection: String? = nil
-    @State private var renameText: String = ""
-    @State private var isRenaming = false
-    @FocusState private var isRenameFieldFocused: Bool
     @State private var showDeleteConfirmation = false
-    @State private var collectionToDelete: MongoCollection?
-    @Environment(\.colorScheme) var colorScheme
+    @State private var collectionToDelete: (any CollectionWrapper)?
     
     private var hasTextChanged: Bool {
         guard let renamingCollectionName = renamingCollection else { return false }
@@ -121,12 +183,12 @@ struct CollectionsSection: View {
     
     // MARK: - Normal Collection Button
     @ViewBuilder
-    private func normalCollectionButton(for collection: MongoCollection, isActive: Bool) -> some View {
+    private func normalCollectionButton(for collection: any CollectionWrapper, isActive: Bool) -> some View {
         Button(action: {
             instance.createNewTab(name: collection.name)
         }) {
             HStack {
-                Image(systemName: "folder")
+                Image(systemName: databaseIcon)
                     .opacity(0.7)
                     .animation(.easeInOut(duration: 0.3), value: renamingCollection)
                 Text(collection.name)
@@ -144,8 +206,8 @@ struct CollectionsSection: View {
         ) {
             Button("Delete", role: .destructive) {
                 if let connection = collectionToDelete {
-//                    modelContext.delete(connection)
-//                    collectionToDelete = nil
+                    //                    modelContext.delete(connection)
+                    //                    collectionToDelete = nil
                 }
             }
             
@@ -158,16 +220,30 @@ struct CollectionsSection: View {
         .dialogSeverity(.critical)
     }
     
+    private var databaseIcon: String {
+        switch instance.connection.databaseType {
+        case .mongodb:
+            return "folder"
+        default:
+            return "table"
+        }
+    }
+    
     // MARK: - Inline Rename View
+    @State private var renamingCollection: String? = nil
+    @State private var renameText: String = ""
+    @State private var isRenaming = false
+    @FocusState private var isRenameFieldFocused: Bool
+    
     @ViewBuilder
-    private func inlineRenameView(for collection: MongoCollection) -> some View {
+    private func inlineRenameView(for collection: any CollectionWrapper) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "pencil.line")
                 .opacity(0.7)
                 .foregroundColor(.secondary)
                 .padding(.leading, 4)
                 .padding(.leading, 2)
-
+            
             TextField("Collection name", text: $renameText)
                 .textFieldStyle(.plain)
                 .focused($isRenameFieldFocused)
@@ -209,7 +285,7 @@ struct CollectionsSection: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.1))
+                .fill(Color(.controlBackgroundColor).opacity(0.1))
         )
         .onKeyPress(.escape) {
             cancelRename()
@@ -217,57 +293,14 @@ struct CollectionsSection: View {
         }
     }
     
-    // MARK: - Context Menu Content
-    @ViewBuilder
-    private func contextMenuContent(for collection: MongoCollection, isActive: Bool) -> some View {
-        Button {
-            Task {
-                instance.createNewTab(name: collection.name)
-            }
-        } label: {
-            Label("Open in New Tab", systemImage: "plus.square")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-        .disabled(isActive)
-        
-        Divider()
-        
-        Button {
-            // Copy to pasteboard
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(collection.name, forType: .string)
-        } label: {
-            Label("Copy name", systemImage: "doc.on.clipboard")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-        
-        Divider()
-
-        Button {
-            startRename(for: collection)
-        } label: {
-            Label("Rename", systemImage: "pencil")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-
-        Button(role: .destructive) {
-            collectionToDelete = collection
-            showDeleteConfirmation = true
-        } label: {
-            Label("Delete", systemImage: "trash")
-                .frame(minWidth: 150, alignment: .leading)
-        }
-    }
-    
     // MARK: - Rename Logic
-    private func startRename(for collection: MongoCollection) {
+    private func startRename(for collection: any CollectionWrapper) {
         renamingCollection = collection.name
         renameText = collection.name
         isRenaming = false
     }
     
-    private func confirmRename(for collection: MongoCollection) {
+    private func confirmRename(for collection: any CollectionWrapper) {
         let trimmedName = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Validate
@@ -305,7 +338,7 @@ struct CollectionsSection: View {
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-           renameText = ""
+            renameText = ""
         }
     }
     
@@ -313,7 +346,7 @@ struct CollectionsSection: View {
     private func performRename(from oldName: String, to newName: String) async {
         do {
             try await instance.renameCollection(from: oldName, to: newName)
-            await instance.loadCollectionsForCurrentDatabase()
+            //            await instance.loadCollectionsForCurrentDatabase()
             
             withAnimation(.easeInOut(duration: 0.2)) {
                 renamingCollection = nil
@@ -322,7 +355,7 @@ struct CollectionsSection: View {
             }
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-               renameText = ""
+                renameText = ""
             }
             
         } catch {
@@ -354,5 +387,48 @@ struct CollectionsSection: View {
         }
         
         return nil
+    }
+    
+    // MARK: - Context Menu Content
+    @ViewBuilder
+    private func contextMenuContent(for collection: any CollectionWrapper, isActive: Bool) -> some View {
+        Button {
+            Task {
+                instance.createNewTab(name: collection.name)
+            }
+        } label: {
+            Label("Open in New Tab", systemImage: "plus.square")
+                .frame(minWidth: 150, alignment: .leading)
+        }
+        .disabled(isActive)
+        
+        Divider()
+        
+        Button {
+            // Copy to pasteboard
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(collection.name, forType: .string)
+        } label: {
+            Label("Copy name", systemImage: "doc.on.clipboard")
+                .frame(minWidth: 150, alignment: .leading)
+        }
+        
+        Divider()
+        
+        Button {
+            startRename(for: collection)
+        } label: {
+            Label("Rename", systemImage: "pencil")
+                .frame(minWidth: 150, alignment: .leading)
+        }
+        
+        Button(role: .destructive) {
+            collectionToDelete = collection
+            showDeleteConfirmation = true
+        } label: {
+            Label("Delete", systemImage: "trash")
+                .frame(minWidth: 150, alignment: .leading)
+        }
     }
 }

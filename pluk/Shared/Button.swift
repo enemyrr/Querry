@@ -8,10 +8,9 @@
 import SwiftUI
 
 struct SidebarButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     let isActive: Bool
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -23,11 +22,11 @@ struct SidebarButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 8)
                 .fill(
                     (isActive || isHovering)
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(
-                                (isActive && isHovering) ? 0.2 : 0.3
-                            )
-                        : Color.clear
+                    ? Color(.controlColor)
+                        .opacity(
+                            (isActive && isHovering) ? 0.3 : 0.4
+                        )
+                    : Color.clear
                 )
         )
         .onHover { hovering in
@@ -44,7 +43,7 @@ struct ActionButtonStyle: ButtonStyle {
     var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -54,9 +53,9 @@ struct ActionButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering || isActive
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.black)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .if(!disableScaleEffect) { view in
@@ -67,6 +66,36 @@ struct ActionButtonStyle: ButtonStyle {
         }
     }
 }
+
+struct XMarkButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+    var disableScaleEffect: Bool = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(padding)
+        .background(
+            Circle()
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
+                )
+        )
+        .if(!disableScaleEffect) { view in
+            view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        }
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 
 struct TabBarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -84,11 +113,30 @@ struct TabBarButtonStyle: ButtonStyle {
 }
 
 struct TabCloseButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
+    var disableScaleEffect: Bool = false
+    var isActive: Bool = false
+    
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(width: 16, height: 16)
-            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+        HStack {
+            configuration.label
+        }
+        .padding(padding)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering || isActive
+                    ? Color(.controlColor).opacity(0.5)
+                    : Color.clear
+                )
+        )
+        .if(!disableScaleEffect) { view in
+            view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        }
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 }
 
@@ -99,7 +147,7 @@ struct IconButton: View {
     let withBorder: Bool = false
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     var body: some View {
         Button(action: action) {
             ZStack {
@@ -231,12 +279,12 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)      // Vertical padding for height
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(isEnabled ? .black : .secondary)     // White text color
+            .padding(.vertical, 14)      // Vertical padding for height
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)     // White text color
             .background(
                 // Use system accent color for native feel, or specify custom blue
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
@@ -271,13 +319,13 @@ struct SecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isHovering ? Self.buttonColor : .clear)
             )
-            // Add subtle pressed state effect
+        // Add subtle pressed state effect
             .opacity(configuration.isPressed ? 0.8 : 1.0)
-            // Add subtle scale effect when pressed
+        // Add subtle scale effect when pressed
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            // Smooth animation for press states
+        // Smooth animation for press states
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-            // Add hand cursor on hover
+        // Add hand cursor on hover
             .onHover { isHovered in
                 isHovering = isHovered
                 if isHovered {
@@ -297,14 +345,14 @@ struct CustomMenuButtonStyle: ButtonStyle {
         HStack {
             configuration.label
         }
-        .padding(12)
-        .cornerRadius(8)
+        .padding(14)
+        .cornerRadius(10)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(.separator, lineWidth: 1)
         )
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(
                     isHovering
                     ? (colorScheme == .dark ? Color.black : Color.white)
@@ -375,7 +423,7 @@ struct OutlineSecondaryButtonStyle: ButtonStyle {
 struct DistructiveButtonStyleText: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -387,9 +435,9 @@ struct DistructiveButtonStyleText: ButtonStyle {
             RoundedRectangle(cornerRadius: 8)
                 .fill(
                     isHovering
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
@@ -402,7 +450,7 @@ struct DistructiveButtonStyleText: ButtonStyle {
 struct HoverActionButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -414,9 +462,9 @@ struct HoverActionButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
@@ -429,7 +477,7 @@ struct HoverActionButtonStyle: ButtonStyle {
 struct HoverActionButtonStyleText: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
-
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -441,9 +489,9 @@ struct HoverActionButtonStyleText: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering
-                        ? (colorScheme == .dark ? Color.black : Color.white)
-                            .opacity(0.3)
-                        : Color.clear
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.3)
+                    : Color.clear
                 )
         )
         .scaleEffect(configuration.isPressed ? 0.9 : 1.0)

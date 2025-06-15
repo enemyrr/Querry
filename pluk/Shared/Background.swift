@@ -20,8 +20,7 @@ struct GlassBackgroundStyle: ViewModifier {
                         .fill(
                             .linearGradient(
                                 colors: [
-                                    Color(.controlColor).opacity(0.1),
-                                    Color(.controlColor).opacity(0.05),
+                                    Color(.controlBackgroundColor).opacity(0.05),
                                     .clear,
                                 ],
                                 startPoint: .top,
@@ -39,9 +38,9 @@ struct GlassBackgroundStyleRoundedTop: ViewModifier {
         content
             .background {
                 ZStack {
-                    RoundedCorners(tl: 8, tr: 8, bl: 0, br: 0)
+                    RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
                         .fill(.thinMaterial)
-                    RoundedCorners(tl: 8 + 2, tr: 8 + 2, bl: 0, br: 0)
+                    RoundedCorners(tl: 10 + 2, tr: 10 + 2, bl: 0, br: 0)
                         .fill(
                             .linearGradient(
                                 colors: [

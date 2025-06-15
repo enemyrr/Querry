@@ -11,6 +11,9 @@ import UniformTypeIdentifiers
 import MongoKitten
 import MongoCore
 import SwiftData
+import Foundation
+import MongoCore
+import WebKit
 
 struct CreateConnection: View {
     @State private var showSheet = false
@@ -27,16 +30,70 @@ struct CreateConnection: View {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                     .ignoresSafeArea()
                 CreateConnectionForm()
-                    .frame(width: 500)
+                    .frame(width: 560)
+                
             }
         }
     }
 }
 
+
+// MARK: - Cloud Database Web View
+struct CloudDatabaseWebView: NSViewRepresentable {
+    let databaseType: DatabaseType
+    @Binding var isLoading: Bool
+    @Environment(\.dismiss) var dismiss
+    
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.navigationDelegate = context.coordinator
+        return webView
+    }
+    
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        guard let url = getDatabaseTypeURL() else { return }
+        let request = URLRequest(url: url)
+        nsView.load(request)
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    private func getDatabaseTypeURL() -> URL? {
+        switch databaseType {
+        case .supabase:
+            return URL(string: "https://supabase.com/dashboard")
+        case .neon:
+            return URL(string: "https://console.neon.tech")
+        default:
+            return nil
+        }
+    }
+    
+    class Coordinator: NSObject, WKNavigationDelegate {
+        let parent: CloudDatabaseWebView
+        
+        init(_ parent: CloudDatabaseWebView) {
+            self.parent = parent
+        }
+        
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            parent.isLoading = true
+        }
+        
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            parent.isLoading = false
+        }
+    }
+}
+
+// MARK: - Enhanced CreateConnectionForm
 struct CreateConnectionForm: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     
+    @State private var selectedDatabaseType: DatabaseType? = nil
     @State private var uri = ""
     @State private var name = ""
     @State private var defaultDatabase = ""
@@ -44,44 +101,62 @@ struct CreateConnectionForm: View {
     @State private var selectedEnvironment: ConnectionEnvironment = .local
     @State private var uriError: String? = nil
     @State private var showDatabaseField = false
-
+    @State private var isWebViewLoading = false
     @FocusState private var uriFieldIsFocused: Bool
+    @FocusState private var nameFieldIsFocused: Bool
     
-    private let connectionId: PersistentIdentifier?
+    private let connection: Connection?
     
-    init(connectionId: PersistentIdentifier? = nil) {
-        self.connectionId = connectionId
-        
-        _uri = State(initialValue: "")
-        _name = State(initialValue: "")
+    init(connection: Connection? = nil) {
+        self.connection = connection
         _color = State(initialValue: .blue)
-        _selectedEnvironment = State(initialValue: .local)
-        _defaultDatabase = State(initialValue: "")
     }
     
     private var isFormValid: Bool {
-        !uri.isEmpty &&
-          !name.isEmpty &&
-          uriError == nil &&
-          (!showDatabaseField || !defaultDatabase.isEmpty)
+        guard let databaseType = selectedDatabaseType else { return false }
+        
+        if databaseType.category == .cloud {
+            return !name.isEmpty
+        }
+        
+        return !uri.isEmpty &&
+        !name.isEmpty &&
+        uriError == nil &&
+        (!showDatabaseField || !defaultDatabase.isEmpty)
     }
     
-    private func validateMongoUri(_ uri: String) {
+    private func validateConnectionString(_ uri: String, for databaseType: DatabaseType) {
         guard !uri.isEmpty else {
             uriError = nil
             return
         }
         
+        switch databaseType {
+        case .mongodb:
+            validateMongoUri(uri)
+        case .postgres, .supabase, .neon:
+            validatePostgresUri(uri)
+        case .mysql:
+            validateMySQLUri(uri)
+        default:
+            uriError = nil
+        }
+    }
+    
+    private func validateMongoUri(_ uri: String) {
         do {
             let connectionSettings = try ConnectionSettings(uri)
             
-            if let database = connectionSettings.targetDatabase {
-                defaultDatabase = database
+            if let _ = connectionSettings.targetDatabase {
                 showDatabaseField = false
             } else {
-                defaultDatabase = ""
+                // Only clear defaultDatabase if not editing an existing connection
+                if connection == nil {
+                    defaultDatabase = ""
+                }
                 showDatabaseField = true
             }
+            uriError = nil
         } catch let error as MongoInvalidUriError {
             uriError = error.description
         } catch {
@@ -89,142 +164,350 @@ struct CreateConnectionForm: View {
         }
     }
     
+    private func validatePostgresUri(_ uri: String) {
+        if uri.hasPrefix("postgresql://") || uri.hasPrefix("postgres://") {
+            uriError = nil
+            
+            // Check if database is specified in the URI
+            if let url = URL(string: uri) {
+                let pathComponents = url.path.components(separatedBy: "/").filter { !$0.isEmpty }
+                if pathComponents.isEmpty {
+                    // No database specified in URI, show database field
+                    // Only clear defaultDatabase if not editing an existing connection
+                    if connection == nil {
+                        defaultDatabase = ""
+                    }
+                    showDatabaseField = true
+                } else {
+                    // Database is specified in URI, hide database field
+                    showDatabaseField = false
+                }
+            } else {
+                // Invalid URL format, show database field as fallback
+                // Only clear defaultDatabase if not editing an existing connection
+                if connection == nil {
+                    defaultDatabase = ""
+                }
+                showDatabaseField = true
+            }
+        } else {
+            uriError = "PostgreSQL URI should start with postgresql:// or postgres://"
+        }
+    }
+    
+    private func validateMySQLUri(_ uri: String) {
+        if uri.hasPrefix("mysql://") {
+            uriError = nil
+        } else {
+            uriError = "MySQL URI should start with mysql://"
+        }
+    }
     
     var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading) {
-                    Text("New Connection")
-                        .font(.title3)
-                        .foregroundColor(.white)
-                    Text("Manage your connection settings")
-                        .font(.callout)
+        VStack(spacing: 0) {
+            if connection != nil {
+                connectionFormView
+            } else {
+                if selectedDatabaseType == nil {
+                    DatabaseSelectionView(selectedDatabaseType: $selectedDatabaseType)
+                        .transition(
+                            .asymmetric(
+                                insertion: .scale(scale: 1).combined(with: .opacity),
+                                removal: .scale(scale: 0.9).combined(with: .opacity)
+                            )
+                        )
+                } else if selectedDatabaseType?.category == .cloud {
+                    cloudDatabaseView
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .scale(scale: 0.9).combined(with: .opacity)
+                            )
+                        )
+                } else {
+                    connectionFormView
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .scale(scale: 0.9).combined(with: .opacity)
+                            )
+                        )
+                }
+                
+            }
+        }
+        .onAppear {
+            mapExistingConnectionData()
+            
+            // Focus on first field when form appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                nameFieldIsFocused = true
+            }
+        }
+        .onChange(of: selectedDatabaseType) { oldValue, newValue in
+            // Reset form when switching database types (but not on initial load or when editing)
+            if connection == nil && oldValue != nil && newValue != oldValue {
+                resetForm()
+                
+                // Focus on first field after switching database types
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    nameFieldIsFocused = true
+                }
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: selectedDatabaseType)
+    }
+    
+    private var cloudDatabaseView: some View {
+        VStack(spacing: 0) {
+            // Modern header with back navigation
+            HStack {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedDatabaseType = nil
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Back")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.controlColor).opacity(0.1))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer()
+                
+                VStack(spacing: 2) {
+                    Text(selectedDatabaseType?.displayName ?? "")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.primary)
+                    
+                    Text("Authenticate with your cloud database")
+                        .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 }
                 
                 Spacer()
-            }.padding(.horizontal, 10)
-            
-            // Form Fields
-            VStack(alignment: .leading, spacing: 16) {
-                FormField(label: "Name") {
-                    TextField("e.g first connection", text: $name)
-                        .textFieldStyle(CustomTextFieldStyle())
-                }
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                           Text("URI")
-                               .font(.subheadline)
-                               .foregroundColor(.secondary)
-                           
-                           Spacer()
-                           
-                           if let error = uriError {
-                               Text(error)
-                                   .font(.caption)
-                                   .foregroundColor(.red)
-                                   .lineLimit(1)
-                                   .truncationMode(.tail)
-                           }
-                       }
-                       
-                    
-                    HStack(spacing: 8) {
-                        TextField("e.g mongodb+srv://user:password@cluster.mongodb.net", text: $uri)
-                            .textFieldStyle(CustomTextFieldStyle())
-                            .focused($uriFieldIsFocused)
-                            .onChange(of: uri) { oldValue, newValue in
-                                if (uriFieldIsFocused) {
-                                    validateMongoUri(newValue)
-                                }
-                            }
-                        
-                        if showDatabaseField {
-                            Text("/")
-                                .foregroundColor(.secondary)
-                            
-                            TextField("database", text: $defaultDatabase)
-                                .textFieldStyle(CustomTextFieldStyle())
-                                .frame(width: 100)
-                        }
-                    }
-                }
-            }
-            .padding(20)
-            .background(Color(.controlColor).opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .cornerRadius(10)
-            
-            HStack(spacing: 16) {
-                EnvironmentPicker(selectedEnvironment: $selectedEnvironment)
-                ConnectionColorPicker(selectedColor: $color)
-            }
-            .padding(20)
-            .background(Color(.controlColor).opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .cornerRadius(10)
-            
-            // Footer
-            HStack {
                 Button("Cancel") {
                     dismiss()
                 }
                 .customMenuButtonStyle()
-                Spacer()
-                
-                Button(connectionId != nil ? "Update" : "Connect") {
-                    saveConnection()
-                }
-                .primaryStyle()
-                .disabled(!isFormValid)
-                .frame(width: 200)
-                
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 24)
+            
+            // Web View Container
+            if let databaseType = selectedDatabaseType {
+                ZStack {
+                    CloudDatabaseWebView(databaseType: databaseType, isLoading: $isWebViewLoading)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    
+                    if isWebViewLoading {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            
+                            Text("Loading \(databaseType.displayName)...")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.controlColor).opacity(0.9))
+                        .cornerRadius(16)
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 32)
+            }
         }
-        .onAppear {
-            loadExistingConnectionData()
-        }
-        .padding(20)
     }
     
-    private func loadExistingConnectionData() {
-        guard let id = connectionId else { return }
-        
-        do {
-            let connection = try modelContext.fetch(
-                FetchDescriptor<Connection>(
-                    predicate: #Predicate { $0.persistentModelID == id }
-                )
-            ).first
-            
-            if let connection = connection {
-                uri = connection.url
-                name = connection.name
-                color = connection.color
-                selectedEnvironment = connection.environment
-                
-                if connection.defaultDatabase != nil {
-                    showDatabaseField = true
-                    defaultDatabase = connection.defaultDatabase ?? ""
+    private var connectionFormView: some View {
+        ScrollView {
+            VStack(spacing: 32) {
+                // Header with database type info
+                VStack(spacing: 24) {
+                    HStack {
+                        if connection == nil {
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedDatabaseType = nil
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 14, weight: .medium))
+                                    Text("Back")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(.controlColor).opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Spacer()
+                            
+                        }
+                    }
+                    
+                    // Database type header with icon
+                    HStack(spacing: 16) {
+                        if let databaseType = selectedDatabaseType {
+                            Image(databaseType.icon)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 48, height: 48)
+                                .foregroundStyle(databaseType.accentColor)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Configure \(selectedDatabaseType?.displayName ?? "") Connection")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.primary)
+                            
+                            Text("Enter your connection details to get started")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
                 }
+                .padding(.horizontal, 32)
+                .padding(.top, 24)
+                
+                // Connection Form
+                VStack(spacing: 24) {
+                    FormSection(title: "Connection Details") {
+                        VStack(spacing: 20) {
+                            FormField(label: "Name") {
+                                TextField("e.g first connection", text: $name)
+                                    .textFieldStyle(CustomTextFieldStyle())
+                                    .focused($nameFieldIsFocused)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("URI")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                    
+                                    if let error = uriError {
+                                        Text(error)
+                                            .font(.caption)
+                                            .foregroundColor(.red)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                    }
+                                }
+                                
+                                HStack(spacing: 8) {
+                                    TextField(selectedDatabaseType?.placeholderURI ?? "", text: $uri)
+                                        .textFieldStyle(CustomTextFieldStyle())
+                                        .focused($uriFieldIsFocused)
+                                        .onChange(of: uri) { oldValue, newValue in
+                                            if (uriFieldIsFocused) {
+                                                if let selectedDatabaseType = selectedDatabaseType {
+                                                    validateConnectionString(uri, for: selectedDatabaseType)
+                                                }
+                                            }
+                                        }
+                                    
+                                    if showDatabaseField {
+                                        Text("/")
+                                            .foregroundColor(.secondary)
+                                        
+                                        TextField("database", text: $defaultDatabase)
+                                            .textFieldStyle(CustomTextFieldStyle())
+                                            .frame(width: 100)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    FormSection(title: "Configuration") {
+                        HStack(spacing: 20) {
+                            EnvironmentPicker(selectedEnvironment: $selectedEnvironment)
+                            ConnectionColorPicker(selectedColor: $color)
+                        }
+                    }
+                }
+                .padding(.horizontal, 32)
+                
+                // Action buttons
+                HStack(spacing: 16) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .customMenuButtonStyle()
+                    
+                    Spacer()
+                    
+                    Button(connection != nil ? "Update Connection" : "Create Connection") {
+                        saveConnection()
+                    }
+                    .primaryStyle()
+                    .disabled(!isFormValid)
+                    .frame(width: 200)
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 32)
             }
-        } catch {
-            print("Error loading connection: \(error)")
+        }
+    }
+    
+    private var connectionFieldLabel: String {
+        switch selectedDatabaseType {
+        case .mongodb:
+            return "MongoDB URI"
+        default:
+            return "Connection String"
+        }
+    }
+    
+    private func resetForm() {
+        uri = ""
+        name = ""
+        defaultDatabase = ""
+        uriError = nil
+        showDatabaseField = false
+        selectedEnvironment = .local
+        color = .blue
+    }
+    
+    private func mapExistingConnectionData() {
+        if let connection = connection {
+            uri = connection.url
+            name = connection.name
+            color = connection.color
+            selectedEnvironment = connection.environment
+            selectedDatabaseType = DatabaseType(rawValue: connection.databaseType.rawValue)
+            defaultDatabase = connection.defaultDatabase ?? ""
+            
+            // Validate the URI to properly set showDatabaseField
+            if let databaseType = selectedDatabaseType {
+                validateConnectionString(uri, for: databaseType)
+            }
         }
     }
     
     private func saveConnection() {
-        if let id = connectionId,
+        guard let databaseType = selectedDatabaseType else { return }
+        guard let databaseTypeEnum = DatabaseType(rawValue: databaseType.rawValue) else { return }
+        
+        if let id = connection?.persistentModelID,
            let existing = try? modelContext.fetch(
             FetchDescriptor<Connection>(
                 predicate: #Predicate { $0.persistentModelID == id }
@@ -238,7 +521,7 @@ struct CreateConnectionForm: View {
             try? modelContext.save()
         } else {
             let connection = Connection(
-                databaseType: .mongodb,
+                databaseType: databaseTypeEnum,
                 url: uri,
                 name: name,
                 color: color.unsafelyUnwrapped,
@@ -252,25 +535,32 @@ struct CreateConnectionForm: View {
     }
 }
 
-struct VisualEffectView: NSViewRepresentable {
-    var material: NSVisualEffectView.Material
-    var blendingMode: NSVisualEffectView.BlendingMode
+// MARK: - Form Components
+struct FormSection<Content: View>: View {
+    let title: String
+    let content: Content
     
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        
-        if #available(macOS 10.14, *) {
-            view.isEmphasized = false
-        }
-        
-        return view
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
     }
     
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+            
+            content
+                .padding(24)
+                .background(Color(.controlColor).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(.separator, lineWidth: 1)
+                )
+                .cornerRadius(16)
+        }
     }
 }

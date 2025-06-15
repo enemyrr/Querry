@@ -10,13 +10,30 @@ import LanguageSupport
 import OnTapOutsideGesture
 
 struct QueryEditor: View {
-    var viewModel: SearchQueryViewModel
+    @Binding var showQueryEditor: Bool
+    @Binding var filter: String
+    let isLoading: Bool
+    let totalCount: Int
+    let onLoadDocuments: (_ filter: String?) -> Void
+    
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = Set()
-    
     @State private var isExpanded: Bool = false
     @State private var showEditor: Bool = false
-    @Binding var showQueryEditor: Bool
+    @State private var showClearQueryButton: Bool = false
+    @State private var queryStartTime: Date?
+    @State private var lastExecutionTime: TimeInterval = 0
+    @State private var displayedQueryExecutionTime: String = ""
+    
+    private var queryExecutionTime: String {
+        if isLoading && displayedQueryExecutionTime.isEmpty {
+            return "executing..."
+        } else if !displayedQueryExecutionTime.isEmpty {
+            return displayedQueryExecutionTime
+        } else {
+            return ""
+        }
+    }
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -85,33 +102,36 @@ struct QueryEditor: View {
                 
                 Spacer()
                 
-                //                Text("\(viewModel.matchingDocumentsCount) rows \(viewModel.queryExecutionTime)")
-                //                    .foregroundColor(.secondary)
-                //                    .font(.subheadline)
-                //
-                //                Button(action: {}) {
-                //                    Image(systemName: "clock")
-                //                        .foregroundColor(.secondary)
-                //                }
-                //                .buttonStyle(.plain)
-                //
-                //                Text(viewModel.lastQueryTime)
-                //                    .foregroundColor(.secondary)
-                //                    .font(.subheadline)
+                Text("\(totalCount) rows \(queryExecutionTime)")
+                    .foregroundColor(.secondary)
+                    .font(.subheadline)
                 
-                    Button(action: viewModel.clearQuery) {
-                        Text("Clear")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(OutlineSecondaryButtonStyle())
-                    .opacity(viewModel.query == viewModel.defaultQuery ? 0 : 1)
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity),
-                        removal: .opacity
-                    ))
-                    .animation(.spring(response: 0.3), value: viewModel.query != viewModel.defaultQuery)
+                Button(action: {}) {
+                    Image(systemName: "clock")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
                 
-                Button(action: viewModel.executeQuery) {
+                Button(action: {
+                    filter = ""
+                    queryStartTime = Date()
+                    onLoadDocuments(filter)
+                }) {
+                    Text("Clear")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(OutlineSecondaryButtonStyle())
+                .opacity(filter.isEmpty ? 0.5 : 1)
+                .transition(.asymmetric(
+                    insertion: .scale.combined(with: .opacity),
+                    removal: .opacity
+                ))
+                .animation(.spring(response: 0.3), value: filter.isEmpty)
+                
+                Button(action: {
+                    queryStartTime = Date()
+                    onLoadDocuments(filter)
+                }) {
                     Image(systemName: displayedIcon)
                         .foregroundColor(.secondary)
                         .contentTransition(.symbolEffect(.replace))
@@ -120,15 +140,15 @@ struct QueryEditor: View {
                 }
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(OutlineButtonStyle())
-                .disabled(viewModel.processingStage != .idle)
-                .customHelp("Run current query", delay: 0.5, position: .left, shortcut: KeyboardShortcut(
+                .disabled(isLoading)
+                .customHelp("Run current query", delay: 1.5, position: .left, shortcut: KeyboardShortcut(
                     modifiers: [.command],
                     key: "Enter"
                 ), spacing: 8)
             }
             .padding([.top, .horizontal, .bottom], 8)
-            .onChange(of: viewModel.processingStage) { oldValue, newValue in
-                if newValue == .idle && oldValue != .idle {
+            .onChange(of: isLoading) { oldValue, newValue in
+                if oldValue != newValue {
                     // When returning to idle from any non-idle state, delay the icon change
                     // Keep showing the stop icon for a bit longer
                     withAnimation {
@@ -141,7 +161,7 @@ struct QueryEditor: View {
                             displayedIcon = "play.fill"
                         }
                     }
-                } else if newValue != .idle {
+                } else {
                     // Immediately show stop icon when starting a query
                     withAnimation {
                         displayedIcon = "stop.fill"
@@ -149,19 +169,16 @@ struct QueryEditor: View {
                 }
             }
             
-            CodeEditor(text: Binding<String>(
-                get: { viewModel.query },
-                set: { viewModel.query = $0 }
-            ), position: $position, messages: $messages, language: .mongodb())
-            .environment(\.codeEditorTheme, Theme.defaultDark)
-            .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(.separator)
-            )
-            .padding(.bottom, 2)
-            .frame(height: 120)
-            .cornerRadius(10)
+            CodeEditor(text: $filter, position: $position, messages: $messages, language: .mongodb())
+                .environment(\.codeEditorTheme, Theme.defaultDark)
+                .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator)
+                )
+                .padding(.bottom, 2)
+                .frame(height: 220)
+                .cornerRadius(10)
         }
     }
 }

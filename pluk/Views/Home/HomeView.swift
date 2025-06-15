@@ -60,10 +60,10 @@ struct HomeView: View {
             )
             .background(Color(.controlColor).opacity(0.1))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 20)
                     .stroke(.separator, lineWidth: 1)
             )
-            .cornerRadius(10)
+            .cornerRadius(20)
             .padding(8)
         }
     }
@@ -101,12 +101,31 @@ struct ConnectionList: View {
             Divider().padding(.bottom, 6)
             
             ScrollView {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 4) {
                     ForEach(connections) { connection in
                         ConnectionListItem(connection: connection, isSelected: connection.persistentModelID == selectedConnectionId, onSelect: self.onSelect, onOpen: self.onOpen)
                     }
                 }
             }
+        }
+    }
+}
+
+struct DatabaseTypeIcon: View {
+    let databaseType: DatabaseType
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(databaseType.backgroundColor)
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Image(databaseType.icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                        .foregroundStyle(databaseType.foregroundColor)
+                )
         }
     }
 }
@@ -128,6 +147,8 @@ struct ConnectionListItem: View {
                 HStack {
                     VStack(alignment: .leading) {
                         HStack {
+                            DatabaseTypeIcon(databaseType: connection.databaseType)
+                            
                             Text(connection.name)
                                 .foregroundStyle(.primary)
                             
@@ -165,7 +186,7 @@ struct ConnectionListItem: View {
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(
-                    isSelected || isHovering ? Color.black.opacity(0.3)  : Color.clear
+                    isSelected || isHovering ? Color(.controlColor).opacity(0.3)  : Color.clear
                 )
                 .onTapGesture {
                     onSelect(connection)
@@ -186,7 +207,7 @@ struct ConnectionListItem: View {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                     .ignoresSafeArea()
                 
-                CreateConnectionForm(connectionId: connection.persistentModelID)
+                CreateConnectionForm(connection: connection)
                     .frame(width: 500)
             }
         }
@@ -210,7 +231,7 @@ struct ConnectionListItem: View {
             
             Button {
                 let connectionURI = connection.connectionUri
-
+                
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(connectionURI, forType: .string)

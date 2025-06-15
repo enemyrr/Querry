@@ -28,7 +28,7 @@ struct IntelligenceUIPlatterView: View {
     var body: some View {
         ZStack {
             // Base border that will always be visible
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         gradient: Gradient(colors: animateGradient ? colors1 : colors2),
@@ -41,7 +41,7 @@ struct IntelligenceUIPlatterView: View {
             
             // Multiple bloom effects from different corners
             ForEach(0..<1) { i in
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
                         RadialGradient(
                             gradient: Gradient(colors: [
@@ -58,7 +58,7 @@ struct IntelligenceUIPlatterView: View {
             }
         
                         // Outer glow layer
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         gradient: Gradient(colors: animateGradient ? colors1 : colors2),
@@ -73,7 +73,7 @@ struct IntelligenceUIPlatterView: View {
                 .drawingGroup()
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(
                     LinearGradient(
                         gradient: Gradient(colors: animateGradient ? colors1 : colors2),
@@ -87,7 +87,7 @@ struct IntelligenceUIPlatterView: View {
                 // Add drawing group to optimize compositing
                 .drawingGroup()
         )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         // Apply drawing group to entire view to optimize rendering
         .drawingGroup()
         .onAppear {

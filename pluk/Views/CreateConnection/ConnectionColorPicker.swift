@@ -44,14 +44,14 @@ struct ConnectionColorPicker: View {
                     Image(systemName: "chevron.compact.down")
                         .scaleEffect(CGSize(width: 0.7, height: 1.5))
                 }
-                .padding(12)
-                .cornerRadius(8)
+                .padding(14)
+                .cornerRadius(10)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 10)
                         .stroke(.separator, lineWidth: 1)
                 )
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(
                             isFocused || isHovering || isPickerPresented
                             ? (colorScheme == .dark ? Color.black : Color.white)

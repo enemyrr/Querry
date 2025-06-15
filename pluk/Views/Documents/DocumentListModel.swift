@@ -12,20 +12,23 @@ import SwiftUI
 
 @Observable class DocumentListModel {
     let instance: ConnectionInstance
-    private let databaseService: DatabaseService?
+    let databaseDriver: any DatabaseDriver
+    var connectedDatabase: any DatabaseWrapper
     private let paginationManager: PaginationManager
-    
-    init(instance: ConnectionInstance, databaseService: DatabaseService?) {
+
+    init(instance: ConnectionInstance, databaseDriver: any DatabaseDriver, connectedDatabase: any DatabaseWrapper) {
         self.instance = instance
-        self.databaseService = databaseService
+        self.databaseDriver = databaseDriver
         self.paginationManager = PaginationManager()
+        self.connectedDatabase = connectedDatabase
     }
     
     var lastFetchTimestamp: Date = Date()
     
     // UI States
-    var action: ActionBar = ActionBar.main
-    var formattedDocuments: [FormattedDocument] = []
+//    var action: ActionBar = ActionBar.main
+    var formattedDocuments: Any = []
+    var rowDocuments: PostgreSQLQueryResult?;
     var isLoading = true
     var error: Error?
     var filterText = ""
@@ -35,19 +38,10 @@ import SwiftUI
     var intialLoadComplete: Bool = false
     var isLoadingAnimation: Bool = false
     
-    // MARK: - Pagination Properties
-    var currentPage: Int { paginationManager.currentPage }
-    var totalPages: Int { paginationManager.totalPages }
-    var totalItems: Int { paginationManager.totalItems }
-    
     // MARK: - Document Management
-    func loadDocuments(filter: Document = [:]) async {
-        guard let databaseService = databaseService, let selectedTab = instance.selectedTab else {
-            if databaseService == nil {
-                error = MongoError.databaseNotInitialized
-            } else {
-                error = MongoError.collectionNotFound
-            }
+    func loadDocuments(filter: String = "") async {
+        guard let selectedTab = instance.selectedTab else {
+            error = MongoError.collectionNotFound
             return
         }
         
@@ -59,29 +53,21 @@ import SwiftUI
         }
         
         do {
-            // First get count with a lightweight query
-            let count = try await databaseService.getDocumentCount(for: selectedTab.name, filter: filter)
-            
-            // Then load the actual documents
-            let documents = try await databaseService.findDocuments(
+            let documents = try await databaseDriver.findDocuments(
                 in: selectedTab.name,
-                filter: filter,
+                filter: ["rawQuery": filter],
                 skip: paginationManager.skip,
                 limit: paginationManager.limit
-            )
-            
-            // Process documents in a background task to avoid blocking
-            let formatted = await formatDocuments(documents)
+            ) as? PostgreSQLQueryResult
             
             await MainActor.run {
-                paginationManager.updateTotalItems(count)
-                self.formattedDocuments = formatted
+                self.paginationManager.updateTotalItems(documents?.totalCount ?? 0)
+                self.rowDocuments = documents
                 self.lastFetchTimestamp = Date()
                 self.isLoading = false
                 
-                // Instead of immediately setting isLoading to false,
-                Task {
-                    try? await Task.sleep(for: .milliseconds(600))
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(800))
                     self.isLoadingAnimation = false
                 }
             }
@@ -90,58 +76,9 @@ import SwiftUI
             await MainActor.run {
                 self.error = error
                 self.isLoading = false
+                self.isLoadingAnimation = false
             }
         }
-    }
-    
-    // MARK: - Document Formatting
-    private func formatDocuments(_ documents: [Document]) async -> [FormattedDocument] {
-        let chunkSize = 10
-        var formattedDocs: [FormattedDocument] = []
-        
-        for chunk in stride(from: 0, to: documents.count, by: chunkSize) {
-            let end = min(chunk + chunkSize, documents.count)
-            let documentChunk = Array(documents[chunk..<end])
-            
-            let formattedChunk = documentChunk.map { document in
-                formatDocument(document)
-            }
-            
-            formattedDocs.append(contentsOf: formattedChunk)
-            await Task.yield()
-        }
-        
-        return formattedDocs
-    }
-    
-    private func formatDocument(_ document: Document) -> FormattedDocument {
-        guard let id = document["_id"] as? ObjectId else {
-            return FormattedDocument(id: "", fields: [], rawDocument: document)
-        }
-        
-        let fields = document.keys.map { key in
-            formatField(key: key, value: document[key])
-        }
-        
-        return FormattedDocument(id: id.hexString, fields: fields, rawDocument: document)
-    }
-    
-    private func formatField(key: String, value: Primitive?) -> FormattedDocument.FormattedField {
-        let formatted = Document().formatValue(value)
-        
-        var nestedFields: [FormattedDocument.FormattedField]?
-        if let doc = value as? Document {
-            nestedFields = doc.keys.map { key in
-                formatField(key: key, value: doc[key])
-            }
-        }
-        
-        return FormattedDocument.FormattedField(
-            key: key,
-            formattedValue: formatted,
-            rawValue: value ?? "nil",
-            nestedFields: nestedFields
-        )
     }
     
     // MARK: - Pagination Methods
@@ -150,7 +87,7 @@ import SwiftUI
             updatePendingActionsState()
             Task {
                 if let filter = filter {
-                    await loadDocuments(filter: filter)
+//                    await loadDocuments(filter: filter)
                 } else {
                     await loadDocuments()
                 }
@@ -163,7 +100,7 @@ import SwiftUI
             updatePendingActionsState()
             Task {
                 if let filter = filter {
-                    await loadDocuments(filter: filter)
+//                    await loadDocuments(filter: filter)
                 } else {
                     await loadDocuments()
                 }
@@ -229,62 +166,62 @@ import SwiftUI
     
     // MARK: - Commit Actions
     func commitPendingActions() async {
-        guard !pendingActions.isEmpty, let databaseService = databaseService else { return }
-        guard let databaseName = instance.selectedTab?.name else { return }
-        
-        isProcessingBatch = true
-        defer { isProcessingBatch = false }
-        
-        var failedActions: [PendingDocumentAction] = []
-        
-        let deleteActions = pendingActions.filter { $0.action == .delete }
-        let updateActions = pendingActions.filter { $0.action == .update }
-        
-        // Process deletions
-        for action in deleteActions {
-            do {
-                guard let objectId = ObjectId(action.documentId) else {
-                    failedActions.append(action)
-                    continue
-                }
-                
-                try await databaseService.deleteDocument(
-                    from: databaseName,
-                    withId: objectId
-                )
-                
-                removePendingActions(for: action.documentId)
-            } catch {
-                failedActions.append(action)
-                self.error = error
-            }
-        }
-        
-        // Process updates
-        for action in updateActions {
-            do {
-                guard let objectId = ObjectId(action.documentId),
-                      let updateData = action.updateData,
-                      let document = try? Document(fromJSON: updateData) else {
-                    failedActions.append(action)
-                    continue
-                }
-                
-                try await databaseService.updateDocument(
-                    in: databaseName,
-                    withId: objectId,
-                    withData: document
-                )
-            } catch {
-                failedActions.append(action)
-                self.error = error
-            }
-        }
-        
-        await loadDocuments()
-        
-        await MainActor.run {
-            self.pendingActions.removeAll()
-        }
+//        guard !pendingActions.isEmpty, let databaseService = databaseService else { return }
+//        guard let databaseName = instance.selectedTab?.name else { return }
+//        
+//        isProcessingBatch = true
+//        defer { isProcessingBatch = false }
+//        
+//        var failedActions: [PendingDocumentAction] = []
+//        
+//        let deleteActions = pendingActions.filter { $0.action == .delete }
+//        let updateActions = pendingActions.filter { $0.action == .update }
+//        
+//        // Process deletions
+//        for action in deleteActions {
+//            do {
+//                guard let objectId = ObjectId(action.documentId) else {
+//                    failedActions.append(action)
+//                    continue
+//                }
+//                
+//                try await databaseService.deleteDocument(
+//                    from: databaseName,
+//                    withId: objectId
+//                )
+//                
+//                removePendingActions(for: action.documentId)
+//            } catch {
+//                failedActions.append(action)
+//                self.error = error
+//            }
+//        }
+//        
+//        // Process updates
+//        for action in updateActions {
+//            do {
+//                guard let objectId = ObjectId(action.documentId),
+//                      let updateData = action.updateData,
+//                      let document = try? Document(fromJSON: updateData) else {
+//                    failedActions.append(action)
+//                    continue
+//                }
+//                
+//                try await databaseService.updateDocument(
+//                    in: databaseName,
+//                    withId: objectId,
+//                    withData: document
+//                )
+//            } catch {
+//                failedActions.append(action)
+//                self.error = error
+//            }
+//        }
+//        
+//        await loadDocuments()
+//        
+//        await MainActor.run {
+//            self.pendingActions.removeAll()
+//        }
     }
 }

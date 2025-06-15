@@ -13,60 +13,81 @@ import MongoKitten
 struct MainWindow: View {
     @State private var appViewModel = AppViewModel()
     @State private var sidebarViewModel = SidebarViewModel()
+    @State private var tabManager = TabManager.shared
     @Environment(\.modelContext) private var modelContext
-
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         ZStack {
             VibrantBackgroundView()
                 .edgesIgnoringSafeArea(.all)
             
-            // Main Background color:
-            // Replace on light theme
-            Color(hex: 0x030303)
-                .opacity(0.3)
-                .edgesIgnoringSafeArea(.all)
-
+            if colorScheme == .dark {
+                Color(hex: 0x030303)
+                    .opacity(0.2)
+                    .blendMode(.multiply)
+                    .edgesIgnoringSafeArea(.all)
+            } else {
+                Color(hex: 0xFCFCFC)
+                    .opacity(0.015)
+                    .blendMode(.multiply)
+                    .edgesIgnoringSafeArea(.all)
+            }
+            
+            // Show connection color for active connection tab
+            if let activeTab = tabManager.activeTab,
+               case .connection(let instanceId) = activeTab.type,
+               let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
+                connectionInstance.connection.color.color
+                    .opacity(0.20)
+                    .blendMode(.multiply)
+                    .edgesIgnoringSafeArea(.all)
+            }
+            
             CustomSplitView(
                 sidebar: {
                     Sidebar()
+                        .environment(getCurrentConnection())
                 },
                 detail: {
-                    switch sidebarViewModel.activeSidebarItem {
-                    case .home:
-                        HomeView()
-                    case .connection(_):
-                        if let activeConnection = sidebarViewModel.activeConnection {
-                            DocumentView(instance: activeConnection)
-                        } else {
-                            ConnectionErrorView()
-                        }
-                    }
+                    PlukTabContentView()
                 },
-                isFullScreenView: sidebarViewModel.activeSidebarItem == .home,
+                isFullScreenView: tabManager.activeTab?.type == .home,
                 isSidebarVisible: $appViewModel.isSidebarVisible
             )
             
         }
         .environment(appViewModel)
         .environment(sidebarViewModel)
+        .environment(tabManager)
         .toolbarBackground(.hidden, for: .windowToolbar)
+        .onAppear {
+            // Ensure sidebar starts with home selected
+            sidebarViewModel.changeActiveSidebarItem(.home)
+        }
     }
+    
+    private func getCurrentConnection() -> ConnectionInstance? {
+        guard let activeTab = tabManager.activeTab,
+              case .connection(let instanceId) = activeTab.type else {
+            return nil
+        }
+        return ConnectionService.shared.getInstance(instanceId)
+    }
+    
 }
 
 struct VibrantBackgroundView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .sidebar  // Matches macOS sidebar effect
+        view.material = .sidebar
         view.blendingMode = .behindWindow
         view.state = .active
+        view.wantsLayer = true
         return view
     }
     
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
-struct ConnectionErrorView: View {
-    var body: some View {
-        Text("Connection Error")
-    }
-}
+

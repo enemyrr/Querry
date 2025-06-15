@@ -11,7 +11,6 @@ import SwiftUI
 struct ConnectionDetailsSidebar: View {
     @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     @Environment(\.colorScheme) private var colorScheme
-    
     @State private var isScrolled = false
     
     var body: some View {
@@ -21,12 +20,12 @@ struct ConnectionDetailsSidebar: View {
                     name: instance.connection.name,
                     status: instance.connectionStatus,
                     version: instance.connectionVersion,
+                    databaseType: instance.connection.databaseType,
                     environment: instance.connection.environment)
                 
                 VStack(spacing: 0) {
                     DatabaseHeader(
                         viewModel: viewModel,
-                        database: instance.database
                     )
                         .padding(.horizontal)
                         .padding(.vertical, 4)
@@ -37,7 +36,6 @@ struct ConnectionDetailsSidebar: View {
                 .animation(.easeOut(duration: 0.15), value: isScrolled)
             }
             
-            // Scrollable content with scroll detection
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0, pinnedViews: []) {
@@ -58,12 +56,16 @@ struct ConnectionDetailsSidebar: View {
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(.separator)
         }
-        .cornerRadius(10)
+        .cornerRadius(16)
         .task(id: viewModel.activeSidebarItem.hashValue) {
-            await viewModel.loadActiveConnection()
+            do {
+                try await viewModel.activeConnection?.connect()
+            } catch {
+                
+            }
         }
     }
 }

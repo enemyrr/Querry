@@ -11,6 +11,7 @@ struct ConnectionHeader: View {
     let name: String
     let status: ConnectionStatus
     let version: String?
+    let databaseType: DatabaseType
     let environment: ConnectionEnvironment
     
     @State private var isHovered = false
@@ -45,7 +46,7 @@ struct ConnectionHeader: View {
                         
                         if let version = version {
                             Divider().frame(height: 10)
-                            Text("MongoDB \(version)").font(.caption)
+                            Text("\(databaseType.displayName) \(version)").font(.caption)
                                 .foregroundStyle(.secondary)
                         }                    }
                 }
@@ -67,7 +68,7 @@ struct ConnectionHeader: View {
                 // Inner glow layer
                 Group {
                     ForEach(0..<4) { i in
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 12)
                             .inset(by: Double(i) * 0.5)
                             .stroke(
                                 statusColor.opacity(isHovered ? 0.1 : 0.05),
@@ -83,8 +84,8 @@ struct ConnectionHeader: View {
                     .fill(
                         RadialGradient(
                             gradient: Gradient(stops: [
-                                .init(color: statusColor.opacity(0.4), location: 0),
-                                .init(color: statusColor.opacity(0.2), location: 0.5),
+                                .init(color: statusColor.opacity(0.8), location: 0),
+                                .init(color: statusColor.opacity(0.4), location: 0.5),
                                 .init(color: .clear, location: 1)
                             ]),
                             center: .leading,
@@ -92,6 +93,7 @@ struct ConnectionHeader: View {
                             endRadius: 120
                         )
                     )
+                    .blendMode(.multiply)
                     .frame(width: 240, height: 240)
                     .blur(radius: 30)
                     .offset(bubbleOffset)
@@ -114,12 +116,12 @@ struct ConnectionHeader: View {
             }
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     statusColor.opacity(isHovered ? 0.3 : 0.15))
                 .blendMode(.plusLighter)
         )
-        .cornerRadius(8) 
+        .cornerRadius(12) 
         .animation(.easeInOut(duration: 0.3), value: status)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
