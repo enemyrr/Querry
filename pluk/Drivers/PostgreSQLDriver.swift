@@ -375,8 +375,8 @@ class PostgreSQLDriver: DatabaseDriver {
             
             // Single-pass processing: build everything in one loop
             var queryColumns: [QueryColumnInfo] = []
-            var convertedRows: [[String: Any?]] = []
-            var convertedRawRows: [[String: Any?]] = []
+            var convertedRows: [[String: QueryRowInfo]] = []
+            var convertedRawRows: [[String: Any?]] = [] // Keep this as [String: Any?] for raw PostgresCell storage
             var columnsInitialized = false
             
             for try await row in results {
@@ -399,7 +399,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 let randomAccessRow = row.makeRandomAccess()
                 
                 // Process row data in a single pass
-                var processedRowData: [String: Any?] = [:]
+                var processedRowData: [String: QueryRowInfo] = [:]
                 var rawRowData: [String: Any?] = [:]
                 
                 for column in queryColumns {
@@ -407,10 +407,10 @@ class PostgreSQLDriver: DatabaseDriver {
                     if randomAccessRow.contains(columnName) {
                         let cell = randomAccessRow[columnName]
                         
-                        // Store raw cell data
+                        // ✅ Fixed: Store PostgresCell as Any in rawRowData
                         rawRowData[columnName] = cell
                         
-                        // Convert to standard type for processed row
+                        // Convert to QueryRowInfo for processed row
                         do {
                             processedRowData[columnName] = try extractValue(from: cell)
                         } catch {
@@ -426,12 +426,11 @@ class PostgreSQLDriver: DatabaseDriver {
                 convertedRawRows.append(rawRowData)
             }
             
-            // Return unified QueryResult directly
             return QueryResult(
                 columns: queryColumns,
                 rows: convertedRows,
                 totalCount: convertedRows.count,
-                rawRows: convertedRawRows,
+                rawRows: convertedRawRows
             )
             
         } catch let error as PSQLError {
@@ -445,101 +444,132 @@ class PostgreSQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    // Convert PostgreSQL specific result to unified QueryResult
-    private func convertToQueryResult(columns: [PostgreSQLColumnInfo], rawRows: [PostgresRandomAccessRow], totalCount: Int) throws -> QueryResult {
-        // Convert column info
-        let queryColumns = columns.map { column in
-            QueryColumnInfo(
-                name: column.name,
-                dataType: String(describing: column.dataType),
-                format: String(describing: column.format),
-                index: column.index
-            )
-        }
-        
-        // Convert rows
-        var convertedRows: [[String: Any?]] = []
-        var convertedRawRows: [[String: Any?]] = []
-        
-        for rawRow in rawRows {
-            var rowData: [String: Any?] = [:]
-            var rawRowData: [String: Any?] = [:]
-            
-            for column in columns {
-                let columnName = column.name
-                if rawRow.contains(columnName) {
-                    let cell = rawRow[columnName]
-                    
-                    // Store raw cell data
-                    rawRowData[columnName] = cell
-                    
-                    // Convert to standard type for processed row
-                    do {
-                        rowData[columnName] = try extractValue(from: cell)
-                    } catch {
-                        rowData[columnName] = nil
-                    }
-                } else {
-                    rowData[columnName] = nil
-                    rawRowData[columnName] = nil
-                }
-            }
-            
-            convertedRows.append(rowData)
-            convertedRawRows.append(rawRowData)
-        }
-        
-        return QueryResult(
-            columns: queryColumns,
-            rows: convertedRows,
-            totalCount: totalCount,
-            rawRows: convertedRawRows,
-        )
-    }
-    
-    private func extractValue(from cell: PostgresCell) throws -> Any? {
+
+    private func extractValue(from cell: PostgresCell) throws -> QueryRowInfo {
         // Check if the cell is null
         if cell.bytes == nil {
-            return nil
+            return QueryRowInfo(
+                value: nil,
+                dataType: "nil",
+                format: nil
+            )
         }
         
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
         case .bool:
-            return try cell.decode(Bool.self)
+            let value = try cell.decode(Bool.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "bool",
+                format: String(describing: cell.format)
+            )
+            
         case .int2:
-            return try cell.decode(Int16.self)
+            let value = try cell.decode(Int16.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "int2",
+                format: String(describing: cell.format)
+            )
+            
         case .int4:
-            return try cell.decode(Int32.self)
+            let value = try cell.decode(Int32.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "int4",
+                format: String(describing: cell.format)
+            )
+            
         case .int8:
-            return try cell.decode(Int64.self)
+            let value = try cell.decode(Int64.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "int8",
+                format: String(describing: cell.format)
+            )
+            
         case .float4:
-            return try cell.decode(Float.self)
+            let value = try cell.decode(Float.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "float4",
+                format: String(describing: cell.format)
+            )
+            
         case .float8:
-            return try cell.decode(Double.self)
+            let value = try cell.decode(Double.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "float8",
+                format: String(describing: cell.format)
+            )
+            
         case .text, .varchar, .char:
-            return try cell.decode(String.self)
+            let value = try cell.decode(String.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
         case .timestamp, .timestamptz:
-            return try cell.decode(Date.self)
+            let value = try cell.decode(Date.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
         case .date:
-            return try cell.decode(Date.self)
+            let value = try cell.decode(Date.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "date",
+                format: String(describing: cell.format)
+            )
+            
         case .uuid:
-            return try cell.decode(UUID.self)
+            let value = try cell.decode(UUID.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "uuid",
+                format: String(describing: cell.format)
+            )
+            
         case .json, .jsonb:
-            // For JSON types, decode as String first, then you can parse as needed
             let jsonString = try cell.decode(String.self)
-            return jsonString
+            return QueryRowInfo(
+                value: jsonString,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
         case .bytea:
-            return try cell.decode(Data.self)
+            let value = try cell.decode(Data.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "bytea",
+                format: String(describing: cell.format)
+            )
+            
         case .numeric:
-            // PostgreSQL NUMERIC/DECIMAL - decode as Decimal or String
-            return try cell.decode(String.self)
+            let value = try cell.decode(String.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: "numeric",
+                format: String(describing: cell.format)
+            )
+            
         default:
-            // For unknown types, try to decode as String
-            return try cell.decode(String.self)
+            let value = try cell.decode(String.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
         }
     }
-    
     func updateDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, id: Any, data: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }

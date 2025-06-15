@@ -1,5 +1,5 @@
 //
-//  DocumentDetails.swift
+//  DocumentRowView.swift
 //  Collection
 //
 //  Created by Fauzaan on 12/31/24.
@@ -9,25 +9,33 @@ import MongoKitten
 import SwiftData
 
 // MARK: - Document Details
-struct DocumentRow: View {
-    @State var viewModel: DocumentRowViewModel
+struct DocumentRowView: View {
+    let document: [String: QueryRowInfo]
+    let index: Int
     @State private var isCardHovered = false
+    @State private var showActionButton = false
     
     var body: some View {
-        let pendingAction = viewModel.getPendingAction()
-        let showActionButton = isCardHovered || pendingAction == .update
+        let pendingAction: DocumentAction? = nil
+        //        let pendingAction = viewModel.getPendingAction()
+        //        let showActionButton = isCardHovered || pendingAction == .update
         
         Group {
             ZStack(alignment: .bottomTrailing) {
                 VStack(alignment: .leading, spacing: 2) {
-                    if pendingAction == .update {
-                        DocumentEditView(viewModel: viewModel)
-                    } else {
-                        DocumentKeyValueList(
-                            fields: viewModel.document.fields
-                        )
-                        .padding()
-                    }
+                    //                    if pendingAction == .update {
+                    //                        DocumentEditView(viewModel: viewModel)
+                    //                    } else {
+                    //                        DocumentKeyValueList(
+                    //                            document: document
+                    //                        )
+                    //                        .padding()
+                    //                    }
+                    DocumentKeyValueList(
+                        document: document
+                    )
+                    .padding()
+                    //
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
@@ -76,31 +84,33 @@ struct DocumentRow: View {
                 .cornerRadius(8)
                 .cardStyle(isHovered: isCardHovered)
                 
-                HoverActionButtons(
-                    isVisible: showActionButton,
-                    onEdit: {
-                        viewModel.togglePendingAction(.update)
-                    },
-                    onCopy: {
-                        viewModel.copyDocumentJSON()
-                    },
-                    onDelete: {
-                        viewModel.togglePendingAction(.delete)
-                    },
-                    onClone: {
-                        viewModel.copyDocumentJSON()
-                    },
-                    showCopyFeedback: viewModel.showCopyFeedback,
-                    pendingAction: viewModel.getPendingAction(),
-                    onSave: {
-                        Task {
-                            await viewModel.documentListViewModel.commitPendingActions()
-                        }
-                    },
-                    onCancel: {
-                        viewModel.togglePendingAction(.update)
-                    }
-                )
+//                HoverActionButtons(
+//                    isVisible: showActionButton,
+//                    onEdit: {
+//                        //                                        viewModel.togglePendingAction(.update)
+//                    },
+//                    onCopy: {
+//                        //                                        viewModel.copyDocumentJSON()
+//                    },
+//                    onDelete: {
+//                        //                                        viewModel.togglePendingAction(.delete)
+//                    },
+//                    onClone: {
+//                        //                                        viewModel.copyDocumentJSON()
+//                    },
+//                    showCopyFeedback: false,
+//                    pendingAction: {
+//                        
+//                    },
+//                    onSave: {
+//                        Task {
+//                            //                                            await viewModel.documentListViewModel.commitPendingActions()
+//                        }
+//                    },
+//                    onCancel: {
+//                        //                                        viewModel.togglePendingAction(.update)
+//                    }
+//                )
             }
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -109,29 +119,34 @@ struct DocumentRow: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pendingAction)
-//        .simultaneousGesture(
-//            TapGesture(count: 2)
-//                .onEnded {
-//                    viewModel.togglePendingAction(.update)
-//                }
-//        )
+        //        .simultaneousGesture(
+        //            TapGesture(count: 2)
+        //                .onEnded {
+        //                    viewModel.togglePendingAction(.update)
+        //                }
+        //        )
     }
 }
 
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
-    var fields: [MongoKitten.Document.FormattedDocument.FormattedField]
+    let document: [String: QueryRowInfo]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(fields, id: \.key) { field in
-                RecursiveKeyValueRow(
-                    formattedPrimitive: field.formattedValue,
-                    key: field.key,
-                    value: field.rawValue,
-                    nestedFields: field.nestedFields
-                )
-                .fixedSize(horizontal: false, vertical: true)
+            ForEach(Array(document.keys.sorted()), id: \.self) { key in
+                if let queryRowInfo = document[key] {
+                    
+                    if let formattedPrimitive = queryRowInfo.value as? FormattedPrimitive {
+                        
+                        RecursiveKeyValueRow(
+                            formattedPrimitive: formattedPrimitive,
+                            key: key,  // Use the key from iteration
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        
+                    }
+                }
             }
         }
     }
@@ -140,7 +155,7 @@ struct DocumentKeyValueList: View {
 // MARK: - Key-Value Views
 struct KeyValueRow: View {
     let key: String
-    let formattedValue: FormattedPrimitive
+    let formattedPrimitive: FormattedPrimitive
     
     private static let monoFont = Font.system(.body, design: .monospaced)
     
@@ -171,9 +186,9 @@ struct KeyValueRow: View {
                 }
             }
             
-            Text(formattedValue.value)
+            Text(formattedPrimitive.value)
                 .font(Self.monoFont)
-                .foregroundColor(formattedValue.color)
+                .foregroundColor(formattedPrimitive.color)
                 .padding(.horizontal, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
@@ -223,23 +238,22 @@ struct ExpandableHeader: View {
 struct RecursiveKeyValueRow: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
-    let value: Primitive?
-    let nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
+    //    let nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
     
     var body: some View {
         Group {
-            if formattedPrimitive.isExpandable {
-                ExpandableValueView(
-                    formattedPrimitive: formattedPrimitive,
-                    key: key,
-                    nestedFields: nestedFields
-                )
-            } else {
+//            if formattedPrimitive.isExpandable {
+//                ExpandableValueView(
+//                    formattedPrimitive: formattedPrimitive,
+//                    key: key,
+//                    nestedFields: formattedPrimitive.nestedFields
+//                )
+//            } else {
                 KeyValueRow(
                     key: key,
-                    formattedValue: formattedPrimitive
+                    formattedPrimitive: formattedPrimitive
                 )
-            }
+//            }
         }
     }
 }
@@ -293,14 +307,14 @@ struct ExpandableValueView: View {
             if isExpanded, let fields = nestedFields {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(fields, id: \.key) { field in
-                        RecursiveKeyValueRow(
-                            formattedPrimitive: field.formattedValue,
-                            key: field.key,
-                            value: field.rawValue,
-                            nestedFields: field.nestedFields
-                        )
-                        .padding(.leading, 16)
-                        .fixedSize(horizontal: false, vertical: true)
+                        //                        RecursiveKeyValueRow(
+                        //                            formattedPrimitive: field.formattedValue,
+                        //                            key: field.key,
+                        //                            value: field.rawValue,
+                        //                            nestedFields: field.nestedFields
+                        //                        )
+                        //                        .padding(.leading, 16)
+                        //                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

@@ -73,14 +73,6 @@ class DatabaseService {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        let cacheKey = "\(collectionName)_\(filter)_\(skip)_\(limit)"
-        
-        // Check cache first
-//        if let cached = queryCache[cacheKey],
-//           Date().timeIntervalSince(cached.timestamp) < 30 { // 30 second cache
-//            return cached
-//        }
-        
         let result: QueryResult
         
         switch connection.databaseType {
@@ -104,8 +96,6 @@ class DatabaseService {
             throw DatabaseError.notImplemented("MySQL/MariaDB not yet implemented")
         }
         
-        // Cache the result
-        queryCache[cacheKey] = result
         return result
     }
     

@@ -8,9 +8,15 @@ struct QueryColumnInfo {
     let index: Int
 }
 
+struct QueryRowInfo {
+    let value: Any?
+    let dataType: String
+    let format: String?
+}
+
 struct QueryResult {
     let columns: [QueryColumnInfo]
-    let rows: [[String: Any?]]
+    let rows: [[String: QueryRowInfo]]
     let totalCount: Int
     let rawRows: [[String: Any?]]
     

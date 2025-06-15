@@ -44,12 +44,12 @@ struct MongoCollectionWrapper: CollectionWrapper {
 
 // MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
+    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
-        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
+    func buildSystemPrompt(for collectionName: String) async throws -> String {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
     typealias Database = MongoDBWrapper
@@ -107,25 +107,41 @@ class MongoDBDriver: DatabaseDriver {
         return try await collection.count()
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult] {
+    
+    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
         
         let collection = mongoDatabase[collectionName]
+        let query = collection.find().skip(skip).limit(limit)
         
-        let documents = try await collection.find().drain()
-        let formattedDocs = await formatDocuments(documents, skip: 1, limit: 1)
-        return [convertToQueryResult(from: formattedDocs)]
+        var convertedRows: [[String: QueryRowInfo]] = []
+        
+        for try await document in query {
+            let formattedDoc = formatDocument(document)
+            let convertedRow = convertFormattedDocumentToRow(formattedDoc)
+            
+            convertedRows.append(convertedRow)
+        }
+        
+        return QueryResult(
+            columns: [],
+            rows: convertedRows,
+            totalCount: convertedRows.count,
+            rawRows: [],
+        )
     }
+    
+    
     
     func createDocument(in collectionName: String, database: MongoDBWrapper, document: [String: Any]) async throws {
         let collection = database.database[collectionName]
-//        let mongoDocument = try MongoKitten.Document(from: document)
-//        let result = try await collection.insert(mongoDocument)
-//        if result.insertCount == 0 {
-//            throw MongoError.invalidData
-//        }
+        //        let mongoDocument = try MongoKitten.Document(from: document)
+        //        let result = try await collection.insert(mongoDocument)
+        //        if result.insertCount == 0 {
+        //            throw MongoError.invalidData
+        //        }
     }
     
     func updateDocument(in collectionName: String, database: MongoDBWrapper, id: Any, data: [String: Any]) async throws {
@@ -135,12 +151,12 @@ class MongoDBDriver: DatabaseDriver {
         }
         
         let filter: MongoKitten.Document = ["_id": objectId]
-//        let updateDoc = try MongoKitten.Document(from: data)
-//        let result = try await collection.updateOne(where: filter, to: updateDoc)
+        //        let updateDoc = try MongoKitten.Document(from: data)
+        //        let result = try await collection.updateOne(where: filter, to: updateDoc)
         
-//        if result.updatedCount == 0 {
-//            throw MongoError.invalidData
-//        }
+        //        if result.updatedCount == 0 {
+        //            throw MongoError.invalidData
+        //        }
     }
     
     func deleteDocument(in collectionName: String, database: MongoDBWrapper, id: Any) async throws {
@@ -173,117 +189,63 @@ class MongoDBDriver: DatabaseDriver {
         }
         
         let from = database[oldName]
-//        try await from.rename(to: newName)
+        //        try await from.rename(to: newName)
     }
     
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
         throw DatabaseError.notImplemented("MongoDB schema introspection not yet implemented")
     }
     
-    // MARK: - Document Formatting and Conversion
-    private func convertToQueryResult(from formattedDocs: [MongoKitten.Document.FormattedDocument]) -> QueryResult {
-        // Create column info based on the first document's fields, or use default if empty
-        var columns: [QueryColumnInfo] = []
-        var rows: [[String: Any?]] = []
-        var rawRows: [[String: Any?]] = []
+    // MARK: - Helper Methods
+    
+    private func convertFormattedDocumentToRow(_ formattedDoc: Document.FormattedDocument) -> [String: QueryRowInfo] {
+        var row: [String: QueryRowInfo] = [:]
         
-        if let firstDoc = formattedDocs.first {
-            // Extract column info from first document
-            for (index, field) in firstDoc.fields.enumerated() {
-                columns.append(QueryColumnInfo(
-                    name: field.key,
-                    dataType: "Mixed", // MongoDB supports mixed types
-                    format: nil,
-                    index: index
-                ))
+        // Add the document ID
+        row["_id"] = QueryRowInfo(value: formattedDoc.id, dataType: "ObjectId", format: nil)
+        
+        // Convert each formatted field to display value
+        for field in formattedDoc.fields {
+            if field.key == "_id" {
+                // Already handled above
+                continue
             }
             
-            // Add _id column if not present
-            if !columns.contains(where: { $0.name == "_id" }) {
-                columns.insert(QueryColumnInfo(
-                    name: "_id",
-                    dataType: "ObjectId",
-                    format: nil,
-                    index: 0
-                ), at: 0)
-            }
+            row[field.key] = QueryRowInfo(value: field.formattedValue, dataType: field.formattedValue.type, format: nil)
         }
         
-        // Convert each document to row format
-        for doc in formattedDocs {
-            var row: [String: Any?] = [:]
-            var rawRow: [String: Any?] = [:]
-            
-            // Add _id field
-            row["_id"] = doc.id
-            rawRow["_id"] = doc.id
-            
-            // Add other fields
-            for field in doc.fields {
-                row[field.key] = field.formattedValue
-                rawRow[field.key] = field.rawValue
-            }
-            
-            rows.append(row)
-            rawRows.append(rawRow)
-        }
-        
-        return QueryResult(
-            columns: columns,
-            rows: rows,
-            totalCount: formattedDocs.count,
-            rawRows: rawRows,
-        )
+        return row
     }
     
-    private func formatDocuments(_ documents: [Document], skip: Int, limit: Int) async -> [MongoKitten.Document.FormattedDocument] {
-        let chunkSize = 10
-        var formattedDocs: [MongoKitten.Document.FormattedDocument] = []
-        
-        for chunk in stride(from: 0, to: documents.count, by: chunkSize) {
-            let end = min(chunk + chunkSize, documents.count)
-            let documentChunk = Array(documents[chunk..<end])
-            
-            let formattedChunk = documentChunk.map { document in
-                formatDocument(document)
-            }
-            
-            formattedDocs.append(contentsOf: formattedChunk)
-            await Task.yield()
-        }
-        
-        return formattedDocs
-    }
-    
-    private func formatDocument(_ document: Document) -> MongoKitten.Document.FormattedDocument {
+    private func formatDocument(_ document: Document) -> Document.FormattedDocument {
         guard let id = document["_id"] as? ObjectId else {
-            return MongoKitten.Document.FormattedDocument(id: "", fields: [], rawDocument: document)
+            return Document.FormattedDocument(id: "", fields: [], rawDocument: document)
         }
         
         let fields = document.keys.map { key in
             formatField(key: key, value: document[key])
         }
         
-        return MongoKitten.Document.FormattedDocument(id: id.hexString, fields: fields, rawDocument: document)
+        return Document.FormattedDocument(id: id.hexString, fields: fields, rawDocument: document)
     }
     
-    private func formatField(key: String, value: Primitive?) -> MongoKitten.Document.FormattedDocument.FormattedField {
+    private func formatField(key: String, value: Primitive?) -> Document.FormattedDocument.FormattedField {
         let formatted = Document().formatValue(value)
         
-        var nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
+        var nestedFields: [Document.FormattedDocument.FormattedField]?
         if let doc = value as? Document {
             nestedFields = doc.keys.map { key in
                 formatField(key: key, value: doc[key])
             }
         }
         
-        return MongoKitten.Document.FormattedDocument.FormattedField(
+        return Document.FormattedDocument.FormattedField(
             key: key,
             formattedValue: formatted,
             rawValue: value ?? "nil",
             nestedFields: nestedFields
         )
-    } 
+    }
 }
 
 // MARK: - Dictionary to Document Extension
@@ -319,4 +281,4 @@ class MongoDBDriver: DatabaseDriver {
 //            throw MongoError.invalidData
 //        }
 //    }
-//} 
+//}

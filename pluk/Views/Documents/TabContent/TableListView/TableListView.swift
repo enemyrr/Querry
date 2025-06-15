@@ -29,21 +29,9 @@ struct TableListView: View {
                             queryResult: currentQueryResult
                         )
                     }
-                    
-//                    switch viewState {
-//                    case .loading:
-//                        EmptyView()
-//                    case .error(let message):
-//                        ContentUnavailableView {
-//                            Label("Failed to Load", systemImage: "exclamationmark.triangle")
-//                        } description: {
-//                            Text(message)
-//                        }
-//                        
-//                    case .loaded(let queryResult, let schema):
-//                        
-//                    }
-//
+                }
+                .overlay {
+                    overlayContent
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.controlBackgroundColor).opacity(0.2))
@@ -53,17 +41,17 @@ struct TableListView: View {
             VStack {
                 Spacer()
                 FloatingActionBar(
-                    screenWidth: geometry.size.width, 
+                    screenWidth: geometry.size.width,
                     viewState: viewState,
                     onRefresh: { currentPage, itemsPerPage, fetchSchema in
                         Task {
                             await loadDocuments(
-                                forceFetch: true, 
-                                fetchSchema: fetchSchema, 
-                                page: currentPage, 
+                                forceFetch: true,
+                                fetchSchema: fetchSchema,
+                                page: currentPage,
                                 limit: itemsPerPage
-                            ) 
-                        } 
+                            )
+                        }
                     },
                     onLoadDocuments: { filter in
                         if let filter = filter {
@@ -92,6 +80,40 @@ struct TableListView: View {
                     await loadDocumentsIfNeeded()
                 }
             }
+        }
+    }
+    
+    /// Overlay content for loading/error states
+    @ViewBuilder
+    private var overlayContent: some View {
+        switch viewState {
+        case .error(let message):
+            ZStack {
+                // Semi-transparent background
+                Color(.controlBackgroundColor)
+                    .opacity(0.8)
+                    .cornerRadius(20)
+                
+                // Error content
+                ContentUnavailableView {
+                    Label("Failed to Load", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Retry") {
+                        Task {
+                            await loadDocumentsIfNeeded()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(24)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+            
+        case .loaded, .loading:
+            // No overlay when data is loaded
+            EmptyView()
         }
     }
     
