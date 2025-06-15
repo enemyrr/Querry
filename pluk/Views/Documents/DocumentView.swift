@@ -55,7 +55,7 @@ class TabContentView: NSView {
         // Add simple border around content
         layer?.borderWidth = 1.0
         layer?.borderColor = NSColor.separatorColor.cgColor
-        layer?.cornerRadius = 8.0
+        layer?.cornerRadius = 16.0
         
         switch databaseType {
         case .postgres:
@@ -88,7 +88,7 @@ class TabContentView: NSView {
     
     private func setupDefaultView() {
         let noSelectionView = NSView()
-        let label = NSTextField(labelWithString: "No collection selected")
+        let label = NSTextField(labelWithString: "No collection selected")`
         label.font = NSFont.systemFont(ofSize: 18, weight: .medium)
         label.textColor = NSColor.secondaryLabelColor
         label.alignment = .center

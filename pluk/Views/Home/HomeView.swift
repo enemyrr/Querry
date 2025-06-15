@@ -60,10 +60,10 @@ struct HomeView: View {
             )
             .background(Color(.controlColor).opacity(0.1))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 20)
                     .stroke(.separator, lineWidth: 1)
             )
-            .cornerRadius(10)
+            .cornerRadius(20)
             .padding(8)
         }
     }

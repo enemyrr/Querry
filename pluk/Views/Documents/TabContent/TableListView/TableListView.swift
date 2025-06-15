@@ -44,7 +44,7 @@ struct TableListView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.controlBackgroundColor).opacity(0.2))
-                .cornerRadius(10)
+                .cornerRadius(20)
             }
             
             VStack {

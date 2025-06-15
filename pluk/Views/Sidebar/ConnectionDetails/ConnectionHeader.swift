@@ -68,7 +68,7 @@ struct ConnectionHeader: View {
                 // Inner glow layer
                 Group {
                     ForEach(0..<4) { i in
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 12)
                             .inset(by: Double(i) * 0.5)
                             .stroke(
                                 statusColor.opacity(isHovered ? 0.1 : 0.05),
@@ -116,12 +116,12 @@ struct ConnectionHeader: View {
             }
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     statusColor.opacity(isHovered ? 0.3 : 0.15))
                 .blendMode(.plusLighter)
         )
-        .cornerRadius(8) 
+        .cornerRadius(12) 
         .animation(.easeInOut(duration: 0.3), value: status)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in

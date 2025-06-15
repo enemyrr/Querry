@@ -165,7 +165,7 @@ struct FloatingActionBar: View {
             GlassBackgroundStyleRoundedTop()
         )
         .overlay(
-            RoundedCorners(tl: 8, tr: 8, bl: 0, br: 0)
+            RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
         )
         .shadow(color: isHoveringTopRectangle ? Color.black.opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)

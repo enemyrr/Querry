@@ -56,10 +56,10 @@ struct ConnectionDetailsSidebar: View {
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(.separator)
         }
-        .cornerRadius(10)
+        .cornerRadius(16)
         .task(id: viewModel.activeSidebarItem.hashValue) {
             do {
                 try await viewModel.activeConnection?.connect()
