@@ -18,7 +18,6 @@ struct FloatingActionBar: View {
     @Environment(ConnectionInstance.self) private var instance
     
     @State private var containerWidth: CGFloat = 0
-    @State var lastQuery: String?
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -29,6 +28,11 @@ struct FloatingActionBar: View {
     @State private var loadingTask: Task<Void, Never>?
     @State private var errorTask: Task<Void, Never>?
     
+    // MARK: - Animation States
+    @State private var showQueryUpdateAnimation = false
+    @State private var previousFilter: String = ""
+    @State private var isSubmitAnimating: Bool = false
+
     // MARK: - Pagination
     @State var currentPage = 1
     @State var totalPages = 1
@@ -67,6 +71,9 @@ struct FloatingActionBar: View {
                     .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
+                    .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
+                    .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
+
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -88,6 +95,7 @@ struct FloatingActionBar: View {
                         filter: $filter,
                         showQueryEditor: showQueryEditor,
                         tableName: tableName,
+                        isSubmitAnimating: $isSubmitAnimating,
                         onBack: {
                             withAnimation(.spring(response: 0.3)) {
                                 action = .main
@@ -130,6 +138,7 @@ struct FloatingActionBar: View {
                         }
                 }
             )
+           
         }
     }
     
@@ -495,7 +504,6 @@ struct FloatingActionBar: View {
             }
         }
     }
-    
 }
 
 enum ActionBar: String, CaseIterable, Codable {

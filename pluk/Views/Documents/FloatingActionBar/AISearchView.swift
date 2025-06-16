@@ -13,6 +13,7 @@ struct AISearchView: View {
     @Binding var filter: String
     let showQueryEditor: Bool
     let tableName: String
+    @Binding var isSubmitAnimating: Bool
     let onBack: () -> Void
     let onLoadDocuments: (_ filter: String) -> Void
     
@@ -22,7 +23,7 @@ struct AISearchView: View {
     @State private var processingStage: ProcessingStage = .idle
     @State private var search: String = ""
     @State private var animationDots: String = ""
-    @State private var isSubmitAnimating: Bool = false
+
     
     // Timer using async/await instead of Timerd
     @State private var animationTask: Task<Void, Never>?
@@ -38,8 +39,6 @@ struct AISearchView: View {
         }
         .padding(.top, 10)
         .padding(10)
-        .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.15), value: isSubmitAnimating)
         .task(id: processingStage) {
             await handleProcessingStageChange()
         }
