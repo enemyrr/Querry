@@ -306,10 +306,10 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .keyboardShortcut("p", modifiers: .command)
+            .keyboardShortcut("l", modifiers: .command)
             .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
-                key: "p"
+                key: "L"
             ), spacing: 10)
             
             // TODO: More options button
