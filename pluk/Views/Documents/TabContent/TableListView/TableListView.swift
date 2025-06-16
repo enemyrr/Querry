@@ -238,22 +238,6 @@ struct TableListView: View {
         }
         return nil
     }
-    
-    /// Check if query result has different columns than cached schema
-    private func hasColumnMismatch(queryResult: QueryResult?, schema: DatabaseSchemaResult?) -> Bool {
-        guard let queryResult = queryResult, let schema = schema else {
-            return false
-        }
-        
-        // If query result has columns but they don't match schema columns, it's likely a raw query
-        if !queryResult.columns.isEmpty {
-            let queryColumnNames = Set(queryResult.columns.map { $0.name })
-            let schemaColumnNames = Set(schema.columns.map { $0.columnName })
-            return queryColumnNames != schemaColumnNames
-        }
-        
-        return false
-    }
 }
 
 enum TableListViewState {

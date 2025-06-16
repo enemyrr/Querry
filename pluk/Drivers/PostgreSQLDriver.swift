@@ -658,6 +658,8 @@ class PostgreSQLDriver: DatabaseDriver {
         - Use proper PostgreSQL date/time functions (CURRENT_DATE, INTERVAL, etc.).
         - Default to SELECT * unless specific columns are mentioned.
         - Include proper semicolon termination.
+        - Return the SQL query as plain text only. Do NOT use code blocks, backticks, or any markdown formatting.
+        - Only generate SELECT queries. Do not create UPDATE, DELETE, INSERT, or any data-modifying queries.
 
         Current Date: \(currentDate)
         """
