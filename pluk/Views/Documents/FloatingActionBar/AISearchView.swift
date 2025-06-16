@@ -12,6 +12,8 @@ import Combine
 struct AISearchView: View {
     @Binding var filter: String
     let showQueryEditor: Bool
+    let tableName: String
+    @Binding var isSubmitAnimating: Bool
     let onBack: () -> Void
     let onLoadDocuments: (_ filter: String) -> Void
     
@@ -21,36 +23,22 @@ struct AISearchView: View {
     @State private var processingStage: ProcessingStage = .idle
     @State private var search: String = ""
     @State private var animationDots: String = ""
-    @State private var isSubmitAnimating: Bool = false
+
     
     // Timer using async/await instead of Timerd
     @State private var animationTask: Task<Void, Never>?
     
     var body: some View {
-        HStack(spacing: 4) {
-            Button(action: {
-                onBack()
-            }) {
-                Image(systemName: "arrow.backward")
-                    .font(.system(size: 14))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8), isActive: true))
-            .keyboardShortcut(.escape, modifiers: [])
-            .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
-                modifiers: [],
-                key: "Escape"
-            ), spacing: 10)
+        VStack(spacing: 6) {
+            // First row: Full width input field
+            mainInputSection
+                .padding(.leading, 8)
             
-            searchInputSection
-            actionButtonSection
+            // Second row: Action buttons
+            actionButtonsSection
         }
-        .frame(height: 34)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(IntelligenceUIPlatterView())
-        .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.15), value: isSubmitAnimating)
+        .padding(.top, 10)
+        .padding(10)
         .task(id: processingStage) {
             await handleProcessingStageChange()
         }
@@ -62,17 +50,77 @@ struct AISearchView: View {
     // MARK: - View Components
     
     @ViewBuilder
-    private var searchInputSection: some View {
-        HStack(spacing: 12) {
+    private var mainInputSection: some View {
+        HStack {
             if processingStage != .idle {
                 processingText
             } else {
                 searchTextField
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 8)
-        .animation(.easeInOut, value: processingStage)
+        .frame(maxWidth: .infinity)
+    }
+    
+    @ViewBuilder
+    private var actionButtonsSection: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            // Left side tools
+            leftToolsSection
+                .padding(.bottom, 4)
+                .padding(.leading, 6)
+            
+            Spacer()
+            
+            // Right side controls
+            rightControlsSection
+        }
+    }
+    
+    @ViewBuilder
+    private var leftToolsSection: some View {
+        HStack {
+            HStack(spacing: 4) {
+                Image(systemName: "table")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                Text(tableName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(.separator, lineWidth: 1)
+            )
+            .customHelp("This schema shared with LLM provider for query generation", position: .right, shortcut: nil, spacing: 6)
+        }
+    }
+    
+    @ViewBuilder
+    private var rightControlsSection: some View {
+        HStack(spacing: 8) {
+            if processingStage != .idle {
+                Button(action: {
+                    cancelProcessing()
+                }) {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 14, weight: .bold))
+                }
+                .buttonStyle(ChatSendButtonStyle())
+            } else {
+                Button(action: {
+                    Task {
+                        await processNaturalLanguageQuery(search: search)
+                    }
+                }) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 14, weight: .bold))
+                }
+                .buttonStyle(ChatSendButtonStyle())
+                .disabled(search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
     }
     
     @ViewBuilder
@@ -86,15 +134,14 @@ struct AISearchView: View {
                 .interpolatingSpring(stiffness: 50, damping: 10),
                 value: processingStage
             )
+            .padding(.bottom, 1)
     }
     
     @ViewBuilder
     private var searchTextField: some View {
         TextField("Ask what to find (e.g. id: 2)...", text: $search)
-            .focusSection()
-            .font(.system(.body, design: .monospaced))
-            .focused($isSearchFocused)
             .textFieldStyle(.plain)
+            .focused($isSearchFocused)
             .onSubmit {
                 Task {
                     await processNaturalLanguageQuery(search: search)
@@ -108,27 +155,6 @@ struct AISearchView: View {
             .onChange(of: showQueryEditor, {
                 isSearchFocused = true
             })
-    }
-    
-    @ViewBuilder
-    private var actionButtonSection: some View {
-        HStack {
-            if processingStage != .idle {
-                Button("Stop", systemImage: "stop.fill") {
-                    cancelProcessing()
-                }
-                .labelStyle(.iconOnly)
-                .font(.system(size: 12))
-                .buttonStyle(.plain)
-                .padding(6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(.white.opacity(0.1))
-                )
-            }
-        }
-        .padding(.vertical, 4)
-        .padding(.trailing, 2)
     }
     
     // MARK: - Processing Logic

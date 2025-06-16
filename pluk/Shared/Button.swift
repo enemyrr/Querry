@@ -67,6 +67,35 @@ struct ActionButtonStyle: ButtonStyle {
     }
 }
 
+struct AIBackButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    var isActive: Bool = true
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(6)
+        .overlay(
+            RoundedCorners(tl: 8, tr: 8, bl: 0, br: 8)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .background(
+            RoundedCorners(tl: 8, tr: 8, bl: 0, br: 8)
+                .fill(
+                    isHovering
+                    ? (Color(.controlBackgroundColor))
+                        .opacity(0.3)
+                    : Color.clear
+                )
+        )
+        .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 struct XMarkButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
@@ -285,6 +314,35 @@ struct PrimaryButtonStyle: ButtonStyle {
             .background(
                 // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 10)
+                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .opacity(isHovering ? 0.8 : 1.0)
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovered in
+                isHovering = isHovered
+                
+                if isHovered {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
+struct ChatSendButtonStyle: ButtonStyle {
+    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(9)      // Vertical padding for height
+            .foregroundColor(isEnabled ? Color(.textBackgroundColor) : .secondary)     // White text color
+            .background(
+                Circle()
                     .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
                     .opacity(isHovering ? 0.8 : 1.0)
             )

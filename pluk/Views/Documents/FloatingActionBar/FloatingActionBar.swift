@@ -11,13 +11,13 @@ import MongoKitten
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
     var viewState: TableListViewState
+    let tableName: String
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     
     @State private var containerWidth: CGFloat = 0
-    @State var lastQuery: String?
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -28,6 +28,11 @@ struct FloatingActionBar: View {
     @State private var loadingTask: Task<Void, Never>?
     @State private var errorTask: Task<Void, Never>?
     
+    // MARK: - Animation States
+    @State private var showQueryUpdateAnimation = false
+    @State private var previousFilter: String = ""
+    @State private var isSubmitAnimating: Bool = false
+
     // MARK: - Pagination
     @State var currentPage = 1
     @State var totalPages = 1
@@ -63,9 +68,12 @@ struct FloatingActionBar: View {
         VStack(spacing: 0) {
             if !showQueryEditor && !showCreateDocumentSheet {
                 topRectangleView
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
+                    .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
+                    .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
+
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -86,6 +94,8 @@ struct FloatingActionBar: View {
                     AISearchView(
                         filter: $filter,
                         showQueryEditor: showQueryEditor,
+                        tableName: tableName,
+                        isSubmitAnimating: $isSubmitAnimating,
                         onBack: {
                             withAnimation(.spring(response: 0.3)) {
                                 action = .main
@@ -98,9 +108,9 @@ struct FloatingActionBar: View {
                 }
                 
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: 12))
+            .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
                     .stroke(.separator, lineWidth: 1)
             )
             .background(
@@ -128,6 +138,7 @@ struct FloatingActionBar: View {
                         }
                 }
             )
+           
         }
     }
     
@@ -136,6 +147,25 @@ struct FloatingActionBar: View {
     private var topRectangleView: some View {
         VStack {
             HStack {
+                if action == .search {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3)) {
+                            action = .main
+                        }
+                    }) {
+                        Image(systemName: "arrow.backward")
+                            .foregroundColor(.secondary)
+                    }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
+                        modifiers: [],
+                        key: "Escape"
+                    ), spacing: 6)
+                    .buttonStyle(AIBackButtonStyle())
+                    .padding(-8)
+                    .padding(.trailing, 6)
+                }
+                
                 Text("Query Editor")
                     .font(.caption)
                     .fontWeight(.medium)
@@ -306,10 +336,10 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .keyboardShortcut("p", modifiers: .command)
+            .keyboardShortcut("l", modifiers: .command)
             .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
-                key: "p"
+                key: "L"
             ), spacing: 10)
             
             // TODO: More options button
@@ -474,7 +504,6 @@ struct FloatingActionBar: View {
             }
         }
     }
-    
 }
 
 enum ActionBar: String, CaseIterable, Codable {

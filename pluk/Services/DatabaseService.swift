@@ -87,7 +87,7 @@ class DatabaseService {
         case .mongodb:
             result = try await driver.findDocuments(
                 in: collectionName,
-                filter: [:],  // MongoDB filter logic here
+                filter: [:],
                 skip: skip,
                 limit: limit
             )

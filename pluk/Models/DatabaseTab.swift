@@ -15,12 +15,14 @@ struct DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var type: TabType
     var queryState: QueryState
     var documents: [Document] = []
-
+    var hasSchemaDeviation: Bool = false
+    
     init(name: String, type: TabType, queryState: QueryState) {
            self.id = UUID()
            self.name = name
            self.type = type
            self.queryState = queryState
+           self.hasSchemaDeviation = false
     }
     
     enum TabType: Equatable, Codable {
