@@ -5,27 +5,42 @@
 //  Created by Fauzaan on 1/18/25.
 //
 
-import SwiftUI
 import MongoKitten
+import SwiftUI
 
 struct DatabaseList: View {
     @Environment(ConnectionInstance.self) private var instance
     var viewModel: SidebarViewModel
-    
+
     @State private var isLoading = false
     @State private var loadError: Error?
-    
+
     // Computed property for filtered collections
     private var filteredCollections: [any CollectionWrapper]? {
-        guard let connectedDatabase = viewModel.activeConnection?.connectedDatabase else {
+        guard
+            let connectedDatabase = viewModel.activeConnection?
+                .connectedDatabase
+        else {
             return nil
         }
-        guard !viewModel.searchText.isEmpty else { return instance.collections[connectedDatabase.name] ?? [] }
-        return instance.collections[connectedDatabase.name]?.filter { collection in
-            collection.name.localizedCaseInsensitiveContains(viewModel.searchText)
-        } ?? []
+
+        var collections = instance.collections[connectedDatabase.name] ?? []
+
+        // Apply search filter
+        if !viewModel.searchText.isEmpty {
+            collections = collections.filter { collection in
+                collection.name.localizedCaseInsensitiveContains(
+                    viewModel.searchText
+                )
+            }
+        }
+
+        // Apply sorting
+        return collections.sorted { first, second in
+            return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
+        }
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
@@ -33,9 +48,9 @@ struct DatabaseList: View {
             }
         }
     }
-    
+
     private var connectionContent: some View {
-        
+
         VStack(spacing: 0) {
             if instance.connectionStatus == .connected {
                 if let filteredCollections = filteredCollections {
@@ -44,12 +59,16 @@ struct DatabaseList: View {
                         collections: filteredCollections
                     )
                     .padding(.horizontal, 16)
-                    
-                    if !viewModel.searchText.isEmpty && filteredCollections.isEmpty  {
+
+                    if !viewModel.searchText.isEmpty
+                        && filteredCollections.isEmpty
+                    {
                         ContentUnavailableView(
                             "No Tables",
                             systemImage: "folder.badge.questionmark",
-                            description: Text("This database doesn't contain any collections.")
+                            description: Text(
+                                "This database doesn't contain any tables that match your search query."
+                            )
                         )
                     }
                 }
@@ -61,7 +80,7 @@ struct DatabaseList: View {
                     description: Text("Unable to connect to the database.")
                 )
             }
-            
+
             Spacer()
         }
         .onChange(of: instance.connectionStatus) { oldStatus, newStatus in
@@ -71,12 +90,13 @@ struct DatabaseList: View {
                 }
             }
         }
-        .alert("Connection Error",
-               isPresented: Binding(
+        .alert(
+            "Connection Error",
+            isPresented: Binding(
                 get: { viewModel.activeConnection?.lastError != nil },
                 set: { _ in viewModel.activeConnection?.lastError = nil }
-               ),
-               presenting: viewModel.activeConnection?.lastError
+            ),
+            presenting: viewModel.activeConnection?.lastError
         ) { _ in
             Button("Retry") {
                 Task {
@@ -87,12 +107,13 @@ struct DatabaseList: View {
         } message: { error in
             Text(error.localizedDescription)
         }
-        .alert("Load Error",
-               isPresented: Binding(
+        .alert(
+            "Load Error",
+            isPresented: Binding(
                 get: { loadError != nil },
                 set: { _ in loadError = nil }
-               ),
-               presenting: loadError
+            ),
+            presenting: loadError
         ) { _ in
             Button("Retry") {
                 Task {
@@ -104,27 +125,27 @@ struct DatabaseList: View {
             Text(error.localizedDescription)
         }
     }
-    
+
     // MARK: - Private Methods
     @MainActor
     private func loadCollectionsForCurrentDatabase() async {
         isLoading = true
         loadError = nil
-        
+
         do {
             try await instance.loadCollectionsForCurrentDatabase()
         } catch {
             loadError = error
             print("Failed to load collections: \(error)")
         }
-        
+
         isLoading = false
     }
 }
 
 struct DatabasesSection: View {
     var instance: ConnectionInstance
-    
+
     var body: some View {
         DisclosureGroup("Databases") {
             ForEach(instance.databases, id: \.name) { database in
@@ -138,13 +159,15 @@ struct DatabasesSection: View {
                         Spacer()
                     }
                 }
-                .buttonStyle(SidebarButtonStyle(
-                    isActive: instance.database?.name == database.name
-                ))
+                .buttonStyle(
+                    SidebarButtonStyle(
+                        isActive: instance.database?.name == database.name
+                    )
+                )
             }
         }
     }
-    
+
     private var databaseIcon: String {
         switch instance.connection.databaseType {
         case .mongodb:
@@ -159,20 +182,23 @@ struct DatabasesSection: View {
 struct CollectionsSection: View {
     var instance: ConnectionInstance
     let collections: [any CollectionWrapper]
-    
+
     @State private var showDeleteConfirmation = false
     @State private var collectionToDelete: (any CollectionWrapper)?
-    
+
     private var hasTextChanged: Bool {
-        guard let renamingCollectionName = renamingCollection else { return false }
-        return renameText.trimmingCharacters(in: .whitespacesAndNewlines) != renamingCollectionName
+        guard let renamingCollectionName = renamingCollection else {
+            return false
+        }
+        return renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+            != renamingCollectionName
     }
-    
+
     var body: some View {
         ForEach(collections, id: \.name) { collection in
             let isActive = instance.selectedTab?.name == collection.name
             let isCurrentlyRenaming = renamingCollection == collection.name
-            
+
             if isCurrentlyRenaming {
                 inlineRenameView(for: collection)
             } else {
@@ -180,17 +206,23 @@ struct CollectionsSection: View {
             }
         }
     }
-    
+
     // MARK: - Normal Collection Button
     @ViewBuilder
-    private func normalCollectionButton(for collection: any CollectionWrapper, isActive: Bool) -> some View {
+    private func normalCollectionButton(
+        for collection: any CollectionWrapper,
+        isActive: Bool
+    ) -> some View {
         Button(action: {
             instance.createNewTab(name: collection.name)
         }) {
             HStack {
                 Image(systemName: databaseIcon)
                     .opacity(0.7)
-                    .animation(.easeInOut(duration: 0.3), value: renamingCollection)
+                    .animation(
+                        .easeInOut(duration: 0.3),
+                        value: renamingCollection
+                    )
                 Text(collection.name)
                 Spacer()
             }
@@ -210,16 +242,18 @@ struct CollectionsSection: View {
                     //                    collectionToDelete = nil
                 }
             }
-            
+
             Button("Cancel", role: .cancel) {
                 collectionToDelete = nil
             }
         } message: {
-            Text("Are you sure you want to delete this collection? This action cannot be undone.")
+            Text(
+                "Are you sure you want to delete this collection? This action cannot be undone."
+            )
         }
         .dialogSeverity(.critical)
     }
-    
+
     private var databaseIcon: String {
         switch instance.connection.databaseType {
         case .mongodb:
@@ -228,22 +262,24 @@ struct CollectionsSection: View {
             return "table"
         }
     }
-    
+
     // MARK: - Inline Rename View
     @State private var renamingCollection: String? = nil
     @State private var renameText: String = ""
     @State private var isRenaming = false
     @FocusState private var isRenameFieldFocused: Bool
-    
+
     @ViewBuilder
-    private func inlineRenameView(for collection: any CollectionWrapper) -> some View {
+    private func inlineRenameView(for collection: any CollectionWrapper)
+        -> some View
+    {
         HStack(spacing: 8) {
             Image(systemName: "pencil.line")
                 .opacity(0.7)
                 .foregroundColor(.secondary)
                 .padding(.leading, 4)
                 .padding(.leading, 2)
-            
+
             TextField("Collection name", text: $renameText)
                 .textFieldStyle(.plain)
                 .focused($isRenameFieldFocused)
@@ -256,7 +292,7 @@ struct CollectionsSection: View {
                         isRenameFieldFocused = true
                     }
                 }
-            
+
             // Action buttons
             HStack(spacing: 4) {
                 if hasTextChanged {
@@ -266,7 +302,15 @@ struct CollectionsSection: View {
                     }) {
                         Text("Save").font(.system(size: 12))
                     }
-                    .buttonStyle(RenameSaveButtonStyle(backgroundColor:  Color(red: 248/255, green: 148/255, blue: 99/255)))
+                    .buttonStyle(
+                        RenameSaveButtonStyle(
+                            backgroundColor: Color(
+                                red: 248 / 255,
+                                green: 148 / 255,
+                                blue: 99 / 255
+                            )
+                        )
+                    )
                     .disabled(isRenaming)
                 } else {
                     // Cancel button when no changes
@@ -292,106 +336,111 @@ struct CollectionsSection: View {
             return .handled
         }
     }
-    
+
     // MARK: - Rename Logic
     private func startRename(for collection: any CollectionWrapper) {
         renamingCollection = collection.name
         renameText = collection.name
         isRenaming = false
     }
-    
+
     private func confirmRename(for collection: any CollectionWrapper) {
-        let trimmedName = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        let trimmedName = renameText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+
         // Validate
         guard !trimmedName.isEmpty else { return }
         guard trimmedName != collection.name else {
             cancelRename()
             return
         }
-        
+
         // Check for duplicates
         if collections.contains(where: { $0.name == trimmedName }) {
             // Could show an error state or shake animation
             NSSound.beep()
             return
         }
-        
+
         // Validate MongoDB collection name
-        if let _ = validateCollectionName(trimmedName) {
+        if validateCollectionName(trimmedName) != nil {
             NSSound.beep()
             return
         }
-        
+
         // Perform rename
         isRenaming = true
         Task {
             await performRename(from: collection.name, to: trimmedName)
         }
     }
-    
+
     private func cancelRename() {
         withAnimation(.easeInOut(duration: 0.2)) {
             renamingCollection = nil
             isRenaming = false
             isRenameFieldFocused = false
         }
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             renameText = ""
         }
     }
-    
+
     @MainActor
     private func performRename(from oldName: String, to newName: String) async {
         do {
             try await instance.renameCollection(from: oldName, to: newName)
             //            await instance.loadCollectionsForCurrentDatabase()
-            
+
             withAnimation(.easeInOut(duration: 0.2)) {
                 renamingCollection = nil
                 isRenaming = false
                 isRenameFieldFocused = false
             }
-            
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 renameText = ""
             }
-            
+
         } catch {
             // Handle error - could show error state
             NSSound.beep()
             isRenaming = false
-            
+
             // Optionally show error in UI
             print("Rename failed: \(error.localizedDescription)")
         }
     }
-    
+
     private func validateCollectionName(_ name: String) -> String? {
         if name.isEmpty {
             return "Collection name cannot be empty"
         }
-        
+
         if name.count > 120 {
             return "Collection name must be less than 120 characters"
         }
-        
+
         if name.hasPrefix("system.") {
             return "Collection names cannot start with 'system.'"
         }
-        
+
         let invalidCharacters = CharacterSet(charactersIn: "/\\. \"*<>:|?$")
         if name.rangeOfCharacter(from: invalidCharacters) != nil {
             return "Collection name contains invalid characters"
         }
-        
+
         return nil
     }
-    
+
     // MARK: - Context Menu Content
     @ViewBuilder
-    private func contextMenuContent(for collection: any CollectionWrapper, isActive: Bool) -> some View {
+    private func contextMenuContent(
+        for collection: any CollectionWrapper,
+        isActive: Bool
+    ) -> some View {
         Button {
             Task {
                 instance.createNewTab(name: collection.name)
@@ -401,9 +450,9 @@ struct CollectionsSection: View {
                 .frame(minWidth: 150, alignment: .leading)
         }
         .disabled(isActive)
-        
+
         Divider()
-        
+
         Button {
             // Copy to pasteboard
             let pasteboard = NSPasteboard.general
@@ -413,16 +462,16 @@ struct CollectionsSection: View {
             Label("Copy name", systemImage: "doc.on.clipboard")
                 .frame(minWidth: 150, alignment: .leading)
         }
-        
+
         Divider()
-        
+
         Button {
             startRename(for: collection)
         } label: {
             Label("Rename", systemImage: "pencil")
                 .frame(minWidth: 150, alignment: .leading)
         }
-        
+
         Button(role: .destructive) {
             collectionToDelete = collection
             showDeleteConfirmation = true
