@@ -183,7 +183,8 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     ($0.identifier as? String) == identifier
                 }) {
                     // Update existing tab
-                    existingItem.label = tab.name
+                    let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
+                    existingItem.label = tabLabel
                     existingItem.image = NSImage(
                         systemSymbolName: instance.connection.databaseType
                             == .mongodb ? "document.fill" : "table",
@@ -192,7 +193,8 @@ struct NSTabViewWrapper: NSViewRepresentable {
                 } else {
                     // Create new tab
                     let tabViewItem = NSTabViewItem(identifier: identifier)
-                    tabViewItem.label = tab.name
+                    let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
+                    tabViewItem.label = tabLabel
                     tabViewItem.image = NSImage(
                         systemSymbolName: instance.connection.databaseType
                             == .mongodb ? "document.fill" : "table",
@@ -330,6 +332,12 @@ struct CustomTabButton: View {
                     Text(tab.name)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                    
+                    if tab.hasSchemaDeviation {
+                        Text("*")
+                            .font(.system(size: 14, weight: .bold))
+                            .padding(.leading, -7)
+                    }
 
                     Spacer()
                 }

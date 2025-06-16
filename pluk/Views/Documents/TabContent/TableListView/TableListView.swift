@@ -201,6 +201,15 @@ struct TableListView: View {
             cachedDocuments = documentsResult
             cachedTabName = selectedTab.name
             
+            // Check if this is a raw query with different columns than schema
+            if hasColumnMismatch(queryResult: documentsResult, schema: schemaToUse) {
+                // Update tab to indicate schema deviation
+                updateTabSchemaDeviation(true)
+            } else {
+                // Reset schema deviation if columns match
+                updateTabSchemaDeviation(false)
+            }
+            
             // Note: For raw queries, the documentsResult.columns may differ from schemaToUse.columns
             // The TableListViewController will prioritize QueryResult columns over schema columns
             viewState = .loaded(documentsResult, schemaToUse)
@@ -237,6 +246,28 @@ struct TableListView: View {
             return queryResult
         }
         return nil
+    }
+    
+    private func hasColumnMismatch(queryResult: QueryResult?, schema: DatabaseSchemaResult?) -> Bool {
+        guard let queryResult = queryResult, let schema = schema else {
+            return false
+        }
+        
+        // If query result has columns but they don't match schema columns, it's likely a raw query
+        if !queryResult.columns.isEmpty {
+            let queryColumnNames = Set(queryResult.columns.map { $0.name })
+            let schemaColumnNames = Set(schema.columns.map { $0.columnName })
+            return queryColumnNames != schemaColumnNames
+        }
+        
+        return false
+    }
+    
+    /// Update the selected tab's schema deviation state
+    private func updateTabSchemaDeviation(_ hasDeviation: Bool) {
+        if let tabIndex = instance.tabs.firstIndex(where: { $0.id == selectedTab.id }) {
+            instance.tabs[tabIndex].hasSchemaDeviation = hasDeviation
+        }
     }
 }
 
