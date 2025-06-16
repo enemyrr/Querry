@@ -26,6 +26,7 @@ struct DocumentView: View {
         .padding(.top, 8)
         .ignoresSafeArea(.all)
         .zIndex(-1)
+        .postHogScreenView()
     }
 }
 

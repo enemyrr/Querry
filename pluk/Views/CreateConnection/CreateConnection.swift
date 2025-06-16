@@ -16,7 +16,7 @@ import MongoCore
 import WebKit
 
 struct CreateConnection: View {
-    @State private var showSheet = false
+    @Binding var showSheet: Bool
     
     var body: some View {
         Button(action: {
