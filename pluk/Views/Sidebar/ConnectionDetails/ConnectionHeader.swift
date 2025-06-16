@@ -41,17 +41,26 @@ struct ConnectionHeader: View {
                         .font(.system(size: 12))
                         .lineLimit(1)
                     
-                    HStack {
+                    HStack() {
                         ConnectionStatusBadge(status: status, onRetry: {})
                         
                         if let version = version {
                             Divider().frame(height: 10)
-                            Text("\(databaseType.displayName) \(version)").font(.caption)
-                                .foregroundStyle(.secondary)
-                        }                    }
+                            ViewThatFits(in: .horizontal) {
+                                Text("\(databaseType.displayName) \(version)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                Text("v\(version)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
                 }
                 
-                Spacer(minLength: 16)
+                Spacer(minLength: 8)
                 
                 // Right side
                 EnvironmentTag(environment: environment)
@@ -121,7 +130,7 @@ struct ConnectionHeader: View {
                     statusColor.opacity(isHovered ? 0.3 : 0.15))
                 .blendMode(.plusLighter)
         )
-        .cornerRadius(12) 
+        .cornerRadius(12)
         .animation(.easeInOut(duration: 0.3), value: status)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
@@ -138,7 +147,7 @@ private struct ConnectionStatusBadge: View {
     let onRetry: () -> Void
     
     var body: some View {
-        HStack(alignment: .center, spacing: 3) {
+        HStack(spacing: 3) {
             statusIcon
                 .foregroundStyle(statusColor)
                 .font(.system(size: 9))
@@ -169,8 +178,7 @@ private struct ConnectionStatusBadge: View {
         case .connected:
             return Image(systemName: "server.rack")
         case .connecting:
-            return
-                Image(systemName: "arrow.2.circlepath")
+            return Image(systemName: "arrow.2.circlepath")
         case .disconnected, .error:
             return Image(systemName: "network.slash")
         }

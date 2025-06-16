@@ -41,7 +41,7 @@ struct Pluk: App {
         WindowGroup("Home", id: "mainWindow") {
             MainWindow()
         }
-        .defaultSize(width: 850, height: 650)
+        .defaultSize(width: 850, height: 750)
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))

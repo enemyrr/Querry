@@ -14,6 +14,7 @@ struct HomeView: View {
     @Query private var connections: [Connection]
     @State private var showDatabaseModal = false
     @State private var selectedConnectionId: PersistentIdentifier?
+    @State private var showCreateSheet = false
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -31,24 +32,28 @@ struct HomeView: View {
                     }
                     
                     Spacer()
-                    CreateConnection()
+                    CreateConnection(showSheet: $showCreateSheet)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10)
                 .padding(.top, 10)
                 .padding(.bottom, 6)
                 
-                ConnectionList(
-                    connections: connections,
-                    selectedConnectionId: $selectedConnectionId,
-                    onSelect: { connection in
-                        selectedConnectionId = connection.persistentModelID
-                    },
-                    onOpen: { connection in
-                        let instanceId = viewModel.createNewConnectionInstance(for: connection)
-                        viewModel.changeActiveSidebarItem(.connection(instanceId))
-                    }
-                )
+                if connections.isEmpty {
+                    EmptyConnectionsState(showSheet: $showCreateSheet)
+                } else {
+                    ConnectionList(
+                        connections: connections,
+                        selectedConnectionId: $selectedConnectionId,
+                        onSelect: { connection in
+                            selectedConnectionId = connection.persistentModelID
+                        },
+                        onOpen: { connection in
+                            let instanceId = viewModel.createNewConnectionInstance(for: connection)
+                            viewModel.changeActiveSidebarItem(.connection(instanceId))
+                        }
+                    )
+                }
                 
                 Spacer()
             }
@@ -66,11 +71,32 @@ struct HomeView: View {
             .cornerRadius(20)
             .padding(8)
         }
+        .postHogScreenView()
     }
 }
 
-
-
+struct EmptyConnectionsState: View {
+    @Binding var showSheet: Bool
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            ContentUnavailableView {
+                Label("No Connections", systemImage: "server.rack")
+                    .font(.title2)
+            } description: {
+                Text("Connect your first database to get started with managing your data.")
+            } actions: {
+                Button("Connect") {
+                    showSheet.toggle()
+                }
+                .buttonStyle(OutlineSecondaryButtonStyle())
+            }
+        }
+        .frame(maxWidth: 400)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, 40)
+    }
+}
 
 struct ConnectionList: View {
     let connections: [Connection]
