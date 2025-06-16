@@ -57,7 +57,14 @@ struct TableListViewController: NSViewRepresentable {
         
         func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
             let oldRowCount = self.totalCount
-            let oldColumnCount = self.schema?.columns.count ?? 0
+            
+            // Calculate old column count (prioritize QueryResult columns over schema)
+            let oldColumnCount: Int
+            if let currentQueryResult = self.queryResult, !currentQueryResult.columns.isEmpty {
+                oldColumnCount = currentQueryResult.columns.count
+            } else {
+                oldColumnCount = self.schema?.columns.count ?? 0
+            }
             
             // Update ALL references
             self.queryResult = newQueryResult
@@ -71,15 +78,20 @@ struct TableListViewController: NSViewRepresentable {
                 self.totalCount = 0
             }
             
-            let newColumnCount = self.schema?.columns.count ?? 0
+            // Calculate new column count (prioritize QueryResult columns over schema)
+            let newColumnCount: Int
+            if let newQueryResult = newQueryResult, !newQueryResult.columns.isEmpty {
+                newColumnCount = newQueryResult.columns.count
+            } else {
+                newColumnCount = newSchema?.columns.count ?? 0
+            }
             
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 
-                // Check if table structure changed (columns added/removed)
+                // Check if table structure changed (columns added/removed/changed)
                 if newColumnCount != oldColumnCount {
-                    // TODO: Update schema
-                    //                           self.rebuildTableStructure()
+                    self.rebuildTableStructure()
                 } else if self.totalCount != oldRowCount {
                     self.tableView.noteNumberOfRowsChanged()
                 } else {
@@ -150,12 +162,24 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         private func setupTable() {
-            guard let schema = schema else { return }
+            // Use QueryResult columns if available (for raw queries), otherwise fall back to schema
+            let columnsToUse: [(name: String, dataType: String?)]
             
-            for columnInfo in schema.columns {
+            if let queryResult = queryResult, !queryResult.columns.isEmpty {
+                // Use columns from QueryResult (handles raw queries with different column structure)
+                columnsToUse = queryResult.columns.map { ($0.name, $0.dataType) }
+            } else if let schema = schema {
+                // Fall back to schema columns for standard table queries
+                columnsToUse = schema.columns.map { ($0.columnName, $0.dataType) }
+            } else {
+                // No columns available
+                return
+            }
+            
+            for columnInfo in columnsToUse {
                 createColumn(
-                    identifier: columnInfo.columnName,
-                    title: columnInfo.columnName,
+                    identifier: columnInfo.name,
+                    title: columnInfo.name,
                     icon: nil
                 )
             }
@@ -197,6 +221,19 @@ struct TableListViewController: NSViewRepresentable {
                 headerView.addSubview(visualEffectView)
                 tableView.headerView = headerView
             }
+        }
+        
+        private func rebuildTableStructure() {
+            // Remove all existing columns
+            while tableView.tableColumns.count > 0 {
+                tableView.removeTableColumn(tableView.tableColumns[0])
+            }
+            
+            // Rebuild columns based on current data
+            setupTable()
+            
+            // Reload all data
+            tableView.reloadData()
         }
         
         // MARK: - NSTableViewDataSource
