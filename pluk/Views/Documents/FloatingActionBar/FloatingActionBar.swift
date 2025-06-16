@@ -11,6 +11,7 @@ import MongoKitten
 struct FloatingActionBar: View {
     let screenWidth: CGFloat
     var viewState: TableListViewState
+    let tableName: String
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
     
@@ -63,7 +64,7 @@ struct FloatingActionBar: View {
         VStack(spacing: 0) {
             if !showQueryEditor && !showCreateDocumentSheet {
                 topRectangleView
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
             }
@@ -86,6 +87,7 @@ struct FloatingActionBar: View {
                     AISearchView(
                         filter: $filter,
                         showQueryEditor: showQueryEditor,
+                        tableName: tableName,
                         onBack: {
                             withAnimation(.spring(response: 0.3)) {
                                 action = .main
@@ -98,9 +100,9 @@ struct FloatingActionBar: View {
                 }
                 
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: 12))
+            .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
                     .stroke(.separator, lineWidth: 1)
             )
             .background(
@@ -136,6 +138,25 @@ struct FloatingActionBar: View {
     private var topRectangleView: some View {
         VStack {
             HStack {
+                if action == .search {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3)) {
+                            action = .main
+                        }
+                    }) {
+                        Image(systemName: "arrow.backward")
+                            .foregroundColor(.secondary)
+                    }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
+                        modifiers: [],
+                        key: "Escape"
+                    ), spacing: 6)
+                    .buttonStyle(AIBackButtonStyle())
+                    .padding(-8)
+                    .padding(.trailing, 6)
+                }
+                
                 Text("Query Editor")
                     .font(.caption)
                     .fontWeight(.medium)

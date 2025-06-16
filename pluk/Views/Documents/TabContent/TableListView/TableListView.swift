@@ -43,6 +43,7 @@ struct TableListView: View {
                 FloatingActionBar(
                     screenWidth: geometry.size.width,
                     viewState: viewState,
+                    tableName: selectedTab.name,
                     onRefresh: { currentPage, itemsPerPage, fetchSchema in
                         Task {
                             await loadDocuments(
