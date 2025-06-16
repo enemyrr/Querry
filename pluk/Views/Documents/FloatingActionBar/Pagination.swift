@@ -49,7 +49,7 @@ struct Pagination: View {
             .customHelp("Go to previous page", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "←"
-            ))
+            ), spacing: 10)
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isPreviousHovering = hovering
@@ -84,7 +84,7 @@ struct Pagination: View {
             .customHelp( "Go to next page", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "→"
-            ))
+            ), spacing: 10)
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isNextHovering = hovering
