@@ -155,6 +155,7 @@ struct FloatingActionBar: View {
     }
     
     @State private var isHoveringTopRectangle: Bool = false
+    @State private var animatedFilterText: String = ""
     var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
     
     private var topRectangleView: some View {
@@ -179,11 +180,14 @@ struct FloatingActionBar: View {
                                 .font(.system(size: 10))
                                 .foregroundColor(.orange)
                             
-                            Text(filter)
+                            Text(animatedFilterText)
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundColor(.primary.opacity(0.75))
                                 .lineLimit(1)
                                 .truncationMode(.tail)
+                        }
+                        .onAppear {
+                            animateFilterText()
                         }
                         .transition(.opacity.combined(with: .move(edge: .leading)))
                         .animation(.smooth(duration: 0.3), value: filter)
@@ -273,6 +277,14 @@ struct FloatingActionBar: View {
             openQueryEditor()
         }
     }
+    
+    func animateFilterText() {
+           for (index, character) in filter.enumerated() {
+               DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.02) {
+                   animatedFilterText.append(character)
+               }
+           }
+       }
     
     private var mainView: some View {
         HStack(spacing: 5) {
