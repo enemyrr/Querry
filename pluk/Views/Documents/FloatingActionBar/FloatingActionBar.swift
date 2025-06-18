@@ -32,7 +32,12 @@ struct FloatingActionBar: View {
     @State private var showQueryUpdateAnimation = false
     @State private var previousFilter: String = ""
     @State private var isSubmitAnimating: Bool = false
-
+    
+    // MARK: - Processing State
+    @State private var processingStage: ProcessingStage = .idle
+    @State private var animationDots: String = ""
+    @State private var animationTask: Task<Void, Never>?
+    
     // MARK: - Pagination
     @State var currentPage = 1
     @State var totalPages = 1
@@ -73,7 +78,7 @@ struct FloatingActionBar: View {
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
                     .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
                     .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
-
+                
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -96,6 +101,7 @@ struct FloatingActionBar: View {
                         showQueryEditor: showQueryEditor,
                         tableName: tableName,
                         isSubmitAnimating: $isSubmitAnimating,
+                        processingStage: $processingStage,
                         onBack: {
                             withAnimation(.spring(response: 0.3)) {
                                 action = .main
@@ -138,38 +144,38 @@ struct FloatingActionBar: View {
                         }
                 }
             )
-           
+            .task(id: processingStage) {
+                await handleProcessingStageChange()
+            }
+            .onDisappear {
+                animationTask?.cancel()
+            }
+            
         }
     }
     
     @State private var isHoveringTopRectangle: Bool = false
+    var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
     
     private var topRectangleView: some View {
         VStack {
             HStack {
-                if action == .search {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3)) {
-                            action = .main
-                        }
-                    }) {
-                        Image(systemName: "arrow.backward")
-                            .foregroundColor(.secondary)
-                    }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
-                        modifiers: [],
-                        key: "Escape"
-                    ), spacing: 6)
-                    .buttonStyle(AIBackButtonStyle())
-                    .padding(-8)
-                    .padding(.trailing, 6)
+                if processingStage != .idle {
+                    Text(processingStage.description + animationDots)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .transition(.push(from: .bottom))
+                        .id("processing-\(processingStage.description)")
+                        .animation(
+                            .interpolatingSpring(stiffness: 50, damping: 10),
+                            value: processingStage
+                        )
+                } else {
+                    Text("Query Editor")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .transition(.opacity)
                 }
-                
-                Text("Query Editor")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.gray)
                 
                 Spacer()
                 
@@ -179,7 +185,7 @@ struct FloatingActionBar: View {
                         onLoadDocuments(filter)
                     }) {
                         Text("Clear")
-                            .font(.caption)
+                            .font(.system(size: 11))
                             .foregroundColor(.gray)
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
@@ -188,11 +194,35 @@ struct FloatingActionBar: View {
             }
         }
         .padding(.top, 6)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
         .padding(.bottom, isHoveringTopRectangle ? 8 : 5)
         .modifier(
             GlassBackgroundStyleRoundedTop()
+        )
+        .background(
+            Group {
+                if processingStage != .idle {
+                    RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(stops: [
+                                    .init(color: statusColor, location: 0),
+                                    .init(color: statusColor.opacity(0.90), location: 0.5),
+                                    .init(color: statusColor.opacity(0.80), location: 0.8),
+                                    .init(color: statusColor.opacity(0.60), location: 1)
+                                ]),
+                                center: .trailing,
+                                startRadius: 5,
+                                endRadius: 100
+                            )
+                        )
+                        .blur(radius: 6)
+                        .opacity(0.5)
+                        .blendMode(.normal)
+                }
+            }
+            
         )
         .overlay(
             RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
@@ -504,6 +534,31 @@ struct FloatingActionBar: View {
             }
         }
     }
+    
+    // MARK: - Processing Animation Methods
+    
+    private func handleProcessingStageChange() async {
+        if processingStage != .idle {
+            await startProcessingAnimation()
+        } else {
+            stopProcessingAnimation()
+        }
+    }
+    
+    private func startProcessingAnimation() async {
+        animationTask = Task {
+            while !Task.isCancelled && processingStage != .idle {
+                animationDots = animationDots.count >= 3 ? "" : animationDots + "."
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+    
+    private func stopProcessingAnimation() {
+        animationTask?.cancel()
+        animationTask = nil
+        animationDots = ""
+    }
 }
 
 enum ActionBar: String, CaseIterable, Codable {
@@ -511,3 +566,4 @@ enum ActionBar: String, CaseIterable, Codable {
     case search = "search"
     case create = "create"
 }
+

@@ -14,19 +14,14 @@ struct AISearchView: View {
     let showQueryEditor: Bool
     let tableName: String
     @Binding var isSubmitAnimating: Bool
+    @Binding var processingStage: ProcessingStage
     let onBack: () -> Void
     let onLoadDocuments: (_ filter: String) -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     @FocusState private var isSearchFocused: Bool
     @State private var filterQuery: String = ""
-    @State private var processingStage: ProcessingStage = .idle
     @State private var search: String = ""
-    @State private var animationDots: String = ""
-
-    
-    // Timer using async/await instead of Timerd
-    @State private var animationTask: Task<Void, Never>?
     
     var body: some View {
         VStack(spacing: 6) {
@@ -39,12 +34,7 @@ struct AISearchView: View {
         }
         .padding(.top, 10)
         .padding(10)
-        .task(id: processingStage) {
-            await handleProcessingStageChange()
-        }
-        .onDisappear {
-            animationTask?.cancel()
-        }
+
     }
     
     // MARK: - View Components
@@ -52,11 +42,7 @@ struct AISearchView: View {
     @ViewBuilder
     private var mainInputSection: some View {
         HStack {
-            if processingStage != .idle {
-                processingText
-            } else {
-                searchTextField
-            }
+            searchTextField
         }
         .frame(maxWidth: .infinity)
     }
@@ -93,13 +79,32 @@ struct AISearchView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.separator, lineWidth: 1)
             )
-            .customHelp("This schema shared with LLM provider for query generation", delay: 0.2, position: .right, shortcut: nil, spacing: 6)
+            .customHelp("This schema shared with LLM provider for query generation", delay: 0.2, position: .top, shortcut: nil, spacing: 4)
         }
     }
     
     @ViewBuilder
     private var rightControlsSection: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .bottom) {
+            Button(action: onBack) {
+                HStack(spacing: 4) {
+                    Text("Close")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Text("ESC")
+                        .font(.caption2)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.controlColor).opacity(0.3))
+                        )
+                }
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .buttonStyle(AIBackButtonStyle())
+            
             if processingStage != .idle {
                 Button(action: {
                     cancelProcessing()
@@ -123,19 +128,7 @@ struct AISearchView: View {
         }
     }
     
-    @ViewBuilder
-    private var processingText: some View {
-        Text(processingStage.description + animationDots)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .transition(.push(from: .bottom))
-            .id("processing-\(processingStage.description)")
-            .animation(
-                .interpolatingSpring(stiffness: 50, damping: 10),
-                value: processingStage
-            )
-            .padding(.bottom, 1)
-    }
+
     
     @ViewBuilder
     private var searchTextField: some View {
@@ -150,40 +143,16 @@ struct AISearchView: View {
             .task {
                 isSearchFocused = true
             }
-            .transition(.opacity)
-            .animation(.easeInOut(duration: 0.3), value: processingStage)
             .onChange(of: showQueryEditor, {
                 isSearchFocused = true
             })
+            .disabled(processingStage != .idle)
+            .padding(.bottom, processingStage != .idle ? 2 : 0)
     }
     
     // MARK: - Processing Logic
     
-    private func handleProcessingStageChange() async {
-        if processingStage != .idle {
-            await startProcessingAnimation()
-        } else {
-            stopProcessingAnimation()
-        }
-    }
-    
-    private func startProcessingAnimation() async {
-        animationTask = Task {
-            while !Task.isCancelled && processingStage != .idle {
-                animationDots = animationDots.count >= 3 ? "" : animationDots + "."
-                try? await Task.sleep(for: .milliseconds(500))
-            }
-        }
-    }
-    
-    private func stopProcessingAnimation() {
-        animationTask?.cancel()
-        animationTask = nil
-        animationDots = ""
-    }
-    
     private func cancelProcessing() {
-        animationTask?.cancel()
         processingStage = .idle
         // Cancel any ongoing AI request if possible
     }

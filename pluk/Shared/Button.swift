@@ -76,15 +76,11 @@ struct AIBackButtonStyle: ButtonStyle {
             configuration.label
         }
         .padding(6)
-        .overlay(
-            RoundedCorners(tl: 8, tr: 8, bl: 0, br: 8)
-                .stroke(.separator, lineWidth: 1)
-        )
         .background(
-            RoundedCorners(tl: 8, tr: 8, bl: 0, br: 8)
+            RoundedCorners(tl: 8, tr: 8, bl: 8, br: 8)
                 .fill(
                     isHovering
-                    ? (Color(.controlBackgroundColor))
+                    ? (Color(.controlColor))
                         .opacity(0.3)
                     : Color.clear
                 )
