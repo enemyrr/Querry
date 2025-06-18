@@ -49,9 +49,7 @@ struct TwoPhaseLoader: View {
                     .fill(
                         LinearGradient(
                             gradient: Gradient(stops: [
-                                .init(color: .clear, location: 0),
-                                .init(color: .clear, location: 0.6),
-                                .init(color: Color(red: 1.0, green: 0.4, blue: 0.0).opacity(0.3), location: 0.8),
+                                .init(color: Color(red: 1.0, green: 0.4, blue: 0.0).opacity(0.3), location: 0),
                                 .init(color: Color(red: 1.0, green: 0.5, blue: 0.0).opacity(0.15), location: 0.95),
                                 .init(color: .clear, location: 1.0)
                             ]),

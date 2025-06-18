@@ -175,8 +175,10 @@ struct AISearchView: View {
         }
         guard !search.isEmpty else { return }
         
-        processingStage = .writingQuery
-        
+        await MainActor.run {
+            processingStage = .writingQuery
+        }
+
         do {
             filter = try await performAIQuery(databaseService: databaseService, search: search)
             

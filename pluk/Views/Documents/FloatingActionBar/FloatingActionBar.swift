@@ -71,31 +71,31 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-                if !showQueryEditor && !showCreateDocumentSheet {
-                    topRectangleView
-                        .padding(.horizontal, action == .main ? 10 : 16)
-                        .frame(width: containerWidth)
-                        .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
-                        .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
-                        .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
-                    
-                }
+            if !showQueryEditor && !showCreateDocumentSheet {
+                topRectangleView
+                    .padding(.horizontal, action == .main ? 10 : 16)
+                    .frame(width: containerWidth)
+                    .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
+                    .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
+                    .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
                 
-                if !showCreateDocumentSheet && showQueryEditor {
-                    QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
-                        .frame(width: screenWidth * 0.9)
-                }
-                
-                if showCreateDocumentSheet {
-                    //                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
-                    //                        .frame(width: screenWidth * (0.9))
-                }
-                
-                HStack {
-                    switch action {
-                    case .main:
-                        mainView
-                                    case .search:
+            }
+            
+            if !showCreateDocumentSheet && showQueryEditor {
+                QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
+                    .frame(width: screenWidth * 0.9)
+            }
+            
+            if showCreateDocumentSheet {
+                //                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
+                //                        .frame(width: screenWidth * (0.9))
+            }
+            
+            HStack {
+                switch action {
+                case .main:
+                    mainView
+                case .search:
                     AISearchView(
                         filter: $filter,
                         showQueryEditor: showQueryEditor,
@@ -114,49 +114,49 @@ struct FloatingActionBar: View {
                             }
                         })
                     .frame(width: screenWidth * 0.55)
-                    default:
-                        mainView
-                    }
-                    
-                }
-                .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
-                .overlay(
-                    RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
-                        .stroke(.separator, lineWidth: 1)
-                )
-                .overlay(
-                    Group {
-                        TwoPhaseLoader(
-                            isLoading: isLoading,
-                            cornerRadius: action == .main ? 12 : 20
-                        )
-                        Spacer()
-                        
-                        if case .error( _) = viewState {
-                            LoadingErrorIndicator()
-                        }
-                    }
-                )
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear
-                            .onAppear {
-                                containerWidth = geometry.size.width
-                            }
-                            .onChange(of: geometry.size.width) { oldWidth, newWidth in
-                                containerWidth = newWidth
-                            }
-                    }
-                )
-                .task(id: processingStage) {
-                    await handleProcessingStageChange()
-                }
-                .onDisappear {
-                    animationTask?.cancel()
+                default:
+                    mainView
                 }
                 
             }
+            .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
+                    .stroke(.separator, lineWidth: 1)
+            )
+            .overlay(
+                Group {
+                    TwoPhaseLoader(
+                        isLoading: isLoading,
+                        cornerRadius: action == .main ? 12 : 20
+                    )
+                    Spacer()
+                    
+                    if case .error( _) = viewState {
+                        LoadingErrorIndicator()
+                    }
+                }
+            )
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
+            .background(
+                GeometryReader { geometry in
+                    Color.clear
+                        .onAppear {
+                            containerWidth = geometry.size.width
+                        }
+                        .onChange(of: geometry.size.width) { oldWidth, newWidth in
+                            containerWidth = newWidth
+                        }
+                }
+            )
+            .task(id: processingStage) {
+                await handleProcessingStageChange()
+            }
+            .onDisappear {
+                animationTask?.cancel()
+            }
+            
+        }
     }
     
     @State private var isHoveringTopRectangle: Bool = false
@@ -168,34 +168,38 @@ struct FloatingActionBar: View {
             HStack {
                 // Left side content - processing status or query display
                 HStack(spacing: 0) {
-                    if processingStage != .idle {
-                        Text(processingStage.description + animationDots)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .transition(.push(from: .bottom))
-                            .id("processing-\(processingStage.description)")
-                            .animation(
-                                .interpolatingSpring(stiffness: 50, damping: 10),
-                                value: processingStage
-                            )
-                    } else if !filter.isEmpty {
+                    if !filter.isEmpty || processingStage != .idle {
                         // Display the generated query with truncation
                         HStack(spacing: 4) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 10))
                                 .foregroundColor(.orange)
                             
-                            Text(animatedFilterText)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.primary.opacity(0.75))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
+                            if processingStage != .idle {
+                                Text(processingStage.description + animationDots)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .transition(.push(from: .bottom))
+                                    .id("processing-\(processingStage.description)")
+                                    .animation(
+                                        .interpolatingSpring(stiffness: 50, damping: 10),
+                                        value: processingStage
+                                    )
+                                
+                            } else {
+                                Text(animatedFilterText)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.primary.opacity(0.75))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .onAppear {
+                                        animateFilterText()
+                                    }
+                                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                                    .animation(.smooth(duration: 0.3), value: filter)
+                            }
                         }
-                        .onAppear {
-                            animateFilterText()
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .leading)))
-                        .animation(.smooth(duration: 0.3), value: filter)
+                        
                     } else {
                         Text("Query Editor")
                             .font(.system(size: 11))
@@ -230,25 +234,7 @@ struct FloatingActionBar: View {
         .modifier(GlassBackgroundStyleRoundedTop())
         .background(
             Group {
-                if processingStage != .idle {
-                    RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
-                        .fill(
-                            RadialGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: statusColor, location: 0),
-                                    .init(color: statusColor.opacity(0.90), location: 0.5),
-                                    .init(color: statusColor.opacity(0.80), location: 0.8),
-                                    .init(color: statusColor.opacity(0.60), location: 1)
-                                ]),
-                                center: .trailing,
-                                startRadius: 5,
-                                endRadius: 100
-                            )
-                        )
-                        .blur(radius: 6)
-                        .opacity(0.5)
-                        .blendMode(.normal)
-                } else if !filter.isEmpty {
+                if !filter.isEmpty || processingStage != .idle {
                     // Subtle glow when showing active filter
                     RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
                         .fill(
@@ -284,6 +270,7 @@ struct FloatingActionBar: View {
     }
     
     func animateFilterText() {
+        animatedFilterText = ""
         for (index, character) in filter.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.02) {
                 animatedFilterText.append(character)
@@ -612,7 +599,7 @@ struct FloatingActionBar: View {
         animationDots = ""
     }
     
-
+    
 }
 
 enum ActionBar: String, CaseIterable, Codable {
