@@ -68,9 +68,11 @@ struct TwoPhaseLoader: View {
             }
         }
         .onAppear {
-            // Phase 1: Initial load to 7%
-            withAnimation(.easeOut(duration: 0.02)) {
-                progress = 0.15
+            if isLoading == true {
+                // Phase 1: Initial load to 7%
+                withAnimation(.easeOut(duration: 0.02)) {
+                    progress = 0.15
+                }
             }
         }
         .cornerRadius(cornerRadius)
