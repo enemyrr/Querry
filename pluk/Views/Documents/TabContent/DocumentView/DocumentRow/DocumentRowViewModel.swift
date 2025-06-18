@@ -13,7 +13,7 @@ import UInt128
 // MARK: - DocumentRowViewModel
 @Observable class DocumentRowViewModel {
     let document: MongoKitten.Document.FormattedDocument
-    let documentListViewModel: DocumentListModel
+//    let documentListViewModel: DocumentListModel
     
     var updatedDocument: Document
     
@@ -23,9 +23,9 @@ import UInt128
     @ObservationIgnored private var errorMessage: String?
     var isDeleted = false
     
-    init(document: MongoKitten.Document.FormattedDocument, documentListViewModel: DocumentListModel) {
+    init(document: MongoKitten.Document.FormattedDocument,) {
         self.document = document
-        self.documentListViewModel = documentListViewModel
+//        self.documentListViewModel = documentListViewModel
         self.updatedDocument = document.rawDocument
     }
     
@@ -35,13 +35,13 @@ import UInt128
         // Check current state from the source of truth
         let currentAction = getPendingAction()
         
-        if currentAction == action {
-            // Remove the action if it's the same (toggle off)
-            documentListViewModel.removePendingActions(for: document.id)
-        } else {
-            // Set the new action
-            documentListViewModel.addPendingAction(documentId: document.id, action: action ?? .update)
-        }
+//        if currentAction == action {
+//            // Remove the action if it's the same (toggle off)
+//            documentListViewModel.removePendingActions(for: document.id)
+//        } else {
+//            // Set the new action
+//            documentListViewModel.addPendingAction(documentId: document.id, action: action ?? .update)
+//        }
     }
     
 
@@ -49,12 +49,12 @@ import UInt128
     var showCopyFeedback = false
     
     func getPendingAction() -> DocumentAction? {
-        if documentListViewModel.hasPendingAction(documentId: document.id, action: .delete) {
-            return .delete
-        } else if documentListViewModel.hasPendingAction(documentId: document.id, action: .update) {
-            return .update
-        }
-        
+//        if documentListViewModel.hasPendingAction(documentId: document.id, action: .delete) {
+//            return .delete
+//        } else if documentListViewModel.hasPendingAction(documentId: document.id, action: .update) {
+//            return .update
+//        }
+//        
         return nil
     }
     
@@ -89,7 +89,7 @@ import UInt128
     }
     
     func updateEditingDocumentJSON(_ updateData: String) {
-        documentListViewModel.updatePendingActionData(for: document.id, updateData: updateData)
+//        documentListViewModel.updatePendingActionData(for: document.id, updateData: updateData)
   }
 }
 

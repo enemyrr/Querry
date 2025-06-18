@@ -12,28 +12,42 @@ import Observation
 @Observable
 class CreateEditorViewModel {
     // Dependencies
-    private let documentListModel: DocumentListModel
+//    private let documentListModel: DocumentListModel
     
     // Observable properties
     var jsonDocument: String
     var isLoading: Bool = false
     var errorMessage: String? = nil
     
-    init(documentListModel: DocumentListModel) {
-        self.documentListModel = documentListModel
-        
+    init(jsonDocument: String, isLoading: Bool, errorMessage: String? = nil) {
         // Initialize with a default document with a new ObjectId
-        self.jsonDocument = """
-        /** 
-        * Paste one or more documents here
-        */
-        {
-          "_id": {
-            "$oid": "\(ObjectId())"
-          }
-        }
-        """
+             self.jsonDocument = """
+             /**
+             * Paste one or more documents here
+             */
+             {
+               "_id": {
+                 "$oid": "\(ObjectId())"
+               }
+             }
+             """
     }
+    
+//    init(documentListModel: DocumentListModel) {
+//        self.documentListModel = documentListModel
+//        
+//        // Initialize with a default document with a new ObjectId
+//        self.jsonDocument = """
+//        /** 
+//        * Paste one or more documents here
+//        */
+//        {
+//          "_id": {
+//            "$oid": "\(ObjectId())"
+//          }
+//        }
+//        """
+//    }
     
     func saveDocument() async -> Bool {
         isLoading = true
@@ -47,7 +61,7 @@ class CreateEditorViewModel {
                 throw MongoError.invalidData
             }
             
-            try await documentListModel.instance.createDocument(withDocument: document)
+//            try await documentListModel.instance.createDocument(withDocument: document)
             isLoading = false
             return true
         } catch {
@@ -62,7 +76,7 @@ class CreateEditorViewModel {
     }
     
     func loadDocuments() async {
-        await documentListModel.loadDocuments()
+//        await documentListModel.loadDocuments()
     }
     
     func generateNewObjectId() {

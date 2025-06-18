@@ -255,3 +255,22 @@ struct AISearchView: View {
     }
 }
 
+
+// MARK: - Processing Stage Enum
+/// Represents the different stages of query processing
+public enum ProcessingStage: Int {
+    case idle = 0
+    case writingQuery = 1
+    case fetchingData = 2
+    
+    var description: String {
+        switch self {
+        case .idle:
+            return ""
+        case .writingQuery:
+            return "Writing query"
+        case .fetchingData:
+            return "Fetching data"
+        }
+    }
+}

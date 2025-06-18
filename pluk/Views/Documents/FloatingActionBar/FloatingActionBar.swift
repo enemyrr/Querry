@@ -187,15 +187,11 @@ struct FloatingActionBar: View {
                                     )
                                 
                             } else {
-                                Text(animatedFilterText)
+                                Text(filter)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundColor(.primary.opacity(0.75))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
-                                    .onAppear {
-                                        animateFilterText()
-                                    }
-                                    .transition(.opacity.combined(with: .move(edge: .leading)))
                                     .animation(.smooth(duration: 0.3), value: filter)
                             }
                         }
@@ -271,15 +267,6 @@ struct FloatingActionBar: View {
         .animation(.spring(response: 0.2), value: isHoveringTopRectangle)
         .onTapGesture {
             openQueryEditor()
-        }
-    }
-    
-    func animateFilterText() {
-        animatedFilterText = ""
-        for (index, character) in filter.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.02) {
-                animatedFilterText.append(character)
-            }
         }
     }
     

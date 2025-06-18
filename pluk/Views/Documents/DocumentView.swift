@@ -15,17 +15,14 @@ struct DocumentView: View {
         VStack(spacing: 0) {
             TabBar()
                 .padding(.bottom, -1)
-                .zIndex(1)
             
             NSTabViewWrapper()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding([.leading, .trailing, .bottom], 8)
-                .zIndex(-1)
         }
         .id(instance.id)
         .padding(.top, 8)
         .ignoresSafeArea(.all)
-        .zIndex(-1)
         .postHogScreenView("DocumentView")
     }
 }
