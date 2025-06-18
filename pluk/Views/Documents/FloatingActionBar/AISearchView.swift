@@ -110,7 +110,7 @@ struct AISearchView: View {
                     cancelProcessing()
                 }) {
                     Image(systemName: "stop.fill")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .buttonStyle(ChatSendButtonStyle())
             } else {
@@ -120,7 +120,7 @@ struct AISearchView: View {
                     }
                 }) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .buttonStyle(ChatSendButtonStyle())
                 .disabled(search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

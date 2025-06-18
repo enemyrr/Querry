@@ -181,7 +181,7 @@ struct FloatingActionBar: View {
                             
                             Text(filter)
                                 .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.primary.opacity(0.85))
+                                .foregroundColor(.primary.opacity(0.75))
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                         }
@@ -201,9 +201,7 @@ struct FloatingActionBar: View {
                 // Right side - Clear button (always positioned at the end)
                 if !filter.isEmpty {
                     Button(action: {
-                        withAnimation(.smooth(duration: 0.2)) {
-                            filter = ""
-                        }
+                        filter = ""
                         onLoadDocuments(filter)
                     }) {
                         Text("Clear")

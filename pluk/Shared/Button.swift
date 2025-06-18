@@ -335,7 +335,7 @@ struct ChatSendButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(9)      // Vertical padding for height
+            .padding(8)      // Vertical padding for height
             .foregroundColor(isEnabled ? Color(.textBackgroundColor) : .secondary)     // White text color
             .background(
                 Circle()
