@@ -226,8 +226,7 @@ struct AISearchView: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isSubmitAnimating = false
                 processingStage = .idle
-                isSearchFocused = false
-                
+                isSearchFocused = true
             }
         }
         
