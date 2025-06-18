@@ -119,13 +119,13 @@ struct FloatingActionBar: View {
                 RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
                     .stroke(.separator, lineWidth: 1)
             )
-            .background(
+            .overlay(
                 Group {
-                    if action == .main {
-                        GlowingBubbleLoader(
-                            isLoading: isLoading
-                        )
-                    }
+                    TwoPhaseLoader(
+                        isLoading: isLoading,
+                        cornerRadius: action == .main ? 12 : 20
+                    )
+                    Spacer()
                     
                     if case .error( _) = viewState {
                         LoadingErrorIndicator()
@@ -279,12 +279,12 @@ struct FloatingActionBar: View {
     }
     
     func animateFilterText() {
-           for (index, character) in filter.enumerated() {
-               DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.02) {
-                   animatedFilterText.append(character)
-               }
-           }
-       }
+        for (index, character) in filter.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.02) {
+                animatedFilterText.append(character)
+            }
+        }
+    }
     
     private var mainView: some View {
         HStack(spacing: 5) {
