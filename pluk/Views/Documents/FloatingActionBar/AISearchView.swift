@@ -79,7 +79,7 @@ struct AISearchView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.separator, lineWidth: 1)
             )
-            .customHelp("This schema shared with LLM provider for query generation", delay: 0.2, position: .top, shortcut: nil, spacing: 4)
+            .customHelp("This table schema is shared with LLM provider", delay: 0.2, position: .top, shortcut: nil, spacing: 4)
         }
     }
     
