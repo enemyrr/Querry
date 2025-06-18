@@ -71,31 +71,31 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-            if !showQueryEditor && !showCreateDocumentSheet {
-                topRectangleView
-                    .padding(.horizontal, action == .main ? 10 : 16)
-                    .frame(width: containerWidth)
-                    .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
-                    .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
-                    .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
+                if !showQueryEditor && !showCreateDocumentSheet {
+                    topRectangleView
+                        .padding(.horizontal, action == .main ? 10 : 16)
+                        .frame(width: containerWidth)
+                        .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
+                        .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
+                        .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
+                    
+                }
                 
-            }
-            
-            if !showCreateDocumentSheet && showQueryEditor {
-                QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
-                    .frame(width: screenWidth * 0.9)
-            }
-            
-            if showCreateDocumentSheet {
-                //                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
-                //                        .frame(width: screenWidth * (0.9))
-            }
-            
-            HStack {
-                switch action {
-                case .main:
-                    mainView
-                case .search:
+                if !showCreateDocumentSheet && showQueryEditor {
+                    QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
+                        .frame(width: screenWidth * 0.9)
+                }
+                
+                if showCreateDocumentSheet {
+                    //                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
+                    //                        .frame(width: screenWidth * (0.9))
+                }
+                
+                HStack {
+                    switch action {
+                    case .main:
+                        mainView
+                                    case .search:
                     AISearchView(
                         filter: $filter,
                         showQueryEditor: showQueryEditor,
@@ -107,51 +107,56 @@ struct FloatingActionBar: View {
                                 action = .main
                             }
                         },
-                        onLoadDocuments: onLoadDocuments)
+                        onLoadDocuments: onLoadDocuments,
+                        onRefresh: {
+                            if !isLoading {
+                                onRefresh(currentPage, totalPerPage, true)
+                            }
+                        })
                     .frame(width: screenWidth * 0.55)
-                default:
-                    mainView
+                    default:
+                        mainView
+                    }
+                    
+                }
+                .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
+                .overlay(
+                    RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
+                        .stroke(.separator, lineWidth: 1)
+                )
+                .overlay(
+                    Group {
+                        TwoPhaseLoader(
+                            isLoading: isLoading,
+                            cornerRadius: action == .main ? 12 : 20
+                        )
+                        Spacer()
+                        
+                        if case .error( _) = viewState {
+                            LoadingErrorIndicator()
+                        }
+                    }
+                )
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear
+                            .onAppear {
+                                containerWidth = geometry.size.width
+                            }
+                            .onChange(of: geometry.size.width) { oldWidth, newWidth in
+                                containerWidth = newWidth
+                            }
+                    }
+                )
+                .task(id: processingStage) {
+                    await handleProcessingStageChange()
+                }
+                .onDisappear {
+                    animationTask?.cancel()
                 }
                 
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
-            .overlay(
-                RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .overlay(
-                Group {
-                    TwoPhaseLoader(
-                        isLoading: isLoading,
-                        cornerRadius: action == .main ? 12 : 20
-                    )
-                    Spacer()
-                    
-                    if case .error( _) = viewState {
-                        LoadingErrorIndicator()
-                    }
-                }
-            )
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
-            .background(
-                GeometryReader { geometry in
-                    Color.clear
-                        .onAppear {
-                            containerWidth = geometry.size.width
-                        }
-                        .onChange(of: geometry.size.width) { oldWidth, newWidth in
-                            containerWidth = newWidth
-                        }
-                }
-            )
-            .task(id: processingStage) {
-                await handleProcessingStageChange()
-            }
-            .onDisappear {
-                animationTask?.cancel()
-            }
-            
-        }
     }
     
     @State private var isHoveringTopRectangle: Bool = false
@@ -606,6 +611,8 @@ struct FloatingActionBar: View {
         animationTask = nil
         animationDots = ""
     }
+    
+
 }
 
 enum ActionBar: String, CaseIterable, Codable {

@@ -17,6 +17,7 @@ struct AISearchView: View {
     @Binding var processingStage: ProcessingStage
     let onBack: () -> Void
     let onLoadDocuments: (_ filter: String) -> Void
+    let onRefresh: () -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     @FocusState private var isSearchFocused: Bool
@@ -34,7 +35,15 @@ struct AISearchView: View {
         }
         .padding(.top, 10)
         .padding(10)
-
+        // Add refresh keyboard shortcut
+        .overlay(
+            Button("") {
+                onRefresh()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
     }
     
     // MARK: - View Components
@@ -64,7 +73,7 @@ struct AISearchView: View {
     
     @ViewBuilder
     private var leftToolsSection: some View {
-        HStack {
+        HStack(spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: "table")
                     .foregroundStyle(.secondary)
