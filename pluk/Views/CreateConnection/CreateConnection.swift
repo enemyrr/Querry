@@ -35,6 +35,7 @@ struct CreateConnection: View {
             }
         }
     }
+    
 }
 
 
@@ -256,8 +257,9 @@ struct CreateConnectionForm: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: selectedDatabaseType)
+        .postHogScreenView("CreateConnection")
     }
-    
+        
     private var cloudDatabaseView: some View {
         VStack(spacing: 0) {
             // Modern header with back navigation
