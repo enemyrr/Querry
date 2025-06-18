@@ -14,19 +14,15 @@ struct AISearchView: View {
     let showQueryEditor: Bool
     let tableName: String
     @Binding var isSubmitAnimating: Bool
+    @Binding var processingStage: ProcessingStage
     let onBack: () -> Void
     let onLoadDocuments: (_ filter: String) -> Void
+    let onRefresh: () -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     @FocusState private var isSearchFocused: Bool
     @State private var filterQuery: String = ""
-    @State private var processingStage: ProcessingStage = .idle
     @State private var search: String = ""
-    @State private var animationDots: String = ""
-
-    
-    // Timer using async/await instead of Timerd
-    @State private var animationTask: Task<Void, Never>?
     
     var body: some View {
         VStack(spacing: 6) {
@@ -39,12 +35,15 @@ struct AISearchView: View {
         }
         .padding(.top, 10)
         .padding(10)
-        .task(id: processingStage) {
-            await handleProcessingStageChange()
-        }
-        .onDisappear {
-            animationTask?.cancel()
-        }
+        // Add refresh keyboard shortcut
+        .overlay(
+            Button("") {
+                onRefresh()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
     }
     
     // MARK: - View Components
@@ -52,11 +51,7 @@ struct AISearchView: View {
     @ViewBuilder
     private var mainInputSection: some View {
         HStack {
-            if processingStage != .idle {
-                processingText
-            } else {
-                searchTextField
-            }
+            searchTextField
         }
         .frame(maxWidth: .infinity)
     }
@@ -78,7 +73,7 @@ struct AISearchView: View {
     
     @ViewBuilder
     private var leftToolsSection: some View {
-        HStack {
+        HStack(spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: "table")
                     .foregroundStyle(.secondary)
@@ -93,19 +88,38 @@ struct AISearchView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.separator, lineWidth: 1)
             )
-            .customHelp("This schema shared with LLM provider for query generation", position: .right, shortcut: nil, spacing: 6)
+            .customHelp("This table schema is shared with LLM provider", delay: 0.2, position: .top, shortcut: nil, spacing: 4)
         }
     }
     
     @ViewBuilder
     private var rightControlsSection: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .bottom) {
+            Button(action: onBack) {
+                HStack(spacing: 4) {
+                    Text("Close")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Text("ESC")
+                        .font(.caption2)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(.controlColor).opacity(0.3))
+                        )
+                }
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .buttonStyle(AIBackButtonStyle())
+            
             if processingStage != .idle {
                 Button(action: {
                     cancelProcessing()
                 }) {
                     Image(systemName: "stop.fill")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .buttonStyle(ChatSendButtonStyle())
             } else {
@@ -115,7 +129,7 @@ struct AISearchView: View {
                     }
                 }) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .buttonStyle(ChatSendButtonStyle())
                 .disabled(search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -123,19 +137,7 @@ struct AISearchView: View {
         }
     }
     
-    @ViewBuilder
-    private var processingText: some View {
-        Text(processingStage.description + animationDots)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .transition(.push(from: .bottom))
-            .id("processing-\(processingStage.description)")
-            .animation(
-                .interpolatingSpring(stiffness: 50, damping: 10),
-                value: processingStage
-            )
-            .padding(.bottom, 1)
-    }
+
     
     @ViewBuilder
     private var searchTextField: some View {
@@ -150,40 +152,16 @@ struct AISearchView: View {
             .task {
                 isSearchFocused = true
             }
-            .transition(.opacity)
-            .animation(.easeInOut(duration: 0.3), value: processingStage)
             .onChange(of: showQueryEditor, {
                 isSearchFocused = true
             })
+            .disabled(processingStage != .idle)
+            .padding(.bottom, processingStage != .idle ? 2 : 0)
     }
     
     // MARK: - Processing Logic
     
-    private func handleProcessingStageChange() async {
-        if processingStage != .idle {
-            await startProcessingAnimation()
-        } else {
-            stopProcessingAnimation()
-        }
-    }
-    
-    private func startProcessingAnimation() async {
-        animationTask = Task {
-            while !Task.isCancelled && processingStage != .idle {
-                animationDots = animationDots.count >= 3 ? "" : animationDots + "."
-                try? await Task.sleep(for: .milliseconds(500))
-            }
-        }
-    }
-    
-    private func stopProcessingAnimation() {
-        animationTask?.cancel()
-        animationTask = nil
-        animationDots = ""
-    }
-    
     private func cancelProcessing() {
-        animationTask?.cancel()
         processingStage = .idle
         // Cancel any ongoing AI request if possible
     }
@@ -197,8 +175,10 @@ struct AISearchView: View {
         }
         guard !search.isEmpty else { return }
         
-        processingStage = .writingQuery
-        
+        await MainActor.run {
+            processingStage = .writingQuery
+        }
+
         do {
             filter = try await performAIQuery(databaseService: databaseService, search: search)
             
@@ -257,8 +237,7 @@ struct AISearchView: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isSubmitAnimating = false
                 processingStage = .idle
-                isSearchFocused = false
-                
+                isSearchFocused = true
             }
         }
         
@@ -276,3 +255,22 @@ struct AISearchView: View {
     }
 }
 
+
+// MARK: - Processing Stage Enum
+/// Represents the different stages of query processing
+public enum ProcessingStage: Int {
+    case idle = 0
+    case writingQuery = 1
+    case fetchingData = 2
+    
+    var description: String {
+        switch self {
+        case .idle:
+            return ""
+        case .writingQuery:
+            return "Writing query"
+        case .fetchingData:
+            return "Fetching data"
+        }
+    }
+}

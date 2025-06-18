@@ -32,7 +32,12 @@ struct FloatingActionBar: View {
     @State private var showQueryUpdateAnimation = false
     @State private var previousFilter: String = ""
     @State private var isSubmitAnimating: Bool = false
-
+    
+    // MARK: - Processing State
+    @State private var processingStage: ProcessingStage = .idle
+    @State private var animationDots: String = ""
+    @State private var animationTask: Task<Void, Never>?
+    
     // MARK: - Pagination
     @State var currentPage = 1
     @State var totalPages = 1
@@ -73,7 +78,7 @@ struct FloatingActionBar: View {
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
                     .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
                     .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
-
+                
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -96,12 +101,18 @@ struct FloatingActionBar: View {
                         showQueryEditor: showQueryEditor,
                         tableName: tableName,
                         isSubmitAnimating: $isSubmitAnimating,
+                        processingStage: $processingStage,
                         onBack: {
                             withAnimation(.spring(response: 0.3)) {
                                 action = .main
                             }
                         },
-                        onLoadDocuments: onLoadDocuments)
+                        onLoadDocuments: onLoadDocuments,
+                        onRefresh: {
+                            if !isLoading {
+                                onRefresh(currentPage, totalPerPage, true)
+                            }
+                        })
                     .frame(width: screenWidth * 0.55)
                 default:
                     mainView
@@ -113,13 +124,13 @@ struct FloatingActionBar: View {
                 RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
                     .stroke(.separator, lineWidth: 1)
             )
-            .background(
+            .overlay(
                 Group {
-                    if action == .main {
-                        GlowingBubbleLoader(
-                            isLoading: isLoading
-                        )
-                    }
+                    TwoPhaseLoader(
+                        isLoading: isLoading,
+                        cornerRadius: action == .main ? 12 : 20
+                    )
+                    Spacer()
                     
                     if case .error( _) = viewState {
                         LoadingErrorIndicator()
@@ -138,68 +149,118 @@ struct FloatingActionBar: View {
                         }
                 }
             )
-           
+            .task(id: processingStage) {
+                await handleProcessingStageChange()
+            }
+            .onDisappear {
+                animationTask?.cancel()
+            }
+            
         }
     }
     
     @State private var isHoveringTopRectangle: Bool = false
+    @State private var animatedFilterText: String = ""
+    var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
     
     private var topRectangleView: some View {
         VStack {
             HStack {
-                if action == .search {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3)) {
-                            action = .main
+                // Left side content - processing status or query display
+                HStack(spacing: 0) {
+                    if !filter.isEmpty || processingStage != .idle {
+                        // Display the generated query with truncation
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10))
+                                .foregroundColor(.orange)
+                            
+                            if processingStage != .idle {
+                                Text(processingStage.description + animationDots)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .transition(.push(from: .bottom))
+                                    .id("processing-\(processingStage.description)")
+                                    .animation(
+                                        .interpolatingSpring(stiffness: 50, damping: 10),
+                                        value: processingStage
+                                    )
+                                
+                            } else {
+                                Text(filter)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.primary.opacity(0.75))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .animation(.smooth(duration: 0.3), value: filter)
+                            }
                         }
-                    }) {
-                        Image(systemName: "arrow.backward")
+                        
+                    } else {
+                        Text("Query Editor")
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
+                            .transition(.opacity)
                     }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .customHelp("Go back", position: .top, shortcut: KeyboardShortcut(
-                        modifiers: [],
-                        key: "Escape"
-                    ), spacing: 6)
-                    .buttonStyle(AIBackButtonStyle())
-                    .padding(-8)
-                    .padding(.trailing, 6)
                 }
-                
-                Text("Query Editor")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Spacer()
                 
+                // Right side - Clear button (always positioned at the end)
                 if !filter.isEmpty {
                     Button(action: {
                         filter = ""
                         onLoadDocuments(filter)
                     }) {
                         Text("Clear")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
-                    .padding([.vertical, .trailing], -4)
+                    .keyboardShortcut(.delete, modifiers: [.command, .shift])
+                    .customHelp("Clear filter", position: .top, shortcut: KeyboardShortcut(
+                        modifiers: [.command, .shift],
+                        key: "DELETE"
+                    ), spacing: 10)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    .animation(.smooth(duration: 0.2), value: filter.isEmpty)
                 }
             }
         }
         .padding(.top, 6)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
         .padding(.bottom, isHoveringTopRectangle ? 8 : 5)
-        .modifier(
-            GlassBackgroundStyleRoundedTop()
+        .modifier(GlassBackgroundStyleRoundedTop())
+        .background(
+            Group {
+                if !filter.isEmpty || processingStage != .idle {
+                    // Subtle glow when showing active filter
+                    RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(stops: [
+                                    .init(color: .orange, location: 0),
+                                    .init(color: .orange.opacity(0.3), location: 0.8),
+                                    .init(color: .clear, location: 1)
+                                ]),
+                                center: .leading,
+                                startRadius: 2,
+                                endRadius: 50
+                            )
+                        )
+                        .blur(radius: 3)
+                        .opacity(0.3)
+                }
+            }
         )
         .overlay(
             RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
         )
         .shadow(color: isHoveringTopRectangle ? Color.black.opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)
-        .contentShape(Rectangle()) // Ensure the entire area is interactive
+        .contentShape(Rectangle())
         .onHover { hovering in
             isHoveringTopRectangle = hovering
         }
@@ -504,6 +565,33 @@ struct FloatingActionBar: View {
             }
         }
     }
+    
+    // MARK: - Processing Animation Methods
+    
+    private func handleProcessingStageChange() async {
+        if processingStage != .idle {
+            await startProcessingAnimation()
+        } else {
+            stopProcessingAnimation()
+        }
+    }
+    
+    private func startProcessingAnimation() async {
+        animationTask = Task {
+            while !Task.isCancelled && processingStage != .idle {
+                animationDots = animationDots.count >= 3 ? "" : animationDots + "."
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+    
+    private func stopProcessingAnimation() {
+        animationTask?.cancel()
+        animationTask = nil
+        animationDots = ""
+    }
+    
+    
 }
 
 enum ActionBar: String, CaseIterable, Codable {
@@ -511,3 +599,4 @@ enum ActionBar: String, CaseIterable, Codable {
     case search = "search"
     case create = "create"
 }
+

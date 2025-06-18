@@ -12,7 +12,6 @@ import MongoKitten
 
 struct CreateEditor: View {
     // MARK: - Dependencies
-    @State private var viewModel: CreateEditorViewModel
     @Binding var showCreateDocumentSheet: Bool
     
     // MARK: - View State
@@ -23,8 +22,8 @@ struct CreateEditor: View {
     @State private var saveSuccess: Bool = false
     
     // MARK: - Initialization
-    init(documentListModel: DocumentListModel, showCreateDocumentSheet: Binding<Bool>) {
-        self._viewModel = State(initialValue: CreateEditorViewModel(documentListModel: documentListModel))
+    init(showCreateDocumentSheet: Binding<Bool>) {
+//        self._viewModel = State(initialValue: CreateEditorViewModel(documentListModel: documentListModel))
         self._showCreateDocumentSheet = showCreateDocumentSheet
     }
     
@@ -87,26 +86,26 @@ struct CreateEditor: View {
     
     private func handleSave() {
         Task {
-            let success = await viewModel.saveDocument()
-            if success {
-                // Show success feedback
-                await MainActor.run {
-                    withAnimation(.easeIn(duration: 0.2)) {
-                        saveSuccess = true
-                    }
-                }
-                
-                // Reload documents
-                _ = await viewModel.loadDocuments()
-                
-                // Wait for success animation to be visible (delay closing)
-                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
-                
-                // Close the editor
-                await MainActor.run {
-                    closeWithAnimation()
-                }
-            }
+//            let success = await viewModel.saveDocument()
+//            if success {
+//                // Show success feedback
+//                await MainActor.run {
+//                    withAnimation(.easeIn(duration: 0.2)) {
+//                        saveSuccess = true
+//                    }
+//                }
+//                
+//                // Reload documents
+//                _ = await viewModel.loadDocuments()
+//                
+//                // Wait for success animation to be visible (delay closing)
+//                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
+//                
+//                // Close the editor
+//                await MainActor.run {
+//                    closeWithAnimation()
+//                }
+//            }
         }
     }
     
@@ -119,45 +118,45 @@ struct CreateEditor: View {
                 
                 Spacer()
                 
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                
-                Button(action: handleSave) {
-                    ZStack {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .opacity(viewModel.isLoading ? 1 : 0)
-                            .animation(.easeIn, value: viewModel.isLoading)
-                        
-                        Text("Save")
-                    }
-                    .frame(minWidth: 80)
-                }
-                .if(saveSuccess) { view in
-                    view.buttonStyle(SuccessButtonStyle())
-                } else: { view in
-                    view.buttonStyle(OutlineButtonStyle())
-                }
-                .disabled(viewModel.isLoading || saveSuccess)
+//                if let error = viewModel.errorMessage {
+//                    Text(error)
+//                        .font(.system(size: 10))
+//                        .foregroundColor(.red)
+//                        .lineLimit(1)
+//                        .truncationMode(.tail)
+//                }
+//                
+//                Button(action: handleSave) {
+//                    ZStack {
+//                        ProgressView()
+//                            .controlSize(.mini)
+//                            .opacity(viewModel.isLoading ? 1 : 0)
+//                            .animation(.easeIn, value: viewModel.isLoading)
+//                        
+//                        Text("Save")
+//                    }
+//                    .frame(minWidth: 80)
+//                }
+//                .if(saveSuccess) { view in
+//                    view.buttonStyle(SuccessButtonStyle())
+//                } else: { view in
+//                    view.buttonStyle(OutlineButtonStyle())
+//                }
+//                .disabled(viewModel.isLoading || saveSuccess)
             }
             .padding([.top, .horizontal, .bottom], 8)
             
-            CodeEditor(text: $viewModel.jsonDocument, position: $position, messages: $messages, language: .mongodb())
-                .environment(\.codeEditorTheme, Theme.defaultDark)
-                .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.separator, lineWidth: 1)
-                )
-                .padding(.bottom, 2)
-                .cornerRadius(10)
-                .frame(height: isExpanded ? 320 : 0) // Collapse height when not expanded
-                .disabled(viewModel.isLoading || saveSuccess)
+//            CodeEditor(text: $viewModel.jsonDocument, position: $position, messages: $messages, language: .mongodb())
+//                .environment(\.codeEditorTheme, Theme.defaultDark)
+//                .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
+//                .overlay(
+//                    RoundedRectangle(cornerRadius: 10)
+//                        .stroke(.separator, lineWidth: 1)
+//                )
+//                .padding(.bottom, 2)
+//                .cornerRadius(10)
+//                .frame(height: isExpanded ? 320 : 0) // Collapse height when not expanded
+//                .disabled(viewModel.isLoading || saveSuccess)
         }
     }
 }

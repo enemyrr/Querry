@@ -71,7 +71,7 @@ struct HomeView: View {
             .cornerRadius(20)
             .padding(8)
         }
-        .postHogScreenView()
+        .postHogScreenView("HomeView")
     }
 }
 

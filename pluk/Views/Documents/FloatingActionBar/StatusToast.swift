@@ -1,5 +1,5 @@
 //
-//  FloatingActionBar.swift
+//  StatusToast.swift
 //  Collection
 //
 //  Created by Fauzaan on 2/26/25.

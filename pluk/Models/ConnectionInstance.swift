@@ -51,9 +51,6 @@ import AIProxy
     var connectionVersion: String?
     var lastError: Error?
     
-    @ObservationIgnored
-    var documentViewModels: [UUID: DocumentListModel] = [:]
-    
     // UI State
     var tabs: [DatabaseTab] = []
     

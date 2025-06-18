@@ -27,4 +27,8 @@ extension Bundle {
     var buildNumber: String {
         return infoDictionary?["CFBundleVersion"] as! String
     }
+    
+    var appVersion: String {
+        return infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
 }
