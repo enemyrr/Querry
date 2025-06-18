@@ -222,6 +222,11 @@ struct FloatingActionBar: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
+                    .keyboardShortcut(.delete, modifiers: [.command, .shift])
+                    .customHelp("Clear filter", position: .top, shortcut: KeyboardShortcut(
+                        modifiers: [.command, .shift],
+                        key: "DELETE"
+                    ), spacing: 10)
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
                     .animation(.smooth(duration: 0.2), value: filter.isEmpty)
                 }
