@@ -21,7 +21,7 @@ struct AboutView: View {
                 Text("Pluk")
                     .font(.system(size: 28, weight: .regular))
                 
-                Text("Version \(Bundle.main.appVersion) (\(Bundle.main.buildNumber))")
+                Text("Version \(Bundle.main.appVersion)")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                 
