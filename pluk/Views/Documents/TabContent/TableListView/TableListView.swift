@@ -20,28 +20,25 @@ struct TableListView: View {
     @State private var cachedTabName: String?
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                VStack {
-                    if cachedSchema != nil || currentQueryResult != nil {
-                        TableListViewController(
-                            schema: cachedSchema,
-                            queryResult: currentQueryResult
-                        )
-                    }
+        ZStack {
+            VStack {
+                if cachedSchema != nil || currentQueryResult != nil {
+                    TableListViewController(
+                        schema: cachedSchema,
+                        queryResult: currentQueryResult
+                    )
                 }
-                .overlay {
-                    overlayContent
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.controlBackgroundColor).opacity(0.2))
-                .cornerRadius(20)
             }
+            .overlay {
+                overlayContent
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.controlBackgroundColor).opacity(0.5))
+            .cornerRadius(20)
             
             VStack {
                 Spacer()
                 FloatingActionBar(
-                    screenWidth: geometry.size.width,
                     viewState: viewState,
                     tableName: selectedTab.name,
                     onRefresh: { currentPage, itemsPerPage, fetchSchema in
@@ -66,20 +63,19 @@ struct TableListView: View {
                 )
                 .padding(.bottom, 10)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .task(id: selectedTab.name) {
+        }
+        .task(id: selectedTab.name) {
+            await loadDocumentsIfNeeded()
+        }
+        .onChange(of: searchFilter) { _, newValue in
+            Task {
+                await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+            }
+        }
+        .onChange(of: instance.id) { _, _ in
+            clearCache()
+            Task {
                 await loadDocumentsIfNeeded()
-            }
-            .onChange(of: searchFilter) { _, newValue in
-                Task {
-                    await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
-                }
-            }
-            .onChange(of: instance.id) { _, _ in
-                clearCache()
-                Task {
-                    await loadDocumentsIfNeeded()
-                }
             }
         }
     }

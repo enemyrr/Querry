@@ -9,7 +9,6 @@ import SwiftUI
 import MongoKitten
 
 struct FloatingActionBar: View {
-    let screenWidth: CGFloat
     var viewState: TableListViewState
     let tableName: String
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
@@ -17,7 +16,7 @@ struct FloatingActionBar: View {
     
     @Environment(ConnectionInstance.self) private var instance
     
-    @State private var containerWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 200
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -60,6 +59,7 @@ struct FloatingActionBar: View {
     
     @State private var debouncedIsLoading: Bool = false
     @State private var debounceTask: Task<Void, Never>?
+    private let screenWidth = NSScreen.main?.frame.width ?? 200
     
     var body: some View {
         Button("") {
@@ -83,7 +83,7 @@ struct FloatingActionBar: View {
             
             if !showCreateDocumentSheet && showQueryEditor {
                 QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
-                    .frame(width: screenWidth * 0.9)
+                    .padding(.horizontal, 80)
             }
             
             if showCreateDocumentSheet {
@@ -113,7 +113,7 @@ struct FloatingActionBar: View {
                                 onRefresh(currentPage, totalPerPage, true)
                             }
                         })
-                    .frame(width: screenWidth * 0.55)
+                    .frame(maxWidth: 500)
                 default:
                     mainView
                 }
@@ -125,18 +125,17 @@ struct FloatingActionBar: View {
                     .stroke(.separator, lineWidth: 1)
             )
             .overlay(
-                Group {
-                    TwoPhaseLoader(
-                        isLoading: isLoading,
-                        cornerRadius: action == .main ? 12 : 20
-                    )
-                    Spacer()
-                    
-                    if case .error( _) = viewState {
-                        LoadingErrorIndicator()
-                    }
-                }
+                TwoPhaseLoader(
+                    containerWidth: containerWidth,
+                    isLoading: isLoading,
+                    cornerRadius: action == .main ? 12 : 20
+                )
             )
+            .overlay(alignment: .center) {
+                if case .error = viewState {
+                    LoadingErrorIndicator()
+                }
+            }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
             .background(
                 GeometryReader { geometry in
@@ -155,7 +154,6 @@ struct FloatingActionBar: View {
             .onDisappear {
                 animationTask?.cancel()
             }
-            
         }
     }
     
@@ -323,6 +321,7 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "R"
             ), spacing: 10)
+
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
@@ -472,8 +471,6 @@ struct FloatingActionBar: View {
             }
         }
     }
-    
-    
     
     // MARK: - Action Buttons
     struct DeleteActionButton: View {
