@@ -8,6 +8,7 @@ import SwiftUI
 
 struct TwoPhaseLoader: View {
     @State private var progress: CGFloat = 0
+    @State private var opacity: Double = 1.0
     var containerWidth: CGFloat = 286
     let isLoading: Bool
     let cornerRadius: CGFloat
@@ -43,8 +44,8 @@ struct TwoPhaseLoader: View {
                 )
                 .shadow(color: Color(red: 1.0, green: 0.4, blue: 0.0).opacity(0.6), radius: 8, x: 0, y: 0)
                 .shadow(color: Color(red: 1.0, green: 0.4, blue: 0.0).opacity(0.3), radius: 16, x: 0, y: 0)
-//            
-//            // Heat trail glow effect
+            
+            // Heat trail glow effect
             Rectangle()
                 .fill(
                     LinearGradient(
@@ -67,34 +68,32 @@ struct TwoPhaseLoader: View {
                     .frame(width: containerWidth)
             }
         }
+        .opacity(opacity)
         .onAppear {
             if isLoading == true {
-                // Phase 1: Initial load to 7%
-                withAnimation(.easeOut(duration: 0.02)) {
-                    progress = 0.15
-                }
+                // Phase 1: Initial load to 15% (no animation to avoid center-out effect)
+                progress = 0.15
             }
         }
         .cornerRadius(cornerRadius)
         .onChange(of: isLoading) { oldValue, newValue in
-            print(oldValue, newValue)
             if !newValue {
-                print("Continue")
-                // Phase 2: Complete the loading (7% to 100%)
+                // Phase 2: Complete the loading (15% to 100%)
                 withAnimation(.easeInOut(duration: 0.05)) {
                     progress = 1.0
                 }
                 
-                // Optional: Hide the loader after completion
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    progress = 0
+                // Simple fade out after 1 second (no animation curve)
+                withAnimation(.linear(duration: 0.1).delay(1.0)) {
+                    opacity = 0.0
                 }
             } else {
-                print("Reset")
-//                // Reset to 7% when loading starts again
-//                withAnimation(.easeOut(duration: 0.2)) {
-//                    progress = 0.15
-//                }
+                // Reset opacity and progress when loading starts again
+                opacity = 1.0
+                progress = 0.0
+                withAnimation(.easeOut(duration: 0.02)) {
+                    progress = 0.15
+                }
             }
         }
     }

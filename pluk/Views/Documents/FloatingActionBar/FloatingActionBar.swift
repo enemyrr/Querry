@@ -321,7 +321,7 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "R"
             ), spacing: 10)
-
+            
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
