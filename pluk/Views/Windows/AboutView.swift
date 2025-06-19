@@ -21,8 +21,9 @@ struct AboutView: View {
                 Text("Pluk")
                     .font(.system(size: 28, weight: .regular))
                 
-                Text("Version \(Bundle.main.appVersion)")
+                Text("Version \(Bundle.main.appVersion) (\(Bundle.main.buildNumber))")
                     .font(.system(size: 12))
+                    .textSelection(.enabled)
                     .foregroundColor(.secondary)
                 
                 Text("Copyright © 2025 Pluk, Inc. All rights reserved")

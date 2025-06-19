@@ -52,5 +52,205 @@
             landmarkType = "24">
          </BreakpointContent>
       </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "C130CD1F-5259-412A-9C67-B556A3DB6BA9"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "174"
+            endingLineNumber = "174"
+            landmarkName = "createColumn(identifier:title:icon:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "FFBF6D73-0DE3-48AC-9205-F2AB7744C112"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "168"
+            endingLineNumber = "168"
+            landmarkName = "createColumn(identifier:title:icon:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B029D69A-E2EB-408A-98F6-82F909AAC228"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "164"
+            endingLineNumber = "164"
+            landmarkName = "createColumn(identifier:title:icon:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "198185F8-62FF-4CBB-8255-BBBE51F3C8B3"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "515"
+            endingLineNumber = "515"
+            landmarkName = "tableView(_:sizeToFitWidthOfColumn:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "198185F8-62FF-4CBB-8255-BBBE51F3C8B3 - 67ca6df08926eccf"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "515"
+                  endingLineNumber = "515">
+               </Location>
+               <Location
+                  uuid = "198185F8-62FF-4CBB-8255-BBBE51F3C8B3 - 67ca6df08926ed09"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "517"
+                  endingLineNumber = "517">
+               </Location>
+               <Location
+                  uuid = "198185F8-62FF-4CBB-8255-BBBE51F3C8B3 - 67ca6df08926ed09"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "517"
+                  endingLineNumber = "517">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "7315A84C-C613-47BE-B954-449F236D19CD"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "514"
+            endingLineNumber = "514"
+            landmarkName = "tableView(_:sizeToFitWidthOfColumn:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "7315A84C-C613-47BE-B954-449F236D19CD - 67ca6df08926ecec"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "514"
+                  endingLineNumber = "514">
+               </Location>
+               <Location
+                  uuid = "7315A84C-C613-47BE-B954-449F236D19CD - 67ca6df08926ecec"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "514"
+                  endingLineNumber = "514">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "DF240692-7B51-4422-94FA-6452BEBF9B0B"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "512"
+            endingLineNumber = "512"
+            landmarkName = "tableView(_:sizeToFitWidthOfColumn:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "DF240692-7B51-4422-94FA-6452BEBF9B0B - 67ca6df08926ecec"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "514"
+                  endingLineNumber = "514">
+               </Location>
+               <Location
+                  uuid = "DF240692-7B51-4422-94FA-6452BEBF9B0B - 67ca6df08926ecec"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Pluk.TableListViewController.Coordinator.tableView(_: __C.NSTableView, sizeToFitWidthOfColumn: Swift.Int) -&gt; CoreGraphics.CGFloat"
+                  moduleName = "Pluk.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "514"
+                  endingLineNumber = "514">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
    </Breakpoints>
 </Bucket>

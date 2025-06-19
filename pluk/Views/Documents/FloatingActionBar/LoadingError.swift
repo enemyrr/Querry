@@ -13,6 +13,7 @@
 import SwiftUI
 
 struct LoadingErrorIndicator: View {
+    let cornerRadius: CGFloat
     var statusColor: Color = .red
     var height: CGFloat = 6
     var animationDuration: Double = 1.5
@@ -84,9 +85,9 @@ struct LoadingErrorIndicator: View {
                         .blendMode(.plusLighter)
                 }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(
                         statusColor.opacity(0.65)) // Increased border opacity
                     .blendMode(.plusLighter)

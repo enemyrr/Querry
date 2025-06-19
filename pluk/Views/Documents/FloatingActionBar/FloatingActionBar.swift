@@ -133,7 +133,7 @@ struct FloatingActionBar: View {
             )
             .overlay(alignment: .center) {
                 if case .error = viewState {
-                    LoadingErrorIndicator()
+                    LoadingErrorIndicator(cornerRadius: action == .main ? 12 : 20)
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)

@@ -25,7 +25,8 @@ struct TableListView: View {
                 if cachedSchema != nil || currentQueryResult != nil {
                     TableListViewController(
                         schema: cachedSchema,
-                        queryResult: currentQueryResult
+                        queryResult: currentQueryResult,
+                        tableName: selectedTab.name
                     )
                 }
             }
