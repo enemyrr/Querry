@@ -14,10 +14,15 @@ struct TableListView: View {
     
     @State private var viewState: TableListViewState = .loading
     @State private var searchFilter: String = ""
+    @State private var sortColumn: String?
+    @State private var sortAscending: Bool = true
     
     @State private var cachedSchema: DatabaseSchemaResult?
     @State private var cachedDocuments: QueryResult?
     @State private var cachedTabName: String?
+    
+    // Task management for preventing race conditions
+    @State private var loadingTask: Task<Void, Never>?
     
     var body: some View {
         ZStack {
@@ -28,7 +33,12 @@ struct TableListView: View {
                         queryResult: currentQueryResult,
                         tableName: selectedTab.name,
                         onSort: { column, ascending in
-                            //                            refreshData(sortBy: column, ascending: ascending)
+                            sortColumn = column
+                            sortAscending = ascending
+                            loadingTask?.cancel()
+                            loadingTask = Task {
+                                await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+                            }
                         }
                     )
                 }
@@ -72,15 +82,20 @@ struct TableListView: View {
             await loadDocumentsIfNeeded()
         }
         .onChange(of: searchFilter) { _, newValue in
-            Task {
+            loadingTask?.cancel()
+            loadingTask = Task {
                 await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
             }
         }
         .onChange(of: instance.id) { _, _ in
+            loadingTask?.cancel()
             clearCache()
-            Task {
+            loadingTask = Task {
                 await loadDocumentsIfNeeded()
             }
+        }
+        .onDisappear {
+            loadingTask?.cancel()
         }
     }
     
@@ -142,6 +157,9 @@ struct TableListView: View {
             return
         }
         
+        // Check if task was cancelled before proceeding
+        if Task.isCancelled { return }
+        
         // If not forcing fetch and we have cached data for the same tab, use it
         if !forceFetch &&
             cachedTabName == selectedTab.name,
@@ -154,6 +172,9 @@ struct TableListView: View {
         do {
             viewState = .loading
             
+            // Check if task was cancelled after setting loading state
+            if Task.isCancelled { return }
+            
             // Determine what to fetch
             let schemaToUse: DatabaseSchemaResult
             let documentsResult: QueryResult
@@ -165,10 +186,15 @@ struct TableListView: View {
                     in: selectedTab.name,
                     filter: searchFilter,
                     skip: (page - 1) * limit,
-                    limit: limit
+                    limit: limit,
+                    sortBy: sortColumn,
+                    ascending: sortAscending
                 )
                 
                 let (schema, documents) = try await (schemaTask, documentsTask)
+                
+                // Check if task was cancelled after async operations
+                if Task.isCancelled { return }
                 
                 guard let schema = schema else {
                     viewState = .error("Could not load schema")
@@ -191,12 +217,20 @@ struct TableListView: View {
                     in: selectedTab.name,
                     filter: searchFilter,
                     skip: (page - 1) * limit,
-                    limit: limit
+                    limit: limit,
+                    sortBy: sortColumn,
+                    ascending: sortAscending
                 )
+                
+                // Check if task was cancelled after document fetch
+                if Task.isCancelled { return }
                 
                 schemaToUse = schema
                 documentsResult = documents
             }
+            
+            // Final check before updating state
+            if Task.isCancelled { return }
             
             // Cache the results
             cachedDocuments = documentsResult
@@ -227,9 +261,12 @@ struct TableListView: View {
     
     /// Clear cache when needed (e.g., connection changes)
     func clearCache() {
+        loadingTask?.cancel()
         cachedSchema = nil
         cachedDocuments = nil
         cachedTabName = nil
+        sortColumn = nil
+        sortAscending = true
         viewState = .loading
     }
     

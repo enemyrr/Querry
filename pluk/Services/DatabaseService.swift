@@ -66,7 +66,9 @@ class DatabaseService {
         in collectionName: String,
         filter: String = "",
         skip: Int = 0,
-        limit: Int = 300
+        limit: Int = 300,
+        sortBy: String?,
+        ascending: Bool?
     ) async throws -> QueryResult {
         guard let driver = activeDriver,
               let connection = activeConnection else {
@@ -81,7 +83,9 @@ class DatabaseService {
                 in: collectionName,
                 filter: ["rawQuery": filter],
                 skip: skip,
-                limit: limit
+                limit: limit,
+                sortBy: sortBy,
+                ascending: ascending
             )
             
         case .mongodb:

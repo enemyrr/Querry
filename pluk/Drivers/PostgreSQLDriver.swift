@@ -351,6 +351,10 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
+        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -362,13 +366,23 @@ class PostgreSQLDriver: DatabaseDriver {
                 // Use the raw query directly
                 query = PostgresQuery(stringLiteral: rawQuery)
             } else {
-                // Build standard query with optional WHERE clause
+                // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
-                if whereClause.isEmpty {
-                    query = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT \(limit) OFFSET \(skip)"
-                } else {
-                    query = "SELECT * FROM \(unescaped: sanitizedCollectionName) WHERE \(unescaped: whereClause) LIMIT \(limit) OFFSET \(skip)"
+                let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending)
+                
+                var queryString = "SELECT * FROM \(sanitizedCollectionName)"
+                
+                if !whereClause.isEmpty {
+                    queryString += " WHERE \(whereClause)"
                 }
+                
+                if !orderByClause.isEmpty {
+                    queryString += " \(orderByClause)"
+                }
+                
+                queryString += " LIMIT \(limit) OFFSET \(skip)"
+                
+                query = PostgresQuery(stringLiteral: queryString)
             }
             
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
@@ -943,6 +957,51 @@ class PostgreSQLDriver: DatabaseDriver {
         }
         
         return conditions.joined(separator: " AND ")
+    }
+    
+    private func buildOrderByClause(sortBy: String?, ascending: Bool?) -> String {
+        guard let sortBy = sortBy, !sortBy.isEmpty else { return "" }
+        
+        // Validate column name to prevent SQL injection
+        do {
+            let sanitizedColumn = try validateAndSanitizeColumnName(sortBy)
+            let direction = ascending == false ? "DESC" : "ASC"
+            return "ORDER BY \(sanitizedColumn) \(direction)"
+        } catch {
+            // If column validation fails, don't add ORDER BY clause
+            return ""
+        }
+    }
+    
+    private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
+        let trimmed = columnName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check if the column name is empty
+        if trimmed.isEmpty {
+            throw DatabaseError.configurationError("Column name cannot be empty")
+        }
+        
+        // PostgreSQL column name rules (similar to identifier rules)
+        if trimmed.count > 63 {
+            throw DatabaseError.configurationError("Column name too long (max 63 characters)")
+        }
+        
+        // Check if it starts with letter or underscore
+        guard let firstChar = trimmed.first,
+              firstChar.isLetter || firstChar == "_" else {
+            throw DatabaseError.configurationError("Column name must start with letter or underscore")
+        }
+        
+        // Check for valid characters
+        let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_$"))
+        for char in trimmed.unicodeScalars {
+            if !validCharacters.contains(char) {
+                throw DatabaseError.configurationError("Column name contains invalid characters")
+            }
+        }
+        
+        // Return properly quoted column name for PostgreSQL
+        return "\"\(trimmed)\""
     }
     
     private func mapPSQLError(_ error: PSQLError) -> DatabaseError {

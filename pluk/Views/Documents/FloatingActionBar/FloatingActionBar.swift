@@ -152,7 +152,11 @@ struct FloatingActionBar: View {
                 await handleProcessingStageChange()
             }
             .onDisappear {
+                // Cancel all active tasks to prevent crashes
                 animationTask?.cancel()
+                loadingTask?.cancel()
+                errorTask?.cancel()
+                debounceTask?.cancel()
             }
         }
     }
@@ -284,6 +288,10 @@ struct FloatingActionBar: View {
             
             Button(action: {
                 if !isLoading {
+                    // Cancel any existing loading operations before starting new one
+                    loadingTask?.cancel()
+                    debounceTask?.cancel()
+                    
                     onRefresh(currentPage, totalPerPage, true)
                 }
             }) {
@@ -295,7 +303,7 @@ struct FloatingActionBar: View {
                     .frame(width: 16, height: 16)
                     .contentShape(Rectangle())
                     .onChange(of: isLoading) { oldValue, newValue in
-                        // Cancel previous debounce
+                        // Cancel previous debounce task
                         debounceTask?.cancel()
                         
                         if newValue {
@@ -303,12 +311,15 @@ struct FloatingActionBar: View {
                             debouncedIsLoading = true
                         } else {
                             // Debounce the loading -> stopped transition
-                            debounceTask = Task {
-                                try? await Task.sleep(for: .milliseconds(400))
-                                if !Task.isCancelled {
-                                    await MainActor.run {
+                            debounceTask = Task { @MainActor in
+                                do {
+                                    try await Task.sleep(for: .milliseconds(400))
+                                    // Double-check we haven't been cancelled and loading hasn't restarted
+                                    if !Task.isCancelled && !isLoading {
                                         debouncedIsLoading = false
                                     }
+                                } catch {
+                                    // Task was cancelled, ignore
                                 }
                             }
                         }

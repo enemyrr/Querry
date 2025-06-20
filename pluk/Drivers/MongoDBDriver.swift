@@ -109,12 +109,22 @@ class MongoDBDriver: DatabaseDriver {
     
     
     func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
+        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
         
         let collection = mongoDatabase[collectionName]
-        let query = collection.find().skip(skip).limit(limit)
+        var query = collection.find().skip(skip).limit(limit)
+        
+        // Add sorting if specified
+        if let sortBy = sortBy {
+            let sortOrder: Int32 = ascending == false ? -1 : 1
+            query = query.sort([sortBy: sortOrder])
+        }
         
         var convertedRows: [[String: QueryRowInfo]] = []
         

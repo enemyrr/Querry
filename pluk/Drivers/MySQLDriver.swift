@@ -24,6 +24,10 @@ class MySQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     typealias Database = MySQLDatabaseWrapper
     typealias Collection = MySQLCollectionWrapper
     

@@ -73,26 +73,38 @@ struct TwoPhaseLoader: View {
             if isLoading == true {
                 // Phase 1: Initial load to 15% (no animation to avoid center-out effect)
                 progress = 0.15
+                opacity = 1.0
             }
         }
         .cornerRadius(cornerRadius)
         .onChange(of: isLoading) { oldValue, newValue in
-            if !newValue {
-                // Phase 2: Complete the loading (15% to 100%)
+            if newValue {
+                withAnimation(.easeOut(duration: 0.02)) {
+                    progress = 0.15
+                }
+                // Only reset to 15% if we were previously hidden or completed
+                if opacity == 0.0 || progress >= 1.0 || progress == 0.0 {
+                    // Fresh start - show and animate to 15%
+                    opacity = 1.0
+                    progress = 0.0
+                    withAnimation(.easeOut(duration: 0.02)) {
+                        progress = 0.15
+                    }
+                } else {
+                    // Already visible and in progress - just ensure we're visible
+                    // Keep current progress to avoid jarring jump back
+                    opacity = 1.0
+                }
+            } else {
+                // Loading finished - complete to 100% and schedule hide
                 withAnimation(.easeInOut(duration: 0.05)) {
                     progress = 1.0
                 }
                 
-                // Simple fade out after 1 second (no animation curve)
-                withAnimation(.linear(duration: 0.1).delay(1.0)) {
-                    opacity = 0.0
-                }
-            } else {
-                // Reset opacity and progress when loading starts again
-                opacity = 1.0
-                progress = 0.0
-                withAnimation(.easeOut(duration: 0.02)) {
-                    progress = 0.15
+                withAnimation(.linear(duration: 0.1).delay(0.7)) {
+                    if !isLoading {
+                        opacity = 0.0
+                    }
                 }
             }
         }

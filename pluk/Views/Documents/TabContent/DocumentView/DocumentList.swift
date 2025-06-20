@@ -71,7 +71,9 @@ struct DocumentList: View {
                 in: selectedTab.name,
                 filter: searchFilter,
                 skip: (page - 1) * limit,
-                limit: limit
+                limit: limit,
+                sortBy: nil,
+                ascending: nil
             )
             
             cachedQueryResult = queryResult
