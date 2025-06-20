@@ -26,7 +26,10 @@ struct TableListView: View {
                     TableListViewController(
                         schema: cachedSchema,
                         queryResult: currentQueryResult,
-                        tableName: selectedTab.name
+                        tableName: selectedTab.name,
+                        onSort: { column, ascending in
+                            //                            refreshData(sortBy: column, ascending: ascending)
+                        }
                     )
                 }
             }

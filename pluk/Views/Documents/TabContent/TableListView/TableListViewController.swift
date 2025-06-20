@@ -12,11 +12,13 @@ struct TableListViewController: NSViewRepresentable {
     let schema: DatabaseSchemaResult?
     let queryResult: QueryResult?
     let tableName: String
+    let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "") {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
+        self.onSort = onSort
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
@@ -36,6 +38,13 @@ struct TableListViewController: NSViewRepresentable {
         private var lastDataHash: Int = 0
         private var knownColumns: Set<String> = [] // Track known column identifiers
         
+        // Sorting state
+        private var sortColumn: String? = nil
+        private var sortAscending: Bool = true
+        
+        // Callback for database-level sorting
+        var onSort: ((String, Bool) -> Void)?
+        
         // Persistent storage
         private var tableName: String = ""
         private var currentSchemaSignature: String = ""
@@ -47,13 +56,14 @@ struct TableListViewController: NSViewRepresentable {
             static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
         }
         
-        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "") {
+        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil) {
             self.schema = schema
             self.queryResult = queryResult
             self.tableName = tableName
+            self.onSort = onSort
             
             if let queryResult = queryResult {
-                self.rows = queryResult.rows
+                self.rows = queryResult.rawRows
                 self.totalCount = queryResult.totalCount
             } else {
                 self.rows = []
@@ -95,7 +105,7 @@ struct TableListViewController: NSViewRepresentable {
             self.lastDataHash = newDataHash
             
             if let newQueryResult = newQueryResult {
-                self.rows = newQueryResult.rows
+                self.rows = newQueryResult.rawRows
                 self.totalCount = newQueryResult.totalCount
             } else {
                 self.rows = []
@@ -135,20 +145,62 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         @objc private func handleHeaderSort(_ notification: Notification) {
-            guard let columnTitle = notification.userInfo?["column"] as? String else { return }
-            print("Sorting by column: \(columnTitle)")
+            guard let columnTitle = notification.userInfo?["column"] as? String else { 
+                print("❌ No column title found in notification userInfo: \(notification.userInfo ?? [:])")
+                return 
+            }
+            print("✅ Received sort notification for column: \(columnTitle)")
             
-            // Implement your sorting logic here
             sortTableData(by: columnTitle)
         }
         
         private func sortTableData(by columnTitle: String) {
-            // Your sorting implementation
-            print("Implementing sort for: \(columnTitle)")
+            // 3-state sorting: ascending → descending → none
+            if sortColumn == columnTitle {
+                if sortAscending {
+                    // Current: ascending → Next: descending
+                    sortAscending = false
+                    print("🔽 Sorting \(columnTitle) DESCENDING")
+                } else {
+                    // Current: descending → Next: none (reset sort)
+                    sortColumn = nil
+                    sortAscending = true // Reset to default for next time
+                    print("🚫 Clearing sort for \(columnTitle)")
+                }
+            } else {
+                // Different column clicked → Start with ascending
+                sortColumn = columnTitle
+                sortAscending = true
+                print("🔼 Sorting \(columnTitle) ASCENDING")
+            }
             
-            // Example: Toggle sort order for the column
-            // You would implement actual data sorting here
-            tableView.reloadData()
+            // Update table headers to show sort indicators
+            updateTableHeaders()
+            
+            // Trigger database-level sorting via callback
+            if let sortColumn = sortColumn {
+                onSort?(sortColumn, sortAscending)
+            } else {
+                // No sorting - pass empty string or special value to indicate no sort
+                onSort?("", true) // You might want to modify the callback signature to handle this better
+            }
+        }
+        
+        private func updateTableHeaders() {
+            for tableColumn in tableView.tableColumns {
+                let columnId = tableColumn.identifier.rawValue
+                if let headerCell = tableColumn.headerCell as? CustomTableHeaderCell {
+                    let isCurrentSortColumn = (sortColumn == columnId)
+                    headerCell.updateSortIndicator(isActive: isCurrentSortColumn, ascending: sortAscending)
+                }
+            }
+        }
+        
+        // Public method to set sorting state from parent view
+        func setSortState(column: String?, ascending: Bool) {
+            sortColumn = column
+            sortAscending = ascending
+            updateTableHeaders()
         }
         
         private func createColumn(identifier: String, title: String, icon: NSImage?) {
@@ -179,7 +231,7 @@ struct TableListViewController: NSViewRepresentable {
             
             // Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-            customHeaderCell.configure(title: title, icon: icon, showSortButton: false)
+            customHeaderCell.configure(title: title, icon: icon, showSortButton: true)
             column.headerCell = customHeaderCell
             
             tableView.addTableColumn(column)
@@ -294,6 +346,14 @@ struct TableListViewController: NSViewRepresentable {
                 selector: #selector(columnDidMove(_:)),
                 name: NSTableView.columnDidMoveNotification,
                 object: tableView
+            )
+            
+            // Set up sort notification
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleHeaderSort(_:)),
+                name: NSNotification.Name("HeaderSortClicked"),
+                object: nil
             )
             
             tableView.rowSizeStyle = .custom
@@ -600,6 +660,12 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         // MARK: - NSTableViewDelegate
+        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
+            let columnTitle = tableColumn.identifier.rawValue
+            print("🎯 Header clicked for column: \(columnTitle)")
+            sortTableData(by: columnTitle)
+        }
+        
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,
                   let queryResult = queryResult,
@@ -777,7 +843,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName)
+        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort)
     }
     
     func makeNSView(context: Context) -> NSView {
@@ -786,6 +852,11 @@ struct TableListViewController: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.updateRows(queryResult, newSchema: schema)
+    }
+    
+    // Public method to set sorting state
+    func setSortState(coordinator: Coordinator, column: String?, ascending: Bool) {
+        coordinator.setSortState(column: column, ascending: ascending)
     }
 }
 

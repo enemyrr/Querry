@@ -14,33 +14,17 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     private var iconImageView: NSImageView?
     private var sortButton: NSButton?
     
+    // Sort state
+    private var isActiveSortColumn = false
+    private var sortAscending = true
+    
     override init(textCell string: String) {
         super.init(textCell: string)
-        //            setupCustomView()
     }
     
     required init(coder: NSCoder) {
         super.init(coder: coder)
-        //            setupCustomView()
-        //            drawBackground(in: cellFrame)
     }
-    
-    //    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
-    //            drawBackground(in: cellFrame)
-    ////            drawBorder(in: cellFrame)
-    ////            drawTitle(in: cellFrame)
-    ////            drawSortIndicator(in: cellFrame)
-    //        }
-    
-    //    private func drawBackground(in rect: NSRect) {
-    //            // Create gradient background
-    //        let gradient = NSGradient(colors: NSColor.alternatingContentBackgroundColors)
-    //            gradient?.draw(in: rect, angle: 90.0) // Vertical gradient
-    //
-    //            // Alternative: Solid color background
-    //            // NSColor.controlBackgroundColor.setFill()
-    //            // rect.fill()
-    //        }
     
     private func setupCustomView() {
         // Create container view
@@ -55,64 +39,10 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         titleLabel?.backgroundColor = .clear
         titleLabel?.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
         titleLabel?.alignment = .left
-        //
-        //        // Create icon
-        //        iconImageView = NSImageView()
-        //        iconImageView?.imageScaling = .scaleProportionallyUpOrDown
-        //        iconImageView?.image = NSImage(systemSymbolName: "star.fill", accessibilityDescription: nil)
-        //
-        //        // Create sort button
-        //        sortButton = NSButton()
-        //        sortButton?.title = ""
-        //        sortButton?.image = NSImage(systemSymbolName: "chevron.up.chevron.down", accessibilityDescription: nil)
-        //        sortButton?.isBordered = false
-        //        sortButton?.bezelStyle = .regularSquare
-        //        sortButton?.target = self
-        //        sortButton?.action = #selector(sortButtonClicked)
-        //
-        //        // Add subviews
-        //        guard let customView = customView,
-        //              let titleLabel = titleLabel,
-        //              let iconImageView = iconImageView,
-        //              let sortButton = sortButton else { return }
         
         if let titleLabel = titleLabel {
             customView?.addSubview(titleLabel)
         }
-        //        customView.addSubview(iconImageView)
-        //        customView.addSubview(sortButton)
-        //
-        setupConstraints()
-    }
-    
-    private func setupConstraints() {
-        //        guard let titleLabel = titleLabel,
-        //              let iconImageView = iconImageView,
-        //              let sortButton = sortButton,
-        //              let customView = customView else { return }
-        
-        //        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        //        iconImageView.translatesAutoresizingMaskIntoConstraints = false
-        //        sortButton.translatesAutoresizingMaskIntoConstraints = false
-        //
-        //                NSLayoutConstraint.activate([
-        // Icon constraints
-        //                    iconImageView.leadingAnchor.constraint(equalTo: customView.leadingAnchor, constant: 8),
-        //                    iconImageView.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
-        //                    iconImageView.widthAnchor.constraint(equalToConstant: 16),
-        //                    iconImageView.heightAnchor.constraint(equalToConstant: 16),
-        
-        // Title label constraints
-        //                    titleLabel.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: 4),
-        //                    titleLabel.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
-        //                    titleLabel.trailingAnchor.constraint(equalTo: sortButton.leadingAnchor, constant: -4),
-        
-        // Sort button constraints
-        //                    sortButton.trailingAnchor.constraint(equalTo: customView.trailingAnchor, constant: -8),
-        //                    sortButton.centerYAnchor.constraint(equalTo: customView.centerYAnchor),
-        //                    sortButton.widthAnchor.constraint(equalToConstant: 20),
-        //                    sortButton.heightAnchor.constraint(equalToConstant: 20)
-        //                ])
     }
     
     func configure(title: String, icon: NSImage? = nil, showSortButton: Bool = true) {
@@ -122,20 +52,35 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         sortButton?.isHidden = !showSortButton
     }
     
-    //    @objc private func sortButtonClicked() {
-    //        print("Sort button clicked for: \(titleLabel?.stringValue ?? "")")
-    //        // Notify delegate or post notification for sorting
-    //        NotificationCenter.default.post(
-    //            name: NSNotification.Name("HeaderSortClicked"),
-    //            object: self,
-    //            userInfo: ["column": stringValue]
-    //        )
-    //    }
+//        @objc private func sortButtonClicked() {
+//            print("Sort button clicked for: \(titleLabel?.stringValue ?? "")")
+//            // Notify delegate or post notification for sorting
+//            NotificationCenter.default.post(
+//                name: NSNotification.Name("HeaderSortClicked"),
+//                object: self,
+//                userInfo: ["column": stringValue]
+//            )
+//        }
     
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
-        // Don't call super to avoid default drawing
         drawCustomBackground(in: cellFrame)
-        drawTitle(in: cellFrame, icon: NSImage(systemSymbolName: "chevron.up.chevron.down", accessibilityDescription: nil))
+        drawTitle(in: cellFrame, icon: getSortIcon())
+    }
+    
+    private func getSortIcon() -> NSImage? {
+        let symbolName: String
+        if isActiveSortColumn {
+            symbolName = sortAscending ? "chevron.up" : "chevron.down"
+            
+            // Create symbol configuration with secondary color
+            let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+                .applying(.init(hierarchicalColor: .secondaryLabelColor))
+            
+            return NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(config)
+        }
+        
+        return nil
     }
     
     
@@ -147,9 +92,12 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = self.alignment
         
+        let textColor = NSColor.secondaryLabelColor
+        let fontWeight: NSFont.Weight = .regular
+        
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.menuBarFont(ofSize: 12),
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .font: NSFont.systemFont(ofSize: 12, weight: fontWeight),
+            .foregroundColor: textColor,
             .paragraphStyle: paragraphStyle
         ]
         
@@ -164,6 +112,24 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         )
         
         attributedTitle.draw(in: titleRect)
+        
+           if let icon = icon {
+               let naturalSize = icon.size
+               let maxIconHeight = rect.height * 0.25
+               
+               let scale = maxIconHeight / naturalSize.height
+               let scaledWidth = naturalSize.width * scale
+               let scaledHeight = naturalSize.height * scale
+               
+               let iconRect = NSRect(
+                   x: rect.maxX - scaledWidth - 8,
+                   y: rect.midY - scaledHeight / 2,
+                   width: scaledWidth,    // ← Proportional width
+                   height: scaledHeight   // ← Proportional height
+               )
+               
+               icon.draw(in: iconRect)
+           }
     }
     
     private func drawCustomBackground(in frame: NSRect) {
@@ -226,12 +192,55 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     override func highlight(_ flag: Bool, withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)
-        drawTitle(in: cellFrame, icon: NSImage(systemSymbolName: "chevron.up.chevron.down", accessibilityDescription: nil))
+        drawTitle(in: cellFrame, icon: getSortIcon())
+    }
+    
+    func updateSortIndicator(isActive: Bool, ascending: Bool) {
+        isActiveSortColumn = isActive
+        sortAscending = ascending
         
-        if flag {
-            //            customView?.layer?.backgroundColor = NSColor.selectedControlColor.withAlphaComponent(0.3).cgColor
-        } else {
-            //            customView?.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        // Trigger redraw
+        if let controlView = controlView {
+            controlView.setNeedsDisplay(controlView.bounds)
         }
     }
+    
+    override func trackMouse(with event: NSEvent, in rect: NSRect, of controlView: NSView, untilMouseUp flag: Bool) -> Bool {
+        print("🖱️ trackMouse called for column: \(title)")
+        
+        var shouldHighlight = false
+        var currentEvent = event
+        
+        // Track mouse while it's pressed down
+        while currentEvent.type != .leftMouseUp {
+            let currentLocation = controlView.convert(currentEvent.locationInWindow, from: nil)
+            let newShouldHighlight = rect.contains(currentLocation)
+            
+            // Update highlight state only if it changed
+            if newShouldHighlight != shouldHighlight {
+                shouldHighlight = newShouldHighlight
+                self.isHighlighted = shouldHighlight
+                controlView.setNeedsDisplay(rect)
+            }
+            
+            // Get next event
+            if let nextEvent = NSApp.nextEvent(matching: [.leftMouseUp, .leftMouseDragged], 
+                                            until: .distantFuture, 
+                                            inMode: .default, 
+                                            dequeue: true) {
+                currentEvent = nextEvent
+            } else {
+                break
+            }
+        }
+        
+        // Mouse released - remove highlight
+        if shouldHighlight {
+            self.isHighlighted = false
+            controlView.setNeedsDisplay(rect)
+        }
+        
+        return true
+    }
+    
 }
