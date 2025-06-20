@@ -144,15 +144,22 @@ struct TableListViewController: NSViewRepresentable {
             }
         }
         
-        @objc private func handleHeaderSort(_ notification: Notification) {
-            guard let columnTitle = notification.userInfo?["column"] as? String else { 
-                print("❌ No column title found in notification userInfo: \(notification.userInfo ?? [:])")
-                return 
+        func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+            // Get the first (primary) sort descriptor
+            guard let sortDescriptor = tableView.sortDescriptors.first else { return }
+
+            // Find the column whose sortDescriptorPrototype matches
+            for column in tableView.tableColumns {
+                if let prototype = column.sortDescriptorPrototype,
+                   prototype.key == sortDescriptor.key {
+                    let columnTitle = column.title
+                    print("✅ Received sort notification for column: \(columnTitle)")
+                    sortTableData(by: columnTitle)
+                    break
+                }
             }
-            print("✅ Received sort notification for column: \(columnTitle)")
-            
-            sortTableData(by: columnTitle)
         }
+
         
         private func sortTableData(by columnTitle: String) {
             // 3-state sorting: ascending → descending → none
@@ -234,6 +241,9 @@ struct TableListViewController: NSViewRepresentable {
             customHeaderCell.configure(title: title, icon: icon, showSortButton: true)
             column.headerCell = customHeaderCell
             
+            let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
+            column.sortDescriptorPrototype = sortDescriptor
+
             tableView.addTableColumn(column)
             
             // Reset flag after adding column
@@ -348,14 +358,6 @@ struct TableListViewController: NSViewRepresentable {
                 object: tableView
             )
             
-            // Set up sort notification
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(handleHeaderSort(_:)),
-                name: NSNotification.Name("HeaderSortClicked"),
-                object: nil
-            )
-            
             tableView.rowSizeStyle = .custom
             
             // Table view setup
@@ -386,7 +388,6 @@ struct TableListViewController: NSViewRepresentable {
             columnWidthCache.removeAll()
             autoCalculatedColumns.removeAll()
             knownColumns.removeAll()
-            // Note: userModifiedWidths is preserved across rebuilds
             
             // Remove all existing columns
             while tableView.tableColumns.count > 0 {
@@ -660,11 +661,11 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         // MARK: - NSTableViewDelegate
-        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
-            let columnTitle = tableColumn.identifier.rawValue
-            print("🎯 Header clicked for column: \(columnTitle)")
-            sortTableData(by: columnTitle)
-        }
+//        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
+//            let columnTitle = tableColumn.identifier.rawValue
+//            print("🎯 Header clicked for column: \(columnTitle)")
+//            sortTableData(by: columnTitle)
+//        }
         
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,

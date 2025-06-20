@@ -52,16 +52,6 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         sortButton?.isHidden = !showSortButton
     }
     
-//        @objc private func sortButtonClicked() {
-//            print("Sort button clicked for: \(titleLabel?.stringValue ?? "")")
-//            // Notify delegate or post notification for sorting
-//            NotificationCenter.default.post(
-//                name: NSNotification.Name("HeaderSortClicked"),
-//                object: self,
-//                userInfo: ["column": stringValue]
-//            )
-//        }
-    
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)
         drawTitle(in: cellFrame, icon: getSortIcon())
@@ -124,8 +114,8 @@ class CustomTableHeaderCell: NSTableHeaderCell {
                let iconRect = NSRect(
                    x: rect.maxX - scaledWidth - 8,
                    y: rect.midY - scaledHeight / 2,
-                   width: scaledWidth,    // ← Proportional width
-                   height: scaledHeight   // ← Proportional height
+                   width: scaledWidth,
+                   height: scaledHeight
                )
                
                icon.draw(in: iconRect)
@@ -204,43 +194,4 @@ class CustomTableHeaderCell: NSTableHeaderCell {
             controlView.setNeedsDisplay(controlView.bounds)
         }
     }
-    
-    override func trackMouse(with event: NSEvent, in rect: NSRect, of controlView: NSView, untilMouseUp flag: Bool) -> Bool {
-        print("🖱️ trackMouse called for column: \(title)")
-        
-        var shouldHighlight = false
-        var currentEvent = event
-        
-        // Track mouse while it's pressed down
-        while currentEvent.type != .leftMouseUp {
-            let currentLocation = controlView.convert(currentEvent.locationInWindow, from: nil)
-            let newShouldHighlight = rect.contains(currentLocation)
-            
-            // Update highlight state only if it changed
-            if newShouldHighlight != shouldHighlight {
-                shouldHighlight = newShouldHighlight
-                self.isHighlighted = shouldHighlight
-                controlView.setNeedsDisplay(rect)
-            }
-            
-            // Get next event
-            if let nextEvent = NSApp.nextEvent(matching: [.leftMouseUp, .leftMouseDragged], 
-                                            until: .distantFuture, 
-                                            inMode: .default, 
-                                            dequeue: true) {
-                currentEvent = nextEvent
-            } else {
-                break
-            }
-        }
-        
-        // Mouse released - remove highlight
-        if shouldHighlight {
-            self.isHighlighted = false
-            controlView.setNeedsDisplay(rect)
-        }
-        
-        return true
-    }
-    
 }
