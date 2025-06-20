@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Sparkle
 import PostHog
+import Sentry
 
 @main
 struct Pluk: App {
@@ -35,6 +36,13 @@ struct Pluk: App {
         let POSTHOG_HOST = "https://us.i.posthog.com"
         let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
         PostHogSDK.shared.setup(config)
+        
+        SentrySDK.start { options in
+            options.dsn = "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
+            options.debug = true
+            options.sendDefaultPii = false
+            options.enableUncaughtNSExceptionReporting = true
+        }
     }
     
     var body: some Scene {
