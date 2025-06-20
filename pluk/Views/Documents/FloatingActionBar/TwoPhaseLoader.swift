@@ -79,21 +79,19 @@ struct TwoPhaseLoader: View {
         .cornerRadius(cornerRadius)
         .onChange(of: isLoading) { oldValue, newValue in
             if newValue {
-                withAnimation(.easeOut(duration: 0.02)) {
-                    progress = 0.15
-                }
                 // Only reset to 15% if we were previously hidden or completed
                 if opacity == 0.0 || progress >= 1.0 || progress == 0.0 {
-                    // Fresh start - show and animate to 15%
+                    // Fresh start - show immediately at 15% (no animation to prevent slide-in effect)
                     opacity = 1.0
-                    progress = 0.0
-                    withAnimation(.easeOut(duration: 0.02)) {
-                        progress = 0.15
-                    }
+                    progress = 0.15  // Set directly without animation
                 } else {
                     // Already visible and in progress - just ensure we're visible
                     // Keep current progress to avoid jarring jump back
                     opacity = 1.0
+                    // Small animation to show we're refreshing
+                    withAnimation(.easeOut(duration: 0.02)) {
+                        progress = 0.15
+                    }
                 }
             } else {
                 // Loading finished - complete to 100% and schedule hide
