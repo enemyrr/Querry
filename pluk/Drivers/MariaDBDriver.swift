@@ -56,15 +56,15 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func createDocument(in collectionName: String, database: MariaDBDatabaseWrapper, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func updateDocument(in collectionName: String, database: MariaDBDatabaseWrapper, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func deleteDocument(in collectionName: String, database: MariaDBDatabaseWrapper, id: Any) async throws {
+    func deleteDocument(in collectionName: String, id: Any) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     

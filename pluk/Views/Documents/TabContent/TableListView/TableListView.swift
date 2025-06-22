@@ -28,6 +28,10 @@ struct TableListView: View {
     @State private var modificationTracker = TableModificationTracker()
     @State private var isProcessingUpdates = false
     
+    // Generic error handling
+    @State private var currentError: Error?
+    @State private var showingErrorAlert = false
+    
     var body: some View {
         ZStack {
             VStack {
@@ -110,8 +114,31 @@ struct TableListView: View {
         }
         .onDisappear {
             loadingTask?.cancel()
+        }.alert(
+            "Update Failed",
+            isPresented: $showingErrorAlert,
+            presenting: currentError
+        ) { error in
+            Button("OK") {}
+        } message: { error in
+            Text(error.localizedDescription)
         }
     }
+    
+    // MARK: - Error Handling
+      private func showError(_ error: Error) {
+          currentError = error
+          showingErrorAlert = true
+      }
+      
+      private func handleErrorRetry(_ error: Error) async {
+          // Generic retry logic - you can customize this based on the error type
+          if error is DatabaseError {
+              await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
+          } else {
+              await loadDocumentsIfNeeded()
+          }
+      }
     
     // MARK: - Save Modifications
     private func saveModifications() async {
@@ -162,18 +189,16 @@ struct TableListView: View {
                 }
                 
                 // Use the database driver to update the row
-//                try await driver.updateDocument(
-//                    in: selectedTab.name,
-//                    database: instance.database!,
-//                    id: id,
-//                    data: updateData
-//                )
+                try await driver.updateDocument(
+                    in: selectedTab.name,
+                    id: id,
+                    data: updateData
+                )
                 
                 print("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
-                
             } catch {
-                print("❌ Failed to update row \(rowModification.rowIndex): \(error)")
-                // You might want to show an error alert here
+                showError(error)
+                return
             }
         }
         

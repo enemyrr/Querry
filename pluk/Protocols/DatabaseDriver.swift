@@ -78,9 +78,9 @@ protocol DatabaseDriver {
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult]
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult
-    func createDocument(in collectionName: String, database: Database, document: [String: Any]) async throws
-    func updateDocument(in collectionName: String, database: Database, id: Any, data: [String: Any]) async throws
-    func deleteDocument(in collectionName: String, database: Database, id: Any) async throws
+    func createDocument(in collectionName: String, document: [String: Any]) async throws
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws
+    func deleteDocument(in collectionName: String, id: Any) async throws
     
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult
     
@@ -220,14 +220,4 @@ class DatabaseDriverFactory {
     }
 } 
 
-extension DatabaseDriver {
-    func performOperation<T>(
-        with database: any DatabaseWrapper,
-        operation: (Database) async throws -> T
-    ) async throws -> T {
-        guard let typedDatabase = database as? Database else {
-            throw DatabaseError.operationFailed("Database type mismatch")
-        }
-        return try await operation(typedDatabase)
-    }
-}
+

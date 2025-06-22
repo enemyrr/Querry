@@ -81,6 +81,7 @@ struct FloatingActionBar: View {
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
                     .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
                     .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: containerWidth)
                 
             }
             
@@ -140,6 +141,7 @@ struct FloatingActionBar: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: modificationTracker.hasModifications)
             .background(
                 GeometryReader { geometry in
                     Color.clear
@@ -361,7 +363,8 @@ struct FloatingActionBar: View {
                 Divider()
                     .frame(height: 22)
                     .padding(.vertical, 6)
-
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                
                 UpdateActionButton(
                     updateCount: modificationTracker.modifiedRowCount,
                     isProcessingBatch: isProcessingUpdates,
@@ -370,7 +373,8 @@ struct FloatingActionBar: View {
                     }
                 )
             }
-            
+
+
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
@@ -575,7 +579,6 @@ struct FloatingActionBar: View {
     }
     
     // MARK: - Processing Animation Methods
-    
     private func handleProcessingStageChange() async {
         if processingStage != .idle {
             await startProcessingAnimation()

@@ -1,3 +1,10 @@
+//
+//  TextCellView.swift
+//  Pluk
+//
+//  Created by Fauzaan on 06/22/25.
+//
+
 import Foundation
 import AppKit
 import PostgresNIO
@@ -240,25 +247,22 @@ class TextCellView: NSView, NSTextFieldDelegate {
     private func updateEditingAppearance() {
         print("updateEditingAppearance - isEditing: \(isEditing)")
         if isEditing {
-            // Completely remove any background during editing
             textField.backgroundColor = NSColor.clear
             textField.drawsBackground = true
-            textField.isBordered = false
-            textField.isBezeled = false
-            textField.bezelStyle = .squareBezel  // Reset bezel style
         }
     }
     
     private func updateModificationAppearance() {
         print("updateModificationAppearance - isModified: \(isModified)")
+        
+        // Ensure the cell has a layer for background drawing
+        if !wantsLayer {
+            wantsLayer = true
+        }
+        
         if isModified {
-            // Set background color for modified fields
-            textField.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.2)
-            textField.drawsBackground = true
-        } else {
-            // Reset to default appearance
-            textField.backgroundColor = NSColor.clear
-            textField.drawsBackground = true
+            // Set background color on the cell itself
+            layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.2).cgColor
         }
     }
     
@@ -329,24 +333,25 @@ class TextCellView: NSView, NSTextFieldDelegate {
         let currentValue = textField.stringValue
         let hasChanged = currentValue != originalValue
         
+        // Update the modification tracker on every change
+        if let tracker = modificationTracker, rowIndex >= 0 {
+            if hasChanged {
+                tracker.updateCell(
+                    rowIndex: rowIndex,
+                    columnName: columnName,
+                    newValue: currentValue,
+                    originalValue: originalValue,
+                    dataType: dataType
+                )
+            } else {
+                tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
+            }
+        }
+        
+        // Update the visual state only when modification state changes
         if hasChanged != isModified {
             isModified = hasChanged
             print("Text field modification state changed: \(isModified)")
-            
-            // Update the modification tracker
-            if let tracker = modificationTracker, rowIndex >= 0 {
-                if hasChanged {
-                    tracker.updateCell(
-                        rowIndex: rowIndex,
-                        columnName: columnName,
-                        newValue: currentValue,
-                        originalValue: originalValue,
-                        dataType: dataType
-                    )
-                } else {
-                    tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
-                }
-            }
         }
     }
 
@@ -368,8 +373,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     private func formatValueForDisplay(_ value: Any?) -> String? {
-        guard let value = value else { return "NULL" }
-        
         if let date = value as? Date {
             let formatter = DateFormatter()
             formatter.dateStyle = .medium
@@ -417,13 +420,13 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     func configure(rawCell: Any?, columnInfo: QueryColumnInfo) {
         guard let rawCell = rawCell else {
-            textField.placeholderString = "(NULL)"
+            textField.placeholderString = "(EMPTY)"
             createBorderViewIfNeeded()
             return
         }
         
         do {
-            textField.placeholderString = "(NULL)"
+            textField.placeholderString = "(EMPTY)"
             
             // Handle the case where rawCell is a PostgresCell
             if let postgresCell = rawCell as? PostgresCell {
@@ -466,10 +469,10 @@ class TextCellView: NSView, NSTextFieldDelegate {
         if let value = value {
             let displayValue = formatValueForDisplay(value, columnInfo: columnInfo)
             
+            textField.stringValue = displayValue
             if let stringValue = value as? String, stringValue.isEmpty {
                 textField.placeholderString = "(EMPTY)"
             } else {
-                textField.stringValue = displayValue ?? String(describing: value)
                 textField.textColor = NSColor.controlTextColor
             }
         } else {
@@ -537,12 +540,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         return String(describing: value)
     }
     
-    // Rename the old method to avoid conflicts and keep it for backward compatibility
-    func configureLegacy(value: Any?, columnInfo: QueryColumnInfo) {
-        configureWithValue(value, columnInfo: columnInfo)
-        createBorderViewIfNeeded()
-    }
-    
     private func createBorderViewIfNeeded() {
         if rightBorderView == nil || bottomBorderView == nil {
             createBorderView()
@@ -581,7 +578,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     override func layout() {
         super.layout()
-        // No need for manual frame updates - Auto Layout handles everything
     }
     
     // MARK: - For Large Tables: Constraint Caching
@@ -644,6 +640,11 @@ private extension NSTextField {
         allowsDefaultTighteningForTruncation = false
         
         placeholderString = "(EMPTY)"
+        
+        
+        isBordered = false
+        isBezeled = false
+        bezelStyle = .squareBezel  // Reset bezel style
     }
 }
 

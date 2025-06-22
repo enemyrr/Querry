@@ -454,8 +454,8 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
 
-    func createDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, document: [String: Any]) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+        throw DatabaseError.notImplemented("PostgreSQL createDocument not yet implemented")
     }
     
 
@@ -584,12 +584,62 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         }
     }
-    func updateDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, id: Any, data: [String: Any]) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+
+    // MARK: - Fixed updateDocument method
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+        let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
+        guard !data.isEmpty else {
+            throw DatabaseError.operationFailed("No data provided for update")
+        }
+        
+        guard let primaryKey = id as? PostgresCell else {
+            throw DatabaseError.operationFailed("Cannot update document without a primary key")
+        }
+        
+        do {
+            // Get the schema to find primary key column name
+            let (setClause, values) = try buildParameterizedSetClause(from: data)
+           
+            // Build the UPDATE query with parameter binding
+            let queryString = """
+                UPDATE \(sanitizedCollectionName)
+                SET \(setClause)
+                WHERE \(primaryKey.columnName) = $\(values.count + 1)
+            """
+            
+            // Create PostgresBindings and append all values
+            var bindings = PostgresBindings(capacity: values.count + 1)
+            
+            for value in values {
+                bindings.append(value)
+            }
+            
+            // Convert PostgresCell to PostgresData
+            let postgresData = PostgresData(
+                type: primaryKey.dataType,
+                typeModifier: nil,
+                formatCode: primaryKey.format,
+                value: primaryKey.bytes
+            )
+            
+            bindings.append(postgresData)
+
+            // Execute the update query with parameter binding
+            let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+            try await connection.query(query, logger: Logger(label: "postgres"))
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch let error as DatabaseError {
+            throw error
+        } catch {
+            throw DatabaseError.operationFailed("Failed to update document: \(error.localizedDescription)")
+        }
     }
     
-    func deleteDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, id: Any) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func deleteDocument(in collectionName: String, id: Any) async throws {
+        throw DatabaseError.notImplemented("PostgreSQL deleteDocument not yet implemented")
     }
     
     func createCollection(named collectionName: String) async throws {
@@ -973,6 +1023,21 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
+    private func buildParameterizedSetClause(from data: [String: Any]) throws -> (String, [String]) {
+        var setClauses: [String] = []
+        var values: [String] = []
+        var parameterIndex = 1
+        
+        for (key, value) in data {
+            let sanitizedColumnName = try validateAndSanitizeColumnName(key)
+            setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
+            values.append(value as! String) // Force cast since you know they're strings
+            parameterIndex += 1
+        }
+        
+        return (setClauses.joined(separator: ", "), values)
+    }
+    
     private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
         let trimmed = columnName.trimmingCharacters(in: .whitespacesAndNewlines)
         
@@ -1038,7 +1103,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 
                 // Use the error message from the server
                 if let message = serverInfo[.message] {
-                    return DatabaseError.operationFailed("PostgreSQL server error: \(message)")
+                    return DatabaseError.operationFailed("ERROR: \(message)")
                 }
             }
             return DatabaseError.operationFailed("PostgreSQL server error")
@@ -1067,6 +1132,38 @@ class PostgreSQLDriver: DatabaseDriver {
         
         return nil
     }
+    
+    // MARK: - Helper method to get primary key column
+       private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String {
+           let connection = try ensureConnected()
+           
+           do {
+               let query = PostgresQuery("""
+                   SELECT a.attname
+                   FROM pg_index i
+                   JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                   WHERE i.indrelid = '\(unescaped: schemaName).\(unescaped: tableName)'::regclass
+                   AND i.indisprimary
+                   ORDER BY a.attnum
+                   LIMIT 1
+               """)
+               
+               let results = try await connection.query(query, logger: Logger(label: "postgres"))
+               
+               for try await (columnName) in results.decode((String).self) {
+                   return "\"\(columnName)\""  // Return quoted column name
+               }
+               
+               // Fallback to 'id' if no primary key is found
+               return "\"id\""
+               
+           } catch let error as PSQLError {
+               throw mapPSQLError(error)
+           } catch {
+               // Fallback to 'id' if query fails
+               return "\"id\""
+           }
+       }
 }
 
 // MARK: - Utility Extensions
@@ -1110,7 +1207,7 @@ enum DatabaseError: Error, LocalizedError {
         case .connectionFailed(let message):
             return "Connection failed: \(message)"
         case .operationFailed(let message):
-            return "Operation failed: \(message)"
+            return message
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
         case .configurationError(let message):

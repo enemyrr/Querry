@@ -1,4 +1,11 @@
+//
+//  ModificationTracker.swift
+//  Pluk
+//
+//  Created by Fauzaan on 06/22/25.
+//
 import Foundation
+import SwiftUI
 
 // MARK: - Cell Modification Model
 struct CellModification {
