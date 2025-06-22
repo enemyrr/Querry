@@ -75,11 +75,12 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     
     private func drawTitle(in rect: NSRect, icon: NSImage?) {
-        var textRect = rect.insetBy(dx: 8, dy: 0)
+        var textRect = rect.insetBy(dx: 2, dy: 0)
         textRect.size.width -= 20 // Space for sort indicator
         
         // Create text attributes
         let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byTruncatingTail
         paragraphStyle.alignment = self.alignment
         
         let textColor = NSColor.secondaryLabelColor
@@ -88,7 +89,7 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: fontWeight),
             .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: paragraphStyle,
         ]
         
         // Draw the text

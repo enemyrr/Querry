@@ -29,7 +29,7 @@ struct TableListViewController: NSViewRepresentable {
         
         private let containerView = NSView()
         private let scrollView = NSScrollView()
-        private let tableView = NSTableView()
+        private let tableView = CustomTableView()
         
         // Column width caching and optimization
         private var columnWidthCache: [String: CGFloat] = [:]
@@ -365,6 +365,9 @@ struct TableListViewController: NSViewRepresentable {
             tableView.backgroundColor = NSColor.clear
             tableView.usesAutomaticRowHeights = false
             
+            // Remove intercell spacing to eliminate padding between columns
+            tableView.intercellSpacing = NSSize(width: 0, height: 0)
+            
             if let headerView = tableView.headerView {
                 headerView.frame.size.height = 32
                 
@@ -680,6 +683,7 @@ struct TableListViewController: NSViewRepresentable {
                 cellView = TextCellView()
                 cellView?.identifier = CellIdentifier.textCell
             }
+            
             
             // Use the new configure method with raw cell
             let columnName = tableColumn.identifier.rawValue

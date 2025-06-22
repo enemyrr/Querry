@@ -1,15 +1,62 @@
-//
-//  TextCellView.swift
-//  Pluk
-//
-//  Created by Fauzaan on 6/4/25.
-//
-
 import Foundation
 import AppKit
 import PostgresNIO
 
-class TextCellView: NSView {
+// MARK: - Custom NSTextFieldCell with internal padding
+class PaddedTextFieldCell: NSTextFieldCell {
+    let textPadding: NSEdgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+    
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        var paddedRect = super.titleRect(forBounds: rect)
+        paddedRect.origin.x += textPadding.left
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        return paddedRect
+    }
+    
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        var paddedRect = rect
+        paddedRect.origin.x += textPadding.left
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        
+        super.edit(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
+    
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        var paddedRect = rect
+        paddedRect.origin.x += textPadding.left - 2
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        
+        super.select(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
+    }
+    
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        var paddedRect = cellFrame
+        paddedRect.origin.x += textPadding.left
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        super.drawInterior(withFrame: paddedRect, in: controlView)  // Changed this line
+    }
+    
+//    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
+//        var paddedRect = cellFrame
+//        paddedRect.origin.x += textPadding.left
+//        paddedRect.origin.y += textPadding.top
+//        paddedRect.size.width -= (textPadding.left + textPadding.right)
+//        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+//        super.draw(withFrame: paddedRect, in: controlView)
+//    }
+}
+
+
+// MARK: - Enhanced TextCellView with single-click edit support
+class TextCellView: NSView, NSTextFieldDelegate {
     private var textField: NSTextField!
     private var hoverBorderView: NSView?
     private var selectedBorderView: NSView?
@@ -21,6 +68,13 @@ class TextCellView: NSView {
     private static weak var currentlySelectedCell: TextCellView?
     
     private var isSelected: Bool = false
+    private var isEditing: Bool = false {
+        didSet {
+            if oldValue != isEditing {
+                updateEditingAppearance()
+            }
+        }
+    }
     
     // Cache for optimization
     private var lastConfiguredColumn: String = ""
@@ -29,156 +83,206 @@ class TextCellView: NSView {
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-         setupTextField()
-//         setupHoverBorder()
-//         setupSelectedBorder()
-//         setupTracking()
+        setupTextField()
     }
     
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupTextField()
-//         setupHoverBorder()
-//         setupSelectedBorder()
-//         setupTracking()
     }
     
     private func setupTextField() {
-        // Use the most lightweight initializer
-            textField = NSTextField(frame: .zero)
-            
-            // Batch configure properties to minimize notifications/updates
-            textField.configureForTableCell()
-            
-            // Add to view hierarchy before setting up constraints (better for layout)
-            addSubview(textField)
-            
-            // Disable autoresizing mask translation once
-            textField.translatesAutoresizingMaskIntoConstraints = false
-            
-            // Create and activate constraints in one call (more efficient)
-            setupTextFieldConstraints()
-    }
-    
-    private func setupTextFieldConstraints() {
-        // Pre-calculate constants to avoid repeated calculations
-        let leadingConstant: CGFloat = 4
-        let trailingConstant: CGFloat = -4
+        textField = NSTextField(frame: .zero)
+        textField.configureForTableCell()
+        textField.delegate = self
         
-        // Create constraints array and activate all at once
+        textField.cell = PaddedTextFieldCell()
+        
+        addSubview(textField)
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Add padding through constraints instead of cell manipulation for better control
         NSLayoutConstraint.activate([
-            textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: leadingConstant),
-            textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: trailingConstant),
-            textField.centerYAnchor.constraint(equalTo: centerYAnchor)
+            textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 0),
+            textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
+            textField.topAnchor.constraint(equalTo: topAnchor, constant: 0),
+            textField.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
         ])
     }
     
-    private func setupHoverBorder() {
-        hoverBorderView = NSView()
-        hoverBorderView?.wantsLayer = true
-        hoverBorderView?.layer?.borderWidth = 1.0
-        hoverBorderView?.layer?.borderColor = NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.5).cgColor
-        hoverBorderView?.layer?.cornerRadius = 0.0
-        hoverBorderView?.isHidden = true
+    // MARK: - Double-Click Edit Handler (called from CustomTableView)
+    func handleDoubleClickEdit(at point: NSPoint, with event: NSEvent) {
+        print("TextCellView handleDoubleClickEdit - clickCount: \(event.clickCount)")
         
-        addSubview(hoverBorderView!)
-        hoverBorderView?.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            hoverBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -8),
-            hoverBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 8),
-            hoverBorderView!.topAnchor.constraint(equalTo: topAnchor, constant: 1),
-            hoverBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
-        ])
-    }
-    
-    private func setupSelectedBorder() {
-        selectedBorderView = NSView()
-        selectedBorderView?.wantsLayer = true
-        selectedBorderView?.layer?.borderWidth = 1.0
-        selectedBorderView?.layer?.borderColor = NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.5).cgColor
-        selectedBorderView?.layer?.cornerRadius = 0.0
-        selectedBorderView?.isHidden = true
+        // Check if the click is inside the text field bounds
+        let textFieldPoint = textField.convert(point, from: self)
         
-        addSubview(selectedBorderView!)
-        selectedBorderView?.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            selectedBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -8),
-            selectedBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 8),
-            selectedBorderView!.topAnchor.constraint(equalTo: topAnchor, constant: 1),
-            selectedBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
-        ])
+        if textField.bounds.contains(textFieldPoint) {
+            print("Click is inside text field bounds")
+            
+            // Only handle double-clicks for editing
+            if event.clickCount == 2 {
+                print("Double click - entering edit mode")
+                enterEditMode()
+                self.textField.selectText(nil)
+            }
+        }
     }
     
-    private func setupTracking() {
-        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways]
-        trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
-        addTrackingArea(trackingArea!)
+    // Public method for exiting edit mode (can be called externally)
+    func exitEditModeForRow() {
+        exitEditMode()
     }
     
-//    override func updateTrackingAreas() {
-//        super.updateTrackingAreas()
-//        
-//        if let trackingArea = trackingArea {
-//            removeTrackingArea(trackingArea)
-//        }
-//        
-//        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways]
-//        trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
-//        addTrackingArea(trackingArea!)
-//    }
+    // Public method for entering edit mode
+    func enterEditMode() {
+        guard !isEditing else { return }
+        
+        print("Entering edit mode for cell")
+        
+        // Find all cells in the same row and put them in edit mode
+        if let tableView = findTableView() {
+            let currentRow = tableView.row(for: self)
+            if currentRow >= 0 {
+                // Enable edit mode for all cells in this row
+                for columnIndex in 0..<tableView.numberOfColumns {
+                    if let cellView = tableView.view(atColumn: columnIndex, row: currentRow, makeIfNecessary: false) as? TextCellView {
+                        cellView.enableEditMode()
+                    }
+                }
+                
+                // Make this cell's text field first responder
+                window?.makeFirstResponder(textField)
+            }
+        } else {
+            // Fallback for single cell if table view not found
+            enableEditMode()
+            window?.makeFirstResponder(textField)
+        }
+    }
     
-//    override func mouseEntered(with event: NSEvent) {
-//        super.mouseEntered(with: event)
-//        
-//        // Clear any previously hovered cell (but don't affect selected state)
-//        if let previousHovered = TextCellView.currentlyHoveredCell, previousHovered !== self {
-//            previousHovered.hideHoverBorder()
-//        }
-//        
-//        // Set this cell as the currently hovered one
-//        TextCellView.currentlyHoveredCell = self
-//        
-//        // Show hover only if not already selected
-//        if !isSelected {
-//            showHoverBorder()
-//        }
-//    }
-//    
-//    override func mouseExited(with event: NSEvent) {
-//        super.mouseExited(with: event)
-//        
-//        // Only hide hover if this cell is currently the hovered one and not selected
-//        if TextCellView.currentlyHoveredCell === self && !isSelected {
-//            TextCellView.currentlyHoveredCell = nil
-//            hideHoverBorder()
-//        }
-//    }
-//    
-//    override func mouseDown(with event: NSEvent) {
-//        super.mouseDown(with: event)
-//        
-//        // Get the previously selected cell for animation
-//        let previousCell = TextCellView.currentlySelectedCell
-//        
-//        // Set this cell as selected immediately (for state management)
-//        TextCellView.currentlySelectedCell = self
-//        
-//        // Animate the transition
-//        if let previousCell = previousCell, previousCell !== self {
-//            animateSelectionTransition(from: previousCell, to: self)
-//        } else {
-//            // No previous selection, just show normally
-//            setSelected(true)
-//        }
-//        
-//        // Find the table view and get row/column info
-//        if let tableView = findTableView() {
-//            let row = tableView.row(for: self)
-//            let column = tableView.column(for: self)
-//            print("Cell selected at row: \(row), column: \(column)")
-//        }
-//    }
+    // Internal method to enable edit mode for individual cell
+    private func enableEditMode() {
+        guard !isEditing else { return }
+        
+        // Enable editing
+        textField.isEditable = true
+        textField.isSelectable = true
+        
+        // Update visual state
+        isEditing = true
+    }
     
+    private func exitEditMode() {
+        guard isEditing else { return }
+        
+        print("Exiting edit mode for cell: \(isEditing)")
+        
+        // Find all cells in the same row and exit edit mode
+        if let tableView = findTableView() {
+            let currentRow = tableView.row(for: self)
+            if currentRow >= 0 {
+                // Exit edit mode for all cells in this row
+                for columnIndex in 0..<tableView.numberOfColumns {
+                    if let cellView = tableView.view(atColumn: columnIndex, row: currentRow, makeIfNecessary: false) as? TextCellView {
+                        cellView.disableEditMode()
+                    }
+                }
+            }
+        } else {
+            // Fallback for single cell if table view not found
+            disableEditMode()
+        }
+        
+        // Remove first responder status
+        if window?.firstResponder == textField {
+            window?.makeFirstResponder(nil)
+        }
+        
+        // Notify that editing has ended
+        handleEditingCompleted()
+    }
+    
+    // Internal method to disable edit mode for individual cell
+    private func disableEditMode() {
+        guard isEditing else { return }
+        
+        // Disable editing
+        textField.isEditable = false
+        
+        // Update visual state
+        isEditing = false
+    }
+    
+    private func updateEditingAppearance() {
+        print("updateEditingAppearance - isEditing: \(isEditing)")
+        if isEditing {
+            // Completely remove any background during editing
+            textField.backgroundColor = NSColor.clear
+            textField.drawsBackground = true
+              textField.isBordered = false
+            textField.isBezeled = false
+            textField.bezelStyle = .squareBezel  // Reset bezel style
+        }
+    }
+    
+    private func handleEditingCompleted() {
+        // This is where you can add logic to save the edited value
+        // For example, update your data model, send to database, etc.
+        print("Cell editing completed with value: \(textField.stringValue)")
+        
+        // You might want to notify a delegate or post a notification
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CellEditingCompleted"),
+            object: self,
+            userInfo: [
+                "newValue": textField.stringValue,
+                "cell": self
+            ]
+        )
+    }
+    
+    // MARK: - NSTextFieldDelegate Methods
+    func controlTextDidEndEditing(_ obj: Notification) {
+        // Only exit edit mode if we're actually editing and the reason is appropriate
+        guard isEditing else { return }
+        
+        // Check the reason for ending editing
+        if let userInfo = obj.userInfo,
+           let reasonValue = userInfo["NSTextMovement"] as? Int {
+            let reason = NSTextMovement(rawValue: reasonValue) ?? .other
+            
+            switch reason {
+            case .return, .cancel:
+                // User pressed Enter, .Esc
+                exitEditMode()
+            case .other:
+                // Check if we're losing focus to something outside the table
+                if !(window?.firstResponder is NSTextView) {
+                    // Not editing any text field
+                    exitEditMode()
+                }
+            default:
+                // For other movements, don't automatically exit edit mode
+                break
+            }
+        } else {
+            // If no movement reason, check if we're actually losing focus
+            if window?.firstResponder != textField {
+                exitEditMode()
+            }
+        }
+    }
+    
+    func controlTextDidBeginEditing(_ obj: Notification) {
+        // Ensure we're in edit mode when editing begins
+        if !isEditing {
+            enterEditMode()
+            print("Text editing began - ensuring edit mode is active")
+        }
+    }
+    
+    // MARK: - Helper Methods
     private func findTableView() -> NSTableView? {
         var view: NSView? = self.superview
         while view != nil {
@@ -190,150 +294,9 @@ class TextCellView: NSView {
         return nil
     }
     
-    private func animateSelectionTransition(from fromCell: TextCellView, to toCell: TextCellView) {
-        guard let commonSuperview = findCommonSuperview(between: fromCell, and: toCell) else {
-            // Fallback to normal animation if no common superview found
-            fromCell.setSelected(false)
-            toCell.setSelected(true)
-            return
-        }
-        
-        // Get the frames of both cells in the common superview coordinate system
-        let fromFrame = commonSuperview.convert(fromCell.bounds, from: fromCell)
-        let toFrame = commonSuperview.convert(toCell.bounds, from: toCell)
-        
-        // Create a temporary animated border view
-        let animatedBorder = NSView()
-        animatedBorder.wantsLayer = true
-        animatedBorder.layer?.borderWidth = 2.0
-        animatedBorder.layer?.borderColor = NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.5).cgColor
-        animatedBorder.layer?.cornerRadius = 0.0
-        animatedBorder.layer?.backgroundColor = NSColor.clear.cgColor
-        
-        // Position it at the source cell initially (with the same insets as selected border)
-        let startFrame = NSRect(
-            x: fromFrame.origin.x - 8,
-            y: fromFrame.origin.y - 1,
-            width: fromFrame.width + 16,
-            height: fromFrame.height + 1
-        )
-        
-        let endFrame = NSRect(
-            x: toFrame.origin.x - 8,
-            y: toFrame.origin.y - 1,
-            width: toFrame.width + 16,
-            height: toFrame.height + 1
-        )
-        
-        animatedBorder.frame = startFrame
-        commonSuperview.addSubview(animatedBorder)
-        
-        // Hide both cells' selection borders during animation
-        fromCell.selectedBorderView?.isHidden = true
-        toCell.selectedBorderView?.isHidden = true
-        
-        // Animate the transition
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.15
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            context.allowsImplicitAnimation = true
-            
-            // Animate frame
-            animatedBorder.animator().frame = endFrame
-            
-            // Add a subtle scale effect
-            animatedBorder.layer?.transform = CATransform3DMakeScale(1.05, 1.05, 1.0)
-            animatedBorder.animator().layer?.transform = CATransform3DIdentity
-            
-        }) {
-            // Animation completed
-            animatedBorder.removeFromSuperview()
-            
-            // Update the actual selection states
-            fromCell.setSelected(false)
-            toCell.setSelected(true)
-        }
-    }
-    
-    private func findCommonSuperview(between view1: NSView, and view2: NSView) -> NSView? {
-        var superview1: NSView? = view1.superview
-        
-        while superview1 != nil {
-            var superview2: NSView? = view2.superview
-            
-            while superview2 != nil {
-                if superview1 === superview2 {
-                    return superview1
-                }
-                superview2 = superview2?.superview
-            }
-            superview1 = superview1?.superview
-        }
-        
-        return nil
-    }
-    
-    private func showHoverBorder() {
-        hoverBorderView?.isHidden = false
-        
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            context.allowsImplicitAnimation = true
-            hoverBorderView?.alphaValue = 1.0
-        }
-    }
-    
-    private func hideHoverBorder() {
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            context.allowsImplicitAnimation = true
-            hoverBorderView?.alphaValue = 0.0
-        } completionHandler: {
-            self.hoverBorderView?.isHidden = true
-            self.hoverBorderView?.alphaValue = 1.0 // Reset for next time
-        }
-    }
-    
     private func setSelected(_ selected: Bool) {
         isSelected = selected
-        
-        if selected {
-            hideHoverBorder() // Hide hover when selected
-            selectedBorderView?.isHidden = false
-            
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.15
-                context.allowsImplicitAnimation = true
-                selectedBorderView?.alphaValue = 1.0
-            }
-        } else {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.15
-                context.allowsImplicitAnimation = true
-                selectedBorderView?.alphaValue = 0.0
-            } completionHandler: {
-                self.selectedBorderView?.isHidden = true
-                self.selectedBorderView?.alphaValue = 1.0
-            }
-        }
-    }
-    
-    // Public method to programmatically select/deselect
-    func setSelectedState(_ selected: Bool, animated: Bool = true) {
-        if selected {
-            let previousCell = TextCellView.currentlySelectedCell
-            TextCellView.currentlySelectedCell = self
-            
-            if animated && previousCell != nil && previousCell !== self {
-                animateSelectionTransition(from: previousCell!, to: self)
-            } else {
-                previousCell?.setSelected(false)
-                setSelected(true)
-            }
-        } else if TextCellView.currentlySelectedCell === self {
-            TextCellView.currentlySelectedCell = nil
-            setSelected(selected)
-        }
+        // Add your selection visual logic here if needed
     }
     
     private func formatValueForDisplay(_ value: Any?) -> String? {
@@ -350,7 +313,7 @@ class TextCellView: NSView {
             return String(describing: value)
         }
     }
-
+    
     private func decodeValue(from cell: PostgresCell) throws -> Any? {
         guard cell.bytes != nil else { return nil }
         
@@ -385,44 +348,43 @@ class TextCellView: NSView {
     }
     
     func configure(rawCell: Any?, columnInfo: QueryColumnInfo) {
-         guard let rawCell = rawCell else {
-                 textField.stringValue = "(NULL)"
-                 createBorderViewIfNeeded()
-                 return
-             }
+        guard let rawCell = rawCell else {
+            textField.placeholderString = "(NULL)"
+            createBorderViewIfNeeded()
+            return
+        }
         
-         do {
-             textField.stringValue = "(NULL)"
-             
-             // Handle the case where rawCell is a PostgresCell
-             if let postgresCell = rawCell as? PostgresCell {
-                 let value = try decodeValue(from: postgresCell)
-                 configureWithValue(value, columnInfo: columnInfo)
-             } else {
-                 // Handle other database types or direct values
-                 configureWithValue(rawCell, columnInfo: columnInfo)
-             }
-         } catch {
-             textField.stringValue = "Error: \(error.localizedDescription)"
-             textField.textColor = NSColor.systemRed
-         }
-         
-         createBorderViewIfNeeded()
+        do {
+            textField.placeholderString = "(NULL)"
+            
+            // Handle the case where rawCell is a PostgresCell
+            if let postgresCell = rawCell as? PostgresCell {
+                let value = try decodeValue(from: postgresCell)
+                configureWithValue(value, columnInfo: columnInfo)
+            } else {
+                // Handle other database types or direct values
+                configureWithValue(rawCell, columnInfo: columnInfo)
+            }
+        } catch {
+            textField.stringValue = "Error: \(error.localizedDescription)"
+            textField.textColor = NSColor.systemRed
+        }
+        
+        createBorderViewIfNeeded()
     }
+    
     private func configureWithValue(_ value: Any?, columnInfo: QueryColumnInfo) {
         if let value = value {
             let displayValue = formatValueForDisplay(value, columnInfo: columnInfo)
             
             if let stringValue = value as? String, stringValue.isEmpty {
-                textField.stringValue = "(EMPTY)"
-                textField.textColor = .disabledControlTextColor
+                textField.placeholderString = "(EMPTY)"
             } else {
-                textField.stringValue = displayValue
+                textField.stringValue = displayValue ?? String(describing: value)
                 textField.textColor = NSColor.controlTextColor
             }
         } else {
-            textField.stringValue = "(NULL)"
-            textField.textColor = .disabledControlTextColor
+            textField.placeholderString = "(NULL)"
         }
     }
     
@@ -434,14 +396,31 @@ class TextCellView: NSView {
         case "timestamp", "timestamptz":
             if let date = value as? Date {
                 let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .medium
-                return formatter.string(from: date)
+                formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSSSS"
+                formatter.timeZone = TimeZone(identifier: "UTC")
+                
+                let fullString = formatter.string(from: date)
+                
+                if let dotIndex = fullString.lastIndex(of: ".") {
+                    let beforeDot = String(fullString[..<dotIndex])
+                    let afterDot = String(fullString[fullString.index(after: dotIndex)...])
+                    
+                    // Take maximum 5 decimal places, remove trailing zeros
+                    let maxDecimals = String(afterDot.prefix(5))
+                    let trimmed = maxDecimals.trimmingCharacters(in: CharacterSet(charactersIn: "0"))
+                    
+                    if trimmed.isEmpty {
+                        return beforeDot
+                    } else {
+                        return "\(beforeDot).\(trimmed)"
+                    }
+                }
+                return fullString
             }
         case "date":
             if let date = value as? Date {
                 let formatter = DateFormatter()
-                formatter.dateStyle = .medium
+                formatter.dateFormat = "yyyy-MM-dd"
                 return formatter.string(from: date)
             }
         case "bool", "boolean":
@@ -464,7 +443,7 @@ class TextCellView: NSView {
         
         return String(describing: value)
     }
-
+    
     // Rename the old method to avoid conflicts and keep it for backward compatibility
     func configureLegacy(value: Any?, columnInfo: QueryColumnInfo) {
         configureWithValue(value, columnInfo: columnInfo)
@@ -478,19 +457,19 @@ class TextCellView: NSView {
     }
     
     private func createBorderView() {
-         // Right border
-         rightBorderView = NSView()
-         rightBorderView?.wantsLayer = true
-         rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        // Right border
+        rightBorderView = NSView()
+        rightBorderView?.wantsLayer = true
+        rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
         
-         addSubview(rightBorderView!)
-         rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
-         NSLayoutConstraint.activate([
-             rightBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 9),
-             rightBorderView!.topAnchor.constraint(equalTo: topAnchor),
-             rightBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
-             rightBorderView!.widthAnchor.constraint(equalToConstant: 1.0)
-         ])
+        addSubview(rightBorderView!)
+        rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            rightBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
+            rightBorderView!.topAnchor.constraint(equalTo: topAnchor),
+            rightBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
+            rightBorderView!.widthAnchor.constraint(equalToConstant: 1.0)
+        ])
         
         // Bottom border
         bottomBorderView = NSView()
@@ -500,8 +479,8 @@ class TextCellView: NSView {
         addSubview(bottomBorderView!)
         bottomBorderView?.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            bottomBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -8),
-            bottomBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 8),
+            bottomBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 0),
+            bottomBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
             bottomBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
             bottomBorderView!.heightAnchor.constraint(equalToConstant: 1.0)
         ])
@@ -512,73 +491,38 @@ class TextCellView: NSView {
         // No need for manual frame updates - Auto Layout handles everything
     }
     
-    
     // MARK: - For Large Tables: Constraint Caching
     private var constraintsCache: [NSLayoutConstraint]?
-
+    
     private func setupTextFieldWithConstraintCaching() {
         textField = NSTextField(frame: .zero)
         textField.configureForTableCell()
         
+        // Use custom padded cell for internal text padding
+        let paddedCell = PaddedTextFieldCell()
+//        paddedCell.textPadding = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+        textField.cell = paddedCell
+        
         addSubview(textField)
         textField.translatesAutoresizingMaskIntoConstraints = false
         
-        // Cache constraints for reuse in cell recycling scenarios
+        // TextField fills entire cell - internal padding handled by custom cell
         if constraintsCache == nil {
             constraintsCache = [
-                textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-                textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-                textField.centerYAnchor.constraint(equalTo: centerYAnchor)
+                textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 0),
+                textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
+                textField.topAnchor.constraint(equalTo: topAnchor, constant: 0),
+                textField.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
             ]
         }
         
         NSLayoutConstraint.activate(constraintsCache!)
     }
-    
-    // Prepare for reuse - reset state
-//    override func prepareForReuse() {
-//        super.prepareForReuse()
-//        textField.stringValue = ""
-//        
-//        // Clear hover state if this cell was currently hovered
-//        if TextCellView.currentlyHoveredCell === self {
-//            TextCellView.currentlyHoveredCell = nil
-//        }
-//        
-//        // Clear selected state if this cell was currently selected
-//        if TextCellView.currentlySelectedCell === self {
-//            TextCellView.currentlySelectedCell = nil
-//        }
-//        
-//        // Reset visual state
-//        isSelected = false
-//        hoverBorderView?.isHidden = true
-//        hoverBorderView?.alphaValue = 1.0
-//        selectedBorderView?.isHidden = true
-//        selectedBorderView?.alphaValue = 1.0
-//    }
-    
-    // Clean up tracking area when view is deallocated
-//    deinit {
-//        // Clear static references if this cell was currently hovered or selected
-//        if TextCellView.currentlyHoveredCell === self {
-//            TextCellView.currentlyHoveredCell = nil
-//        }
-//        if TextCellView.currentlySelectedCell === self {
-//            TextCellView.currentlySelectedCell = nil
-//        }
-//        
-//        if let trackingArea = trackingArea {
-//            removeTrackingArea(trackingArea)
-//        }
-//    }
 }
 
 // MARK: - Extension for Performance
 private extension NSTextField {
     func configureForTableCell() {
-        // Batch all property assignments to minimize KVO notifications
-        
         // Content and appearance
         stringValue = ""
         textColor = .disabledControlTextColor
@@ -587,32 +531,72 @@ private extension NSTextField {
         // Behavior settings
         lineBreakMode = .byTruncatingTail
         
-        // Cell configuration (safe unwrap to avoid crashes)
-        if let cell = cell {
-            cell.truncatesLastVisibleLine = true
-            cell.isScrollable = false  // Prevent unnecessary scrolling behavior
-            cell.wraps = false         // Disable wrapping for better performance
-        }
-        
         // Disable expensive features for table cells
-        isEditable = false
-        isSelectable = false
+        isEditable = false  // Will be enabled on click
+        isSelectable = true
         isBordered = false
         backgroundColor = .clear
-        drawsBackground = false  // Don't draw background for better performance
+        drawsBackground = true  // Don't draw background for better performance
+        
+        // Remove any cell padding or insets
+        cell?.wraps = false
+        cell?.isScrollable = true
         
         // Optimize text rendering
         allowsEditingTextAttributes = false
         importsGraphics = false
         
-        // Disable automatic behaviors that can slow down table scrolling
-        if #available(macOS 10.12.2, *) {
-            isAutomaticTextCompletionEnabled = false
-            allowsCharacterPickerTouchBarItem = false
+        isAutomaticTextCompletionEnabled = false
+        allowsCharacterPickerTouchBarItem = false
+        allowsDefaultTighteningForTruncation = false
+        
+        placeholderString = "(EMPTY)"
+    }
+}
+
+// MARK: - Custom NSTableView that enables single-click editing
+class CustomTableView: NSTableView {
+    override func mouseDown(with event: NSEvent) {
+        // Convert click point to table view coordinates
+        let clickPoint = convert(event.locationInWindow, from: nil)
+        
+        // Get the row and column that was clicked
+        let clickedRow = row(at: clickPoint)
+        let clickedColumn = column(at: clickPoint)
+        
+        // Handle our custom logic first (this is fast and won't cause QoS issues)
+        var handledByCustomCell = false
+        
+        // Ensure we clicked on a valid cell
+        if clickedRow >= 0 && clickedColumn >= 0 {
+            // Get the cell view at the clicked location
+            if let cellView = view(atColumn: clickedColumn, row: clickedRow, makeIfNecessary: false) {
+                // Convert click point to cell view coordinates
+                let cellClickPoint = cellView.convert(clickPoint, from: self)
+                
+                // Check if we clicked inside the cell bounds
+                if cellView.bounds.contains(cellClickPoint) {
+                    // If it's our custom TextCellView, handle the click
+                    if let textCellView = cellView as? TextCellView {
+                        textCellView.handleDoubleClickEdit(at: cellClickPoint, with: event)
+                        handledByCustomCell = true
+                    }
+                }
+            }
         }
         
-        if #available(macOS 10.11, *) {
-            allowsDefaultTighteningForTruncation = false
+        // Only call super if we didn't handle it with our custom logic
+        // This reduces the chances of QoS conflicts
+        if !handledByCustomCell {
+            super.mouseDown(with: event)
+        } else {
+            // For custom cells, we still need row selection but can do it more efficiently
+            if clickedRow >= 0 {
+                // Perform selection change on main queue with appropriate QoS
+                DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
+                    self?.selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+                }
+            }
         }
     }
 }

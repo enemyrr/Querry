@@ -39,9 +39,10 @@ struct Pluk: App {
         
         SentrySDK.start { options in
             options.dsn = "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
-            options.debug = true
             options.sendDefaultPii = false
             options.enableUncaughtNSExceptionReporting = true
+            
+            options.debug = false
         }
     }
     
