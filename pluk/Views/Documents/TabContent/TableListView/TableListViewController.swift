@@ -23,7 +23,7 @@ struct TableListViewController: NSViewRepresentable {
         self.modificationTracker = modificationTracker
     }
     
-    class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+    class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate {
         var rows: [[String: Any?]]
         var schema: DatabaseSchemaResult?
         var totalCount: Int
@@ -77,10 +77,63 @@ struct TableListViewController: NSViewRepresentable {
             }
             
             super.init()
+            
+            // Set up undo delegate
+            self.modificationTracker?.undoDelegate = self
         }
         
         deinit {
             NotificationCenter.default.removeObserver(self)
+        }
+        
+        // MARK: - TableModificationUndoDelegate
+        func willUndoModification(rowIndex: Int, columnName: String, fromValue: String, toValue: String) {
+            print("🔄 Will undo modification: Row \(rowIndex), Column \(columnName), \(fromValue) → \(toValue)")
+        }
+        
+        func didUndoModification(rowIndex: Int, columnName: String, newValue: String) {
+            print("✅ Did undo modification: Row \(rowIndex), Column \(columnName) → \(newValue)")
+            
+            // Update the UI to reflect the undo
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                
+                // Find the cell view and update its value
+                if let cellView = self.findCellView(rowIndex: rowIndex, columnName: columnName) {
+                    print("🔍 Updating cell view for undo - Row: \(rowIndex), Column: \(columnName), New Value: '\(newValue)'")
+                    cellView.resetModificationState()
+                    
+                    // Force a refresh of the cell's appearance
+                    cellView.needsDisplay = true
+                    cellView.needsLayout = true
+                } else {
+                    print("⚠️ Could not find cell view for Row: \(rowIndex), Column: \(columnName)")
+                }
+                
+                // Note: We might not need to reload the entire row since we're updating the cell directly
+                // But keep it as a fallback for now
+                if rowIndex < self.tableView.numberOfRows {
+                    let rowIndexSet = IndexSet(integer: rowIndex)
+                    self.tableView.reloadData(forRowIndexes: rowIndexSet, columnIndexes: IndexSet(integersIn: 0..<self.tableView.numberOfColumns))
+                }
+            }
+        }
+        
+        private func findCellView(rowIndex: Int, columnName: String) -> TextCellView? {
+            guard rowIndex < tableView.numberOfRows else { return nil }
+            
+            for columnIndex in 0..<tableView.numberOfColumns {
+                let column = tableView.tableColumns[columnIndex]
+                if column.identifier.rawValue == columnName {
+                    return tableView.view(atColumn: columnIndex, row: rowIndex, makeIfNecessary: false) as? TextCellView
+                }
+            }
+            return nil
+        }
+        
+        @objc private func handleUndo() -> Bool {
+            guard let modificationTracker = modificationTracker else { return false }
+            return modificationTracker.undo()
         }
         
         func setupTableView() -> NSView {
@@ -348,6 +401,11 @@ struct TableListViewController: NSViewRepresentable {
             // Set data source and delegate
             tableView.dataSource = self
             tableView.delegate = self
+            
+            // Set up undo handler for keyboard shortcuts
+            (tableView as? CustomTableView)?.undoHandler = { [weak self] in
+                return self?.handleUndo() ?? false
+            }
             
             // Set up column resize and reorder notifications
             NotificationCenter.default.addObserver(

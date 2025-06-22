@@ -261,8 +261,11 @@ class TextCellView: NSView, NSTextFieldDelegate {
         }
         
         if isModified {
-            // Set background color on the cell itself
-            layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.2).cgColor
+            // Set background color on the cell itself to indicate modification
+            layer?.backgroundColor = NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0).cgColor
+        } else {
+            // Reset background color when not modified
+            layer?.backgroundColor = NSColor.clear.cgColor
         }
     }
     
@@ -292,6 +295,26 @@ class TextCellView: NSView, NSTextFieldDelegate {
     func controlTextDidEndEditing(_ obj: Notification) {
         // Only exit edit mode if we're actually editing and the reason is appropriate
         guard isEditing else { return }
+        
+        // Track the complete cell modification when editing ends
+        let finalValue = textField.stringValue
+        if let tracker = modificationTracker, rowIndex >= 0 {
+            if finalValue != originalValue {
+                // Cell was changed - add to modification tracker and history
+                tracker.updateCell(
+                    rowIndex: rowIndex,
+                    columnName: columnName,
+                    newValue: finalValue,
+                    originalValue: originalValue,
+                    dataType: dataType
+                )
+                print("📝 Cell editing completed: Row \(rowIndex), Column \(columnName), \(originalValue) → \(finalValue)")
+            } else {
+                // Cell was reverted to original value - remove from tracker
+                tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
+                print("🔄 Cell reverted to original: Row \(rowIndex), Column \(columnName)")
+            }
+        }
         
         // Check the reason for ending editing
         if let userInfo = obj.userInfo,
@@ -329,24 +352,9 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     func controlTextDidChange(_ obj: Notification) {
-        // Check if the text has been modified from the original value
+        // Only update the visual state during typing, don't track history yet
         let currentValue = textField.stringValue
         let hasChanged = currentValue != originalValue
-        
-        // Update the modification tracker on every change
-        if let tracker = modificationTracker, rowIndex >= 0 {
-            if hasChanged {
-                tracker.updateCell(
-                    rowIndex: rowIndex,
-                    columnName: columnName,
-                    newValue: currentValue,
-                    originalValue: originalValue,
-                    dataType: dataType
-                )
-            } else {
-                tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
-            }
-        }
         
         // Update the visual state only when modification state changes
         if hasChanged != isModified {
@@ -650,6 +658,30 @@ private extension NSTextField {
 
 // MARK: - Custom NSTableView that enables single-click editing
 class CustomTableView: NSTableView {
+    // Handler for undo operations
+    var undoHandler: (() -> Bool)?
+    
+    override func keyDown(with event: NSEvent) {
+        // Check for Cmd+Z (undo)
+        if event.modifierFlags.contains(.command) && event.keyCode == 6 { // 'z' key
+            if let undoHandler = undoHandler, undoHandler() {
+                // Undo was handled successfully
+                return
+            }
+        }
+        
+        // Let the superclass handle other key events
+        super.keyDown(with: event)
+    }
+    
+//    override var canBecomeFirstResponder: Bool {
+//        return true
+//    }
+    
+    override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
     override func mouseDown(with event: NSEvent) {
         // Convert click point to table view coordinates
         let clickPoint = convert(event.locationInWindow, from: nil)

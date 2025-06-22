@@ -20,6 +20,26 @@ struct CellModification {
     }
 }
 
+// MARK: - Modification History Entry
+struct ModificationHistoryEntry {
+    let id = UUID()
+    let timestamp: Date
+    let rowIndex: Int
+    let columnName: String
+    let previousValue: String
+    let newValue: String
+    let dataType: String
+    
+    init(rowIndex: Int, columnName: String, previousValue: String, newValue: String, dataType: String) {
+        self.timestamp = Date()
+        self.rowIndex = rowIndex
+        self.columnName = columnName
+        self.previousValue = previousValue
+        self.newValue = newValue
+        self.dataType = dataType
+    }
+}
+
 // MARK: - Row Modification Model
 struct RowModification {
     let rowIndex: Int
@@ -57,6 +77,10 @@ struct RowModification {
 // MARK: - Table Modification Tracker
 @Observable class TableModificationTracker {
     private var rowModifications: [Int: RowModification] = [:]
+    private var modificationHistory: [ModificationHistoryEntry] = []
+    
+    // Delegate to notify about undo events
+    weak var undoDelegate: TableModificationUndoDelegate?
     
     // Public computed properties
     var modifiedRowCount: Int {
@@ -71,8 +95,46 @@ struct RowModification {
         return modifiedRowCount > 0
     }
     
+    var canUndo: Bool {
+        return !modificationHistory.isEmpty
+    }
+    
+    var historyCount: Int {
+        return modificationHistory.count
+    }
+    
     // MARK: - Modification Management
     func updateCell(rowIndex: Int, columnName: String, newValue: String, originalValue: String, dataType: String) {
+        // Check if there's already a modification for this cell
+        let existingModification = getCellModification(rowIndex: rowIndex, columnName: columnName)
+        
+        if let existing = existingModification {
+            // Cell already has a modification - we're updating an existing change
+            // Only add to history if the new value is different from current modified value
+            if existing.newValue != newValue {
+                let historyEntry = ModificationHistoryEntry(
+                    rowIndex: rowIndex,
+                    columnName: columnName,
+                    previousValue: existing.newValue,
+                    newValue: newValue,
+                    dataType: dataType
+                )
+                modificationHistory.append(historyEntry)
+                print("📝 Updated existing modification: Row \(rowIndex), Column \(columnName), \(existing.newValue) → \(newValue)")
+            }
+        } else {
+            // New modification - add to history
+            let historyEntry = ModificationHistoryEntry(
+                rowIndex: rowIndex,
+                columnName: columnName,
+                previousValue: originalValue,
+                newValue: newValue,
+                dataType: dataType
+            )
+            modificationHistory.append(historyEntry)
+            print("📝 New cell modification: Row \(rowIndex), Column \(columnName), \(originalValue) → \(newValue)")
+        }
+        
         if rowModifications[rowIndex] == nil {
             rowModifications[rowIndex] = RowModification(rowIndex: rowIndex)
         }
@@ -91,6 +153,19 @@ struct RowModification {
     }
     
     func resetCell(rowIndex: Int, columnName: String) {
+        // Get the current modified value before resetting
+        if let cellMod = getCellModification(rowIndex: rowIndex, columnName: columnName) {
+            let historyEntry = ModificationHistoryEntry(
+                rowIndex: rowIndex,
+                columnName: columnName,
+                previousValue: cellMod.newValue,
+                newValue: cellMod.originalValue,
+                dataType: cellMod.dataType
+            )
+            modificationHistory.append(historyEntry)
+            print("🔄 Cell reset to original: Row \(rowIndex), Column \(columnName), \(cellMod.newValue) → \(cellMod.originalValue)")
+        }
+        
         rowModifications[rowIndex]?.removeCell(columnName: columnName)
         
         // Remove the row modification if no changes remain
@@ -100,13 +175,134 @@ struct RowModification {
     }
     
     func resetRow(rowIndex: Int) {
+        // Add reset entries to history for all modified cells in this row
+        if let rowMod = rowModifications[rowIndex] {
+            for (_, cellMod) in rowMod.cellModifications where cellMod.hasChanged {
+                let historyEntry = ModificationHistoryEntry(
+                    rowIndex: rowIndex,
+                    columnName: cellMod.columnName,
+                    previousValue: cellMod.newValue,
+                    newValue: cellMod.originalValue,
+                    dataType: cellMod.dataType
+                )
+                modificationHistory.append(historyEntry)
+            }
+        }
+        
         rowModifications.removeValue(forKey: rowIndex)
     }
     
     func resetAllModifications() {
+        // Add reset entries to history for all modifications
+        for rowMod in allModifications {
+            for (_, cellMod) in rowMod.cellModifications where cellMod.hasChanged {
+                let historyEntry = ModificationHistoryEntry(
+                    rowIndex: cellMod.rowIndex,
+                    columnName: cellMod.columnName,
+                    previousValue: cellMod.newValue,
+                    newValue: cellMod.originalValue,
+                    dataType: cellMod.dataType
+                )
+                modificationHistory.append(historyEntry)
+            }
+        }
+        
         rowModifications.removeAll()
     }
     
+    // MARK: - Undo Functionality
+    func undo() -> Bool {
+        guard let lastEntry = modificationHistory.popLast() else {
+            print("❌ No modifications to undo")
+            return false
+        }
+        
+        print("⏪ Undoing: Row \(lastEntry.rowIndex), Column \(lastEntry.columnName), \(lastEntry.newValue) → \(lastEntry.previousValue)")
+        
+        // Notify delegate about the undo operation
+        undoDelegate?.willUndoModification(
+            rowIndex: lastEntry.rowIndex,
+            columnName: lastEntry.columnName,
+            fromValue: lastEntry.newValue,
+            toValue: lastEntry.previousValue
+        )
+        
+        // Apply the undo by setting the cell back to its previous value
+        // We need to find the original value for this cell
+        let originalValue = findOriginalValue(rowIndex: lastEntry.rowIndex, columnName: lastEntry.columnName)
+        
+        if lastEntry.previousValue == originalValue {
+            // Reverting to original value - remove the modification
+            if rowModifications[lastEntry.rowIndex] != nil {
+                rowModifications[lastEntry.rowIndex]?.removeCell(columnName: lastEntry.columnName)
+                
+                // Remove the row modification if no changes remain
+                if let rowMod = rowModifications[lastEntry.rowIndex], !rowMod.hasModifications {
+                    rowModifications.removeValue(forKey: lastEntry.rowIndex)
+                }
+            }
+        } else {
+            // Reverting to a previous modified value - update the modification
+            if rowModifications[lastEntry.rowIndex] == nil {
+                rowModifications[lastEntry.rowIndex] = RowModification(rowIndex: lastEntry.rowIndex)
+            }
+            
+            rowModifications[lastEntry.rowIndex]?.updateCell(
+                columnName: lastEntry.columnName,
+                newValue: lastEntry.previousValue,
+                originalValue: originalValue,
+                dataType: lastEntry.dataType
+            )
+        }
+        
+        // Notify delegate that undo is complete
+        undoDelegate?.didUndoModification(
+            rowIndex: lastEntry.rowIndex,
+            columnName: lastEntry.columnName,
+            newValue: lastEntry.previousValue
+        )
+        
+        return true
+    }
+    
+    private func findOriginalValue(rowIndex: Int, columnName: String) -> String {
+        // Look through history to find the first entry for this cell (which would contain the original value)
+        // We need to find the earliest entry for this cell
+        var earliestEntry: ModificationHistoryEntry?
+        for entry in modificationHistory {
+            if entry.rowIndex == rowIndex && entry.columnName == columnName {
+                if earliestEntry == nil || entry.timestamp < earliestEntry!.timestamp {
+                    earliestEntry = entry
+                }
+            }
+        }
+        
+        if let earliest = earliestEntry {
+            return earliest.previousValue
+        }
+        
+        // If not found in history, check current modifications
+        if let cellMod = getCellModification(rowIndex: rowIndex, columnName: columnName) {
+            return cellMod.originalValue
+        }
+        
+        // Fallback - should not happen in normal operation
+        return ""
+    }
+    
+    func clearHistory() {
+        modificationHistory.removeAll()
+        print("🗑️ Cleared modification history")
+    }
+    
+    func printHistory() {
+        print("📋 Modification History (\(modificationHistory.count) entries):")
+        for (index, entry) in modificationHistory.enumerated() {
+            print("  \(index + 1). Row \(entry.rowIndex), \(entry.columnName): '\(entry.previousValue)' → '\(entry.newValue)'")
+        }
+    }
+    
+    // MARK: - Query Methods
     func getRowModification(for rowIndex: Int) -> RowModification? {
         return rowModifications[rowIndex]
     }
@@ -122,4 +318,10 @@ struct RowModification {
     func isCellModified(rowIndex: Int, columnName: String) -> Bool {
         return getCellModification(rowIndex: rowIndex, columnName: columnName)?.hasChanged ?? false
     }
+}
+
+// MARK: - Undo Delegate Protocol
+protocol TableModificationUndoDelegate: AnyObject {
+    func willUndoModification(rowIndex: Int, columnName: String, fromValue: String, toValue: String)
+    func didUndoModification(rowIndex: Int, columnName: String, newValue: String)
 }

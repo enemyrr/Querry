@@ -123,6 +123,17 @@ struct TableListView: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        .background(
+            // Hidden button for keyboard shortcut handling
+            Button("") {
+                Task {
+                    await performUndo()
+                }
+            }
+            .keyboardShortcut("z", modifiers: .command)
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
     }
     
     // MARK: - Error Handling
@@ -137,6 +148,21 @@ struct TableListView: View {
               await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
           } else {
               await loadDocumentsIfNeeded()
+          }
+      }
+      
+      // MARK: - Undo Functionality
+      private func performUndo() async {
+          guard modificationTracker.canUndo else {
+              print("ℹ️ No modifications to undo")
+              return
+          }
+          
+          let success = modificationTracker.undo()
+          if success {
+              print("✅ Undo successful")
+          } else {
+              print("❌ Undo failed")
           }
       }
     
