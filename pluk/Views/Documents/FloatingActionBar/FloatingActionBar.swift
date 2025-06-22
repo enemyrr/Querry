@@ -11,8 +11,11 @@ import MongoKitten
 struct FloatingActionBar: View {
     var viewState: TableListViewState
     let tableName: String
+    let modificationTracker: TableModificationTracker
+    let isProcessingUpdates: Bool
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
+    let onSaveChanges: () -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     
@@ -354,22 +357,19 @@ struct FloatingActionBar: View {
             }
             
             // Batch update button - only show when there are documents marked for update
-            //                if viewModel.pendingActionsCount(for: .update) > 1 {
-            //                    Divider()
-            //                        .frame(height: 22)
-            //                        .padding(.vertical, 6)
-            //
-            //                    UpdateActionButton(
-            //                        updateCount: viewModel.pendingActionsCount(for: .update),
-            //                        isProcessingBatch: viewModel.isProcessingBatch,
-            //                        onUpdate: {
-            //                            Task {
-            //                                await viewModel.commitPendingActions()
-            //                            }
-            //                        }
-            //                    )
-            //                }
-            //            }
+            if modificationTracker.hasModifications {
+                Divider()
+                    .frame(height: 22)
+                    .padding(.vertical, 6)
+
+                UpdateActionButton(
+                    updateCount: modificationTracker.modifiedRowCount,
+                    isProcessingBatch: isProcessingUpdates,
+                    onUpdate: {
+                        onSaveChanges()
+                    }
+                )
+            }
             
             Divider()
                 .frame(height: 22)
@@ -598,8 +598,6 @@ struct FloatingActionBar: View {
         animationTask = nil
         animationDots = ""
     }
-    
-    
 }
 
 enum ActionBar: String, CaseIterable, Codable {

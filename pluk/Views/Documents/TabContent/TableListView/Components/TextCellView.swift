@@ -75,6 +75,20 @@ class TextCellView: NSView, NSTextFieldDelegate {
             }
         }
     }
+    private var rowIndex: Int = -1
+    private var columnName: String = ""
+    private var dataType: String = ""
+    
+    // Weak reference to modification tracker to avoid retain cycles
+    weak var modificationTracker: TableModificationTracker?
+    private var originalValue: String = ""
+    private var isModified: Bool = false {
+        didSet {
+            if oldValue != isModified {
+                updateModificationAppearance()
+            }
+        }
+    }
     
     // Cache for optimization
     private var lastConfiguredColumn: String = ""
@@ -161,9 +175,18 @@ class TextCellView: NSView, NSTextFieldDelegate {
         }
     }
     
+    // Public method to reset modification state (useful for external control)
+    func resetModificationState() {
+        originalValue = textField.stringValue
+        isModified = false
+    }
+    
     // Internal method to enable edit mode for individual cell
     private func enableEditMode() {
         guard !isEditing else { return }
+        
+        // Store original value for modification tracking
+        originalValue = textField.stringValue
         
         // Enable editing
         textField.isEditable = true
@@ -220,9 +243,22 @@ class TextCellView: NSView, NSTextFieldDelegate {
             // Completely remove any background during editing
             textField.backgroundColor = NSColor.clear
             textField.drawsBackground = true
-              textField.isBordered = false
+            textField.isBordered = false
             textField.isBezeled = false
             textField.bezelStyle = .squareBezel  // Reset bezel style
+        }
+    }
+    
+    private func updateModificationAppearance() {
+        print("updateModificationAppearance - isModified: \(isModified)")
+        if isModified {
+            // Set background color for modified fields
+            textField.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.2)
+            textField.drawsBackground = true
+        } else {
+            // Reset to default appearance
+            textField.backgroundColor = NSColor.clear
+            textField.drawsBackground = true
         }
     }
     
@@ -231,13 +267,19 @@ class TextCellView: NSView, NSTextFieldDelegate {
         // For example, update your data model, send to database, etc.
         print("Cell editing completed with value: \(textField.stringValue)")
         
+        // Reset modification state after editing is completed
+        // In a real app, you might want to keep the modified state until the data is actually saved
+        isModified = false
+        originalValue = textField.stringValue
+        
         // You might want to notify a delegate or post a notification
         NotificationCenter.default.post(
             name: NSNotification.Name("CellEditingCompleted"),
             object: self,
             userInfo: [
                 "newValue": textField.stringValue,
-                "cell": self
+                "cell": self,
+                "wasModified": textField.stringValue != originalValue
             ]
         )
     }
@@ -282,6 +324,32 @@ class TextCellView: NSView, NSTextFieldDelegate {
         }
     }
     
+    func controlTextDidChange(_ obj: Notification) {
+        // Check if the text has been modified from the original value
+        let currentValue = textField.stringValue
+        let hasChanged = currentValue != originalValue
+        
+        if hasChanged != isModified {
+            isModified = hasChanged
+            print("Text field modification state changed: \(isModified)")
+            
+            // Update the modification tracker
+            if let tracker = modificationTracker, rowIndex >= 0 {
+                if hasChanged {
+                    tracker.updateCell(
+                        rowIndex: rowIndex,
+                        columnName: columnName,
+                        newValue: currentValue,
+                        originalValue: originalValue,
+                        dataType: dataType
+                    )
+                } else {
+                    tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
+                }
+            }
+        }
+    }
+
     // MARK: - Helper Methods
     private func findTableView() -> NSTableView? {
         var view: NSView? = self.superview
@@ -373,6 +441,27 @@ class TextCellView: NSView, NSTextFieldDelegate {
         createBorderViewIfNeeded()
     }
     
+    // New method that includes tracking information
+    func configure(rawCell: Any?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?) {
+        // Store tracking information
+        self.rowIndex = rowIndex
+        self.columnName = columnInfo.name
+        self.dataType = columnInfo.dataType
+        self.modificationTracker = modificationTracker
+        
+        // Check if this cell has existing modifications
+        if let tracker = modificationTracker,
+           let cellMod = tracker.getCellModification(rowIndex: rowIndex, columnName: columnInfo.name) {
+            // Use the modified value instead of the original
+            textField.stringValue = cellMod.newValue
+            originalValue = cellMod.originalValue
+            isModified = cellMod.hasChanged
+        } else {
+            // Configure normally
+            configure(rawCell: rawCell, columnInfo: columnInfo)
+        }
+    }
+    
     private func configureWithValue(_ value: Any?, columnInfo: QueryColumnInfo) {
         if let value = value {
             let displayValue = formatValueForDisplay(value, columnInfo: columnInfo)
@@ -386,6 +475,10 @@ class TextCellView: NSView, NSTextFieldDelegate {
         } else {
             textField.placeholderString = "(NULL)"
         }
+        
+        // Store the configured value as the original value and reset modification state
+        originalValue = textField.stringValue
+        isModified = false
     }
     
     private func formatValueForDisplay(_ value: Any?, columnInfo: QueryColumnInfo) -> String {

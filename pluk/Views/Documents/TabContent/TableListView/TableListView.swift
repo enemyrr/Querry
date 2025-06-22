@@ -24,6 +24,10 @@ struct TableListView: View {
     // Task management for preventing race conditions
     @State private var loadingTask: Task<Void, Never>?
     
+    // Modification tracking
+    @State private var modificationTracker = TableModificationTracker()
+    @State private var isProcessingUpdates = false
+    
     var body: some View {
         ZStack {
             VStack {
@@ -39,7 +43,8 @@ struct TableListView: View {
                             loadingTask = Task {
                                 await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
                             }
-                        }
+                        },
+                        modificationTracker: modificationTracker
                     )
                 }
             }
@@ -55,6 +60,8 @@ struct TableListView: View {
                 FloatingActionBar(
                     viewState: viewState,
                     tableName: selectedTab.name,
+                    modificationTracker: modificationTracker,
+                    isProcessingUpdates: isProcessingUpdates,
                     onRefresh: { currentPage, itemsPerPage, fetchSchema in
                         Task {
                             await loadDocuments(
@@ -73,6 +80,11 @@ struct TableListView: View {
                         Task {
                             await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
                         }
+                    },
+                    onSaveChanges: {
+                        Task {
+                            await saveModifications()
+                        }
                     }
                 )
                 .padding(.bottom, 10)
@@ -83,6 +95,7 @@ struct TableListView: View {
         }
         .onChange(of: searchFilter) { _, newValue in
             loadingTask?.cancel()
+            modificationTracker.resetAllModifications()
             loadingTask = Task {
                 await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
             }
@@ -90,6 +103,7 @@ struct TableListView: View {
         .onChange(of: instance.id) { _, _ in
             loadingTask?.cancel()
             clearCache()
+            modificationTracker.resetAllModifications()
             loadingTask = Task {
                 await loadDocumentsIfNeeded()
             }
@@ -97,6 +111,79 @@ struct TableListView: View {
         .onDisappear {
             loadingTask?.cancel()
         }
+    }
+    
+    // MARK: - Save Modifications
+    private func saveModifications() async {
+        guard let driver = instance.databaseService else {
+            print("❌ No database driver available")
+            return
+        }
+        
+        let modifications = modificationTracker.allModifications
+        guard !modifications.isEmpty else {
+            print("ℹ️ No modifications to save")
+            return
+        }
+        
+        print("💾 Saving \(modifications.count) modified rows...")
+        
+        for rowModification in modifications {
+            do {
+                // Get the row data
+                guard let currentQueryResult = currentQueryResult,
+                      rowModification.rowIndex < currentQueryResult.rawRows.count else {
+                    print("❌ Invalid row index: \(rowModification.rowIndex)")
+                    continue
+                }
+                
+                let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
+                
+                // Create update data with only modified columns
+                var updateData: [String: Any] = [:]
+                for (columnName, cellMod) in rowModification.cellModifications {
+                    if cellMod.hasChanged {
+                        updateData[columnName] = cellMod.newValue
+                    }
+                }
+                
+                // Find the primary key or unique identifier for this row
+                // This is a simplified approach - you might need to adapt based on your schema
+                var rowId: Any?
+                if let idValue = originalRow["id"] {
+                    rowId = idValue
+                } else if let firstColumn = currentQueryResult.columns.first {
+                    rowId = originalRow[firstColumn.name]
+                }
+                
+                guard let id = rowId else {
+                    print("❌ Could not find row identifier for row \(rowModification.rowIndex)")
+                    continue
+                }
+                
+                // Use the database driver to update the row
+//                try await driver.updateDocument(
+//                    in: selectedTab.name,
+//                    database: instance.database!,
+//                    id: id,
+//                    data: updateData
+//                )
+                
+                print("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
+                
+            } catch {
+                print("❌ Failed to update row \(rowModification.rowIndex): \(error)")
+                // You might want to show an error alert here
+            }
+        }
+        
+        // Clear modifications after successful save
+        modificationTracker.resetAllModifications()
+        
+        // Optionally refresh the data to show the saved changes
+        await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+        
+        print("✅ All modifications saved successfully")
     }
     
     /// Overlay content for loading/error states

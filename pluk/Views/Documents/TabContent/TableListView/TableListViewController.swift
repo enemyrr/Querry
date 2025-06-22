@@ -13,12 +13,14 @@ struct TableListViewController: NSViewRepresentable {
     let queryResult: QueryResult?
     let tableName: String
     let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
+    let modificationTracker: TableModificationTracker?
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
         self.onSort = onSort
+        self.modificationTracker = modificationTracker
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
@@ -56,11 +58,15 @@ struct TableListViewController: NSViewRepresentable {
             static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
         }
         
-        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil) {
+        // Store modification tracker reference
+        weak var modificationTracker: TableModificationTracker?
+        
+        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil) {
             self.schema = schema
             self.queryResult = queryResult
             self.tableName = tableName
             self.onSort = onSort
+            self.modificationTracker = modificationTracker
             
             if let queryResult = queryResult {
                 self.rows = queryResult.rawRows
@@ -685,13 +691,13 @@ struct TableListViewController: NSViewRepresentable {
             }
             
             
-            // Use the new configure method with raw cell
+            // Use the new configure method with modification tracking
             let columnName = tableColumn.identifier.rawValue
             let rawCell = queryResult.rawCell(row: row, column: columnName)
             let columnInfo = queryResult.column(named: columnName)
             
             if columnInfo != nil {
-                cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!)
+                cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!, rowIndex: row, modificationTracker: modificationTracker)
             }
             
             return cellView
@@ -848,7 +854,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort)
+        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker)
     }
     
     func makeNSView(context: Context) -> NSView {
