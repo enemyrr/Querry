@@ -65,25 +65,19 @@ class CustomTableRowView: NSTableRowView {
     private func drawFullRowSelection() {
         let customColor = NSColor.controlColor.withAlphaComponent(0.08)
         customColor.setFill()
-        bounds.fill()
-    }
-    
-    override func drawBackground(in dirtyRect: NSRect) {
-        if isSelected {
-            drawCustomBorders()
-        }
-    }
-    
-    private func drawCustomBorders() {
-        let separatorColor = NSColor.separatorColor
-        let bottomBorderRect = NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1)
-        separatorColor.setFill()
-        bottomBorderRect.fill()
+        
+        // Apply bottom padding to the selection rectangle
+        let paddedRect = NSRect(
+            x: bounds.origin.x,
+            y: bounds.origin.y,
+            width: bounds.width,
+            height: bounds.height - 1
+        )
+        paddedRect.fill()
     }
     
     // Prepare for reuse - reset any custom state
     override func prepareForReuse() {
         super.prepareForReuse()
-        // Reset any custom properties if needed
     }
 }

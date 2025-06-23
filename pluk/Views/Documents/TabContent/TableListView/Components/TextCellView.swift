@@ -54,25 +54,35 @@ class PaddedTextFieldCell: NSTextFieldCell {
         var paddedRect = rect
         paddedRect.origin.x += textPadding.left - 2
         paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.width -= (textPadding.left + textPadding.right) + 2
         paddedRect.size.height -= (textPadding.top + textPadding.bottom)
         
         super.select(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
     }
-//    
-//    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-//        var paddedRect = cellFrame
-//        paddedRect.origin.x += textPadding.left
-//        paddedRect.origin.y += textPadding.top
-//        paddedRect.size.width -= (textPadding.left + textPadding.right)
-//        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-//        super.drawInterior(withFrame: paddedRect, in: controlView)  // Changed this line
-//    }
     
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-          let paddedRect = titleRect(forBounds: cellFrame)
-          super.drawInterior(withFrame: paddedRect, in: controlView)
-      }
+        var paddedRect = titleRect(forBounds: cellFrame)
+        
+        // Check if we're in edit mode but not active
+        if let textField = controlView as? NSTextField,
+           textField.isEditable && textField.window?.firstResponder != textField {
+            
+            paddedRect.origin.x -= 2
+            paddedRect.size.width += 2  // Compensate width to maintain right edge
+            
+            // Custom drawing for edit mode (non-active)
+            // You can modify appearance here - different background, border, etc.
+            
+            #if DEBUG
+            NSColor.controlAccentColor.withAlphaComponent(0.1).set()
+            paddedRect.fill()
+            NSColor.controlAccentColor.withAlphaComponent(0.3).set()
+            paddedRect.frame()
+            #endif
+        }
+        
+        super.drawInterior(withFrame: paddedRect, in: controlView)
+    }
     
 }
 
@@ -328,32 +338,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 // Cell was reverted to original value - remove from tracker
                 tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
                 print("🔄 Cell reverted to original: Row \(rowIndex), Column \(columnName)")
-            }
-        }
-        
-        // Check the reason for ending editing
-        if let userInfo = obj.userInfo,
-           let reasonValue = userInfo["NSTextMovement"] as? Int {
-            let reason = NSTextMovement(rawValue: reasonValue) ?? .other
-            
-            switch reason {
-            case .return, .cancel:
-                // User pressed Enter, .Esc
-                exitEditMode()
-            case .other:
-                // Check if we're losing focus to something outside the table
-                if !(window?.firstResponder is NSTextView) {
-                    // Not editing any text field
-                    exitEditMode()
-                }
-            default:
-                // For other movements, don't automatically exit edit mode
-                break
-            }
-        } else {
-            // If no movement reason, check if we're actually losing focus
-            if window?.firstResponder != textField {
-                exitEditMode()
             }
         }
     }
