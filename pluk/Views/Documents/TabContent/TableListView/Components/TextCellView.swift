@@ -12,33 +12,33 @@ import PostgresNIO
 // MARK: - Custom NSTextFieldCell with internal padding
 class PaddedTextFieldCell: NSTextFieldCell {
     let textPadding: NSEdgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
-      
+    
     override init(textCell string: String) {
-           super.init(textCell: string)
-           setupCell()
-       }
-       
-       required init(coder: NSCoder) {
-           super.init(coder: coder)
-           setupCell()
-       }
-       
+        super.init(textCell: string)
+        setupCell()
+    }
+    
+    required init(coder: NSCoder) {
+        super.init(coder: coder)
+        setupCell()
+    }
+    
     private func setupCell() {
         lineBreakMode = .byTruncatingTail
         wraps = false
         isScrollable = false
         usesSingleLineMode = true
     }
-
-      // Rest of your existing methods remain the same...
-      override func titleRect(forBounds rect: NSRect) -> NSRect {
-          var paddedRect = super.titleRect(forBounds: rect)
-          paddedRect.origin.x += textPadding.left
-          paddedRect.origin.y += textPadding.top
-          paddedRect.size.width -= (textPadding.left + textPadding.right)
-          paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-          return paddedRect
-      }
+    
+    // Rest of your existing methods remain the same...
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        var paddedRect = super.titleRect(forBounds: rect)
+        paddedRect.origin.x += textPadding.left
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        return paddedRect
+    }
     
     override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
         var paddedRect = rect
@@ -73,12 +73,12 @@ class PaddedTextFieldCell: NSTextFieldCell {
             // Custom drawing for edit mode (non-active)
             // You can modify appearance here - different background, border, etc.
             
-            #if DEBUG
-            NSColor.controlAccentColor.withAlphaComponent(0.1).set()
-            paddedRect.fill()
-            NSColor.controlAccentColor.withAlphaComponent(0.3).set()
-            paddedRect.frame()
-            #endif
+//#if DEBUG
+//            NSColor.controlAccentColor.withAlphaComponent(0.1).set()
+//            paddedRect.fill()
+//            NSColor.controlAccentColor.withAlphaComponent(0.3).set()
+//            paddedRect.frame()
+//#endif
         }
         
         super.drawInterior(withFrame: paddedRect, in: controlView)
@@ -166,6 +166,22 @@ class TextCellView: NSView, NSTextFieldDelegate {
         if textField.bounds.contains(textFieldPoint) {
             print("Click is inside text field bounds")
             
+            // Handle single click for selection
+            if event.clickCount == 1 {
+                // Clear previous selection first
+                TextCellView.clearAllSelections()
+                
+                // Get table view and coordinate
+                if let tableView = findTableView() {
+                    let currentRow = tableView.row(for: self)
+                    let currentColumn = tableView.column(for: self)
+                    
+                    // Select this cell
+                    setSelected(true)
+                    TextCellView.currentlySelectedCell = self
+                }
+            }
+            
             // Only handle double-clicks for editing
             if event.clickCount == 2 {
                 print("Double click - entering edit mode")
@@ -173,6 +189,21 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 self.textField.selectText(nil)
             }
         }
+    }
+    
+    // Add this new static method to clear all selections
+    private static func clearAllSelections() {
+        // Clear the currently selected cell
+        if let selectedCell = currentlySelectedCell {
+            selectedCell.setSelected(false)
+        }
+        currentlySelectedCell = nil
+        
+        // Clear the currently hovered cell
+        if let hoveredCell = currentlyHoveredCell {
+            hoveredCell.setSelected(false)
+        }
+        currentlyHoveredCell = nil
     }
     
     // Public method for exiting edit mode (can be called externally)
@@ -361,7 +392,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             print("Text field modification state changed: \(isModified)")
         }
     }
-
+    
     // MARK: - Helper Methods
     private func findTableView() -> NSTableView? {
         var view: NSView? = self.superview
@@ -376,7 +407,23 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     private func setSelected(_ selected: Bool) {
         isSelected = selected
-        // Add your selection visual logic here if needed
+        
+        if !wantsLayer {
+            wantsLayer = true
+        }
+        
+        if selected {
+            layer?.borderWidth = 1.0
+            layer?.borderColor = NSColor.white.cgColor
+        } else {
+            // Remove border when not selected
+            layer?.borderWidth = 0.0
+            layer?.borderColor = NSColor.clear.cgColor
+            layer?.cornerRadius = 0.0
+        }
+        
+        needsDisplay = true  // Trigger redraw
+        
     }
     
     func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo) {
@@ -485,7 +532,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
         
         // Use custom padded cell for internal text padding
         let paddedCell = PaddedTextFieldCell()
-//        paddedCell.textPadding = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+        //        paddedCell.textPadding = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
         textField.cell = paddedCell
         
         addSubview(textField)
@@ -519,7 +566,7 @@ private extension NSTextField {
         isBordered = false
         backgroundColor = .clear
         drawsBackground = true  // Don't draw background for better
-
+        
         // Optimize text rendering
         allowsEditingTextAttributes = false
         importsGraphics = false
@@ -554,12 +601,37 @@ class CustomTableView: NSTableView {
         super.keyDown(with: event)
     }
     
-//    override var canBecomeFirstResponder: Bool {
-//        return true
-//    }
+    //    override var canBecomeFirstResponder: Bool {
+    //        return true
+    //    }
     
     override var acceptsFirstResponder: Bool {
         return true
+    }
+    
+    private func drawCellSelection(tableView: NSTableView, selectedColumns: IndexSet) {
+        for columnIndex in selectedColumns {
+            guard columnIndex < tableView.numberOfColumns else { continue }
+            
+            let columnRect = tableView.rect(ofColumn: columnIndex)
+            let cellRect = NSRect(
+                x: columnRect.origin.x,
+                y: 0,
+                width: columnRect.width,
+                height: rowHeight  // Adjust for your padding
+            )
+            
+            
+            // CUSTOMIZE THESE VALUES:
+            NSColor.systemBlue.withAlphaComponent(0.2).setFill()  // Background color
+            cellRect.fill()
+            
+            // Optional border
+            NSColor.systemBlue.withAlphaComponent(0.8).setStroke()
+            let borderPath = NSBezierPath(rect: cellRect)
+            borderPath.lineWidth = 1.0  // Border thickness
+            borderPath.stroke()
+        }
     }
     
     override func mouseDown(with event: NSEvent) {

@@ -396,7 +396,7 @@ struct TableListViewController: NSViewRepresentable {
             // Enable column selection only
             tableView.allowsColumnSelection = true
             tableView.allowsMultipleSelection = true
-            tableView.allowsEmptySelection = true
+            tableView.allowsEmptySelection = false
             
             // Set data source and delegate
             tableView.dataSource = self
