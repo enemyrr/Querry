@@ -403,7 +403,7 @@ struct TableListViewController: NSViewRepresentable {
             tableView.delegate = self
             
             // Set up undo handler for keyboard shortcuts
-            (tableView as? CustomTableView)?.undoHandler = { [weak self] in
+            tableView.undoHandler = { [weak self] in
                 return self?.handleUndo() ?? false
             }
             

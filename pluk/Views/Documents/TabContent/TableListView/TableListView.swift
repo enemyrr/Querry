@@ -123,17 +123,6 @@ struct TableListView: View {
         } message: { error in
             Text(error.localizedDescription)
         }
-        .background(
-            // Hidden button for keyboard shortcut handling
-            Button("") {
-                Task {
-                    await performUndo()
-                }
-            }
-            .keyboardShortcut("z", modifiers: .command)
-            .opacity(0)
-            .allowsHitTesting(false)
-        )
     }
     
     // MARK: - Error Handling
