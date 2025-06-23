@@ -469,6 +469,8 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         }
         
+        print("cell.dataType: \(cell.columnName): \(String(describing: cell.dataType))")
+        
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
         case .bool:
@@ -527,6 +529,46 @@ class PostgreSQLDriver: DatabaseDriver {
                 format: String(describing: cell.format)
             )
             
+        case .textArray, .varcharArray, .charArray:
+            let stringArray = try cell.decode([String].self)
+            return QueryRowInfo(
+                value: "{" + stringArray.joined(separator: ",") + "}",
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .int4Array:
+            let int4Array = try cell.decode([Int32].self)
+            return QueryRowInfo(
+                value: "[" + int4Array.map { String($0) }.joined(separator: ", ") + "]",
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .int4Range:
+            let range = try cell.decode(Range<Int32>.self)
+            return QueryRowInfo(
+                value: range.description,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .int8Range:
+            let range = try cell.decode(Range<Int64>.self)
+            return QueryRowInfo(
+                value: "[\(range.lowerBound),\(range.upperBound))",
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .numrange:
+            let stringValue = try cell.decode(String.self)
+            return QueryRowInfo(
+                   value: stringValue,
+                   dataType: String(describing: cell.dataType),
+                   format: String(describing: cell.format)
+               )
+            
         case .timestamp, .timestamptz:
             let value = try cell.decode(Date.self)
             return QueryRowInfo(
@@ -568,9 +610,9 @@ class PostgreSQLDriver: DatabaseDriver {
             )
             
         case .numeric:
-            let value = try cell.decode(String.self)
+            let value = try cell.decode(Decimal.self)
             return QueryRowInfo(
-                value: value,
+                value: value.description,
                 dataType: "numeric",
                 format: String(describing: cell.format)
             )
@@ -600,7 +642,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         do {
             // Get the schema to find primary key column name
-            let (setClause, values) = try buildParameterizedSetClause(from: data)
+            let (setClause, values) = try await buildParameterizedSetClause(from: data, for: collectionName)
            
             // Build the UPDATE query with parameter binding
             let queryString = """
@@ -613,7 +655,7 @@ class PostgreSQLDriver: DatabaseDriver {
             var bindings = PostgresBindings(capacity: values.count + 1)
             
             for value in values {
-                bindings.append(value)
+                try bindings.append(value)
             }
             
             // Convert PostgresCell to PostgresData
@@ -1023,19 +1065,138 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    private func buildParameterizedSetClause(from data: [String: Any]) throws -> (String, [String]) {
+    private func buildParameterizedSetClause(from data: [String: Any], for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable]) {
         var setClauses: [String] = []
-        var values: [String] = []
+        var values: [PostgresEncodable] = []
         var parameterIndex = 1
+        
+        // Get the schema to determine correct data types
+        let schema = try await getSchema(for: tableName, in: schemaName)
+        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
         
         for (key, value) in data {
             let sanitizedColumnName = try validateAndSanitizeColumnName(key)
             setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
-            values.append(value as! String) // Force cast since you know they're strings
+            
+            // Convert string value to appropriate type based on schema
+            if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
+                values.append(convertedValue)
+            } else {
+                throw DatabaseError.operationFailed("Failed to convert value for column \(key)")
+            }
+            
             parameterIndex += 1
         }
         
         return (setClauses.joined(separator: ", "), values)
+    }
+
+    
+    private func convertStringToPostgresType(_ value: Any, columnName: String, columnTypes: [String: String]) throws -> PostgresEncodable? {
+        guard let stringValue = value as? String else {
+            throw DatabaseError.operationFailed("Expected string value for column \(columnName)")
+        }
+        
+        // Handle empty strings and null values
+        if stringValue.isEmpty || stringValue.lowercased() == "null" {
+            return Optional<String>.none
+        }
+        
+        // Get the column type from schema
+        guard let columnType = columnTypes[columnName] else {
+            // Default to string if type not found
+            return stringValue
+        }
+        
+        // Convert based on PostgreSQL data type
+        switch columnType.lowercased() {
+        case "bool", "boolean":
+            let lowercased = stringValue.lowercased()
+            if ["true", "1", "yes", "on"].contains(lowercased) {
+                return true
+            } else if ["false", "0", "no", "off"].contains(lowercased) {
+                return false
+            } else {
+                throw DatabaseError.operationFailed("Invalid boolean value: \(stringValue)")
+            }
+            
+        case "int2", "smallint":
+            guard let intValue = Int16(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid int2 value: \(stringValue)")
+            }
+            return intValue
+            
+        case "int4", "int", "integer":
+            guard let intValue = Int32(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid int4 value: \(stringValue)")
+            }
+            return intValue
+            
+        case "int8", "bigint":
+            guard let intValue = Int64(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid int8 value: \(stringValue)")
+            }
+            return intValue
+            
+        case "float4", "real":
+            guard let floatValue = Float(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid float4 value: \(stringValue)")
+            }
+            return floatValue
+            
+        case "float8", "double precision", "numeric", "decimal":
+            guard let doubleValue = Double(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid float8 value: \(stringValue)")
+            }
+            return doubleValue
+            
+        case "uuid":
+            guard let uuidValue = UUID(uuidString: stringValue) else {
+                throw DatabaseError.operationFailed("Invalid UUID value: \(stringValue)")
+            }
+            return uuidValue
+            
+        case "date", "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone":
+            // Try multiple date formats
+            let dateFormatters = [
+                ISO8601DateFormatter(),
+                {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                    return formatter
+                }(),
+                {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    return formatter
+                }()
+            ]
+            
+            for formatter in dateFormatters {
+                if let formatter = formatter as? ISO8601DateFormatter {
+                    if let date = formatter.date(from: stringValue) {
+                        return date
+                    }
+                } else if let formatter = formatter as? DateFormatter {
+                    if let date = formatter.date(from: stringValue) {
+                        return date
+                    }
+                }
+            }
+            
+            throw DatabaseError.operationFailed("Invalid date value: \(stringValue)")
+            
+        case "json", "jsonb":
+            // Validate JSON format
+            guard stringValue.data(using: .utf8) != nil else {
+                throw DatabaseError.operationFailed("Invalid JSON value: \(stringValue)")
+            }
+            return stringValue
+            
+        default:
+            // Default to string for text, varchar, char, and unknown types
+            return stringValue
+        }
     }
     
     private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {

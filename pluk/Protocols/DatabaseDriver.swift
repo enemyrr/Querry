@@ -41,7 +41,7 @@ struct QueryResult {
     }
     
     // Get value from row by column name
-    func value(row: Int, column: String) -> Any? {
+    func value(row: Int, column: String) -> QueryRowInfo? {
         guard row < rows.count else { return nil }
         return rows[row][column] ?? nil
     }

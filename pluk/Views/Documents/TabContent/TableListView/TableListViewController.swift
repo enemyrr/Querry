@@ -751,11 +751,11 @@ struct TableListViewController: NSViewRepresentable {
             
             // Use the new configure method with modification tracking
             let columnName = tableColumn.identifier.rawValue
-            let rawCell = queryResult.rawCell(row: row, column: columnName)
+            let queryRowInfo = queryResult.value(row: row, column: columnName)
             let columnInfo = queryResult.column(named: columnName)
             
             if columnInfo != nil {
-                cellView?.configure(rawCell: rawCell, columnInfo: columnInfo!, rowIndex: row, modificationTracker: modificationTracker)
+                cellView?.configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo!, rowIndex: row, modificationTracker: modificationTracker)
             }
             
             return cellView

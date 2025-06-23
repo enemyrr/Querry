@@ -14,51 +14,20 @@ class PaddedTextFieldCell: NSTextFieldCell {
     let textPadding: NSEdgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
     
     override func titleRect(forBounds rect: NSRect) -> NSRect {
-        var paddedRect = super.titleRect(forBounds: rect)
-        paddedRect.origin.x += textPadding.left
-        paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right)
-        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-        return paddedRect
+        let superRect = super.titleRect(forBounds: rect)
+        return NSRect(
+            x: superRect.origin.x + textPadding.left,
+            y: superRect.origin.y + textPadding.top,
+            width: max(0, superRect.width - textPadding.left - textPadding.right),
+            height: max(0, superRect.height - textPadding.top - textPadding.bottom)
+        )
     }
     
-    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
-        var paddedRect = rect
-        paddedRect.origin.x += textPadding.left
-        paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right)
-        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-        
-        super.edit(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, event: event)
-    }
-    
-    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
-        var paddedRect = rect
-        paddedRect.origin.x += textPadding.left - 2
-        paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right)
-        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-        
-        super.select(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
-    }
-    
+    // Only override drawInterior - let the system handle everything else
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-        var paddedRect = cellFrame
-        paddedRect.origin.x += textPadding.left
-        paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right)
-        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-        super.drawInterior(withFrame: paddedRect, in: controlView)  // Changed this line
+        let titleRect = self.titleRect(forBounds: cellFrame)
+        super.drawInterior(withFrame: titleRect, in: controlView)
     }
-    
-//    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
-//        var paddedRect = cellFrame
-//        paddedRect.origin.x += textPadding.left
-//        paddedRect.origin.y += textPadding.top
-//        paddedRect.size.width -= (textPadding.left + textPadding.right)
-//        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-//        super.draw(withFrame: paddedRect, in: controlView)
-//    }
 }
 
 
@@ -380,80 +349,44 @@ class TextCellView: NSView, NSTextFieldDelegate {
         // Add your selection visual logic here if needed
     }
     
-    private func formatValueForDisplay(_ value: Any?) -> String? {
-        if let date = value as? Date {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .short
-            return formatter.string(from: date)
-        } else if let bool = value as? Bool {
-            return bool ? "true" : "false"
-        } else {
-            return String(describing: value)
-        }
-    }
-    
-    private func decodeValue(from cell: PostgresCell) throws -> Any? {
-        guard cell.bytes != nil else { return nil }
-        
-        switch cell.dataType {
-        case .bool:
-            return try cell.decode(Bool.self)
-        case .int2:
-            return try cell.decode(Int16.self)
-        case .int4:
-            return try cell.decode(Int32.self)
-        case .int8:
-            return try cell.decode(Int64.self)
-        case .float4:
-            return try cell.decode(Float.self)
-        case .float8:
-            return try cell.decode(Double.self)
-        case .text, .varchar, .char:
-            return try cell.decode(String.self)
-        case .timestamp, .timestamptz, .date:
-            return try cell.decode(Date.self)
-        case .uuid:
-            return try cell.decode(UUID.self)
-        case .json, .jsonb:
-            return try cell.decode(String.self)
-        case .bytea:
-            return try cell.decode(Data.self)
-        case .numeric:
-            return try cell.decode(String.self)
-        default:
-            return try cell.decode(String.self)
-        }
-    }
-    
-    func configure(rawCell: Any?, columnInfo: QueryColumnInfo) {
-        guard let rawCell = rawCell else {
+    func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo) {
+        guard let queryRowInfo = queryRowInfo else {
             textField.placeholderString = "(EMPTY)"
             createBorderViewIfNeeded()
             return
         }
         
-        do {
-            textField.placeholderString = "(EMPTY)"
+        textField.placeholderString = "(EMPTY)"
+        
+        // Handle nil values
+        guard let value = queryRowInfo.value else {
+            textField.placeholderString = "(NULL)"
+            textField.stringValue = ""
+            createBorderViewIfNeeded()
+            return
+        }
+        
+        // Cast to String and check if empty
+        if let stringValue = value as? String {
+            textField.stringValue = stringValue
             
-            // Handle the case where rawCell is a PostgresCell
-            if let postgresCell = rawCell as? PostgresCell {
-                let value = try decodeValue(from: postgresCell)
-                configureWithValue(value, columnInfo: columnInfo)
+            if stringValue.isEmpty {
+                textField.placeholderString = "(EMPTY)"
             } else {
-                // Handle other database types or direct values
-                configureWithValue(rawCell, columnInfo: columnInfo)
+                textField.textColor = NSColor.controlTextColor
             }
-        } catch {
-            textField.stringValue = "Error: \(error.localizedDescription)"
-            textField.textColor = NSColor.systemRed
+        } else {
+            // Handle non-string values by converting to string
+            let stringRepresentation = String(describing: value)
+            textField.stringValue = stringRepresentation
+            textField.textColor = NSColor.controlTextColor
         }
         
         createBorderViewIfNeeded()
     }
     
     // New method that includes tracking information
-    func configure(rawCell: Any?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?) {
+    func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?) {
         // Store tracking information
         self.rowIndex = rowIndex
         self.columnName = columnInfo.name
@@ -469,83 +402,8 @@ class TextCellView: NSView, NSTextFieldDelegate {
             isModified = cellMod.hasChanged
         } else {
             // Configure normally
-            configure(rawCell: rawCell, columnInfo: columnInfo)
+            configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo)
         }
-    }
-    
-    private func configureWithValue(_ value: Any?, columnInfo: QueryColumnInfo) {
-        if let value = value {
-            let displayValue = formatValueForDisplay(value, columnInfo: columnInfo)
-            
-            textField.stringValue = displayValue
-            if let stringValue = value as? String, stringValue.isEmpty {
-                textField.placeholderString = "(EMPTY)"
-            } else {
-                textField.textColor = NSColor.controlTextColor
-            }
-        } else {
-            textField.placeholderString = "(NULL)"
-        }
-        
-        // Store the configured value as the original value and reset modification state
-        originalValue = textField.stringValue
-        isModified = false
-    }
-    
-    private func formatValueForDisplay(_ value: Any?, columnInfo: QueryColumnInfo) -> String {
-        guard let value = value else { return "(NULL)" }
-        
-        // Format based on data type for better display
-        switch columnInfo.dataType.lowercased() {
-        case "timestamp", "timestamptz":
-            if let date = value as? Date {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSSSS"
-                formatter.timeZone = TimeZone(identifier: "UTC")
-                
-                let fullString = formatter.string(from: date)
-                
-                if let dotIndex = fullString.lastIndex(of: ".") {
-                    let beforeDot = String(fullString[..<dotIndex])
-                    let afterDot = String(fullString[fullString.index(after: dotIndex)...])
-                    
-                    // Take maximum 5 decimal places, remove trailing zeros
-                    let maxDecimals = String(afterDot.prefix(5))
-                    let trimmed = maxDecimals.trimmingCharacters(in: CharacterSet(charactersIn: "0"))
-                    
-                    if trimmed.isEmpty {
-                        return beforeDot
-                    } else {
-                        return "\(beforeDot).\(trimmed)"
-                    }
-                }
-                return fullString
-            }
-        case "date":
-            if let date = value as? Date {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                return formatter.string(from: date)
-            }
-        case "bool", "boolean":
-            if let bool = value as? Bool {
-                return bool ? "true" : "false"
-            }
-        case "json", "jsonb":
-            // For JSON, you might want to pretty-print or validate
-            if let jsonString = value as? String {
-                return jsonString
-            }
-        case "numeric", "decimal":
-            // Format numbers nicely
-            if let numericString = value as? String {
-                return numericString
-            }
-        default:
-            break
-        }
-        
-        return String(describing: value)
     }
     
     private func createBorderViewIfNeeded() {
@@ -637,8 +495,9 @@ private extension NSTextField {
         
         // Remove any cell padding or insets
         cell?.wraps = false
-        cell?.isScrollable = true
-        
+        cell?.isScrollable = false  // Change this to false!
+        cell?.usesSingleLineMode = true  // Add this
+
         // Optimize text rendering
         allowsEditingTextAttributes = false
         importsGraphics = false
@@ -648,7 +507,6 @@ private extension NSTextField {
         allowsDefaultTighteningForTruncation = false
         
         placeholderString = "(EMPTY)"
-        
         
         isBordered = false
         isBezeled = false
