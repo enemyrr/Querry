@@ -12,22 +12,68 @@ import PostgresNIO
 // MARK: - Custom NSTextFieldCell with internal padding
 class PaddedTextFieldCell: NSTextFieldCell {
     let textPadding: NSEdgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+      
+    override init(textCell string: String) {
+           super.init(textCell: string)
+           setupCell()
+       }
+       
+       required init(coder: NSCoder) {
+           super.init(coder: coder)
+           setupCell()
+       }
+       
+    private func setupCell() {
+        lineBreakMode = .byTruncatingTail
+        wraps = false
+        isScrollable = false
+        usesSingleLineMode = true
+    }
+
+      // Rest of your existing methods remain the same...
+      override func titleRect(forBounds rect: NSRect) -> NSRect {
+          var paddedRect = super.titleRect(forBounds: rect)
+          paddedRect.origin.x += textPadding.left
+          paddedRect.origin.y += textPadding.top
+          paddedRect.size.width -= (textPadding.left + textPadding.right)
+          paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+          return paddedRect
+      }
     
-    override func titleRect(forBounds rect: NSRect) -> NSRect {
-        let superRect = super.titleRect(forBounds: rect)
-        return NSRect(
-            x: superRect.origin.x + textPadding.left,
-            y: superRect.origin.y + textPadding.top,
-            width: max(0, superRect.width - textPadding.left - textPadding.right),
-            height: max(0, superRect.height - textPadding.top - textPadding.bottom)
-        )
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        var paddedRect = rect
+        paddedRect.origin.x += textPadding.left
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        
+        super.edit(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, event: event)
     }
     
-    // Only override drawInterior - let the system handle everything else
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        var paddedRect = rect
+        paddedRect.origin.x += textPadding.left - 2
+        paddedRect.origin.y += textPadding.top
+        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+        
+        super.select(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
+    }
+//    
+//    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+//        var paddedRect = cellFrame
+//        paddedRect.origin.x += textPadding.left
+//        paddedRect.origin.y += textPadding.top
+//        paddedRect.size.width -= (textPadding.left + textPadding.right)
+//        paddedRect.size.height -= (textPadding.top + textPadding.bottom)
+//        super.drawInterior(withFrame: paddedRect, in: controlView)  // Changed this line
+//    }
+    
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-        let titleRect = self.titleRect(forBounds: cellFrame)
-        super.drawInterior(withFrame: titleRect, in: controlView)
-    }
+          let paddedRect = titleRect(forBounds: cellFrame)
+          super.drawInterior(withFrame: paddedRect, in: controlView)
+      }
+    
 }
 
 
@@ -483,20 +529,12 @@ private extension NSTextField {
         textColor = .disabledControlTextColor
         font = .systemFont(ofSize: 12)
         
-        // Behavior settings
-        lineBreakMode = .byTruncatingTail
-        
         // Disable expensive features for table cells
         isEditable = false  // Will be enabled on click
         isSelectable = true
         isBordered = false
         backgroundColor = .clear
-        drawsBackground = true  // Don't draw background for better performance
-        
-        // Remove any cell padding or insets
-        cell?.wraps = false
-        cell?.isScrollable = false  // Change this to false!
-        cell?.usesSingleLineMode = true  // Add this
+        drawsBackground = true  // Don't draw background for better
 
         // Optimize text rendering
         allowsEditingTextAttributes = false
