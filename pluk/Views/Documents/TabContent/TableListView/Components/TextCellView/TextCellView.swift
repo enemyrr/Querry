@@ -132,7 +132,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     override func prepareForReuse() {
-        clearSelection()
         if isEditing { exitEditMode() }
         isModified = false
         // Clear static references
@@ -335,8 +334,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     private func updateModificationAppearance() {
-        print("updateModificationAppearance - isModified: \(isModified)")
-        
         // Ensure the cell has a layer for background drawing
         if !wantsLayer {
             wantsLayer = true
@@ -455,6 +452,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     private func setSelected(_ selected: Bool) {
+        print("🎯 Setting cell (\(rowIndex), \(columnName)) selected: \(selected)")
         isSelected = selected
         
         if !wantsLayer {
@@ -535,6 +533,23 @@ class TextCellView: NSView, NSTextFieldDelegate {
             isModified = false
             updateModificationAppearance()
         }
+        
+        // Check if this cell should be selected and restore selection state
+        if let tableView = findTableView() as? CustomTableView,
+           let selectedCell = tableView.getCurrentSelectedCell() {
+            let currentColumnIndex = tableView.columnIndex(for: columnInfo.name)
+            let shouldBeSelected = (selectedCell.row == rowIndex && selectedCell.column == currentColumnIndex)
+            
+            print("🔍 Cell (\(rowIndex), \(currentColumnIndex)) - Should be selected: \(shouldBeSelected) (Selected cell: \(selectedCell.row), \(selectedCell.column))")
+            
+            if shouldBeSelected {
+                setSelected(true)
+            } else {
+                setSelected(false)
+            }
+        } else {
+            setSelected(false)
+        }
     }
     
     private func createBorderViewIfNeeded() {
@@ -587,6 +602,25 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     override func layout() {
         super.layout()
+    }
+    
+    override func viewWillDraw() {
+        super.viewWillDraw()
+        
+        // Check and restore selection state before drawing
+        if let tableView = findTableView() as? CustomTableView,
+           let selectedCell = tableView.getCurrentSelectedCell() {
+            let currentColumnIndex = tableView.columnIndex(for: columnName)
+            let shouldBeSelected = (selectedCell.row == rowIndex && selectedCell.column == currentColumnIndex)
+            
+            if shouldBeSelected && !isSelected {
+                print("🔄 Restoring selection for cell (\(rowIndex), \(currentColumnIndex)) in viewWillDraw")
+                setSelected(true)
+            } else if !shouldBeSelected && isSelected {
+                print("🔄 Clearing incorrect selection for cell (\(rowIndex), \(currentColumnIndex)) in viewWillDraw")
+                setSelected(false)
+            }
+        }
     }
     
     // MARK: - For Large Tables: Constraint Caching

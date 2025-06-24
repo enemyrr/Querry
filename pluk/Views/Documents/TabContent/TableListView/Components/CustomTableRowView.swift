@@ -75,11 +75,4 @@ class CustomTableRowView: NSTableRowView {
         )
         paddedRect.fill()
     }
-    
-    // Prepare for reuse - reset any custom state
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        
-        needsDisplay = true
-    }
 }

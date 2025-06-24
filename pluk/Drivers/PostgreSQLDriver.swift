@@ -472,8 +472,6 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         }
         
-        print("cell.dataType: \(cell.columnName): \(String(describing: cell.dataType))")
-        
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
         case .bool:

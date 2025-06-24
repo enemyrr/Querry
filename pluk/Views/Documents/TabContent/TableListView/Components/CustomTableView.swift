@@ -41,26 +41,32 @@ class CustomTableView: NSTableView {
         
         let currentColumn = currentSelectedColumn
         let currentRow = currentSelectedRow
+        let keyCode = event.keyCode
         
         print("📍 Current position: Row \(currentRow), Column \(currentColumn)")
         
-        // Initialize selection if none exists
+        // Only initialize selection if user explicitly requests navigation and there's no current selection
         if currentSelectedRow == -1 || currentSelectedColumn == -1 {
-            print("🎯 No current selection, initializing to (0, 0)")
-            // If no cell is selected, start at (0,0)
-            if selectedRow >= 0 {
-                currentSelectedRow = selectedRow
-                currentSelectedColumn = 0
+            // For keyboard navigation, only start selection if user presses arrow keys or enter
+            // Don't auto-select on table mount
+            if keyCode == 126 || keyCode == 125 || keyCode == 123 || keyCode == 124 || keyCode == 48 || keyCode == 36 {
+                print("🎯 User initiated navigation, initializing selection")
+                // If no cell is selected, start at current selected row or (0,0)
+                if selectedRow >= 0 {
+                    currentSelectedRow = selectedRow
+                    currentSelectedColumn = 0
+                } else {
+                    currentSelectedRow = 0
+                    currentSelectedColumn = 0
+                }
+                // Select the initial cell
+                selectCell(row: currentSelectedRow, column: currentSelectedColumn)
+                return true
             } else {
-                currentSelectedRow = 0
-                currentSelectedColumn = 0
+                // Not a navigation key, don't initialize selection
+                return false
             }
-            // Select the initial cell
-            selectCell(row: currentSelectedRow, column: currentSelectedColumn)
-            return true
         }
-        
-        let keyCode = event.keyCode
         var newRow = currentSelectedRow
         var newColumn = currentSelectedColumn
         var handled = false
@@ -193,20 +199,43 @@ class CustomTableView: NSTableView {
         // Update our internal tracking
         if let firstIndex = indexes.first {
             currentSelectedRow = firstIndex
-            if currentSelectedColumn < 0 {
-                currentSelectedColumn = 0
+            // Don't auto-set column to 0 - only do this if user explicitly selects
+            // if currentSelectedColumn < 0 {
+            //     currentSelectedColumn = 0
+            // }
+        }
+    }
+    
+    /// Get column index for a given column identifier
+    func columnIndex(for identifier: String) -> Int {
+        for (index, column) in tableColumns.enumerated() {
+            if column.identifier.rawValue == identifier {
+                return index
             }
+        }
+        return -1
+    }
+    
+    /// Public method to trigger selection validation
+    func validateSelectionAfterCellConfiguration() {
+        DispatchQueue.main.async { [weak self] in
+            self?.validateSelectionState()
         }
     }
     
     override func tile() {
         super.tile()
-        validateSelectionState() // Ensure only correct cell is selected
+        // Use a small delay to ensure cells are configured before validating selection
+        DispatchQueue.main.async { [weak self] in
+            self?.validateSelectionState() // Ensure only correct cell is selected
+        }
     }
     
     private func validateSelectionState() {
             // Ensure only the correct cell shows as selected
             if currentSelectedRow >= 0 && currentSelectedColumn >= 0 {
+                print("🔍 Validating selection state - should be selected: (\(currentSelectedRow), \(currentSelectedColumn))")
+                
                 // Clear any incorrectly selected cells
                 for row in 0..<numberOfRows {
                     for col in 0..<numberOfColumns {
@@ -225,6 +254,8 @@ class CustomTableView: NSTableView {
                         }
                     }
                 }
+            } else {
+                print("🔍 No selected cell to validate")
             }
         }
         
