@@ -154,6 +154,8 @@ struct TableListViewController: NSViewRepresentable {
                 oldColumnCount = self.schema?.columns.count ?? 0
             }
             
+            print("oldRowCount: \(oldRowCount), oldColumnCount: \(oldColumnCount)")
+            
             // Check if data has significantly changed for cache invalidation
             let oldDataHash = self.lastDataHash
             let newDataHash = calculateDataHash(queryResult: newQueryResult, schema: newSchema)
@@ -295,9 +297,9 @@ struct TableListViewController: NSViewRepresentable {
                 column.sizeToFit()
             }
             
-            // Add custom header
+//             Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-            customHeaderCell.configure(title: title, icon: icon, showSortButton: true)
+            customHeaderCell.configure(title: title)
             column.headerCell = customHeaderCell
             
             let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))

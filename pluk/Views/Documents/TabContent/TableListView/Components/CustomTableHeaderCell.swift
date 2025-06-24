@@ -9,10 +9,7 @@ import Foundation
 import AppKit
 
 class CustomTableHeaderCell: NSTableHeaderCell {
-    private var customView: NSView?
     private var titleLabel: NSTextField?
-    private var iconImageView: NSImageView?
-    private var sortButton: NSButton?
     
     // Sort state
     private var isActiveSortColumn = false
@@ -26,30 +23,8 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         super.init(coder: coder)
     }
     
-    private func setupCustomView() {
-        // Create container view
-        customView = NSView()
-        customView?.wantsLayer = true
-        customView?.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        
-        // Create title label
-        titleLabel = NSTextField()
-        titleLabel?.isEditable = false
-        titleLabel?.isBordered = false
-        titleLabel?.backgroundColor = .clear
-        titleLabel?.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel?.alignment = .left
-        
-        if let titleLabel = titleLabel {
-            customView?.addSubview(titleLabel)
-        }
-    }
-    
-    func configure(title: String, icon: NSImage? = nil, showSortButton: Bool = true) {
+    func configure(title: String) {
         titleLabel?.stringValue = title
-        iconImageView?.image = icon
-        iconImageView?.isHidden = icon == nil
-        sortButton?.isHidden = !showSortButton
     }
     
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -104,23 +79,23 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         
         attributedTitle.draw(in: titleRect)
         
-           if let icon = icon {
-               let naturalSize = icon.size
-               let maxIconHeight = rect.height * 0.25
-               
-               let scale = maxIconHeight / naturalSize.height
-               let scaledWidth = naturalSize.width * scale
-               let scaledHeight = naturalSize.height * scale
-               
-               let iconRect = NSRect(
-                   x: rect.maxX - scaledWidth - 8,
-                   y: rect.midY - scaledHeight / 2,
-                   width: scaledWidth,
-                   height: scaledHeight
-               )
-               
-               icon.draw(in: iconRect)
-           }
+        if let icon = icon {
+            let naturalSize = icon.size
+            let maxIconHeight = rect.height * 0.25
+            
+            let scale = maxIconHeight / naturalSize.height
+            let scaledWidth = naturalSize.width * scale
+            let scaledHeight = naturalSize.height * scale
+            
+            let iconRect = NSRect(
+                x: rect.maxX - scaledWidth - 8,
+                y: rect.midY - scaledHeight / 2,
+                width: scaledWidth,
+                height: scaledHeight
+            )
+            
+            icon.draw(in: iconRect)
+        }
     }
     
     private func drawCustomBackground(in frame: NSRect) {
@@ -140,7 +115,7 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         bottomBorder.line(to: NSPoint(x: frame.maxX, y: frame.maxY - 0.5))
         bottomBorder.lineWidth = 2
         bottomBorder.stroke()
-   }
+    }
     
     override func drawFocusRingMask(withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)

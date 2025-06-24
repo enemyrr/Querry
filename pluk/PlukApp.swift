@@ -37,6 +37,10 @@ struct Pluk: App {
         let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
         PostHogSDK.shared.setup(config)
         
+        #if DEBUG
+        config.optOut = true
+        #endif
+        
         SentrySDK.start { options in
             options.dsn = "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
             options.sendDefaultPii = false

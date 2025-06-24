@@ -17,6 +17,9 @@ struct FloatingActionBar: View {
     let onLoadDocuments: (_ filter: String?) -> Void
     let onSaveChanges: () -> Void
     
+    // Add current query result as direct parameter to preserve data during loading
+    let currentQueryResult: QueryResult?
+    
     @Environment(ConnectionInstance.self) private var instance
     
     @State private var containerWidth: CGFloat = 200
@@ -45,7 +48,8 @@ struct FloatingActionBar: View {
     @State var totalPages = 1
     @State var totalPerPage = 300
     private var totalCount: Int {
-        if case .loaded(let queryResult, _) = viewState {
+        // Use the directly passed currentQueryResult to preserve data during loading
+        if let queryResult = currentQueryResult {
             return queryResult.totalCount
         }
         return 0

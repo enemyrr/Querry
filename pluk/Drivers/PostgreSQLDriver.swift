@@ -368,7 +368,10 @@ class PostgreSQLDriver: DatabaseDriver {
             } else {
                 // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
-                let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending)
+                
+                // Get primary key for default sorting when no sorting is provided
+                let primaryKey = try await getPrimaryKeyColumn(for: String(sanitizedCollectionName.dropFirst().dropLast())) // Remove quotes
+                let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending, primaryKey: primaryKey)
                 
                 var queryString = "SELECT * FROM \(sanitizedCollectionName)"
                 
@@ -1051,17 +1054,21 @@ class PostgreSQLDriver: DatabaseDriver {
         return conditions.joined(separator: " AND ")
     }
     
-    private func buildOrderByClause(sortBy: String?, ascending: Bool?) -> String {
-        guard let sortBy = sortBy, !sortBy.isEmpty else { return "" }
-        
-        // Validate column name to prevent SQL injection
-        do {
-            let sanitizedColumn = try validateAndSanitizeColumnName(sortBy)
-            let direction = ascending == false ? "DESC" : "ASC"
-            return "ORDER BY \(sanitizedColumn) \(direction)"
-        } catch {
-            // If column validation fails, don't add ORDER BY clause
-            return ""
+    private func buildOrderByClause(sortBy: String?, ascending: Bool?, primaryKey: String) -> String {
+        // If sortBy is provided, use it
+        if let sortBy = sortBy, !sortBy.isEmpty {
+            // Validate column name to prevent SQL injection
+            do {
+                let sanitizedColumn = try validateAndSanitizeColumnName(sortBy)
+                let direction = ascending == false ? "DESC" : "ASC"
+                return "ORDER BY \(sanitizedColumn) \(direction)"
+            } catch {
+                // If column validation fails, fall back to primary key ASC
+                return "ORDER BY \(primaryKey) ASC"
+            }
+        } else {
+            // No sorting provided, use primary key ASC as default
+            return "ORDER BY \(primaryKey) ASC"
         }
     }
     

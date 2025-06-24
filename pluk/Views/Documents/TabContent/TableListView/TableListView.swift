@@ -57,7 +57,6 @@ struct TableListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.controlBackgroundColor).opacity(0.5))
-            .cornerRadius(20)
             
             VStack {
                 Spacer()
@@ -89,7 +88,8 @@ struct TableListView: View {
                         Task {
                             await saveModifications()
                         }
-                    }
+                    },
+                    currentQueryResult: currentQueryResult
                 )
                 .padding(.bottom, 10)
             }
@@ -126,34 +126,34 @@ struct TableListView: View {
     }
     
     // MARK: - Error Handling
-      private func showError(_ error: Error) {
-          currentError = error
-          showingErrorAlert = true
-      }
-      
-      private func handleErrorRetry(_ error: Error) async {
-          // Generic retry logic - you can customize this based on the error type
-          if error is DatabaseError {
-              await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
-          } else {
-              await loadDocumentsIfNeeded()
-          }
-      }
-      
-      // MARK: - Undo Functionality
-      private func performUndo() async {
-          guard modificationTracker.canUndo else {
-              print("ℹ️ No modifications to undo")
-              return
-          }
-          
-          let success = modificationTracker.undo()
-          if success {
-              print("✅ Undo successful")
-          } else {
-              print("❌ Undo failed")
-          }
-      }
+    private func showError(_ error: Error) {
+        currentError = error
+        showingErrorAlert = true
+    }
+    
+    private func handleErrorRetry(_ error: Error) async {
+        // Generic retry logic - you can customize this based on the error type
+        if error is DatabaseError {
+            await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
+        } else {
+            await loadDocumentsIfNeeded()
+        }
+    }
+    
+    // MARK: - Undo Functionality
+    private func performUndo() async {
+        guard modificationTracker.canUndo else {
+            print("ℹ️ No modifications to undo")
+            return
+        }
+        
+        let success = modificationTracker.undo()
+        if success {
+            print("✅ Undo successful")
+        } else {
+            print("❌ Undo failed")
+        }
+    }
     
     // MARK: - Save Modifications
     private func saveModifications() async {
@@ -402,7 +402,8 @@ struct TableListView: View {
         if case .loaded(_, let schema) = viewState {
             return schema
         }
-        return nil
+        // During loading, return cached schema to prevent UI flicker
+        return cachedSchema
     }
     
     /// Extract current query result from viewState
@@ -410,7 +411,8 @@ struct TableListView: View {
         if case .loaded(let queryResult, _) = viewState {
             return queryResult
         }
-        return nil
+        // During loading, return cached documents to prevent UI flicker
+        return cachedDocuments
     }
     
     private func hasColumnMismatch(queryResult: QueryResult?, schema: DatabaseSchemaResult?) -> Bool {
