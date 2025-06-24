@@ -72,12 +72,12 @@ class PaddedTextFieldCell: NSTextFieldCell {
             // Custom drawing for edit mode (non-active)
             // You can modify appearance here - different background, border, etc.
             
-#if DEBUG
-            NSColor.controlAccentColor.withAlphaComponent(0.1).set()
-            paddedRect.fill()
-            NSColor.controlAccentColor.withAlphaComponent(0.3).set()
-            paddedRect.frame()
-#endif
+//#if DEBUG
+//            NSColor.controlAccentColor.withAlphaComponent(0.1).set()
+//            paddedRect.fill()
+//            NSColor.controlAccentColor.withAlphaComponent(0.3).set()
+//            paddedRect.frame()
+//#endif
         }
         
         super.drawInterior(withFrame: paddedRect, in: controlView)

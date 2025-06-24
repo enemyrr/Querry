@@ -15,16 +15,66 @@ class EditableTextField: NSTextField {
     
     // Override cancdelOperation which is called when Escape is pressed during editing
     override func cancelOperation(_ sender: Any?) {
-        if let cellView = cellView {
-            // Revert to original value and exit edit mode
-            stringValue = cellView.originalValue
-            cellView.isModified = false
-            cellView.exitEditMode()
-        } else {
+        print("🚫 cancelOperation triggered")
+        
+        guard let cellView = cellView else {
             super.cancelOperation(sender)
+            return
+        }
+        
+        let originalValue = cellView.originalValue
+        
+        // Perform abort editing synchronously (this should be fast)
+        if abortEditing() {
+            let tableView = cellView.findTableView()
+            print("✅ abortEditing succeeded")
+            
+            // Set values immediately on main thread with User Interactive QoS
+            DispatchQueue.main.async(qos: .userInteractive) { [weak self, weak cellView] in
+                guard let self = self, let cellView = cellView else { return }
+                
+                // Ensure our value is what we expect
+                self.stringValue = originalValue
+                cellView.isModified = false
+                
+                // Call exit edit mode on main thread with proper QoS
+                cellView.exitEditMode()
+                
+                if let tableView = tableView {
+                    if tableView.acceptsFirstResponder {
+                        DispatchQueue.main.async(qos: .userInteractive) {
+                            let success = tableView.window?.makeFirstResponder(tableView) ?? false
+                            print("   - Table view became first responder: \(success)")
+                            
+                            if !success {
+                                print("⚠️ Failed to make table view first responder, trying window")
+                                tableView.window?.makeFirstResponder(tableView.window)
+                            }
+                        }
+                    } else {
+                        print("⚠️ Table view doesn't accept first responder")
+                        // Fallback: make window first responder
+                        window?.makeFirstResponder(window)
+                    }
+                    
+                }
+                
+                print("   - Current first responder: \(self.window?.firstResponder?.className ?? "nil")")
+                print("   - Text field isEditable: \(self.isEditable)")
+            }
+        } else {
+            print("⚠️ abortEditing failed, falling back to manual exit")
+            
+            // Fallback: manual revert and exit on main thread with User Interactive QoS
+            DispatchQueue.main.async(qos: .userInteractive) { [weak self, weak cellView] in
+                guard let self = self, let cellView = cellView else { return }
+                
+                self.stringValue = originalValue
+                cellView.isModified = false
+                cellView.exitEditMode()
+            }
         }
     }
-    
 }
 
 // MARK: - TextCellView
@@ -36,7 +86,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     // Static reference to track which cell is currently editing
     private static weak var currentEditingCell: TextCellView?
     
-    private var isSelected: Bool = false
+    public var isSelected: Bool = false
     private var isEditing: Bool = false {
         didSet {
             if oldValue != isEditing {
@@ -79,6 +129,16 @@ class TextCellView: NSView, NSTextFieldDelegate {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupTextField()
+    }
+    
+    override func prepareForReuse() {
+        clearSelection()
+        if isEditing { exitEditMode() }
+        isModified = false
+        // Clear static references
+        if TextCellView.currentEditingCell === self {
+            TextCellView.currentEditingCell = nil
+        }
     }
     
     private func setupTextField() {
@@ -157,8 +217,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
             print("🔄 Other command: \(NSStringFromSelector(commandSelector))")
             return false // Let the text view handle other commands
         }
-        
-        return false
     }
     
     
@@ -209,13 +267,19 @@ class TextCellView: NSView, NSTextFieldDelegate {
     fileprivate func exitEditMode() {
         print("Exiting edit mode for cell: \(isEditing)")
         
+        guard isEditing else {
+            print("⚠️ Cell is not in edit mode, nothing to exit")
+            return
+        }
         // Simply disable edit mode for this cell
         disableEditMode()
         
         // Remove first responder status
         if window?.firstResponder == textField {
-            window?.makeFirstResponder(nil)
+            print("🔄 Removing first responder status from text field")
+            window?.makeFirstResponder(window) // Give focus back to window
         }
+        
         
         // Notify that editing has ended
         handleEditingCompleted()
@@ -379,7 +443,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     // MARK: - Helper Methods
-    private func findTableView() -> NSTableView? {
+    func findTableView() -> NSTableView? {
         var view: NSView? = self.superview
         while view != nil {
             if let tableView = view as? NSTableView {

@@ -79,5 +79,7 @@ class CustomTableRowView: NSTableRowView {
     // Prepare for reuse - reset any custom state
     override func prepareForReuse() {
         super.prepareForReuse()
+        
+        needsDisplay = true
     }
 }

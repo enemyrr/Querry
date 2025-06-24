@@ -746,9 +746,15 @@ struct TableListViewController: NSViewRepresentable {
             var cellView = tableView.makeView(withIdentifier: CellIdentifier.textCell, owner: self) as? TextCellView
             
             if cellView == nil {
-                cellView = TextCellView()
-                cellView?.identifier = CellIdentifier.textCell
-            }
+                   cellView = TextCellView()
+               } else {
+                   cellView?.prepareForReuse() // CRITICAL: Reset state
+               }
+            
+//            if cellView == nil {
+//                cellView = TextCellView()
+//                cellView?.identifier = CellIdentifier.textCell
+//            }
             
             
             // Use the new configure method with modification tracking
