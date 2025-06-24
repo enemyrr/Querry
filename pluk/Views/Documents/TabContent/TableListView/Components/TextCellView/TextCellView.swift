@@ -77,7 +77,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     // MARK: - Double-Click Edit Handler (called from CustomTableView)
     func handleDoubleClickEdit(at point: NSPoint, with event: NSEvent) {
-        print("TextCellView handleDoubleClickEdit - clickCount: \(event.clickCount)")
+        print("TextCellView clicked - clickCount: \(event.clickCount)")
         
         // Check if the click is inside the text field bounds
         let textFieldPoint = textField.convert(point, from: self)
@@ -132,8 +132,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     // Public method for entering edit mode
     func enterEditMode() {
-        guard !isEditing else { return }
-        
         print("Entering edit mode for cell")
         
         // Find all cells in the same row and put them in edit mode
@@ -436,6 +434,28 @@ class TextCellView: NSView, NSTextFieldDelegate {
             bottomBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
             bottomBorderView!.heightAnchor.constraint(equalToConstant: 1.0)
         ])
+    }
+    
+    /// Sets this cell as the currently selected cell (called by CustomTableView)
+    func setAsSelectedCell() {
+        // Clear any previous selection
+        TextCellView.clearAllSelections()
+        
+        // Set this cell as selected
+        setSelected(true)
+        TextCellView.currentlySelectedCell = self
+        
+        print("Cell selected at row: \(rowIndex), column: \(columnName)")
+    }
+    
+    /// Clears the selection state of this cell
+    func clearSelection() {
+        setSelected(false)
+        
+        // Clear the static reference if this was the selected cell
+        if TextCellView.currentlySelectedCell === self {
+            TextCellView.currentlySelectedCell = nil
+        }
     }
     
     override func layout() {
