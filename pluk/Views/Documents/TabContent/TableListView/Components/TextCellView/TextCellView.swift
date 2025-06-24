@@ -142,14 +142,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 TextCellView.exitCurrentEditMode()
             }
             
-            // Get table view and coordinate
-            if let tableView = findTableView() {
-                let currentRow = tableView.row(for: self)
-                let currentColumn = tableView.column(for: self)
-                
-                // Select this cell
-                setSelected(true)
-            }
+            setSelected(true)
         }
             
             // Only handle double-clicks for editing
@@ -266,7 +259,14 @@ class TextCellView: NSView, NSTextFieldDelegate {
         if isEditing {
             textField.backgroundColor = NSColor.clear
             textField.drawsBackground = true
+        } else {
+            // When exiting edit mode, ensure the modification background is still visible
+            textField.backgroundColor = NSColor.clear
+            textField.drawsBackground = false
         }
+        
+        // Ensure modification appearance is updated after editing changes
+        updateModificationAppearance()
     }
     
     private func updateModificationAppearance() {
@@ -291,10 +291,9 @@ class TextCellView: NSView, NSTextFieldDelegate {
         // For example, update your data model, send to database, etc.
         print("Cell editing completed with value: \(textField.stringValue)")
         
-        // Reset modification state after editing is completed
-        // In a real app, you might want to keep the modified state until the data is actually saved
-        isModified = false
-        originalValue = textField.stringValue
+        // Keep the modification state visible after editing is completed
+        // The modification background should remain until the data is actually saved to the database
+        // Don't reset isModified here - it should remain true to show the visual indication
         
         // You might want to notify a delegate or post a notification
         NotificationCenter.default.post(
@@ -517,9 +516,14 @@ class TextCellView: NSView, NSTextFieldDelegate {
             textField.stringValue = cellMod.newValue
             originalValue = cellMod.originalValue
             isModified = cellMod.hasChanged
+            
+            // Ensure the modification appearance is applied immediately
+            updateModificationAppearance()
         } else {
-            // Configure normally
+            // Configure normally and ensure no modification appearance
             configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo)
+            isModified = false
+            updateModificationAppearance()
         }
     }
     
