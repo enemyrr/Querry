@@ -26,94 +26,9 @@ class CustomTableView: NSTableView {
             }
         }
         
-        // Handle keyboard navigation
-       if handleKeyboardNavigation(with: event) {
-           return
-       }
-        
         // Let the superclass handle other key events
         super.keyDown(with: event)
     }
-    
-    private func handleKeyboardNavigation(with event: NSEvent) -> Bool {
-           let keyCode = event.keyCode
-           
-           // Initialize selection if none exists
-           if currentSelectedRow == -1 || currentSelectedColumn == -1 {
-               currentSelectedRow = selectedRow >= 0 ? selectedRow : 0
-               currentSelectedColumn = 0
-           }
-           
-           var newRow = currentSelectedRow
-           var newColumn = currentSelectedColumn
-           var handled = false
-           
-           switch keyCode {
-           case 126: // Up arrow
-               newRow = max(0, currentSelectedRow - 1)
-               handled = true
-               
-           case 125: // Down arrow
-               newRow = min(numberOfRows - 1, currentSelectedRow + 1)
-               handled = true
-               
-           case 123: // Left arrow
-               newColumn = max(0, currentSelectedColumn - 1)
-               handled = true
-               
-           case 124: // Right arrow
-               newColumn = min(numberOfColumns - 1, currentSelectedColumn + 1)
-               handled = true
-               
-           case 36: // Enter/Return key
-               // Enter edit mode for current cell
-               if let cellView = view(atColumn: currentSelectedColumn, row: currentSelectedRow, makeIfNecessary: false) as? TextCellView {
-                   cellView.enterEditMode()
-               }
-               handled = true
-               
-           case 53: // Escape key
-               // Exit edit mode for current row
-               if let cellView = view(atColumn: currentSelectedColumn, row: currentSelectedRow, makeIfNecessary: false) as? TextCellView {
-                   cellView.exitEditModeForRow()
-               }
-               handled = true
-               
-           case 48: // Tab key
-               if event.modifierFlags.contains(.shift) {
-                   // Shift+Tab - move to previous cell
-                   newColumn = currentSelectedColumn - 1
-                   if newColumn < 0 {
-                       newColumn = numberOfColumns - 1
-                       newRow = max(0, currentSelectedRow - 1)
-                   }
-               } else {
-                   // Tab - move to next cell
-                   newColumn = currentSelectedColumn + 1
-                   if newColumn >= numberOfColumns {
-                       newColumn = 0
-                       newRow = min(numberOfRows - 1, currentSelectedRow + 1)
-                   }
-               }
-               handled = true
-               
-           default:
-               break
-           }
-           
-           if handled {
-               // Ensure new position is valid
-               newRow = max(0, min(numberOfRows - 1, newRow))
-               newColumn = max(0, min(numberOfColumns - 1, newColumn))
-               
-               // Update selection if position changed
-               if newRow != currentSelectedRow || newColumn != currentSelectedColumn {
-                   selectCell(row: newRow, column: newColumn)
-               }
-           }
-           
-           return handled
-       }
     
     
     // MARK: - Cell Selection Management

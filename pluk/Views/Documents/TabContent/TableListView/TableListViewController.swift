@@ -396,7 +396,7 @@ struct TableListViewController: NSViewRepresentable {
             tableView.columnAutoresizingStyle = .noColumnAutoresizing
             
             // Enable column selection only
-            tableView.allowsColumnSelection = true
+            tableView.allowsColumnSelection = false
             tableView.allowsMultipleSelection = true
             tableView.allowsEmptySelection = false
             
