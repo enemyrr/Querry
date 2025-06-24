@@ -13,41 +13,18 @@ import PostgresNIO
 class EditableTextField: NSTextField {
     weak var cellView: TextCellView?
     
-    override func textDidEndEditing(_ notification: Notification) {
-        super.textDidEndEditing(notification)
-        
-        // Check the movement reason to determine what key was pressed
-        if let movementNumber = notification.userInfo?["NSTextMovement"] as? Int,
-           let movement = NSTextMovement(rawValue: movementNumber) {
-            print("moment: \(movement)")
-            
-            switch movement {
-            case .tab:
-                print("Tab key pressed - moving to next cell")
-                cellView?.handleTabKeyInEditMode()
-                
-            case .backtab:
-                print("Shift+Tab key pressed - moving to previous cell")
-                cellView?.handleShiftTabKeyInEditMode()
-                
-            case .return:
-                print("Return key pressed - moving down")
-                cellView?.handleEnterKeyInEditMode()
-                
-            case .cancel:
-                print("Escape key pressed - canceling edit")
-                if let cellView = cellView {
-                    stringValue = cellView.originalValue
-                    cellView.isModified = false
-                    cellView.exitEditMode()
-                }
-                
-            default:
-                print("Other movement: \(movement)")
-                break
-            }
+    // Override cancdelOperation which is called when Escape is pressed during editing
+    override func cancelOperation(_ sender: Any?) {
+        if let cellView = cellView {
+            // Revert to original value and exit edit mode
+            stringValue = cellView.originalValue
+            cellView.isModified = false
+            cellView.exitEditMode()
+        } else {
+            super.cancelOperation(sender)
         }
     }
+    
 }
 
 // MARK: - TextCellView
@@ -134,16 +111,16 @@ class TextCellView: NSView, NSTextFieldDelegate {
         if textField.bounds.contains(textFieldPoint) {
             print("Click is inside text field bounds")
             
-                    // Handle single click for selection
-        if event.clickCount == 1 {
-            // Exit edit mode for any currently editing cell when selecting a new cell
-            if let currentEditingCell = TextCellView.currentEditingCell, currentEditingCell !== self {
-                print("Single click - exiting edit mode for previous cell")
-                TextCellView.exitCurrentEditMode()
+            // Handle single click for selection
+            if event.clickCount == 1 {
+                // Exit edit mode for any currently editing cell when selecting a new cell
+                if let currentEditingCell = TextCellView.currentEditingCell, currentEditingCell !== self {
+                    print("Single click - exiting edit mode for previous cell")
+                    TextCellView.exitCurrentEditMode()
+                }
+                
+                setSelected(true)
             }
-            
-            setSelected(true)
-        }
             
             // Only handle double-clicks for editing
             if event.clickCount == 2 {
@@ -160,6 +137,30 @@ class TextCellView: NSView, NSTextFieldDelegate {
             }
         }
     }
+    
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        print("🔍 Command during editing: \(NSStringFromSelector(commandSelector))")
+        
+        // Handle arrow keys during active editing
+        switch commandSelector {
+        case #selector(NSResponder.moveUp(_:)):
+            print("⬆️ Up arrow pressed during editing")
+            handleUpKeyDuringEditing()
+            return true // We handled it, don't let the text view process it
+            
+        case #selector(NSResponder.moveDown(_:)):
+            print("⬇️ Down arrow pressed during editing")
+            handleDownKeyDuringEditing()
+            return true // We handled it, don't let the text view process it
+            
+        default:
+            print("🔄 Other command: \(NSStringFromSelector(commandSelector))")
+            return false // Let the text view handle other commands
+        }
+        
+        return false
+    }
+    
     
     // Public method for exiting edit mode (can be called externally)
     func exitEditModeForRow() {
@@ -312,6 +313,30 @@ class TextCellView: NSView, NSTextFieldDelegate {
         // Only exit edit mode if we're actually editing and the reason is appropriate
         guard isEditing else { return }
         
+        // Check the movement reason to determine what key was pressed
+        if let movementNumber = obj.userInfo?["NSTextMovement"] as? Int,
+           let movement = NSTextMovement(rawValue: movementNumber) {
+            print("moment: \(movement)")
+            
+            switch movement {
+            case .tab:
+                print("Tab key pressed - moving to next cell")
+                handleTabKeyInEditMode()
+                
+            case .backtab:
+                print("Shift+Tab key pressed - moving to previous cell")
+                handleShiftTabKeyInEditMode()
+                
+            case .return:
+                print("Return key pressed - moving down")
+                handleEnterKeyInEditMode()
+                
+            default:
+                print("Other movement: \(movement)")
+                break
+            }
+        }
+        
         // Track the complete cell modification when editing ends
         let finalValue = textField.stringValue
         if let tracker = modificationTracker, rowIndex >= 0 {
@@ -331,15 +356,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 print("🔄 Cell reverted to original: Row \(rowIndex), Column \(columnName)")
             }
         }
-        
-        // Check if user pressed Enter to finish editing and navigate
-        //        if let userInfo = obj.userInfo,
-        //           let textMovement = userInfo["NSTextMovement"] as? Int,
-        //           textMovement == NSTextMovement.return.rawValue {
-        //
-        //            // User pressed Enter - move to next row in same column
-        //            handleEnterKeyInEditMode()
-        //        }
     }
     
     func controlTextDidBeginEditing(_ obj: Notification) {
@@ -361,76 +377,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
             print("Text field modification state changed: \(isModified)")
         }
     }
-    
-    // MARK: - Navigation Methods
-    
-    //    fileprivate func handleTabKeyInEditMode() {
-    //        // Save current changes and move to next cell
-    //        if let tableView = findTableView() as? CustomTableView {
-    //            let currentRow = tableView.row(for: self)
-    //            let currentColumn = tableView.column(for: self)
-    //
-    //            // Calculate next cell position (move right, or next row if at end)
-    //            var nextColumn = currentColumn + 1
-    //            var nextRow = currentRow
-    //
-    //            // If we're at the last column, move to first column of next row
-    //            if nextColumn >= tableView.numberOfColumns {
-    //                nextColumn = 0
-    //                nextRow = currentRow + 1
-    //
-    //                // If we're at the last row, wrap to first row
-    //                if nextRow >= tableView.numberOfRows {
-    //                    nextRow = 0
-    //                }
-    //            }
-    //
-    //            // Select the next cell and enter edit mode
-    //            tableView.selectCell(row: nextRow, column: nextColumn)
-    //
-    //            // Get the next cell and enter edit mode
-    //            if let nextCellView = tableView.view(atColumn: nextColumn, row: nextRow, makeIfNecessary: false) as? TextCellView {
-    //                nextCellView.enterEditMode()
-    //            }
-    //        } else {
-    //            // Fallback - just exit edit mode and return focus to table view
-    //            exitEditMode()
-    //            if let tableView = findTableView() {
-    //                window?.makeFirstResponder(tableView)
-    //            }
-    //        }
-    //    }
-    
-    //    fileprivate func handleEnterKeyInEditMode() {
-    //        // Save current changes and move to next row in same column
-    //        if let tableView = findTableView() as? CustomTableView {
-    //            let currentRow = tableView.row(for: self)
-    //            let currentColumn = tableView.column(for: self)
-    //
-    //            // Calculate next cell position (move down to next row, same column)
-    //            var nextRow = currentRow + 1
-    //            let nextColumn = currentColumn
-    //
-    //            // If we're at the last row, wrap to first row
-    //            if nextRow >= tableView.numberOfRows {
-    //                nextRow = 0
-    //            }
-    //
-    //            // Select the next cell and enter edit mode
-    //            tableView.selectCell(row: nextRow, column: nextColumn)
-    //
-    //            // Get the next cell and enter edit mode
-    //            if let nextCellView = tableView.view(atColumn: nextColumn, row: nextRow, makeIfNecessary: false) as? TextCellView {
-    //                nextCellView.enterEditMode()
-    //            }
-    //        } else {
-    //            // Fallback - just exit edit mode and return focus to table view
-    //            exitEditMode()
-    //            if let tableView = findTableView() {
-    //                window?.makeFirstResponder(tableView)
-    //            }
-    //        }
-    //    }
     
     // MARK: - Helper Methods
     private func findTableView() -> NSTableView? {
@@ -637,8 +583,7 @@ extension TextCellView {
         // Save current changes first
         saveCurrentChanges()
         
-        // Navigate down
-        navigateToCell(direction: .down)
+        exitEditMode()
     }
     
     
@@ -664,6 +609,34 @@ extension TextCellView {
         navigateToCell(direction: .down)
     }
     
+    func handleUpKeyDuringEditing() {
+        // Save current changes and navigate up
+        saveCurrentChanges()
+        
+        // Check if we're at the first line of a multi-line text field
+        let textView = textField.currentEditor() as? NSTextView
+        let selectedRange = textView?.selectedRange() ?? NSRange(location: 0, length: 0)
+        
+        // If cursor is at the beginning or this is single-line, navigate to previous row
+        if selectedRange.location == 0 || textField.usesSingleLineMode {
+            navigateToCell(direction: .up)
+        }
+    }
+    
+    private func handleDownKeyDuringEditing() {
+        // Save current changes and navigate down
+        saveCurrentChanges()
+        
+        // Check if we're at the last line of a multi-line text field
+        let textView = textField.currentEditor() as? NSTextView
+        let selectedRange = textView?.selectedRange() ?? NSRange(location: 0, length: 0)
+        let textLength = textField.stringValue.count
+        
+        // If cursor is at the end or this is single-line, navigate to next row
+        if selectedRange.location == textLength || textField.usesSingleLineMode {
+            navigateToCell(direction: .down)
+        }
+    }
     
     private func saveCurrentChanges() {
         // Save current changes to modification tracker
@@ -686,14 +659,14 @@ extension TextCellView {
         case next, previous, down, up
     }
     
-         func forceEnterEditMode() {
-         print("🔧 Force entering edit mode for cell at (\(rowIndex), \(columnName))")
-         
-         // Ensure we're not already editing
-         if isEditing {
-             print("Already in edit mode")
-             return
-         }
+    func forceEnterEditMode() {
+        print("🔧 Force entering edit mode for cell at (\(rowIndex), \(columnName))")
+        
+        // Ensure we're not already editing
+        if isEditing {
+            print("Already in edit mode")
+            return
+        }
         
         // First, ensure no other cell is in edit mode
         exitEditModeForAllCells()

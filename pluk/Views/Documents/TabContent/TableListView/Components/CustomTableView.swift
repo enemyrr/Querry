@@ -26,10 +26,116 @@ class CustomTableView: NSTableView {
             }
         }
         
+        // Handle navigation keys when NOT in edit mode
+        if handleNonEditModeNavigation(with: event) {
+            return // We handled the key
+        }
+        
         // Let the superclass handle other key events
         super.keyDown(with: event)
     }
     
+    // MARK: - Non-Edit Mode Navigation
+    private func handleNonEditModeNavigation(with event: NSEvent) -> Bool {
+        print("🧭 Handling navigation in non-edit mode")
+        
+        let currentColumn = currentSelectedColumn
+        let currentRow = currentSelectedRow
+        
+        print("📍 Current position: Row \(currentRow), Column \(currentColumn)")
+        
+        // Initialize selection if none exists
+        if currentSelectedRow == -1 || currentSelectedColumn == -1 {
+            print("🎯 No current selection, initializing to (0, 0)")
+            // If no cell is selected, start at (0,0)
+            if selectedRow >= 0 {
+                currentSelectedRow = selectedRow
+                currentSelectedColumn = 0
+            } else {
+                currentSelectedRow = 0
+                currentSelectedColumn = 0
+            }
+            // Select the initial cell
+            selectCell(row: currentSelectedRow, column: currentSelectedColumn)
+            return true
+        }
+        
+        let keyCode = event.keyCode
+        var newRow = currentSelectedRow
+        var newColumn = currentSelectedColumn
+        var handled = false
+        
+        switch keyCode {
+        case 126: // Up arrow
+            newRow = max(0, currentSelectedRow - 1)
+            handled = true
+            print("⬆️ Up arrow - moving from row \(currentRow) to row \(newRow)")
+            
+        case 125: // Down arrow
+            newRow = min(numberOfRows - 1, currentSelectedRow + 1)
+            handled = true
+            print("⬇️ Down arrow - moving from row \(currentRow) to row \(newRow)")
+            
+        case 123: // Left arrow
+            newColumn = max(0, currentSelectedColumn - 1)
+            handled = true
+            print("⬅️ Left arrow - moving from column \(currentColumn) to column \(newColumn)")
+            
+        case 124: // Right arrow
+            newColumn = min(numberOfColumns - 1, currentSelectedColumn + 1)
+            handled = true
+            print("➡️ Right arrow - moving from column \(currentColumn) to column \(newColumn)")
+            
+        case 36: // Enter key
+            // Enter edit mode for current cell
+            if currentSelectedRow >= 0 && currentSelectedColumn >= 0 {
+                print("⏎ Enter pressed - entering edit mode for cell (\(currentRow), \(currentColumn))")
+                enterEditModeForCell(row: currentSelectedRow, column: currentSelectedColumn)
+                handled = true
+            }
+            
+        case 53: // Escape key
+            // Clear selection
+            print("❌ Escape pressed - clearing selection")
+            clearCurrentCellSelection()
+            currentSelectedRow = -1
+            currentSelectedColumn = -1
+            selectRowIndexes(IndexSet(), byExtendingSelection: false)
+            handled = true
+            
+        default:
+            print("ignored event")
+        }
+        
+        if handled {
+            // Ensure new position is valid
+            newRow = max(0, min(numberOfRows - 1, newRow))
+            newColumn = max(0, min(numberOfColumns - 1, newColumn))
+            
+            // Update selection if position changed and we're not clearing selection
+            if (newRow != currentSelectedRow || newColumn != currentSelectedColumn) && keyCode != 53 {
+                print("🎯 Moving active cell from (\(currentSelectedRow), \(currentSelectedColumn)) to (\(newRow), \(newColumn))")
+                selectCell(row: newRow, column: newColumn)
+            }
+        }
+        
+        return handled
+    }
+    
+    // Enter edit mode for a specific cell
+    private func enterEditModeForCell(row: Int, column: Int) {
+        guard row >= 0 && row < numberOfRows && column >= 0 && column < numberOfColumns else {
+            print("❌ Invalid cell position: (\(row), \(column))")
+            return
+        }
+        
+        if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
+            print("✅ Entering edit mode for cell at (\(row), \(column))")
+            cellView.enterEditMode()
+        } else {
+            print("❌ Could not find TextCellView at (\(row), \(column))")
+        }
+    }
     
     // MARK: - Cell Selection Management
     
