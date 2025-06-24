@@ -288,7 +288,9 @@ struct FloatingActionBar: View {
                 totalPages: totalPages,
                 totalCount: totalCount,
                 totalPerPage: totalPerPage,
-                onRefresh: { onRefresh(currentPage, totalPerPage, false) }
+                onRefresh: { onRefresh(currentPage, totalPerPage, false) },
+                modificationTracker: modificationTracker,
+                onSaveChanges: onSaveChanges
             )
             
             Divider()
