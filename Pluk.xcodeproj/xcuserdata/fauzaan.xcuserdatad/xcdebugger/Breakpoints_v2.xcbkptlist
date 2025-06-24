@@ -750,9 +750,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/Components/TextCellView/TextCellView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "299"
-            endingLineNumber = "299"
-            landmarkName = "handleEditingCompleted()"
+            startingLineNumber = "256"
+            endingLineNumber = "256"
+            landmarkName = "updateModificationAppearance()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -766,9 +766,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/Components/TextCellView/TextCellView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "303"
-            endingLineNumber = "303"
-            landmarkName = "handleEditingCompleted()"
+            startingLineNumber = "260"
+            endingLineNumber = "260"
+            landmarkName = "updateModificationAppearance()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -782,9 +782,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/Components/TextCellView/TextCellView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "275"
-            endingLineNumber = "275"
-            landmarkName = "updateModificationAppearance()"
+            startingLineNumber = "232"
+            endingLineNumber = "232"
+            landmarkName = "disableEditMode()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -798,9 +798,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/Components/TextCellView/TextCellView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "274"
-            endingLineNumber = "274"
-            landmarkName = "updateModificationAppearance()"
+            startingLineNumber = "231"
+            endingLineNumber = "231"
+            landmarkName = "disableEditMode()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -846,9 +846,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/Components/TextCellView/TextCellView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "361"
-            endingLineNumber = "361"
-            landmarkName = "controlTextDidChange(_:)"
+            startingLineNumber = "318"
+            endingLineNumber = "318"
+            landmarkName = "controlTextDidEndEditing(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -894,8 +894,8 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/Components/TextCellView/TextCellView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "148"
-            endingLineNumber = "148"
+            startingLineNumber = "141"
+            endingLineNumber = "141"
             landmarkName = "handleDoubleClickEdit(at:with:)"
             landmarkType = "7">
          </BreakpointContent>

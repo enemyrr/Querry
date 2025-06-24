@@ -56,9 +56,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
     
-    private static weak var currentlyHoveredCell: TextCellView?
-    private static weak var currentlySelectedCell: TextCellView?
-    
     private var isSelected: Bool = false
     private var isEditing: Bool = false {
         didSet {
@@ -129,9 +126,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
             
             // Handle single click for selection
             if event.clickCount == 1 {
-                // Clear previous selection first
-                TextCellView.clearAllSelections()
-                
                 // Get table view and coordinate
                 if let tableView = findTableView() {
                     let currentRow = tableView.row(for: self)
@@ -139,7 +133,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
                     
                     // Select this cell
                     setSelected(true)
-                    TextCellView.currentlySelectedCell = self
                 }
             }
             
@@ -150,21 +143,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 self.textField.selectText(nil)
             }
         }
-    }
-    
-    // Add this new static method to clear all selections
-    private static func clearAllSelections() {
-        // Clear the currently selected cell
-        if let selectedCell = currentlySelectedCell {
-            selectedCell.setSelected(false)
-        }
-        currentlySelectedCell = nil
-        
-        // Clear the currently hovered cell
-        if let hoveredCell = currentlyHoveredCell {
-            hoveredCell.setSelected(false)
-        }
-        currentlyHoveredCell = nil
     }
     
     // Public method for exiting edit mode (can be called externally)
@@ -214,15 +192,12 @@ class TextCellView: NSView, NSTextFieldDelegate {
         
         // Enable editing
         textField.isEditable = true
-        textField.isSelectable = true
         
         // Update visual state
         isEditing = true
     }
     
     fileprivate func exitEditMode() {
-        guard isEditing else { return }
-        
         print("Exiting edit mode for cell: \(isEditing)")
         
         // Find all cells in the same row and exit edit mode
@@ -559,14 +534,9 @@ class TextCellView: NSView, NSTextFieldDelegate {
         ])
     }
     
-    /// Sets this cell as the currently selected cell (called by CustomTableView)
     func setAsSelectedCell() {
-        // Clear any previous selection
-        TextCellView.clearAllSelections()
-        
         // Set this cell as selected
         setSelected(true)
-        TextCellView.currentlySelectedCell = self
         
         print("Cell selected at row: \(rowIndex), column: \(columnName)")
     }
@@ -574,11 +544,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     /// Clears the selection state of this cell
     func clearSelection() {
         setSelected(false)
-        
-        // Clear the static reference if this was the selected cell
-        if TextCellView.currentlySelectedCell === self {
-            TextCellView.currentlySelectedCell = nil
-        }
     }
     
     override func layout() {
@@ -692,21 +657,20 @@ extension TextCellView {
         case next, previous, down, up
     }
     
-    func forceEnterEditMode() {
-        print("🔧 Force entering edit mode for cell at (\(rowIndex), \(columnName))")
-        
-        // Ensure we're not already editing
-        if isEditing {
-            print("Already in edit mode")
-            return
-        }
+         func forceEnterEditMode() {
+         print("🔧 Force entering edit mode for cell at (\(rowIndex), \(columnName))")
+         
+         // Ensure we're not already editing
+         if isEditing {
+             print("Already in edit mode")
+             return
+         }
         
         // Store original value
         originalValue = textField.stringValue
         
         // Enable editing directly
         textField.isEditable = true
-        textField.isSelectable = true
         
         // Set edit state
         isEditing = true
