@@ -582,7 +582,7 @@ struct TableListViewController: NSViewRepresentable {
                     let columnId = tableColumn.identifier.rawValue
                     if newColumns.contains(columnId), let newWidth = columnWidthCache[columnId] {
                         tableColumn.width = newWidth
-                        tableColumn.minWidth = max(60, newWidth * 0.5)
+                        tableColumn.minWidth = max(10, newWidth * 0.5)
                         tableColumn.maxWidth = newWidth * 2.0
                     }
                 }

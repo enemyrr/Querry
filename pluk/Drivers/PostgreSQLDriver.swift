@@ -431,6 +431,7 @@ class PostgreSQLDriver: DatabaseDriver {
                         do {
                             processedRowData[columnName] = try extractValue(from: cell)
                         } catch {
+                            print("extractValue: \(String(reflecting: error))")
                             processedRowData[columnName] = nil
                         }
                     } else {
@@ -472,6 +473,8 @@ class PostgreSQLDriver: DatabaseDriver {
                 format: nil
             )
         }
+        
+        print("datType: \(cell.dataType): \(String(describing: cell.columnName))")
         
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
@@ -571,18 +574,36 @@ class PostgreSQLDriver: DatabaseDriver {
                    format: String(describing: cell.format)
                )
             
-        case .timestamp, .timestamptz:
+        case .timestamp:
             let value = try cell.decode(Date.self)
+            let dateFormatter = DateFormatter()
+            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            let dateString = dateFormatter.string(from: value)
             return QueryRowInfo(
-                value: value,
+                value: dateString,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .timestamptz:
+            let value = try cell.decode(Date.self)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ssX"
+            let dateString = dateFormatter.string(from: value)
+            return QueryRowInfo(
+                value: dateString,
                 dataType: String(describing: cell.dataType),
                 format: String(describing: cell.format)
             )
             
         case .date:
             let value = try cell.decode(Date.self)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: value)
             return QueryRowInfo(
-                value: value,
+                value: dateString,
                 dataType: "date",
                 format: String(describing: cell.format)
             )
@@ -616,6 +637,32 @@ class PostgreSQLDriver: DatabaseDriver {
             return QueryRowInfo(
                 value: value.description,
                 dataType: "numeric",
+                format: String(describing: cell.format)
+            )
+            
+        case .money:
+            guard var bytes = cell.bytes else {
+                return QueryRowInfo(
+                    value: nil,
+                    dataType: "nil",
+                    format: nil
+                )
+            }
+            
+            guard let rawValue = bytes.readInteger(as: Int64.self) else {
+                // Fallback for safety, though binary should contain Int64
+                let stringValue = try? cell.decode(String.self)
+                return QueryRowInfo(
+                    value: stringValue,
+                    dataType: "money",
+                    format: String(describing: cell.format)
+                )
+            }
+            // PostgreSQL money type is a 64-bit integer of cents.
+            let decimalValue = Decimal(rawValue) / 100.0
+            return QueryRowInfo(
+                value: decimalValue.description,
+                dataType: "money",
                 format: String(describing: cell.format)
             )
             
@@ -680,6 +727,18 @@ class PostgreSQLDriver: DatabaseDriver {
         } catch {
             throw DatabaseError.operationFailed("Failed to update document: \(error.localizedDescription)")
         }
+    }
+    
+    func decodePostgresTime(from cell: PostgresCell) -> (hour: Int, minute: Int, second: Int, microsecond: Int)? {
+        guard cell.dataType == .time, var value = cell.bytes else { return nil }
+        // TIME is sent as Int64 microseconds since midnight
+        guard let microseconds = value.readInteger(as: Int64.self) else { return nil }
+        let totalSeconds = microseconds / 1_000_000
+        let hour = Int(totalSeconds / 3600)
+        let minute = Int((totalSeconds % 3600) / 60)
+        let second = Int(totalSeconds % 60)
+        let microsecond = Int(microseconds % 1_000_000)
+        return (hour, minute, second, microsecond)
     }
     
     func deleteDocument(in collectionName: String, id: Any) async throws {
