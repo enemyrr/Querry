@@ -109,12 +109,22 @@ class MongoDBDriver: DatabaseDriver {
     
     
     func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
+        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
         
         let collection = mongoDatabase[collectionName]
-        let query = collection.find().skip(skip).limit(limit)
+        var query = collection.find().skip(skip).limit(limit)
+        
+        // Add sorting if specified
+        if let sortBy = sortBy {
+            let sortOrder: Int32 = ascending == false ? -1 : 1
+            query = query.sort([sortBy: sortOrder])
+        }
         
         var convertedRows: [[String: QueryRowInfo]] = []
         
@@ -135,8 +145,12 @@ class MongoDBDriver: DatabaseDriver {
     
     
     
-    func createDocument(in collectionName: String, database: MongoDBWrapper, document: [String: Any]) async throws {
-        let collection = database.database[collectionName]
+    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let collection = mongoDatabase[collectionName]
         //        let mongoDocument = try MongoKitten.Document(from: document)
         //        let result = try await collection.insert(mongoDocument)
         //        if result.insertCount == 0 {
@@ -144,8 +158,12 @@ class MongoDBDriver: DatabaseDriver {
         //        }
     }
     
-    func updateDocument(in collectionName: String, database: MongoDBWrapper, id: Any, data: [String: Any]) async throws {
-        let collection = database.database[collectionName]
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let collection = mongoDatabase[collectionName]
         guard let objectId = id as? ObjectId else {
             throw MongoError.invalidData
         }
@@ -159,8 +177,12 @@ class MongoDBDriver: DatabaseDriver {
         //        }
     }
     
-    func deleteDocument(in collectionName: String, database: MongoDBWrapper, id: Any) async throws {
-        let collection = database.database[collectionName]
+    func deleteDocument(in collectionName: String, id: Any) async throws {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let collection = mongoDatabase[collectionName]
         guard let objectId = id as? ObjectId else {
             throw MongoError.invalidData
         }

@@ -351,6 +351,10 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
+        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+    }
+    
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -362,13 +366,26 @@ class PostgreSQLDriver: DatabaseDriver {
                 // Use the raw query directly
                 query = PostgresQuery(stringLiteral: rawQuery)
             } else {
-                // Build standard query with optional WHERE clause
+                // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
-                if whereClause.isEmpty {
-                    query = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT \(limit) OFFSET \(skip)"
-                } else {
-                    query = "SELECT * FROM \(unescaped: sanitizedCollectionName) WHERE \(unescaped: whereClause) LIMIT \(limit) OFFSET \(skip)"
+                
+                // Get primary key for default sorting when no sorting is provided
+                let primaryKey = try await getPrimaryKeyColumn(for: String(sanitizedCollectionName.dropFirst().dropLast())) // Remove quotes
+                let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending, primaryKey: primaryKey)
+                
+                var queryString = "SELECT * FROM \(sanitizedCollectionName)"
+                
+                if !whereClause.isEmpty {
+                    queryString += " WHERE \(whereClause)"
                 }
+                
+                if !orderByClause.isEmpty {
+                    queryString += " \(orderByClause)"
+                }
+                
+                queryString += " LIMIT \(limit) OFFSET \(skip)"
+                
+                query = PostgresQuery(stringLiteral: queryString)
             }
             
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
@@ -414,6 +431,7 @@ class PostgreSQLDriver: DatabaseDriver {
                         do {
                             processedRowData[columnName] = try extractValue(from: cell)
                         } catch {
+                            print("extractValue: \(String(reflecting: error))")
                             processedRowData[columnName] = nil
                         }
                     } else {
@@ -434,14 +452,15 @@ class PostgreSQLDriver: DatabaseDriver {
             )
             
         } catch let error as PSQLError {
+            print(String(reflecting: error))
             throw mapPSQLError(error)
         } catch {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
 
-    func createDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, document: [String: Any]) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+        throw DatabaseError.notImplemented("PostgreSQL createDocument not yet implemented")
     }
     
 
@@ -454,6 +473,8 @@ class PostgreSQLDriver: DatabaseDriver {
                 format: nil
             )
         }
+        
+        print("datType: \(cell.dataType): \(String(describing: cell.columnName))")
         
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
@@ -513,18 +534,76 @@ class PostgreSQLDriver: DatabaseDriver {
                 format: String(describing: cell.format)
             )
             
-        case .timestamp, .timestamptz:
-            let value = try cell.decode(Date.self)
+        case .textArray, .varcharArray, .charArray:
+            let stringArray = try cell.decode([String].self)
             return QueryRowInfo(
-                value: value,
+                value: "{" + stringArray.joined(separator: ",") + "}",
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .int4Array:
+            let int4Array = try cell.decode([Int32].self)
+            return QueryRowInfo(
+                value: "[" + int4Array.map { String($0) }.joined(separator: ", ") + "]",
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .int4Range:
+            let range = try cell.decode(Range<Int32>.self)
+            return QueryRowInfo(
+                value: range.description,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .int8Range:
+            let range = try cell.decode(Range<Int64>.self)
+            return QueryRowInfo(
+                value: "[\(range.lowerBound),\(range.upperBound))",
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .numrange:
+            let stringValue = try cell.decode(String.self)
+            return QueryRowInfo(
+                   value: stringValue,
+                   dataType: String(describing: cell.dataType),
+                   format: String(describing: cell.format)
+               )
+            
+        case .timestamp:
+            let value = try cell.decode(Date.self)
+            let dateFormatter = DateFormatter()
+            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            let dateString = dateFormatter.string(from: value)
+            return QueryRowInfo(
+                value: dateString,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
+        case .timestamptz:
+            let value = try cell.decode(Date.self)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ssX"
+            let dateString = dateFormatter.string(from: value)
+            return QueryRowInfo(
+                value: dateString,
                 dataType: String(describing: cell.dataType),
                 format: String(describing: cell.format)
             )
             
         case .date:
             let value = try cell.decode(Date.self)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: value)
             return QueryRowInfo(
-                value: value,
+                value: dateString,
                 dataType: "date",
                 format: String(describing: cell.format)
             )
@@ -554,10 +633,36 @@ class PostgreSQLDriver: DatabaseDriver {
             )
             
         case .numeric:
-            let value = try cell.decode(String.self)
+            let value = try cell.decode(Decimal.self)
             return QueryRowInfo(
-                value: value,
+                value: value.description,
                 dataType: "numeric",
+                format: String(describing: cell.format)
+            )
+            
+        case .money:
+            guard var bytes = cell.bytes else {
+                return QueryRowInfo(
+                    value: nil,
+                    dataType: "nil",
+                    format: nil
+                )
+            }
+            
+            guard let rawValue = bytes.readInteger(as: Int64.self) else {
+                // Fallback for safety, though binary should contain Int64
+                let stringValue = try? cell.decode(String.self)
+                return QueryRowInfo(
+                    value: stringValue,
+                    dataType: "money",
+                    format: String(describing: cell.format)
+                )
+            }
+            // PostgreSQL money type is a 64-bit integer of cents.
+            let decimalValue = Decimal(rawValue) / 100.0
+            return QueryRowInfo(
+                value: decimalValue.description,
+                dataType: "money",
                 format: String(describing: cell.format)
             )
             
@@ -570,12 +675,74 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         }
     }
-    func updateDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, id: Any, data: [String: Any]) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+
+    // MARK: - Fixed updateDocument method
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+        let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
+        guard !data.isEmpty else {
+            throw DatabaseError.operationFailed("No data provided for update")
+        }
+        
+        guard let primaryKey = id as? PostgresCell else {
+            throw DatabaseError.operationFailed("Cannot update document without a primary key")
+        }
+        
+        do {
+            // Get the schema to find primary key column name
+            let (setClause, values) = try await buildParameterizedSetClause(from: data, for: collectionName)
+           
+            // Build the UPDATE query with parameter binding
+            let queryString = """
+                UPDATE \(sanitizedCollectionName)
+                SET \(setClause)
+                WHERE \(primaryKey.columnName) = $\(values.count + 1)
+            """
+            
+            // Create PostgresBindings and append all values
+            var bindings = PostgresBindings(capacity: values.count + 1)
+            
+            for value in values {
+                try bindings.append(value)
+            }
+            
+            // Convert PostgresCell to PostgresData
+            let postgresData = PostgresData(
+                type: primaryKey.dataType,
+                typeModifier: nil,
+                formatCode: primaryKey.format,
+                value: primaryKey.bytes
+            )
+            
+            bindings.append(postgresData)
+
+            // Execute the update query with parameter binding
+            let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+            try await connection.query(query, logger: Logger(label: "postgres"))
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch let error as DatabaseError {
+            throw error
+        } catch {
+            throw DatabaseError.operationFailed("Failed to update document: \(error.localizedDescription)")
+        }
     }
     
-    func deleteDocument(in collectionName: String, database: PostgreSQLDatabaseWrapper, id: Any) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func decodePostgresTime(from cell: PostgresCell) -> (hour: Int, minute: Int, second: Int, microsecond: Int)? {
+        guard cell.dataType == .time, var value = cell.bytes else { return nil }
+        // TIME is sent as Int64 microseconds since midnight
+        guard let microseconds = value.readInteger(as: Int64.self) else { return nil }
+        let totalSeconds = microseconds / 1_000_000
+        let hour = Int(totalSeconds / 3600)
+        let minute = Int((totalSeconds % 3600) / 60)
+        let second = Int(totalSeconds % 60)
+        let microsecond = Int(microseconds % 1_000_000)
+        return (hour, minute, second, microsecond)
+    }
+    
+    func deleteDocument(in collectionName: String, id: Any) async throws {
+        throw DatabaseError.notImplemented("PostgreSQL deleteDocument not yet implemented")
     }
     
     func createCollection(named collectionName: String) async throws {
@@ -945,6 +1112,195 @@ class PostgreSQLDriver: DatabaseDriver {
         return conditions.joined(separator: " AND ")
     }
     
+    private func buildOrderByClause(sortBy: String?, ascending: Bool?, primaryKey: String?) -> String {
+        // If sortBy is provided, use it
+        if let sortBy = sortBy, !sortBy.isEmpty {
+            // Validate column name to prevent SQL injection
+            do {
+                let sanitizedColumn = try validateAndSanitizeColumnName(sortBy)
+                let direction = ascending == false ? "DESC" : "ASC"
+                return "ORDER BY \(sanitizedColumn) \(direction)"
+            } catch {
+                // If column validation fails, fall back to primary key if it exists
+                if let primaryKey = primaryKey {
+                    return "ORDER BY \(primaryKey) ASC"
+                }
+                return ""
+            }
+        } else {
+            // No sorting provided, use primary key ASC as default if it exists
+            if let primaryKey = primaryKey {
+                return "ORDER BY \(primaryKey) ASC"
+            }
+            return ""
+        }
+    }
+    
+    private func buildParameterizedSetClause(from data: [String: Any], for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable]) {
+        var setClauses: [String] = []
+        var values: [PostgresEncodable] = []
+        var parameterIndex = 1
+        
+        // Get the schema to determine correct data types
+        let schema = try await getSchema(for: tableName, in: schemaName)
+        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
+        
+        for (key, value) in data {
+            let sanitizedColumnName = try validateAndSanitizeColumnName(key)
+            setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
+            
+            // Convert string value to appropriate type based on schema
+            if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
+                values.append(convertedValue)
+            } else {
+                throw DatabaseError.operationFailed("Failed to convert value for column \(key)")
+            }
+            
+            parameterIndex += 1
+        }
+        
+        return (setClauses.joined(separator: ", "), values)
+    }
+
+    
+    private func convertStringToPostgresType(_ value: Any, columnName: String, columnTypes: [String: String]) throws -> PostgresEncodable? {
+        guard let stringValue = value as? String else {
+            throw DatabaseError.operationFailed("Expected string value for column \(columnName)")
+        }
+        
+        // Handle empty strings and null values
+        if stringValue.isEmpty || stringValue.lowercased() == "null" {
+            return Optional<String>.none
+        }
+        
+        // Get the column type from schema
+        guard let columnType = columnTypes[columnName] else {
+            // Default to string if type not found
+            return stringValue
+        }
+        
+        // Convert based on PostgreSQL data type
+        switch columnType.lowercased() {
+        case "bool", "boolean":
+            let lowercased = stringValue.lowercased()
+            if ["true", "1", "yes", "on"].contains(lowercased) {
+                return true
+            } else if ["false", "0", "no", "off"].contains(lowercased) {
+                return false
+            } else {
+                throw DatabaseError.operationFailed("Invalid boolean value: \(stringValue)")
+            }
+            
+        case "int2", "smallint":
+            guard let intValue = Int16(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid int2 value: \(stringValue)")
+            }
+            return intValue
+            
+        case "int4", "int", "integer":
+            guard let intValue = Int32(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid int4 value: \(stringValue)")
+            }
+            return intValue
+            
+        case "int8", "bigint":
+            guard let intValue = Int64(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid int8 value: \(stringValue)")
+            }
+            return intValue
+            
+        case "float4", "real":
+            guard let floatValue = Float(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid float4 value: \(stringValue)")
+            }
+            return floatValue
+            
+        case "float8", "double precision", "numeric", "decimal":
+            guard let doubleValue = Double(stringValue) else {
+                throw DatabaseError.operationFailed("Invalid float8 value: \(stringValue)")
+            }
+            return doubleValue
+            
+        case "uuid":
+            guard let uuidValue = UUID(uuidString: stringValue) else {
+                throw DatabaseError.operationFailed("Invalid UUID value: \(stringValue)")
+            }
+            return uuidValue
+            
+        case "date", "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone":
+            // Try multiple date formats
+            let dateFormatters = [
+                ISO8601DateFormatter(),
+                {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                    return formatter
+                }(),
+                {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    return formatter
+                }()
+            ]
+            
+            for formatter in dateFormatters {
+                if let formatter = formatter as? ISO8601DateFormatter {
+                    if let date = formatter.date(from: stringValue) {
+                        return date
+                    }
+                } else if let formatter = formatter as? DateFormatter {
+                    if let date = formatter.date(from: stringValue) {
+                        return date
+                    }
+                }
+            }
+            
+            throw DatabaseError.operationFailed("Invalid date value: \(stringValue)")
+            
+        case "json", "jsonb":
+            // Validate JSON format
+            guard stringValue.data(using: .utf8) != nil else {
+                throw DatabaseError.operationFailed("Invalid JSON value: \(stringValue)")
+            }
+            return stringValue
+            
+        default:
+            // Default to string for text, varchar, char, and unknown types
+            return stringValue
+        }
+    }
+    
+    private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
+        let trimmed = columnName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check if the column name is empty
+        if trimmed.isEmpty {
+            throw DatabaseError.configurationError("Column name cannot be empty")
+        }
+        
+        // PostgreSQL column name rules (similar to identifier rules)
+        if trimmed.count > 63 {
+            throw DatabaseError.configurationError("Column name too long (max 63 characters)")
+        }
+        
+        // Check if it starts with letter or underscore
+        guard let firstChar = trimmed.first,
+              firstChar.isLetter || firstChar == "_" else {
+            throw DatabaseError.configurationError("Column name must start with letter or underscore")
+        }
+        
+        // Check for valid characters
+        let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_$"))
+        for char in trimmed.unicodeScalars {
+            if !validCharacters.contains(char) {
+                throw DatabaseError.configurationError("Column name contains invalid characters")
+            }
+        }
+        
+        // Return properly quoted column name for PostgreSQL
+        return "\"\(trimmed)\""
+    }
+    
     private func mapPSQLError(_ error: PSQLError) -> DatabaseError {
         // Check the specific error code first
         switch error.code {
@@ -979,7 +1335,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 
                 // Use the error message from the server
                 if let message = serverInfo[.message] {
-                    return DatabaseError.operationFailed("PostgreSQL server error: \(message)")
+                    return DatabaseError.operationFailed("ERROR: \(message)")
                 }
             }
             return DatabaseError.operationFailed("PostgreSQL server error")
@@ -1008,6 +1364,36 @@ class PostgreSQLDriver: DatabaseDriver {
         
         return nil
     }
+    
+    // MARK: - Helper method to get primary key column
+       private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
+           let connection = try ensureConnected()
+           
+           do {
+               let query = PostgresQuery("""
+                   SELECT a.attname
+                   FROM pg_index i
+                   JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                   WHERE i.indrelid = '\(unescaped: schemaName).\(unescaped: tableName)'::regclass
+                   AND i.indisprimary
+                   ORDER BY a.attnum
+                   LIMIT 1
+               """)
+               
+               let results = try await connection.query(query, logger: Logger(label: "postgres"))
+               
+               for try await (columnName) in results.decode((String).self) {
+                   return "\"\(columnName)\""  // Return quoted column name
+               }
+               
+               // If no primary key is found, return nil
+               return nil
+               
+           } catch {
+               // If the query fails for any reason (e.g., table not found, permissions), return nil
+               return nil
+           }
+       }
 }
 
 // MARK: - Utility Extensions
@@ -1051,7 +1437,7 @@ enum DatabaseError: Error, LocalizedError {
         case .connectionFailed(let message):
             return "Connection failed: \(message)"
         case .operationFailed(let message):
-            return "Operation failed: \(message)"
+            return message
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
         case .configurationError(let message):

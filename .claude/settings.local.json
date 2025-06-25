@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(rg:*)",
-      "Bash(xcodebuild:*)"
+      "Bash(xcodebuild:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

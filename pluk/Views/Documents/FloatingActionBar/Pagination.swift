@@ -14,6 +14,8 @@ struct Pagination: View {
     var totalCount: Int
     var totalPerPage: Int
     let onRefresh: () -> Void
+    let modificationTracker: TableModificationTracker
+    let onSaveChanges: () -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var filter: String?
@@ -21,6 +23,10 @@ struct Pagination: View {
     @State private var isNextHovering = false
     @State private var previousClickCooldown = false
     @State private var nextClickCooldown = false
+    
+    // Unsaved changes confirmation
+    @State private var showUnsavedChangesDialog = false
+    @State private var pendingPageAction: (() -> Void)?
     
     // Computed property to determine if either button is being hovered
     private var isAnyButtonHovering: Bool {
@@ -33,8 +39,10 @@ struct Pagination: View {
         
         HStack(spacing: 0) {
             Button(action: {
-                withAnimation(.spring(response: 0.3)) {
-                    previousPage(filter: filter)
+                checkForUnsavedChanges {
+                    withAnimation(.spring(response: 0.3)) {
+                        previousPage(filter: filter)
+                    }
                 }
             }) {
                 Image(systemName: "chevron.left")
@@ -68,8 +76,10 @@ struct Pagination: View {
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), disableScaleEffect: true))
             
             Button(action: {
-                withAnimation(.spring(response: 0.3)) {
-                    nextPage(filter: filter)
+                checkForUnsavedChanges {
+                    withAnimation(.spring(response: 0.3)) {
+                        nextPage(filter: filter)
+                    }
                 }
             }) {
                 Image(systemName: "chevron.right")
@@ -92,9 +102,50 @@ struct Pagination: View {
             }
             .transition(.scale.combined(with: .opacity))
         }
+        .confirmationDialog(
+            "Do you want to save it?",
+            isPresented: $showUnsavedChangesDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Save") {
+                onSaveChanges()
+                // Execute the pending page action after saving
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    pendingPageAction?()
+                    pendingPageAction = nil
+                }
+            }
+            
+            Button("Don't Save") {
+                // Clear the modifications and proceed with navigation
+                modificationTracker.resetAllModifications()
+                pendingPageAction?()
+                pendingPageAction = nil
+            }
+            
+            Button("Cancel", role: .cancel) {
+                pendingPageAction = nil
+            }
+        } message: {
+            Text("This page contains unsaved changes. Your changes will be lost if you don't save them.")
+        }
     }
     
     
+    
+    // MARK: - Unsaved Changes Check
+    private func checkForUnsavedChanges(action: @escaping () -> Void) {
+        TextCellView.exitCurrentEditMode()
+        
+            if modificationTracker.hasModifications {
+                // Store the action to execute later
+                pendingPageAction = action
+                showUnsavedChangesDialog = true
+            } else {
+                // No unsaved changes, execute action immediately
+                action()
+            }
+    }
     
     // MARK: - Pagination Methods
     @MainActor

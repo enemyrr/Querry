@@ -41,7 +41,7 @@ struct QueryResult {
     }
     
     // Get value from row by column name
-    func value(row: Int, column: String) -> Any? {
+    func value(row: Int, column: String) -> QueryRowInfo? {
         guard row < rows.count else { return nil }
         return rows[row][column] ?? nil
     }
@@ -77,9 +77,10 @@ protocol DatabaseDriver {
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult]
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult
-    func createDocument(in collectionName: String, database: Database, document: [String: Any]) async throws
-    func updateDocument(in collectionName: String, database: Database, id: Any, data: [String: Any]) async throws
-    func deleteDocument(in collectionName: String, database: Database, id: Any) async throws
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult
+    func createDocument(in collectionName: String, document: [String: Any]) async throws
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws
+    func deleteDocument(in collectionName: String, id: Any) async throws
     
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult
     
@@ -219,14 +220,4 @@ class DatabaseDriverFactory {
     }
 } 
 
-extension DatabaseDriver {
-    func performOperation<T>(
-        with database: any DatabaseWrapper,
-        operation: (Database) async throws -> T
-    ) async throws -> T {
-        guard let typedDatabase = database as? Database else {
-            throw DatabaseError.operationFailed("Database type mismatch")
-        }
-        return try await operation(typedDatabase)
-    }
-}
+

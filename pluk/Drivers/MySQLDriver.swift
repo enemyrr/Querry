@@ -24,6 +24,10 @@ class MySQLDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
+    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     typealias Database = MySQLDatabaseWrapper
     typealias Collection = MySQLCollectionWrapper
     
@@ -53,15 +57,15 @@ class MySQLDriver: DatabaseDriver {
     }
     
     
-    func createDocument(in collectionName: String, database: MySQLDatabaseWrapper, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func updateDocument(in collectionName: String, database: MySQLDatabaseWrapper, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func deleteDocument(in collectionName: String, database: MySQLDatabaseWrapper, id: Any) async throws {
+    func deleteDocument(in collectionName: String, id: Any) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     

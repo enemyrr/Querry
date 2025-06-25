@@ -9,15 +9,20 @@ import SwiftUI
 import MongoKitten
 
 struct FloatingActionBar: View {
-    let screenWidth: CGFloat
     var viewState: TableListViewState
     let tableName: String
+    let modificationTracker: TableModificationTracker
+    let isProcessingUpdates: Bool
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
+    let onSaveChanges: () -> Void
+    
+    // Add current query result as direct parameter to preserve data during loading
+    let currentQueryResult: QueryResult?
     
     @Environment(ConnectionInstance.self) private var instance
     
-    @State private var containerWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 200
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -43,7 +48,8 @@ struct FloatingActionBar: View {
     @State var totalPages = 1
     @State var totalPerPage = 300
     private var totalCount: Int {
-        if case .loaded(let queryResult, _) = viewState {
+        // Use the directly passed currentQueryResult to preserve data during loading
+        if let queryResult = currentQueryResult {
             return queryResult.totalCount
         }
         return 0
@@ -60,6 +66,7 @@ struct FloatingActionBar: View {
     
     @State private var debouncedIsLoading: Bool = false
     @State private var debounceTask: Task<Void, Never>?
+    private let screenWidth = NSScreen.main?.frame.width ?? 200
     
     var body: some View {
         Button("") {
@@ -78,12 +85,13 @@ struct FloatingActionBar: View {
                     .animation(.smooth, value: showQueryEditor || showCreateDocumentSheet)
                     .scaleEffect(isSubmitAnimating ? 1.02 : 1.0)
                     .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: containerWidth)
                 
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
                 QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
-                    .frame(width: screenWidth * 0.9)
+                    .padding(.horizontal, 80)
             }
             
             if showCreateDocumentSheet {
@@ -113,7 +121,7 @@ struct FloatingActionBar: View {
                                 onRefresh(currentPage, totalPerPage, true)
                             }
                         })
-                    .frame(width: screenWidth * 0.55)
+                    .frame(maxWidth: 500)
                 default:
                     mainView
                 }
@@ -125,19 +133,19 @@ struct FloatingActionBar: View {
                     .stroke(.separator, lineWidth: 1)
             )
             .overlay(
-                Group {
-                    TwoPhaseLoader(
-                        isLoading: isLoading,
-                        cornerRadius: action == .main ? 12 : 20
-                    )
-                    Spacer()
-                    
-                    if case .error( _) = viewState {
-                        LoadingErrorIndicator()
-                    }
-                }
+                TwoPhaseLoader(
+                    containerWidth: containerWidth,
+                    isLoading: isLoading,
+                    cornerRadius: action == .main ? 12 : 20
+                )
             )
+            .overlay(alignment: .center) {
+                if case .error = viewState {
+                    LoadingErrorIndicator(cornerRadius: action == .main ? 12 : 20)
+                }
+            }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: modificationTracker.hasModifications)
             .background(
                 GeometryReader { geometry in
                     Color.clear
@@ -153,9 +161,12 @@ struct FloatingActionBar: View {
                 await handleProcessingStageChange()
             }
             .onDisappear {
+                // Cancel all active tasks to prevent crashes
                 animationTask?.cancel()
+                loadingTask?.cancel()
+                errorTask?.cancel()
+                debounceTask?.cancel()
             }
-            
         }
     }
     
@@ -277,7 +288,9 @@ struct FloatingActionBar: View {
                 totalPages: totalPages,
                 totalCount: totalCount,
                 totalPerPage: totalPerPage,
-                onRefresh: { onRefresh(currentPage, totalPerPage, false) }
+                onRefresh: { onRefresh(currentPage, totalPerPage, false) },
+                modificationTracker: modificationTracker,
+                onSaveChanges: onSaveChanges
             )
             
             Divider()
@@ -286,6 +299,10 @@ struct FloatingActionBar: View {
             
             Button(action: {
                 if !isLoading {
+                    // Cancel any existing loading operations before starting new one
+                    loadingTask?.cancel()
+                    debounceTask?.cancel()
+                    
                     onRefresh(currentPage, totalPerPage, true)
                 }
             }) {
@@ -297,7 +314,7 @@ struct FloatingActionBar: View {
                     .frame(width: 16, height: 16)
                     .contentShape(Rectangle())
                     .onChange(of: isLoading) { oldValue, newValue in
-                        // Cancel previous debounce
+                        // Cancel previous debounce task
                         debounceTask?.cancel()
                         
                         if newValue {
@@ -305,12 +322,15 @@ struct FloatingActionBar: View {
                             debouncedIsLoading = true
                         } else {
                             // Debounce the loading -> stopped transition
-                            debounceTask = Task {
-                                try? await Task.sleep(for: .milliseconds(400))
-                                if !Task.isCancelled {
-                                    await MainActor.run {
+                            debounceTask = Task { @MainActor in
+                                do {
+                                    try await Task.sleep(for: .milliseconds(400))
+                                    // Double-check we haven't been cancelled and loading hasn't restarted
+                                    if !Task.isCancelled && !isLoading {
                                         debouncedIsLoading = false
                                     }
+                                } catch {
+                                    // Task was cancelled, ignore
                                 }
                             }
                         }
@@ -323,6 +343,7 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "R"
             ), spacing: 10)
+            
             
             Group {
                 // Batch delete button - only show when there are documents marked for deletion
@@ -344,23 +365,22 @@ struct FloatingActionBar: View {
             }
             
             // Batch update button - only show when there are documents marked for update
-            //                if viewModel.pendingActionsCount(for: .update) > 1 {
-            //                    Divider()
-            //                        .frame(height: 22)
-            //                        .padding(.vertical, 6)
-            //
-            //                    UpdateActionButton(
-            //                        updateCount: viewModel.pendingActionsCount(for: .update),
-            //                        isProcessingBatch: viewModel.isProcessingBatch,
-            //                        onUpdate: {
-            //                            Task {
-            //                                await viewModel.commitPendingActions()
-            //                            }
-            //                        }
-            //                    )
-            //                }
-            //            }
-            
+            if modificationTracker.hasModifications {
+                Divider()
+                    .frame(height: 22)
+                    .padding(.vertical, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                
+                UpdateActionButton(
+                    updateCount: modificationTracker.modifiedRowCount,
+                    isProcessingBatch: isProcessingUpdates,
+                    onUpdate: {
+                        onSaveChanges()
+                    }
+                )
+            }
+
+
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
@@ -473,8 +493,6 @@ struct FloatingActionBar: View {
         }
     }
     
-    
-    
     // MARK: - Action Buttons
     struct DeleteActionButton: View {
         let deleteCount: Int
@@ -527,17 +545,12 @@ struct FloatingActionBar: View {
                             .frame(width: 16, height: 16)
                             .tint(.white)
                     } else {
-                        // Display save icon when not processing
-                        Image(systemName: "icloud.and.arrow.up.fill")
-                            .font(.system(size: 12))
-                        
-                        Text("\(updateCount)")
-                            .font(.system(size: 12, weight: .medium))
-                    }
+                        Text("Save \(updateCount) \(updateCount == 1 ? "change" : "changes")")
+                            .font(.system(size: 12, weight: .medium))                    }
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
                 .background(Color.orange.opacity(isProcessingBatch ? 0.8 : 1))
                 .cornerRadius(6)
                 .contentShape(Rectangle())
@@ -567,7 +580,6 @@ struct FloatingActionBar: View {
     }
     
     // MARK: - Processing Animation Methods
-    
     private func handleProcessingStageChange() async {
         if processingStage != .idle {
             await startProcessingAnimation()
@@ -590,8 +602,6 @@ struct FloatingActionBar: View {
         animationTask = nil
         animationDots = ""
     }
-    
-    
 }
 
 enum ActionBar: String, CaseIterable, Codable {

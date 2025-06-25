@@ -364,7 +364,7 @@ struct CustomTabButton: View {
             TabShape(isSelected: isSelected)
                 .fill(
                     isSelected
-                        ? Color(.controlBackgroundColor).opacity(0.3)
+                        ? Color(.controlBackgroundColor).opacity(0.5)
                         : Color.clear
                 )
         )

@@ -66,7 +66,9 @@ class DatabaseService {
         in collectionName: String,
         filter: String = "",
         skip: Int = 0,
-        limit: Int = 300
+        limit: Int = 300,
+        sortBy: String?,
+        ascending: Bool?
     ) async throws -> QueryResult {
         guard let driver = activeDriver,
               let connection = activeConnection else {
@@ -81,7 +83,9 @@ class DatabaseService {
                 in: collectionName,
                 filter: ["rawQuery": filter],
                 skip: skip,
-                limit: limit
+                limit: limit,
+                sortBy: sortBy,
+                ascending: ascending
             )
             
         case .mongodb:
@@ -143,13 +147,13 @@ class DatabaseService {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.performOperation(with: database) { typedDatabase in
-//            try await driver.createDocument(
+//        try await driver.performOperation(with: database) { concreteDriver, typedDatabase in
+//            try await concreteDriver.createDocument(
 //                in: collectionName,
 //                database: typedDatabase,
 //                document: document
 //            )
-        }
+//        }
         
         clearDocumentCache(for: collectionName)
     }
@@ -160,16 +164,7 @@ class DatabaseService {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.performOperation(with: database) { typedDatabase in
-//            try await driver.updateDocument(
-//                in: collectionName,
-//                database: typedDatabase,
-//                id: id,
-//                data: data
-//            )
-        }
-        
-        clearDocumentCache(for: collectionName)
+        try await driver.updateDocument(in: collectionName, id: id, data: data)
     }
     
     func deleteDocument(in collectionName: String, id: Any) async throws {
@@ -178,13 +173,13 @@ class DatabaseService {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.performOperation(with: database) { typedDatabase in
-//            try await driver.deleteDocument(
+//        try await driver.performOperation(with: database) { concreteDriver, typedDatabase in
+//            try await concreteDriver.deleteDocument(
 //                in: collectionName,
 //                database: typedDatabase,
 //                id: id
 //            )
-        }
+//        }
         
         clearDocumentCache(for: collectionName)
     }
