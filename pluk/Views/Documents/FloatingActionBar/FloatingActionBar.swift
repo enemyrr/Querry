@@ -545,17 +545,12 @@ struct FloatingActionBar: View {
                             .frame(width: 16, height: 16)
                             .tint(.white)
                     } else {
-                        // Display save icon when not processing
-                        Image(systemName: "icloud.and.arrow.up.fill")
-                            .font(.system(size: 12))
-                        
-                        Text("\(updateCount)")
-                            .font(.system(size: 12, weight: .medium))
-                    }
+                        Text("Save \(updateCount) \(updateCount == 1 ? "change" : "changes")")
+                            .font(.system(size: 12, weight: .medium))                    }
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
                 .background(Color.orange.opacity(isProcessingBatch ? 0.8 : 1))
                 .cornerRadius(6)
                 .contentShape(Rectangle())

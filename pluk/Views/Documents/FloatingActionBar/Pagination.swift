@@ -135,14 +135,16 @@ struct Pagination: View {
     
     // MARK: - Unsaved Changes Check
     private func checkForUnsavedChanges(action: @escaping () -> Void) {
-        if modificationTracker.hasModifications {
-            // Store the action to execute later
-            pendingPageAction = action
-            showUnsavedChangesDialog = true
-        } else {
-            // No unsaved changes, execute action immediately
-            action()
-        }
+        TextCellView.exitCurrentEditMode()
+        
+            if modificationTracker.hasModifications {
+                // Store the action to execute later
+                pendingPageAction = action
+                showUnsavedChangesDialog = true
+            } else {
+                // No unsaved changes, execute action immediately
+                action()
+            }
     }
     
     // MARK: - Pagination Methods

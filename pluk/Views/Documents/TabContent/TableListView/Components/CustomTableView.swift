@@ -192,6 +192,26 @@ class CustomTableView: NSTableView {
         }
     }
     
+    /// Clears all selection state completely (for pagination)
+    func clearAllSelection() {
+        print("🧹 Clearing all table selection state")
+        
+        // Clear current cell selection visual state
+        clearCurrentCellSelection()
+        
+        // Reset internal selection tracking
+        currentSelectedRow = -1
+        currentSelectedColumn = -1
+        
+        // Clear table row selection
+        selectRowIndexes(IndexSet(), byExtendingSelection: false)
+        
+        // Clear any column selection
+        deselectAll(nil)
+        
+        print("✅ All selection state cleared")
+    }
+    
     /// Updates selection when table selection changes externally
     override func selectRowIndexes(_ indexes: IndexSet, byExtendingSelection extend: Bool) {
         super.selectRowIndexes(indexes, byExtendingSelection: extend)

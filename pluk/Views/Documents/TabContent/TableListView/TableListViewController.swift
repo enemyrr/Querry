@@ -136,6 +136,14 @@ struct TableListViewController: NSViewRepresentable {
             return modificationTracker.undo()
         }
         
+        // MARK: - Selection Management
+        func clearTableSelection() {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.tableView.clearAllSelection()
+            }
+        }
+        
         func setupTableView() -> NSView {
             setupUI()
             setupTable()
