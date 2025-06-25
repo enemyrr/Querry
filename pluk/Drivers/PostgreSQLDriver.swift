@@ -451,6 +451,7 @@ class PostgreSQLDriver: DatabaseDriver {
             )
             
         } catch let error as PSQLError {
+            print(String(reflecting: error))
             throw mapPSQLError(error)
         } catch {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
@@ -1052,7 +1053,7 @@ class PostgreSQLDriver: DatabaseDriver {
         return conditions.joined(separator: " AND ")
     }
     
-    private func buildOrderByClause(sortBy: String?, ascending: Bool?, primaryKey: String) -> String {
+    private func buildOrderByClause(sortBy: String?, ascending: Bool?, primaryKey: String?) -> String {
         // If sortBy is provided, use it
         if let sortBy = sortBy, !sortBy.isEmpty {
             // Validate column name to prevent SQL injection
@@ -1061,12 +1062,18 @@ class PostgreSQLDriver: DatabaseDriver {
                 let direction = ascending == false ? "DESC" : "ASC"
                 return "ORDER BY \(sanitizedColumn) \(direction)"
             } catch {
-                // If column validation fails, fall back to primary key ASC
-                return "ORDER BY \(primaryKey) ASC"
+                // If column validation fails, fall back to primary key if it exists
+                if let primaryKey = primaryKey {
+                    return "ORDER BY \(primaryKey) ASC"
+                }
+                return ""
             }
         } else {
-            // No sorting provided, use primary key ASC as default
-            return "ORDER BY \(primaryKey) ASC"
+            // No sorting provided, use primary key ASC as default if it exists
+            if let primaryKey = primaryKey {
+                return "ORDER BY \(primaryKey) ASC"
+            }
+            return ""
         }
     }
     
@@ -1300,7 +1307,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     // MARK: - Helper method to get primary key column
-       private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String {
+       private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
            let connection = try ensureConnected()
            
            do {
@@ -1320,14 +1327,12 @@ class PostgreSQLDriver: DatabaseDriver {
                    return "\"\(columnName)\""  // Return quoted column name
                }
                
-               // Fallback to 'id' if no primary key is found
-               return "\"id\""
+               // If no primary key is found, return nil
+               return nil
                
-           } catch let error as PSQLError {
-               throw mapPSQLError(error)
            } catch {
-               // Fallback to 'id' if query fails
-               return "\"id\""
+               // If the query fails for any reason (e.g., table not found, permissions), return nil
+               return nil
            }
        }
 }
