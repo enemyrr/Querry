@@ -19,6 +19,7 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     @State private var isResizing: Bool = false
     @State private var previousWidth: CGFloat = 260
     @State private var dragOffset: CGFloat = 0
+    @State private var isFullscreen: Bool = false
     
     private let sidebarContent: SidebarContent
     private let detailContent: DetailContent
@@ -59,6 +60,20 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
                     modifiers: [.command],
                     key: "["
                 ))
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willEnterFullScreenNotification)) { _ in
+            // Hide toolbar background in full screen
+            if let window = NSApplication.shared.windows.first {
+                window.toolbar?.isVisible = false
+                isFullscreen = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            // Show toolbar when exiting full screen
+            if let window = NSApplication.shared.windows.first {
+                window.toolbar?.isVisible = true
+                isFullscreen = false
             }
         }
     }
