@@ -199,7 +199,7 @@ struct DatabaseCard: View {
             HStack(spacing: 16) {
                 // Database Icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: 14)
                         .fill(databaseIconBackground)
                         .frame(width: 40, height: 40)
                     
@@ -246,7 +246,7 @@ struct DatabaseCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(cardBackground)
-            .cornerRadius(12)
+            .cornerRadius(16)
             .shadow(
                 color: shadowColor,
                 radius: shadowRadius,
@@ -254,7 +254,7 @@ struct DatabaseCard: View {
                 y: shadowOffset
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .stroke(borderColor, lineWidth: borderWidth)
             )
             .scaleEffect(isHovered ? 1.01 : 1.0)
