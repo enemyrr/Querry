@@ -3,6 +3,8 @@ import Foundation
 // MARK: - MySQL Wrappers
 struct MySQLDatabaseWrapper: DatabaseWrapper {
     let name: String
+    let size: String?
+    let tableCount: Int?
 }
 
 struct MySQLCollectionWrapper: CollectionWrapper {
@@ -12,6 +14,10 @@ struct MySQLCollectionWrapper: CollectionWrapper {
 
 // MARK: - MySQL Driver (Placeholder)
 class MySQLDriver: DatabaseDriver {
+    func getDatabaseMetadata() async throws -> [MySQLDatabaseWrapper] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     func buildSystemPrompt(for collectionName: String) async throws -> String {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }

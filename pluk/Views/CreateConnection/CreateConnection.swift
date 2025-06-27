@@ -122,8 +122,7 @@ struct CreateConnectionForm: View {
         
         return !uri.isEmpty &&
         !name.isEmpty &&
-        uriError == nil &&
-        (!showDatabaseField || !defaultDatabase.isEmpty)
+        uriError == nil
     }
     
     private func validateConnectionString(_ uri: String, for databaseType: DatabaseType) {
@@ -146,18 +145,9 @@ struct CreateConnectionForm: View {
     
     private func validateMongoUri(_ uri: String) {
         do {
-            let connectionSettings = try ConnectionSettings(uri)
-            
-            if let _ = connectionSettings.targetDatabase {
-                showDatabaseField = false
-            } else {
-                // Only clear defaultDatabase if not editing an existing connection
-                if connection == nil {
-                    defaultDatabase = ""
-                }
-                showDatabaseField = true
-            }
+            _ = try ConnectionSettings(uri)
             uriError = nil
+            showDatabaseField = false
         } catch let error as MongoInvalidUriError {
             uriError = error.description
         } catch {
@@ -168,29 +158,7 @@ struct CreateConnectionForm: View {
     private func validatePostgresUri(_ uri: String) {
         if uri.hasPrefix("postgresql://") || uri.hasPrefix("postgres://") {
             uriError = nil
-            
-            // Check if database is specified in the URI
-            if let url = URL(string: uri) {
-                let pathComponents = url.path.components(separatedBy: "/").filter { !$0.isEmpty }
-                if pathComponents.isEmpty {
-                    // No database specified in URI, show database field
-                    // Only clear defaultDatabase if not editing an existing connection
-                    if connection == nil {
-                        defaultDatabase = ""
-                    }
-                    showDatabaseField = true
-                } else {
-                    // Database is specified in URI, hide database field
-                    showDatabaseField = false
-                }
-            } else {
-                // Invalid URL format, show database field as fallback
-                // Only clear defaultDatabase if not editing an existing connection
-                if connection == nil {
-                    defaultDatabase = ""
-                }
-                showDatabaseField = true
-            }
+            showDatabaseField = false
         } else {
             uriError = "PostgreSQL URI should start with postgresql:// or postgres://"
         }
@@ -202,6 +170,48 @@ struct CreateConnectionForm: View {
         } else {
             uriError = "MySQL URI should start with mysql://"
         }
+    }
+    
+    private func sanitizePostgresURI(_ uri: String) -> String {
+        guard uri.hasPrefix("postgresql://") || uri.hasPrefix("postgres://") else {
+            return uri // Return as-is if not a PostgreSQL URI
+        }
+        
+        guard let url = URL(string: uri) else {
+            return uri // Return original if URL parsing fails
+        }
+        
+        // Extract core components
+        let scheme = url.scheme ?? "postgresql"
+        let user = url.user
+        let password = url.password
+        let host = url.host ?? "localhost"
+        let port = url.port
+        let database = url.path.isEmpty ? "" : String(url.path.dropFirst()) // Remove leading "/"
+        
+        // Build clean URI with only essential components
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = host
+        
+        // Add port if specified and not default
+        if let port = port, port != 5432 {
+            components.port = port
+        }
+        
+        // Add user credentials if present
+        if let user = user {
+            components.user = user
+            components.password = password // Will be nil if not present
+        }
+        
+        // Add database path
+        if !database.isEmpty {
+            components.path = "/\(database)"
+        }
+        
+        // Return the sanitized URI or original if construction fails
+        return components.url?.absoluteString ?? uri
     }
     
     var body: some View {
@@ -259,7 +269,7 @@ struct CreateConnectionForm: View {
         .animation(.easeInOut(duration: 0.25), value: selectedDatabaseType)
         .postHogScreenView("CreateConnection")
     }
-        
+    
     private var cloudDatabaseView: some View {
         VStack(spacing: 0) {
             // Modern header with back navigation
@@ -509,13 +519,21 @@ struct CreateConnectionForm: View {
         guard let databaseType = selectedDatabaseType else { return }
         guard let databaseTypeEnum = DatabaseType(rawValue: databaseType.rawValue) else { return }
         
+        // Sanitize URI for PostgreSQL connections
+        let sanitizedURI: String
+        if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+            sanitizedURI = sanitizePostgresURI(uri)
+        } else {
+            sanitizedURI = uri
+        }
+        
         if let id = connection?.persistentModelID,
            let existing = try? modelContext.fetch(
             FetchDescriptor<Connection>(
                 predicate: #Predicate { $0.persistentModelID == id }
             )
            ).first {
-            existing.url = uri
+            existing.url = sanitizedURI
             existing.name = name
             existing.color = color.unsafelyUnwrapped
             existing.environment = selectedEnvironment

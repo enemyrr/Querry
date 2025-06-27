@@ -14,6 +14,7 @@ struct DatabaseList: View {
 
     @State private var isLoading = false
     @State private var loadError: Error?
+    @State private var showDatabaseSelector: Bool = false
 
     // Computed property for filtered collections
     private var filteredCollections: [any CollectionWrapper]? {
@@ -50,7 +51,6 @@ struct DatabaseList: View {
     }
 
     private var connectionContent: some View {
-
         VStack(spacing: 0) {
             if instance.connectionStatus == .connected {
                 if let filteredCollections = filteredCollections {
@@ -82,6 +82,18 @@ struct DatabaseList: View {
             }
 
             Spacer()
+        }
+        .sheet(isPresented: $showDatabaseSelector) {
+            DatabaseSelectorModal(
+                databaseService: instance.databaseService!,
+                onSelection: { database in
+//                    print("Selected database: \(database.name)")
+                },
+                onCreateNew: {
+                    print("Create new database")
+                    showDatabaseSelector = false
+                }
+            )
         }
         .onChange(of: instance.connectionStatus) { oldStatus, newStatus in
             if newStatus == .connected && oldStatus != .connected {
@@ -124,6 +136,7 @@ struct DatabaseList: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        
     }
 
     // MARK: - Private Methods
@@ -134,6 +147,8 @@ struct DatabaseList: View {
 
         do {
             try await instance.loadCollectionsForCurrentDatabase()
+        } catch DatabaseError.databaseNotSelected {
+            showDatabaseSelector = true
         } catch {
             loadError = error
             print("Failed to load collections: \(error)")
@@ -177,6 +192,7 @@ struct DatabasesSection: View {
         }
     }
 }
+
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {

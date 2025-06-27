@@ -102,7 +102,6 @@ import AIProxy
             connectionVersion = buildInfo?.version
             
             await loadDatabases()
-            try await loadCollectionsForCurrentDatabase()
             lastError = nil
         } catch {
             lastError = error
@@ -150,23 +149,14 @@ import AIProxy
         return schemaResult
     }
     
-//    func loadCollectionsForCurrentDatabase() async {
-//        guard let driver = _databaseDriver,
-//              let currentDatabase = connectedDatabase else { return }
-//        
-//        do {
-//            let collectionList = try await driver.listCollections()
-//            self.collections[currentDatabase.name] = collectionList
-//        } catch {
-//            lastError = error
-//            collections[currentDatabase.name] = []
-//        }
-//    }
-    
     func loadCollectionsForCurrentDatabase() async throws {
         guard let database = connectedDatabase else {
             return
         }
+        
+        guard !database.name.isEmpty else {
+              throw DatabaseError.databaseNotSelected
+          }
         
         let databaseName = database.name
         

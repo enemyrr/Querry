@@ -121,6 +121,14 @@ class DatabaseService {
         return try await driver.getDocumentCount(for: collectionName, filter: filter)
     }
     
+    func getDatabaseMetadata() async throws -> [DatabaseWrapper] {
+        guard let driver = activeDriver else {
+            return []
+        }
+        
+        return try await driver.getDatabaseMetadata()
+    }
+    
     // MARK: - Collection Management
     func createCollection(named collectionName: String) async throws {
         guard let driver = activeDriver else {

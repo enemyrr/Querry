@@ -193,7 +193,7 @@ private struct ConnectionStatusBadge: View {
         case .disconnected:
             return "Disconnected"
         case .error:
-            return "Retry Connection"
+            return "Retry"
         }
     }
     
