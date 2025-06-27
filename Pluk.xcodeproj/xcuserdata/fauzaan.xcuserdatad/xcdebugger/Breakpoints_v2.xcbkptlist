@@ -30,8 +30,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "530"
-            endingLineNumber = "530"
+            startingLineNumber = "550"
+            endingLineNumber = "550"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -46,8 +46,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "538"
-            endingLineNumber = "538"
+            startingLineNumber = "558"
+            endingLineNumber = "558"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -62,8 +62,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "547"
-            endingLineNumber = "547"
+            startingLineNumber = "567"
+            endingLineNumber = "567"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -78,8 +78,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "570"
-            endingLineNumber = "570"
+            startingLineNumber = "590"
+            endingLineNumber = "590"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -94,8 +94,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "569"
-            endingLineNumber = "569"
+            startingLineNumber = "589"
+            endingLineNumber = "589"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -110,8 +110,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "554"
-            endingLineNumber = "554"
+            startingLineNumber = "574"
+            endingLineNumber = "574"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -942,8 +942,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "604"
-            endingLineNumber = "604"
+            startingLineNumber = "624"
+            endingLineNumber = "624"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -958,8 +958,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "616"
-            endingLineNumber = "616"
+            startingLineNumber = "636"
+            endingLineNumber = "636"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -974,8 +974,8 @@
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "624"
-            endingLineNumber = "624"
+            startingLineNumber = "644"
+            endingLineNumber = "644"
             landmarkName = "extractValue(from:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -1136,7 +1136,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "169"
             endingLineNumber = "169"
-            landmarkName = "connect(to:)"
+            landmarkName = "establishConnection(with:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1224,60 +1224,96 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "48D214A8-C6F5-4CE1-AC30-369CB497071B"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "pluk/Drivers/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "985"
-            endingLineNumber = "985"
+            startingLineNumber = "1005"
+            endingLineNumber = "1005"
             landmarkName = "getDatabaseMetadata()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "48D214A8-C6F5-4CE1-AC30-369CB497071B - 1e1206fc6919f94d"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(8) suspend resume partial function for Pluk.PostgreSQLDriver.getDatabaseMetadata() async throws -&gt; Swift.Array&lt;Pluk.PostgreSQLDatabaseWrapper&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Drivers/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "985"
-                  endingLineNumber = "985">
-               </Location>
-               <Location
-                  uuid = "48D214A8-C6F5-4CE1-AC30-369CB497071B - b12cfd9935059b4c"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(9) suspend resume partial function for Pluk.PostgreSQLDriver.getDatabaseMetadata() async throws -&gt; Swift.Array&lt;Pluk.PostgreSQLDatabaseWrapper&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Drivers/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "985"
-                  endingLineNumber = "985">
-               </Location>
-               <Location
-                  uuid = "48D214A8-C6F5-4CE1-AC30-369CB497071B - a701922697da6193"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(10) suspend resume partial function for Pluk.PostgreSQLDriver.getDatabaseMetadata() async throws -&gt; Swift.Array&lt;Pluk.PostgreSQLDatabaseWrapper&gt;"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Drivers/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "985"
-                  endingLineNumber = "985">
-               </Location>
-            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "4FB4BE95-081A-49D1-A54E-88636C109419"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Drivers/PostgreSQLDriver.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "240"
+            endingLineNumber = "240"
+            landmarkName = "getBuildInfo()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "53E58166-F550-4973-85E7-E996949A9D9D"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Drivers/PostgreSQLDriver.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "246"
+            endingLineNumber = "246"
+            landmarkName = "getBuildInfo()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "2CE81159-77EA-401F-87EC-87BC07548CD6"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Drivers/PostgreSQLDriver.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "248"
+            endingLineNumber = "248"
+            landmarkName = "getBuildInfo()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E291F341-60C9-42F4-9360-3E5434BCAB4D"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Sidebar/ConnectionDetails/DatabaseList.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "169"
+            endingLineNumber = "169"
+            landmarkName = "updateConnection(with:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "C1138F19-ABEE-4CBD-8854-D3D3B0D4EA6A"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Sidebar/ConnectionDetails/DatabaseList.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "168"
+            endingLineNumber = "168"
+            landmarkName = "updateConnection(with:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

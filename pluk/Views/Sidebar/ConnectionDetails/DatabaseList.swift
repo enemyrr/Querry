@@ -87,7 +87,9 @@ struct DatabaseList: View {
             DatabaseSelectorModal(
                 databaseService: instance.databaseService!,
                 onSelection: { database in
-//                    print("Selected database: \(database.name)")
+                    Task {
+                        await updateConnection(with: database)
+                    }
                 },
                 onCreateNew: {
                     print("Create new database")
@@ -155,6 +157,19 @@ struct DatabaseList: View {
         }
 
         isLoading = false
+    }
+    
+    func updateConnection(with database: any DatabaseWrapper) async {
+        guard let databaseService = instance.databaseService else {
+            return
+        }
+        
+        do {
+            try await databaseService.switchActiveDatabase(to: database)
+            try await instance.loadCollectionsForCurrentDatabase()
+        } catch {
+            print("Failed to update connection: \(error)")
+        }
     }
 }
 

@@ -49,6 +49,10 @@ class MySQLDriver: DatabaseDriver {
     func getBuildInfo() async throws -> BuildInfo {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
+
+    func switchDatabase(to databaseName: String) async throws {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
     
     func listDatabases() async throws -> [MySQLDatabaseWrapper] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")

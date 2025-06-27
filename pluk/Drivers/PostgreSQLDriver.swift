@@ -163,6 +163,10 @@ class PostgreSQLDriver: DatabaseDriver {
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
         // Parse connection URI
         let config = try parseConnectionString(connectionUri)
+        return try await establishConnection(with: config)
+    }
+
+    private func establishConnection(with config: PostgresConnection.Configuration) async throws -> PostgreSQLDatabaseWrapper {
         self.configuration = config
         
         // Create event loop group
@@ -181,7 +185,7 @@ class PostgreSQLDriver: DatabaseDriver {
             self.connection = connection
             self.isConnected = true
             
-            return PostgreSQLDatabaseWrapper(name: configuration?.database ?? "postgres", size: nil, tableCount: nil)
+            return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
         } catch let error as PSQLError {
             await cleanup()
             throw mapPSQLError(error)
@@ -216,6 +220,21 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("Not connected to PostgreSQL database")
         }
         return connection
+    }
+    
+    func switchDatabase(to databaseName: String) async throws {
+        guard var config = self.configuration else {
+            throw DatabaseError.configurationError("No active connection configuration")
+        }
+        
+        // Update the configuration with the new database name
+        config.database = databaseName
+        
+        // Disconnect from the current database
+        await disconnect()
+        
+        // Reconnect to the new database
+        _ = try await establishConnection(with: config)
     }
     
     func getBuildInfo() async throws -> BuildInfo {

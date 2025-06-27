@@ -73,6 +73,15 @@ class MongoDBDriver: DatabaseDriver {
         return MongoDBWrapper(database: database)
     }
     
+    func switchDatabase(to databaseName: String) async throws {
+        guard let connectedDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let newDb = connectedDatabase.pool[databaseName]
+        self.connectedDatabase = newDb
+    }
+    
     func disconnect() async {
         if let database = connectedDatabase,
            let cluster = database.pool as? MongoCluster {

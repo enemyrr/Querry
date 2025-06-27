@@ -34,6 +34,15 @@ class DatabaseService {
         self.connectedDatabase = try await driver.connect(to: connection.connectionUri)
     }
     
+    func switchActiveDatabase(to database: any DatabaseWrapper) async throws {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database driver")
+        }
+        
+        self.connectedDatabase = database
+        try await driver.switchDatabase(to: database.name)
+    }
+    
     func disconnect() async {
         await activeDriver?.disconnect()
         activeConnection = nil
