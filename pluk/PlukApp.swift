@@ -14,6 +14,7 @@ import Sentry
 @main
 struct Pluk: App {
     @Environment(\.openWindow) private var openWindow
+    @State private var window: NSWindow!
     
     private let updaterController: SPUStandardUpdaterController
     var sharedModelContainer: ModelContainer = {

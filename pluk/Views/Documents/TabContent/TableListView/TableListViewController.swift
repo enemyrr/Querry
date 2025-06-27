@@ -216,7 +216,7 @@ struct TableListViewController: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
             // Get the first (primary) sort descriptor
             guard let sortDescriptor = tableView.sortDescriptors.first else { return }
-
+            
             // Find the column whose sortDescriptorPrototype matches
             for column in tableView.tableColumns {
                 if let prototype = column.sortDescriptorPrototype,
@@ -228,7 +228,7 @@ struct TableListViewController: NSViewRepresentable {
                 }
             }
         }
-
+        
         
         private func sortTableData(by columnTitle: String) {
             // 3-state sorting: ascending → descending → none
@@ -297,22 +297,22 @@ struct TableListViewController: NSViewRepresentable {
                 // Use auto-calculated width
                 print("📏 Using auto-calculated width for '\(identifier)': \(cachedWidth)")
                 column.width = cachedWidth
-                column.minWidth = max(10, cachedWidth * 0.5)
-                column.maxWidth = cachedWidth * 2.0
+                column.minWidth = 10 // Allow user flexibility
+                column.maxWidth = CGFloat.greatestFiniteMagnitude
             } else {
                 // Fallback to default sizing
                 print("📏 Using default sizing for '\(identifier)'")
                 column.sizeToFit()
             }
             
-//             Add custom header
+            //             Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
             customHeaderCell.configure(title: title)
             column.headerCell = customHeaderCell
             
             let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
             column.sortDescriptorPrototype = sortDescriptor
-
+            
             tableView.addTableColumn(column)
             
             // Reset flag after adding column
@@ -528,7 +528,7 @@ struct TableListViewController: NSViewRepresentable {
                 }
                 
                 // Calculate header width
-                let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 50
+                let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 40
                 
                 // Smart sampling for content width
                 let sampleSize = determineSampleSize(totalRows: self.totalCount)
@@ -539,17 +539,21 @@ struct TableListViewController: NSViewRepresentable {
                 // Efficiently calculate max content width
                 for rowIndex in sampleIndices {
                     if let value = queryResult.value(row: rowIndex, column: columnIdentifier) {
-                        let contentString = formatValueForWidthCalculation(value)
-                        let contentWidth = (contentString as NSString).size(withAttributes: contentAttributes).width + 24
-                        maxContentWidth = max(maxContentWidth, contentWidth)
+                        let contentString = formatValueForWidthCalculation(value.value)
+                        
+                        // Quick estimation first
+                        if contentString.count > 300 {
+                            maxContentWidth = 400
+                        } else {
+                            // Accurate measurement for shorter strings
+                            let contentWidth = (contentString as NSString).size(withAttributes: contentAttributes).width + 30
+                            maxContentWidth = max(maxContentWidth, contentWidth)
+                        }
                     }
                 }
                 
-                // Calculate final optimal width with bounds
-                let minWidth: CGFloat = max(60, headerWidth * 0.8)
-                let maxWidth: CGFloat = min(calculateMaxReasonableWidth(), 400)
-                let calculatedWidth = max(headerWidth, maxContentWidth)
-                let optimalWidth = max(minWidth, min(calculatedWidth, maxWidth))
+                print("\(columnsToUse): \(maxContentWidth): headerWidth: \(headerWidth): optimalWidth: \(maxContentWidth)")
+                let optimalWidth = max(headerWidth, maxContentWidth)
                 
                 // Cache the result and mark as auto-calculated
                 columnWidthCache[columnIdentifier] = optimalWidth
@@ -582,8 +586,8 @@ struct TableListViewController: NSViewRepresentable {
                     let columnId = tableColumn.identifier.rawValue
                     if newColumns.contains(columnId), let newWidth = columnWidthCache[columnId] {
                         tableColumn.width = newWidth
-                        tableColumn.minWidth = max(10, newWidth * 0.5)
-                        tableColumn.maxWidth = newWidth * 2.0
+                        tableColumn.minWidth = 10
+                        tableColumn.maxWidth = CGFloat.greatestFiniteMagnitude
                     }
                 }
                 isSettingWidthsProgrammatically = false
@@ -603,7 +607,7 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         @objc private func columnDidResize(_ notification: Notification) {
-            guard let tableView = notification.object as? NSTableView,
+            guard let _ = notification.object as? NSTableView,
                   let userInfo = notification.userInfo,
                   let column = userInfo["NSTableColumn"] as? NSTableColumn else {
                 return
@@ -714,13 +718,17 @@ struct TableListViewController: NSViewRepresentable {
         private func formatValueForWidthCalculation(_ value: Any?) -> String {
             guard let value = value else { return "(NULL)" }
             
-            // Optimize string representation for width calculation
             if let stringValue = value as? String {
-                // Truncate very long strings for width calculation efficiency
-                return stringValue.count > 200 ? String(stringValue.prefix(200)) + "..." : stringValue
+                // 50-100 chars is usually enough for width calculation
+                return stringValue.count > 50 ? String(stringValue.prefix(50)) + "..." : stringValue
             }
             
             return String(describing: value)
+        }
+        
+        private func estimateWidth(_ text: String, font: NSFont) -> CGFloat {
+            let avgCharWidth = font.maximumAdvancement.width * 0.6 // rough estimate
+            return CGFloat(text.count) * avgCharWidth + 24
         }
         
         private func calculateMaxReasonableWidth() -> CGFloat {
@@ -738,11 +746,11 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         // MARK: - NSTableViewDelegate
-//        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
-//            let columnTitle = tableColumn.identifier.rawValue
-//            print("🎯 Header clicked for column: \(columnTitle)")
-//            sortTableData(by: columnTitle)
-//        }
+        //        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
+        //            let columnTitle = tableColumn.identifier.rawValue
+        //            print("🎯 Header clicked for column: \(columnTitle)")
+        //            sortTableData(by: columnTitle)
+        //        }
         
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,
@@ -754,15 +762,15 @@ struct TableListViewController: NSViewRepresentable {
             var cellView = tableView.makeView(withIdentifier: CellIdentifier.textCell, owner: self) as? TextCellView
             
             if cellView == nil {
-                   cellView = TextCellView()
-               } else {
-                   cellView?.prepareForReuse() // CRITICAL: Reset state
-               }
+                cellView = TextCellView()
+            } else {
+                cellView?.prepareForReuse() // CRITICAL: Reset state
+            }
             
-//            if cellView == nil {
-//                cellView = TextCellView()
-//                cellView?.identifier = CellIdentifier.textCell
-//            }
+            //            if cellView == nil {
+            //                cellView = TextCellView()
+            //                cellView?.identifier = CellIdentifier.textCell
+            //            }
             
             
             // Use the new configure method with modification tracking
