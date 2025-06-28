@@ -141,6 +141,7 @@ struct FloatingActionBar: View {
                                 action = .main
                             }
                         },
+                        isBackButtonEnabled: true
                     )
                 default:
                     mainView

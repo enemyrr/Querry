@@ -11,6 +11,7 @@ struct CommandPalette: View {
     @Environment(ConnectionInstance.self) private var instance
     @Binding var searchText: String
     var onBack: () -> Void
+    var isBackButtonEnabled: Bool = true
     
     @FocusState private var isSearchFocused: Bool
     
@@ -40,7 +41,9 @@ struct CommandPalette: View {
                 if !searchText.isEmpty {
                     searchText = ""
                 } else {
-                    onBack()
+                    if isBackButtonEnabled {
+                        onBack()
+                    }
                 }
             }) {}
                 .keyboardShortcut(.escape, modifiers: [])
@@ -155,7 +158,6 @@ struct CommandPalette: View {
             )
             .frame(maxWidth: 500)
             .padding(.bottom, 8)
-            .opacity(filteredCollections.isEmpty ? 0 : 1)
             .onAppear {
                 withAnimation {
                     scrollPosition.scrollTo(edge: .bottom)

@@ -369,4 +369,3 @@ enum ConnectionStatus: String {
     case disconnected = "Disconnected"
     case error = "Error"
 }
-
