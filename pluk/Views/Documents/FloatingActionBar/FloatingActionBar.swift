@@ -26,6 +26,7 @@ struct FloatingActionBar: View {
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
+    @State var commandFilter: String = ""
     
     @State var action: ActionBar = ActionBar.main
     @State var showFilterEditor: Bool = false
@@ -78,7 +79,7 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-            if !showQueryEditor && !showCreateDocumentSheet {
+            if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette {
                 topRectangleView
                     .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)
@@ -87,6 +88,17 @@ struct FloatingActionBar: View {
                     .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: containerWidth)
                 
+            }
+            
+            if action == .commandPalette {
+                CommandPalette.CollectionsList(
+                        searchText: $commandFilter,
+                        onBack: {
+                            withAnimation(.spring(response: 0.3)) {
+                                action = .main
+                            }
+                        }
+                    )
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -121,15 +133,23 @@ struct FloatingActionBar: View {
                                 onRefresh(currentPage, totalPerPage, true)
                             }
                         })
-                    .frame(maxWidth: 500)
+                case .commandPalette:
+                    CommandPalette(
+                        searchText: $commandFilter,
+                        onBack: {
+                            withAnimation(.spring(response: 0.3)) {
+                                action = .main
+                            }
+                        },
+                    )
                 default:
                     mainView
                 }
                 
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
+            .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
             .overlay(
-                RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
+                RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
                     .stroke(.separator, lineWidth: 1)
             )
             .overlay(
@@ -423,16 +443,36 @@ struct FloatingActionBar: View {
                 key: "L"
             ), spacing: 10)
             
+            Divider()
+                .frame(height: 22)
+                .padding(.vertical, 6)
+
+            Button(action: {
+                withAnimation(.spring(response: 0.3)) {
+                    action = .commandPalette
+                }
+            }) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+            .keyboardShortcut("p", modifiers: .command)
+            .customHelp("Command Palette", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "P"
+            ), spacing: 10)
+            
             // TODO: More options button
-            //            Button(action: {
-            //                // TODO:
-            //                // Add an action
-            //            }) {
-            //                Image(systemName: "ellipsis")
-            //                    .font(.system(size: 14))
-            //                    .contentShape(Rectangle())
-            //            }
-            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
+//                        Button(action: {
+//                            // TODO:
+//                            // Add an action
+//                        }) {
+//                            Image(systemName: "ellipsis")
+//                                .font(.system(size: 14))
+//                                .contentShape(Rectangle())
+//                        }
+//                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -608,5 +648,6 @@ enum ActionBar: String, CaseIterable, Codable {
     case main = "main"
     case search = "search"
     case create = "create"
+    case commandPalette = "commandPalette"
 }
 
