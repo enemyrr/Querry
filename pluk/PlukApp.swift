@@ -14,6 +14,7 @@ import Sentry
 @main
 struct Pluk: App {
     @Environment(\.openWindow) private var openWindow
+    @State private var window: NSWindow!
     
     private let updaterController: SPUStandardUpdaterController
     var sharedModelContainer: ModelContainer = {
@@ -58,6 +59,11 @@ struct Pluk: App {
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                // Empty - this removes the New command
+            }
+        }
         
         Window("About Pluk", id: "aboutWindow") {
             AboutView()

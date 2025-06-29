@@ -55,12 +55,10 @@ struct MainWindow: View {
                 isFullScreenView: tabManager.activeTab?.type == .home,
                 isSidebarVisible: $appViewModel.isSidebarVisible
             )
-            
         }
         .environment(appViewModel)
         .environment(sidebarViewModel)
         .environment(tabManager)
-        .toolbarBackground(.hidden, for: .windowToolbar)
         .onAppear {
             // Ensure sidebar starts with home selected
             sidebarViewModel.changeActiveSidebarItem(.home)

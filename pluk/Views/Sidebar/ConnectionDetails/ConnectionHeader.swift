@@ -136,7 +136,6 @@ struct ConnectionHeader: View {
         .onHover { hover in
             isHovered = hover
         }
-        .padding([.horizontal, .top])
         .padding(.bottom, 6)
     }
 }
@@ -193,7 +192,7 @@ private struct ConnectionStatusBadge: View {
         case .disconnected:
             return "Disconnected"
         case .error:
-            return "Retry Connection"
+            return "Retry"
         }
     }
     

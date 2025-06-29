@@ -12,7 +12,7 @@ struct CellModification {
     let rowIndex: Int
     let columnName: String
     let originalValue: String
-    let newValue: String
+    var newValue: String
     let dataType: String
     
     var hasChanged: Bool {
@@ -40,9 +40,16 @@ struct ModificationHistoryEntry {
     }
 }
 
+enum RowModificationType {
+    case update
+    case insert
+    case delete
+}
+
 // MARK: - Row Modification Model
 struct RowModification {
     let rowIndex: Int
+    var type: RowModificationType
     var cellModifications: [String: CellModification] = [:]
     
     var hasModifications: Bool {
@@ -88,11 +95,19 @@ struct RowModification {
     }
     
     var allModifications: [RowModification] {
-        return rowModifications.values.filter { $0.hasModifications }
+        return rowModifications.values.filter { $0.hasModifications || $0.type == .insert || $0.type == .delete }
     }
     
     var hasModifications: Bool {
         return modifiedRowCount > 0
+    }
+    
+    var hasPendingDeletions: Bool {
+        return rowModifications.values.contains { $0.type == .delete }
+    }
+    
+    var pendingDeletionCount: Int {
+        return rowModifications.values.filter { $0.type == .delete }.count
     }
     
     var canUndo: Bool {
@@ -104,7 +119,41 @@ struct RowModification {
     }
     
     // MARK: - Modification Management
+    func markAsNewRow(rowIndex: Int, initialData: [String: Any]) {
+        var newRow = RowModification(rowIndex: rowIndex, type: .insert)
+        for (key, value) in initialData {
+            let stringValue = String(describing: value)
+            newRow.cellModifications[key] = CellModification(
+                rowIndex: rowIndex,
+                columnName: key,
+                originalValue: stringValue,
+                newValue: stringValue,
+                dataType: "" // Data type can be refined later if needed
+            )
+        }
+        rowModifications[rowIndex] = newRow
+        print("rowModification: \(rowModifications)")
+    }
+    
+    func markAsDeleted(rowIndex: Int) {
+        if var row = rowModifications[rowIndex] {
+            if row.type == .delete {
+                // If it's already marked as delete, unmark it
+                row.type = .update // Or revert to its original state if you track that
+                rowModifications[rowIndex] = row
+            } else {
+                // If it's an update or insert, mark it as delete
+                row.type = .delete
+                rowModifications[rowIndex] = row
+            }
+        } else {
+            // If there's no modification yet, create a new one and mark it as delete
+            rowModifications[rowIndex] = RowModification(rowIndex: rowIndex, type: .delete)
+        }
+    }
+    
     func updateCell(rowIndex: Int, columnName: String, newValue: String, originalValue: String, dataType: String) {
+        print("updateCell: \(rowModifications)")
         // Check if there's already a modification for this cell
         let existingModification = getCellModification(rowIndex: rowIndex, columnName: columnName)
         
@@ -136,7 +185,7 @@ struct RowModification {
         }
         
         if rowModifications[rowIndex] == nil {
-            rowModifications[rowIndex] = RowModification(rowIndex: rowIndex)
+            rowModifications[rowIndex] = RowModification(rowIndex: rowIndex, type: .update)
         }
         
         rowModifications[rowIndex]?.updateCell(
@@ -147,7 +196,7 @@ struct RowModification {
         )
         
         // Remove the row modification if no changes remain
-        if let rowMod = rowModifications[rowIndex], !rowMod.hasModifications {
+        if let rowMod = rowModifications[rowIndex], !rowMod.hasModifications, rowMod.type == .update {
             rowModifications.removeValue(forKey: rowIndex)
         }
     }
@@ -169,7 +218,7 @@ struct RowModification {
         rowModifications[rowIndex]?.removeCell(columnName: columnName)
         
         // Remove the row modification if no changes remain
-        if let rowMod = rowModifications[rowIndex], !rowMod.hasModifications {
+        if let rowMod = rowModifications[rowIndex], !rowMod.hasModifications, rowMod.type == .update {
             rowModifications.removeValue(forKey: rowIndex)
         }
     }
@@ -244,7 +293,7 @@ struct RowModification {
         } else {
             // Reverting to a previous modified value - update the modification
             if rowModifications[lastEntry.rowIndex] == nil {
-                rowModifications[lastEntry.rowIndex] = RowModification(rowIndex: lastEntry.rowIndex)
+                rowModifications[lastEntry.rowIndex] = RowModification(rowIndex: lastEntry.rowIndex, type: .update)
             }
             
             rowModifications[lastEntry.rowIndex]?.updateCell(

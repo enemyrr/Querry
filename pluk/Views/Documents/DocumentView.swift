@@ -11,21 +11,113 @@ import AppKit
 
 struct DocumentView: View {
     @Environment(ConnectionInstance.self) private var instance
+    @State private var commandFilter: String = ""
+    @State private var isCommandBarVisible: Bool = false
+    @State private var eventMonitor: Any?
+    
     var body: some View {
         VStack(spacing: 0) {
             TabBar()
                 .padding(.bottom, -1)
             
-            NSTabViewWrapper()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding([.leading, .trailing, .bottom], 8)
+            if instance.tabs.isEmpty  {
+                VStack {
+                    Spacer()
+                    
+                    if isCommandBarVisible {
+                    VStack(spacing: 0) {
+                            CommandPalette.CollectionsList(
+                                searchText: $commandFilter,
+                                onBack: {},
+                            )
+                            
+                            CommandPalette(
+                                searchText: $commandFilter,
+                                onBack: {},
+                                isBackButtonEnabled: false
+                            )
+                            .modifier(GlassBackgroundStyle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(.separator, lineWidth: 1)
+                            )
+                    }
+                    .padding(.bottom, 10)
+                    }
+                }
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .center
+                )
+                .background(Color(.controlColor).opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(.separator, lineWidth: 1)
+                )
+                .cornerRadius(16)
+                .padding(.top, 0)
+                .padding([.horizontal, .bottom], 8)
+                .onAppear {
+                    setupEventMonitor()
+                }
+                .onDisappear {
+                    removeEventMonitor()
+                }
+                .onKeyPress(.init("p"), phases: .down) { keyPress in
+                    if keyPress.modifiers.contains(.command) {
+                        return .handled
+                    }
+                    return .ignored
+                }
+            } else {
+                NSTabViewWrapper()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding([.leading, .trailing, .bottom], 8)
+            }
         }
+        
         .id(instance.id)
         .padding(.top, 8)
         .ignoresSafeArea(.all)
         .postHogScreenView("DocumentView")
     }
+    
+    
+    private func setupEventMonitor() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            switch event.keyCode {
+            case 35: // 'p' key
+                if event.modifierFlags.contains(.command) {
+                    isCommandBarVisible.toggle()
+                    // Clear search text when hiding
+                    if !isCommandBarVisible {
+                        commandFilter = ""
+                    }
+                    return nil // Consume the event
+                }
+                return event // Let it pass through if not Command+P
+                
+            case 53: // 'esc' key
+                if isCommandBarVisible {
+                    isCommandBarVisible = false
+                    return nil
+                }
+                return event 
+            default:
+                return event // Let other keys pass through
+            }
+        }
+    }
+    
+    private func removeEventMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
 }
+
 
 
 

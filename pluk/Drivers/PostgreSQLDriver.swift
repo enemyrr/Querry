@@ -4,6 +4,8 @@ import PostgresNIO
 // MARK: - PostgreSQL Wrappers
 struct PostgreSQLDatabaseWrapper: DatabaseWrapper {
     let name: String
+    let size: String?
+    let tableCount: Int?
 }
 
 struct PostgreSQLCollectionWrapper: CollectionWrapper {
@@ -161,6 +163,10 @@ class PostgreSQLDriver: DatabaseDriver {
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
         // Parse connection URI
         let config = try parseConnectionString(connectionUri)
+        return try await establishConnection(with: config)
+    }
+
+    private func establishConnection(with config: PostgresConnection.Configuration) async throws -> PostgreSQLDatabaseWrapper {
         self.configuration = config
         
         // Create event loop group
@@ -179,7 +185,7 @@ class PostgreSQLDriver: DatabaseDriver {
             self.connection = connection
             self.isConnected = true
             
-            return PostgreSQLDatabaseWrapper(name: configuration?.database ?? "Default")
+            return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
         } catch let error as PSQLError {
             await cleanup()
             throw mapPSQLError(error)
@@ -214,6 +220,21 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("Not connected to PostgreSQL database")
         }
         return connection
+    }
+    
+    func switchDatabase(to databaseName: String) async throws {
+        guard var config = self.configuration else {
+            throw DatabaseError.configurationError("No active connection configuration")
+        }
+        
+        // Update the configuration with the new database name
+        config.database = databaseName
+        
+        // Disconnect from the current database
+        await disconnect()
+        
+        // Reconnect to the new database
+        _ = try await establishConnection(with: config)
     }
     
     func getBuildInfo() async throws -> BuildInfo {
@@ -254,7 +275,7 @@ class PostgreSQLDriver: DatabaseDriver {
             var databases: [PostgreSQLDatabaseWrapper] = []
             
             for try await (name) in rows.decode((String).self) {
-                databases.append(PostgreSQLDatabaseWrapper(name: name))
+                databases.append(PostgreSQLDatabaseWrapper(name: name, size: nil, tableCount: nil))
             }
             
             return databases
@@ -460,9 +481,50 @@ class PostgreSQLDriver: DatabaseDriver {
     }
 
     func createDocument(in collectionName: String, document: [String: Any]) async throws {
-        throw DatabaseError.notImplemented("PostgreSQL createDocument not yet implemented")
+        let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
+        guard !document.isEmpty else {
+            throw DatabaseError.operationFailed("Cannot insert an empty document.")
+        }
+        
+        // Get the schema to determine correct data types (same as updateDocument)
+        let schema = try await getSchema(for: collectionName)
+        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
+        
+        // Sort keys for consistent parameter order
+        let sortedKeys = document.keys.sorted()
+        
+        let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
+        let valuePlaceholders = (1...sortedKeys.count).map { "$\($0)" }.joined(separator: ", ")
+        
+        let queryString = "INSERT INTO \(sanitizedCollectionName) (\(columns)) VALUES (\(valuePlaceholders))"
+        
+        var bindings = PostgresBindings(capacity: sortedKeys.count)
+        
+        // Convert values using the same logic as updateDocument
+        for key in sortedKeys {
+            if let value = document[key] {
+                if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
+                    try bindings.append(convertedValue)
+                } else {
+                    bindings.append(Optional<String>.none)
+                }
+            } else {
+                bindings.append(Optional<String>.none)
+            }
+        }
+        
+        let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+        
+        do {
+            try await connection.query(query, logger: Logger(label: "postgres"))
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to create document: \(error.localizedDescription)")
+        }
     }
-    
 
     private func extractValue(from cell: PostgresCell) throws -> QueryRowInfo {
         // Check if the cell is null
@@ -742,7 +804,40 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func deleteDocument(in collectionName: String, id: Any) async throws {
-        throw DatabaseError.notImplemented("PostgreSQL deleteDocument not yet implemented")
+        let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
+        guard let primaryKey = id as? PostgresCell else {
+            throw DatabaseError.operationFailed("Cannot delete document without a primary key")
+        }
+        
+        do {
+            // Build the DELETE query with parameter binding
+            let queryString = """
+                DELETE FROM \(sanitizedCollectionName)
+                WHERE \(primaryKey.columnName) = $1
+            """
+            
+            // Create PostgresBindings and append the primary key value
+            var bindings = PostgresBindings(capacity: 1)
+            
+            let postgresData = PostgresData(
+                type: primaryKey.dataType,
+                typeModifier: nil,
+                formatCode: primaryKey.format,
+                value: primaryKey.bytes
+            )
+            
+            bindings.append(postgresData)
+            
+            // Execute the delete query with parameter binding
+            let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+            try await connection.query(query, logger: Logger(label: "postgres"))
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to delete document: \(error.localizedDescription)")
+        }
     }
     
     func createCollection(named collectionName: String) async throws {
@@ -927,6 +1022,116 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
+    func getDatabaseMetadata() async throws -> [Database] {
+        guard let config = self.configuration else {
+            throw DatabaseError.connectionFailed("No configuration available")
+        }
+        
+        let connection = try ensureConnected()
+        
+        do {
+            // Step 1: Get all database names and sizes in one efficient query
+            let databaseQuery = PostgresQuery("""
+                SELECT 
+                    datname AS database_name,
+                    pg_size_pretty(pg_database_size(datname)) AS database_size,
+                    datallowconn AS allow_connections
+                FROM pg_database 
+                WHERE datistemplate = false
+            """)
+            
+            let results = try await connection.query(databaseQuery, logger: Logger(label: "postgres"))
+            var databaseList: [(name: String, size: String, allowConn: Bool)] = []
+            
+            for try await (name, size, allowConn) in results.decode((String, String, Bool).self) {
+                databaseList.append((name: name, size: size, allowConn: allowConn))
+            }
+            
+            // Step 2: Get table counts for each database concurrently
+            let databases = try await withThrowingTaskGroup(of: Database.self, returning: [Database].self) { group in
+                for dbInfo in databaseList {
+                    group.addTask {
+                        let tableCount = try await self.getTableCountForDatabase(
+                            name: dbInfo.name,
+                            config: config,
+                            allowConnections: dbInfo.allowConn
+                        )
+                        
+                        return Database(
+                            name: dbInfo.name,
+                            size: dbInfo.size,
+                            tableCount: tableCount
+                        )
+                    }
+                }
+                
+                var results: [Database] = []
+                for try await database in group {
+                    results.append(database)
+                }
+                
+                // Sort by size (descending) to match the original query order
+                return results
+            }
+            
+            return databases.sorted { $0.name < $1.name }
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to get database metadata: \(error.localizedDescription)")
+        }
+    }
+    
+    private func getTableCountForDatabase(name: String, config: PostgresConnection.Configuration, allowConnections: Bool) async throws -> Int {
+        // Skip databases that don't allow connections
+        guard allowConnections else {
+            return 0
+        }
+        
+        // Create temporary configuration for this database
+        var tempConfig = config
+        tempConfig.database = name
+        
+        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        
+        do {
+            let tempConnection = try await PostgresConnection.connect(
+                on: eventLoopGroup.next(),
+                configuration: tempConfig,
+                id: Int.random(in: 1000...9999), // Random ID to avoid conflicts
+                logger: Logger(label: "postgres-metadata")
+            )
+            
+            // Get table count with optimized query
+            let countQuery = try await tempConnection.query("""
+                SELECT COUNT(*)::int as table_count
+                FROM information_schema.tables 
+                WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+                AND table_type = 'BASE TABLE'
+            """, logger: Logger(label: "postgres-metadata"))
+            
+            var tableCount = 0
+            for try await (count) in countQuery.decode((Int32).self) {
+                tableCount = Int(count)
+                break
+            }
+            
+            // Clean up connection
+            try await tempConnection.close()
+            try await eventLoopGroup.shutdownGracefully()
+            
+            return tableCount
+            
+        } catch {
+            // Clean up on error
+            try? await eventLoopGroup.shutdownGracefully()
+            
+            // Log the error but don't fail the entire operation
+            print("Warning: Could not get table count for database '\(name)': \(error.localizedDescription)")
+            return 0
+        }
+    }
+    
     // Cache for database schemas with performance optimizations
     private let databaseSchema = SchemaCache()
 
@@ -1040,10 +1245,6 @@ class PostgreSQLDriver: DatabaseDriver {
         // Validate required fields
         if username.isEmpty {
             throw DatabaseError.configurationError("Username is required")
-        }
-        
-        if database.isEmpty {
-            throw DatabaseError.configurationError("Database name is required")
         }
         
         return PostgresConnection.Configuration(
@@ -1325,7 +1526,7 @@ class PostgreSQLDriver: DatabaseDriver {
                     case "28000", "28P01": // Invalid authorization specification / Invalid password
                         return DatabaseError.authenticationFailed("Invalid username or password")
                     case "3D000": // Invalid catalog name (database does not exist)
-                        return DatabaseError.connectionFailed("Database does not exist")
+                        return DatabaseError.databaseNotFound("Database does not exist")
                     case "42501": // Insufficient privilege
                         return DatabaseError.authenticationFailed("Insufficient database privileges")
                     default:
@@ -1429,7 +1630,9 @@ enum DatabaseError: Error, LocalizedError {
     case operationFailed(String)
     case authenticationFailed(String)
     case configurationError(String)
-    
+    case databaseNotFound(String)
+    case databaseNotSelected
+
     var errorDescription: String? {
         switch self {
         case .notImplemented(let message):
@@ -1442,6 +1645,10 @@ enum DatabaseError: Error, LocalizedError {
             return "Authentication failed: \(message)"
         case .configurationError(let message):
             return "Configuration error: \(message)"
+        case .databaseNotFound(let message):
+            return "Database: \(message)"
+        case .databaseNotSelected:
+            return "Database not selected"
         }
     }
 }

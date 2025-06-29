@@ -9,6 +9,12 @@ struct MongoDBWrapper: DatabaseWrapper {
     var name: String {
         database.name
     }
+    var size: String? {
+        return nil
+    }
+    var tableCount: Int? {
+        return nil
+    }
 }
 
 struct MongoCollectionWrapper: CollectionWrapper {
@@ -44,6 +50,10 @@ struct MongoCollectionWrapper: CollectionWrapper {
 
 // MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
+    func getDatabaseMetadata() async throws -> [MongoDBWrapper] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
@@ -61,6 +71,15 @@ class MongoDBDriver: DatabaseDriver {
         let database = try await MongoDatabase.connect(to: connectionUri)
         self.connectedDatabase = database
         return MongoDBWrapper(database: database)
+    }
+    
+    func switchDatabase(to databaseName: String) async throws {
+        guard let connectedDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        let newDb = connectedDatabase.pool[databaseName]
+        self.connectedDatabase = newDb
     }
     
     func disconnect() async {

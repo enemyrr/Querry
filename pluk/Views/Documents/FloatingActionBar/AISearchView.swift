@@ -44,6 +44,7 @@ struct AISearchView: View {
             .opacity(0)
             .frame(width: 0, height: 0)
         )
+        .frame(maxWidth: 500)
     }
     
     // MARK: - View Components

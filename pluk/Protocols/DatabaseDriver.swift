@@ -68,9 +68,11 @@ protocol DatabaseDriver {
     func connect(to connectionUri: String) async throws -> Database
     func disconnect() async
     func getBuildInfo() async throws -> BuildInfo
+    func switchDatabase(to databaseName: String) async throws
     
     // Database operations
     func listDatabases() async throws -> [Database]
+    func getDatabaseMetadata()  async throws -> [Database]
     func listCollections() async throws -> [Collection]
     
     // Collection operations
@@ -197,6 +199,8 @@ struct DatabaseSchemaResult {
 // MARK: - Generic Database Wrapper
 protocol DatabaseWrapper {
     var name: String { get }
+    var size: String? { get }
+    var tableCount: Int? { get }
 }
 
 // MARK: - Generic Collection Wrapper

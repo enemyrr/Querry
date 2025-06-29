@@ -14,13 +14,15 @@ struct TableListViewController: NSViewRepresentable {
     let tableName: String
     let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
     let modificationTracker: TableModificationTracker?
+    let scrollToBottom: Bool
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
         self.onSort = onSort
         self.modificationTracker = modificationTracker
+        self.scrollToBottom = scrollToBottom
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate {
@@ -39,6 +41,7 @@ struct TableListViewController: NSViewRepresentable {
         private var autoCalculatedColumns: Set<String> = [] // Track which columns have been auto-calculated
         private var lastDataHash: Int = 0
         private var knownColumns: Set<String> = [] // Track known column identifiers
+        public var needsToSelectLastRow = false
         
         // Sorting state
         private var sortColumn: String? = nil
@@ -80,6 +83,23 @@ struct TableListViewController: NSViewRepresentable {
             
             // Set up undo delegate
             self.modificationTracker?.undoDelegate = self
+            
+            // Add observer for delete key press
+            NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
+        }
+        
+        @objc private func handleDeleteKey(notification: Notification) {
+            guard let userInfo = notification.userInfo,
+                  let rows = userInfo["rows"] as? IndexSet else {
+                return
+            }
+            
+            for row in rows {
+                modificationTracker?.markAsDeleted(rowIndex: row)
+            }
+            
+            // Tell the table view to redraw the affected rows
+            tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
         }
         
         deinit {
@@ -136,6 +156,8 @@ struct TableListViewController: NSViewRepresentable {
             return modificationTracker.undo()
         }
         
+        
+        
         // MARK: - Selection Management
         func clearTableSelection() {
             DispatchQueue.main.async { [weak self] in
@@ -147,11 +169,15 @@ struct TableListViewController: NSViewRepresentable {
         func setupTableView() -> NSView {
             setupUI()
             setupTable()
-            
             return containerView
         }
         
+        
+        
         func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
+            // Get the current selection BEFORE updating the data
+            let previousSelectedRow = self.tableView.getCurrentSelectedCell()?.row
+            
             let oldRowCount = self.totalCount
             
             // Calculate old column count (prioritize QueryResult columns over schema)
@@ -197,13 +223,25 @@ struct TableListViewController: NSViewRepresentable {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 
+                // Validate previous selection
+                if let previousSelectedRow = previousSelectedRow {
+                    if previousSelectedRow >= self.totalCount {
+                        // The previously selected row no longer exists. Clear selection.
+                        print("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
+                        self.tableView.clearAllSelection()
+                    }
+                }
+                
                 // Check if table structure changed (columns added/removed/changed)
                 if newColumnCount != oldColumnCount {
                     self.rebuildTableStructure()
-                } else if self.totalCount != oldRowCount {
-                    self.tableView.noteNumberOfRowsChanged()
                 } else {
                     self.tableView.reloadData()
+                }
+                
+                if self.needsToSelectLastRow {
+                    self.scrollToBottomAndSelectFirstCell()
+                    self.needsToSelectLastRow = false
                 }
                 
                 // Recalculate column widths if data changed significantly
@@ -216,7 +254,7 @@ struct TableListViewController: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
             // Get the first (primary) sort descriptor
             guard let sortDescriptor = tableView.sortDescriptors.first else { return }
-
+            
             // Find the column whose sortDescriptorPrototype matches
             for column in tableView.tableColumns {
                 if let prototype = column.sortDescriptorPrototype,
@@ -228,7 +266,7 @@ struct TableListViewController: NSViewRepresentable {
                 }
             }
         }
-
+        
         
         private func sortTableData(by columnTitle: String) {
             // 3-state sorting: ascending → descending → none
@@ -279,6 +317,29 @@ struct TableListViewController: NSViewRepresentable {
             updateTableHeaders()
         }
         
+        func scrollToBottomAndSelectFirstCell() {
+            DispatchQueue.main.async {
+                let numberOfRows = self.tableView.numberOfRows
+                if numberOfRows > 0 {
+                    let lastRowIndex = numberOfRows - 1
+                    self.tableView.scrollRowToVisible(lastRowIndex)
+                    
+                    // Select the first cell of the last row
+                    let firstColumnIndex = 0 // Assuming there's always at least one column
+                    if self.tableView.numberOfColumns > firstColumnIndex {
+                        self.tableView.selectRowIndexes(IndexSet(integer: lastRowIndex), byExtendingSelection: false)
+                        self.tableView.selectColumnIndexes(IndexSet(integer: firstColumnIndex), byExtendingSelection: false)
+//
+//                        // Make the table view the first responder to show the selection and allow editing
+                        self.tableView.window?.makeFirstResponder(self.tableView)
+//                        
+//                        // Start editing the cell
+                        self.tableView.editColumn(firstColumnIndex, row: lastRowIndex, with: nil, select: true)
+                    }
+                }
+            }
+        }
+        
         private func createColumn(identifier: String, title: String, icon: NSImage?) {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
             column.title = title
@@ -297,22 +358,22 @@ struct TableListViewController: NSViewRepresentable {
                 // Use auto-calculated width
                 print("📏 Using auto-calculated width for '\(identifier)': \(cachedWidth)")
                 column.width = cachedWidth
-                column.minWidth = max(10, cachedWidth * 0.5)
-                column.maxWidth = cachedWidth * 2.0
+                column.minWidth = 10 // Allow user flexibility
+                column.maxWidth = CGFloat.greatestFiniteMagnitude
             } else {
                 // Fallback to default sizing
                 print("📏 Using default sizing for '\(identifier)'")
                 column.sizeToFit()
             }
             
-//             Add custom header
+            //             Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
             customHeaderCell.configure(title: title)
             column.headerCell = customHeaderCell
             
             let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
             column.sortDescriptorPrototype = sortDescriptor
-
+            
             tableView.addTableColumn(column)
             
             // Reset flag after adding column
@@ -321,12 +382,6 @@ struct TableListViewController: NSViewRepresentable {
         
         private func setupUI() {
             containerView.wantsLayer = true
-            
-            // Create custom clip view
-            let customClipView = ExtendedClipView()
-            customClipView.bottomExtension = 88 // Your floating bar height
-            
-            scrollView.contentView = customClipView
             
             // Scroll view setup
             scrollView.hasVerticalScroller = true
@@ -337,12 +392,15 @@ struct TableListViewController: NSViewRepresentable {
             scrollView.backgroundColor = NSColor.clear
             
             scrollView.documentView = tableView
-            containerView.addSubview(scrollView)
-            
             scrollView.translatesAutoresizingMaskIntoConstraints = false
             
+            // Use NSScrollView's contentInsets instead of clip view's
+            scrollView.automaticallyAdjustsContentInsets = false
+            scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 100, right: 0)
+            
+            containerView.addSubview(scrollView)
+            
             NSLayoutConstraint.activate([
-                // Scroll view fills the entire container
                 scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
                 scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
                 scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
@@ -528,7 +586,7 @@ struct TableListViewController: NSViewRepresentable {
                 }
                 
                 // Calculate header width
-                let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 50
+                let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 40
                 
                 // Smart sampling for content width
                 let sampleSize = determineSampleSize(totalRows: self.totalCount)
@@ -539,17 +597,21 @@ struct TableListViewController: NSViewRepresentable {
                 // Efficiently calculate max content width
                 for rowIndex in sampleIndices {
                     if let value = queryResult.value(row: rowIndex, column: columnIdentifier) {
-                        let contentString = formatValueForWidthCalculation(value)
-                        let contentWidth = (contentString as NSString).size(withAttributes: contentAttributes).width + 24
-                        maxContentWidth = max(maxContentWidth, contentWidth)
+                        let contentString = formatValueForWidthCalculation(value.value)
+                        
+                        // Quick estimation first
+                        if contentString.count > 300 {
+                            maxContentWidth = 400
+                        } else {
+                            // Accurate measurement for shorter strings
+                            let contentWidth = (contentString as NSString).size(withAttributes: contentAttributes).width + 30
+                            maxContentWidth = max(maxContentWidth, contentWidth)
+                        }
                     }
                 }
                 
-                // Calculate final optimal width with bounds
-                let minWidth: CGFloat = max(60, headerWidth * 0.8)
-                let maxWidth: CGFloat = min(calculateMaxReasonableWidth(), 400)
-                let calculatedWidth = max(headerWidth, maxContentWidth)
-                let optimalWidth = max(minWidth, min(calculatedWidth, maxWidth))
+                print("\(columnsToUse): \(maxContentWidth): headerWidth: \(headerWidth): optimalWidth: \(maxContentWidth)")
+                let optimalWidth = max(headerWidth, maxContentWidth)
                 
                 // Cache the result and mark as auto-calculated
                 columnWidthCache[columnIdentifier] = optimalWidth
@@ -582,8 +644,8 @@ struct TableListViewController: NSViewRepresentable {
                     let columnId = tableColumn.identifier.rawValue
                     if newColumns.contains(columnId), let newWidth = columnWidthCache[columnId] {
                         tableColumn.width = newWidth
-                        tableColumn.minWidth = max(10, newWidth * 0.5)
-                        tableColumn.maxWidth = newWidth * 2.0
+                        tableColumn.minWidth = 10
+                        tableColumn.maxWidth = CGFloat.greatestFiniteMagnitude
                     }
                 }
                 isSettingWidthsProgrammatically = false
@@ -603,7 +665,7 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         @objc private func columnDidResize(_ notification: Notification) {
-            guard let tableView = notification.object as? NSTableView,
+            guard let _ = notification.object as? NSTableView,
                   let userInfo = notification.userInfo,
                   let column = userInfo["NSTableColumn"] as? NSTableColumn else {
                 return
@@ -714,13 +776,17 @@ struct TableListViewController: NSViewRepresentable {
         private func formatValueForWidthCalculation(_ value: Any?) -> String {
             guard let value = value else { return "(NULL)" }
             
-            // Optimize string representation for width calculation
             if let stringValue = value as? String {
-                // Truncate very long strings for width calculation efficiency
-                return stringValue.count > 200 ? String(stringValue.prefix(200)) + "..." : stringValue
+                // 50-100 chars is usually enough for width calculation
+                return stringValue.count > 50 ? String(stringValue.prefix(50)) + "..." : stringValue
             }
             
             return String(describing: value)
+        }
+        
+        private func estimateWidth(_ text: String, font: NSFont) -> CGFloat {
+            let avgCharWidth = font.maximumAdvancement.width * 0.6 // rough estimate
+            return CGFloat(text.count) * avgCharWidth + 24
         }
         
         private func calculateMaxReasonableWidth() -> CGFloat {
@@ -738,11 +804,11 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         // MARK: - NSTableViewDelegate
-//        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
-//            let columnTitle = tableColumn.identifier.rawValue
-//            print("🎯 Header clicked for column: \(columnTitle)")
-//            sortTableData(by: columnTitle)
-//        }
+        //        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
+        //            let columnTitle = tableColumn.identifier.rawValue
+        //            print("🎯 Header clicked for column: \(columnTitle)")
+        //            sortTableData(by: columnTitle)
+        //        }
         
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,
@@ -754,15 +820,15 @@ struct TableListViewController: NSViewRepresentable {
             var cellView = tableView.makeView(withIdentifier: CellIdentifier.textCell, owner: self) as? TextCellView
             
             if cellView == nil {
-                   cellView = TextCellView()
-               } else {
-                   cellView?.prepareForReuse() // CRITICAL: Reset state
-               }
+                cellView = TextCellView()
+            } else {
+                cellView?.prepareForReuse() // CRITICAL: Reset state
+            }
             
-//            if cellView == nil {
-//                cellView = TextCellView()
-//                cellView?.identifier = CellIdentifier.textCell
-//            }
+            //            if cellView == nil {
+            //                cellView = TextCellView()
+            //                cellView?.identifier = CellIdentifier.textCell
+            //            }
             
             
             // Use the new configure method with modification tracking
@@ -936,6 +1002,9 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
+        if scrollToBottom {
+            context.coordinator.needsToSelectLastRow = true
+        }
         context.coordinator.updateRows(queryResult, newSchema: schema)
     }
     
@@ -951,21 +1020,21 @@ extension Array {
     }
 }
 
-class ExtendedClipView: NSClipView {
-    var bottomExtension: CGFloat = 50
-    
-    override var documentRect: NSRect {
-        var rect = super.documentRect
-        
-        if let documentView = self.documentView {
-            let visibleHeight = self.bounds.height
-            let contentHeight = documentView.bounds.height
-            
-            if contentHeight > visibleHeight {
-                rect.size.height += bottomExtension
-            }
-        }
-        
-        return rect
-    }
-}
+//class ExtendedClipView: NSClipView {
+//    var bottomExtension: CGFloat = 50
+//    
+//    override var documentRect: NSRect {
+//        var rect = super.documentRect
+//        
+//        if let documentView = self.documentView {
+//            let visibleHeight = self.bounds.height
+//            let contentHeight = documentView.bounds.height
+//            
+//            if contentHeight > visibleHeight {
+//                rect.size.height += bottomExtension
+//            }
+//        }
+//        
+//        return rect
+//    }
+//}

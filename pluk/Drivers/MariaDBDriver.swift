@@ -3,6 +3,8 @@ import Foundation
 // MARK: - MariaDB Wrappers
 struct MariaDBDatabaseWrapper: DatabaseWrapper {
     let name: String
+    let size: String?
+    let tableCount: Int?
 }
 
 struct MariaDBCollectionWrapper: CollectionWrapper {
@@ -12,6 +14,10 @@ struct MariaDBCollectionWrapper: CollectionWrapper {
 
 // MARK: - MariaDB Driver (Placeholder)
 class MariaDBDriver: DatabaseDriver {
+    func getDatabaseMetadata() async throws -> [MariaDBDatabaseWrapper] {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
     func buildSystemPrompt(for collectionName: String) async throws -> String {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
@@ -29,6 +35,10 @@ class MariaDBDriver: DatabaseDriver {
     }
     
     func getBuildInfo() async throws -> BuildInfo {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+
+    func switchDatabase(to databaseName: String) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     

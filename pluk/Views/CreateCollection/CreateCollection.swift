@@ -109,8 +109,6 @@ struct CreateCollectionForm: View {
                     dismiss()
                     
                     Task {
-//                        await viewModel.activeConnection?.loadCollectionsForCurrentDatabase()
-                        
                         // Open a new tab
                         if let activeConnection = viewModel.activeConnection {
                             activeConnection.createNewTab(

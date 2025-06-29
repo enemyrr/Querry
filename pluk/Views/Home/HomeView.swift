@@ -11,7 +11,8 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(SidebarViewModel.self) private var viewModel
-    @Query private var connections: [Connection]
+    @Query(sort: \Connection.createdAt, order: .forward)
+    private var connections: [Connection]
     @State private var showDatabaseModal = false
     @State private var selectedConnectionId: PersistentIdentifier?
     @State private var showCreateSheet = false

@@ -14,6 +14,7 @@ struct DatabaseList: View {
 
     @State private var isLoading = false
     @State private var loadError: Error?
+    @State private var showDatabaseSelector: Bool = false
 
     // Computed property for filtered collections
     private var filteredCollections: [any CollectionWrapper]? {
@@ -50,7 +51,6 @@ struct DatabaseList: View {
     }
 
     private var connectionContent: some View {
-
         VStack(spacing: 0) {
             if instance.connectionStatus == .connected {
                 if let filteredCollections = filteredCollections {
@@ -58,7 +58,6 @@ struct DatabaseList: View {
                         instance: instance,
                         collections: filteredCollections
                     )
-                    .padding(.horizontal, 16)
 
                     if !viewModel.searchText.isEmpty
                         && filteredCollections.isEmpty
@@ -82,6 +81,20 @@ struct DatabaseList: View {
             }
 
             Spacer()
+        }
+        .sheet(isPresented: $showDatabaseSelector) {
+            DatabaseSelectorModal(
+                databaseService: instance.databaseService!,
+                onSelection: { database in
+                    Task {
+                        await updateConnection(with: database)
+                    }
+                },
+                onCreateNew: {
+                    print("Create new database")
+                    showDatabaseSelector = false
+                }
+            )
         }
         .onChange(of: instance.connectionStatus) { oldStatus, newStatus in
             if newStatus == .connected && oldStatus != .connected {
@@ -124,6 +137,7 @@ struct DatabaseList: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        
     }
 
     // MARK: - Private Methods
@@ -134,12 +148,27 @@ struct DatabaseList: View {
 
         do {
             try await instance.loadCollectionsForCurrentDatabase()
+        } catch DatabaseError.databaseNotSelected {
+            showDatabaseSelector = true
         } catch {
             loadError = error
             print("Failed to load collections: \(error)")
         }
 
         isLoading = false
+    }
+    
+    func updateConnection(with database: any DatabaseWrapper) async {
+        guard let databaseService = instance.databaseService else {
+            return
+        }
+        
+        do {
+            try await databaseService.switchActiveDatabase(to: database)
+            try await instance.loadCollectionsForCurrentDatabase()
+        } catch {
+            print("Failed to update connection: \(error)")
+        }
     }
 }
 
@@ -177,6 +206,7 @@ struct DatabasesSection: View {
         }
     }
 }
+
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {

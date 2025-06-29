@@ -15,7 +15,8 @@ struct FloatingActionBar: View {
     let isProcessingUpdates: Bool
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
-    let onSaveChanges: () -> Void
+    let onCommitModifications: () -> Void
+    let onNewRecord: () -> Void
     
     // Add current query result as direct parameter to preserve data during loading
     let currentQueryResult: QueryResult?
@@ -26,6 +27,7 @@ struct FloatingActionBar: View {
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
+    @State var commandFilter: String = ""
     
     @State var action: ActionBar = ActionBar.main
     @State var showFilterEditor: Bool = false
@@ -78,7 +80,7 @@ struct FloatingActionBar: View {
         .frame(width: 0, height: 0)
         
         VStack(spacing: 0) {
-            if !showQueryEditor && !showCreateDocumentSheet {
+            if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette {
                 topRectangleView
                     .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)
@@ -87,6 +89,17 @@ struct FloatingActionBar: View {
                     .animation(.easeInOut(duration: 0.10), value: isSubmitAnimating)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: containerWidth)
                 
+            }
+            
+            if action == .commandPalette {
+                CommandPalette.CollectionsList(
+                        searchText: $commandFilter,
+                        onBack: {
+                            withAnimation(.spring(response: 0.3)) {
+                                action = .main
+                            }
+                        }
+                )
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -121,15 +134,24 @@ struct FloatingActionBar: View {
                                 onRefresh(currentPage, totalPerPage, true)
                             }
                         })
-                    .frame(maxWidth: 500)
+                case .commandPalette:
+                    CommandPalette(
+                        searchText: $commandFilter,
+                        onBack: {
+                            withAnimation(.spring(response: 0.3)) {
+                                action = .main
+                            }
+                        },
+                        isBackButtonEnabled: true
+                    )
                 default:
                     mainView
                 }
                 
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: action == .main ? 12 : 20))
+            .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
             .overlay(
-                RoundedRectangle(cornerRadius: action == .main ? 12 : 20)
+                RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
                     .stroke(.separator, lineWidth: 1)
             )
             .overlay(
@@ -166,6 +188,10 @@ struct FloatingActionBar: View {
                 loadingTask?.cancel()
                 errorTask?.cancel()
                 debounceTask?.cancel()
+            }
+        }.onTapOutsideGesture {
+            withAnimation(.spring(response: 0.3)) {
+                action = .main
             }
         }
     }
@@ -290,7 +316,7 @@ struct FloatingActionBar: View {
                 totalPerPage: totalPerPage,
                 onRefresh: { onRefresh(currentPage, totalPerPage, false) },
                 modificationTracker: modificationTracker,
-                onSaveChanges: onSaveChanges
+                onCommitModifications: onCommitModifications
             )
             
             Divider()
@@ -344,51 +370,13 @@ struct FloatingActionBar: View {
                 key: "R"
             ), spacing: 10)
             
-            
-            Group {
-                // Batch delete button - only show when there are documents marked for deletion
-                //                if viewModel.pendingActionsCount(for: .delete) > 0 {
-                //                Divider()
-                //                    .frame(height: 22)
-                //                    .padding(.vertical, 6)
-                
-                //                    DeleteActionButton(
-                //                        deleteCount: viewModel.pendingActionsCount(for: .delete),
-                //                        isProcessingBatch: viewModel.isProcessingBatch,
-                //                        onDelete: {
-                //                            Task {
-                //                                await viewModel.commitPendingActions()
-                //                            }
-                //                        }
-                //                    )
-                //                    .padding(.horizontal, 2)
-            }
-            
-            // Batch update button - only show when there are documents marked for update
-            if modificationTracker.hasModifications {
-                Divider()
-                    .frame(height: 22)
-                    .padding(.vertical, 6)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                
-                UpdateActionButton(
-                    updateCount: modificationTracker.modifiedRowCount,
-                    isProcessingBatch: isProcessingUpdates,
-                    onUpdate: {
-                        onSaveChanges()
-                    }
-                )
-            }
-
-
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
+
             Button(action: {
-                withAnimation(.spring(response: 0.3)) {
-                    //                    searchQueryViewModel.showCreateDocumentSheet = true
-                }
+                onNewRecord()
             }) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 14))
@@ -401,12 +389,49 @@ struct FloatingActionBar: View {
                 key: "N"
             ), spacing: 10)
             
+            Group {
+                if modificationTracker.hasPendingDeletions {
+                    HStack(spacing: 4) {
+                        DeleteActionButton(
+                            deleteCount: modificationTracker.pendingDeletionCount,
+                            isProcessingBatch: isProcessingUpdates,
+                            onDelete: {
+                                onCommitModifications()
+                            }
+                        )
+                        Button(action: {
+                            modificationTracker.resetAllModifications()
+                            onRefresh(currentPage, totalPerPage, true)
+                        }) {
+                            Text("Discard")
+                        }
+                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)))
+                        .customHelp("Discard deletions", position: .top)
+                    }
+                    
+                }
+            }
+            
+            // Batch update button - only show when there are documents marked for update
+            if modificationTracker.hasModifications {
+//                Divider()
+//                    .frame(height: 22)
+//                    .padding(.vertical, 6)
+//                    .transition(.opacity.combined(with: .move(edge: .top)))
+                
+                UpdateActionButton(
+                    updateCount: modificationTracker.modifiedRowCount,
+                    isProcessingBatch: isProcessingUpdates,
+                    onUpdate: {
+                        onCommitModifications()
+                    }
+                )
+            }
             
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
-            
-            
+
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     action = ActionBar.search
@@ -423,16 +448,36 @@ struct FloatingActionBar: View {
                 key: "L"
             ), spacing: 10)
             
+            Divider()
+                .frame(height: 22)
+                .padding(.vertical, 6)
+
+            Button(action: {
+                withAnimation(.spring(response: 0.3)) {
+                    action = .commandPalette
+                }
+            }) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+            .keyboardShortcut("p", modifiers: .command)
+            .customHelp("Command Palette", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "P"
+            ), spacing: 10)
+            
             // TODO: More options button
-            //            Button(action: {
-            //                // TODO:
-            //                // Add an action
-            //            }) {
-            //                Image(systemName: "ellipsis")
-            //                    .font(.system(size: 14))
-            //                    .contentShape(Rectangle())
-            //            }
-            //            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
+//                        Button(action: {
+//                            // TODO:
+//                            // Add an action
+//                        }) {
+//                            Image(systemName: "ellipsis")
+//                                .font(.system(size: 14))
+//                                .contentShape(Rectangle())
+//                        }
+//                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -608,5 +653,6 @@ enum ActionBar: String, CaseIterable, Codable {
     case main = "main"
     case search = "search"
     case create = "create"
+    case commandPalette = "commandPalette"
 }
 

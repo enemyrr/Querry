@@ -115,6 +115,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             }
         }
     }
+    var isMarkedForDeletion: Bool = false
     
     // Cache for optimization
     private var lastConfiguredColumn: String = ""
@@ -129,6 +130,15 @@ class TextCellView: NSView, NSTextFieldDelegate {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupTextField()
+    }
+    
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if isMarkedForDeletion {
+            NSColor.red.withAlphaComponent(0.3).setFill()
+            let fillRect = NSRect(x: bounds.origin.x, y: bounds.origin.y, width: bounds.width - 1, height: bounds.height - 1)
+            fillRect.fill()
+        }
     }
     
     override func prepareForReuse() {
@@ -517,6 +527,12 @@ class TextCellView: NSView, NSTextFieldDelegate {
         self.dataType = columnInfo.dataType
         self.modificationTracker = modificationTracker
         
+        if let modification = modificationTracker?.getRowModification(for: rowIndex), modification.type == .delete {
+            self.isMarkedForDeletion = true
+        } else {
+            self.isMarkedForDeletion = false
+        }
+        
         // Check if this cell has existing modifications
         if let tracker = modificationTracker,
            let cellMod = tracker.getCellModification(rowIndex: rowIndex, columnName: columnInfo.name) {
@@ -605,6 +621,25 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     override func viewWillDraw() {
+        let textColor: NSColor
+        let placeholderColor: NSColor
+
+        if let rowView = self.superview as? NSTableRowView, rowView.isSelected {
+            textColor = .white
+            placeholderColor = .lightGray
+        } else {
+            textColor = .controlTextColor
+            placeholderColor = .placeholderTextColor
+        }
+
+        self.textField.textColor = textColor
+        if let currentPlaceholder = self.textField.placeholderString, !currentPlaceholder.isEmpty {
+            self.textField.placeholderAttributedString = NSAttributedString(
+                string: currentPlaceholder,
+                attributes: [.foregroundColor: placeholderColor]
+            )
+        }
+        
         super.viewWillDraw()
         
         // Check and restore selection state before drawing
