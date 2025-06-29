@@ -99,7 +99,7 @@ struct FloatingActionBar: View {
                                 action = .main
                             }
                         }
-                    )
+                )
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
@@ -188,6 +188,10 @@ struct FloatingActionBar: View {
                 loadingTask?.cancel()
                 errorTask?.cancel()
                 debounceTask?.cancel()
+            }
+        }.onTapOutsideGesture {
+            withAnimation(.spring(response: 0.3)) {
+                action = .main
             }
         }
     }

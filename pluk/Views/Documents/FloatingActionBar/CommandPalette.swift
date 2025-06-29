@@ -130,6 +130,7 @@ struct CommandPalette: View {
                                     }
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 10)
+                                    .contentShape(Rectangle())
                                 }
                                 .id(index)
                                 .onHover { isHovered in

@@ -17,7 +17,6 @@ struct CustomTextFieldStyle: TextFieldStyle {
             .padding(.vertical, 14)
             .background(Color.black.opacity(isFocused ? 0.2 : 0))
             .cornerRadius(10)
-            .foregroundColor(.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator, lineWidth: 1)
