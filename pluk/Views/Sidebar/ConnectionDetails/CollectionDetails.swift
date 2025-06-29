@@ -23,12 +23,10 @@ struct ConnectionDetailsSidebar: View {
                     databaseType: instance.connection.databaseType,
                     environment: instance.connection.environment)
                 
-                VStack(spacing: 0) {
+                VStack(spacing: 4) {
                     DatabaseHeader(
                         viewModel: viewModel,
                     )
-                        .padding(.horizontal)
-                        .padding(.vertical, 4)
                     
                     SoftSeparator()
                         .opacity(isScrolled ? 1 : 0)
@@ -55,6 +53,7 @@ struct ConnectionDetailsSidebar: View {
                 }
             }
         }
+        .padding()
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(.separator)

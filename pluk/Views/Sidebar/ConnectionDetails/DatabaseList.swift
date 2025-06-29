@@ -58,7 +58,6 @@ struct DatabaseList: View {
                         instance: instance,
                         collections: filteredCollections
                     )
-                    .padding(.horizontal, 16)
 
                     if !viewModel.searchText.isEmpty
                         && filteredCollections.isEmpty

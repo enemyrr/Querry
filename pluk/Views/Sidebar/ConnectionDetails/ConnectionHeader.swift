@@ -136,7 +136,6 @@ struct ConnectionHeader: View {
         .onHover { hover in
             isHovered = hover
         }
-        .padding([.horizontal, .top])
         .padding(.bottom, 6)
     }
 }
