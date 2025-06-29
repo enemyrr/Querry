@@ -86,9 +86,9 @@ struct TableListView: View {
                             await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
                         }
                     },
-                    onSaveChanges: {
+                    onCommitModifications: {
                         Task {
-                            await saveModifications()
+                            await commitModifications()
                         }
                     },
                     onNewRecord: {
@@ -160,8 +160,13 @@ struct TableListView: View {
         }
     }
     
+    // MARK: - Delete Modifications
+    private func deleteModifications() async {
+        // This will be handled by the saveModifications logic
+    }
+    
     // MARK: - Save Modifications
-    private func saveModifications() async {
+    private func commitModifications() async {
         guard let driver = instance.databaseService else {
             print("❌ No database driver available")
             return
@@ -226,6 +231,31 @@ struct TableListView: View {
                     )
                     
                     print("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
+                case .delete:
+                    // Get the row data
+                    guard let currentQueryResult = currentQueryResult,
+                          rowModification.rowIndex < currentQueryResult.rawRows.count else {
+                        print("❌ Invalid row index: \(rowModification.rowIndex)")
+                        continue
+                    }
+                    
+                    let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
+                    
+                    // Find the primary key or unique identifier for this row
+                    var rowId: Any?
+                    if let idValue = originalRow["id"] {
+                        rowId = idValue
+                    } else if let firstColumn = currentQueryResult.columns.first {
+                        rowId = originalRow[firstColumn.name]
+                    }
+                    
+                    guard let id = rowId else {
+                        print("❌ Could not find row identifier for row \(rowModification.rowIndex)")
+                        continue
+                    }
+                    
+                    try await driver.deleteDocument(in: selectedTab.name, id: id)
+                    print("✅ Deleted row at index \(rowModification.rowIndex)")
                 }
             } catch {
                 showError(error)

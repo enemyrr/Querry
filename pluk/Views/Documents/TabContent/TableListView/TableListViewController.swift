@@ -83,6 +83,23 @@ struct TableListViewController: NSViewRepresentable {
             
             // Set up undo delegate
             self.modificationTracker?.undoDelegate = self
+            
+            // Add observer for delete key press
+            NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
+        }
+        
+        @objc private func handleDeleteKey(notification: Notification) {
+            guard let userInfo = notification.userInfo,
+                  let rows = userInfo["rows"] as? IndexSet else {
+                return
+            }
+            
+            for row in rows {
+                modificationTracker?.markAsDeleted(rowIndex: row)
+            }
+            
+            // Tell the table view to redraw the affected rows
+            tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
         }
         
         deinit {
@@ -139,6 +156,8 @@ struct TableListViewController: NSViewRepresentable {
             return modificationTracker.undo()
         }
         
+        
+        
         // MARK: - Selection Management
         func clearTableSelection() {
             DispatchQueue.main.async { [weak self] in
@@ -150,9 +169,10 @@ struct TableListViewController: NSViewRepresentable {
         func setupTableView() -> NSView {
             setupUI()
             setupTable()
-            
             return containerView
         }
+        
+        
         
         func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
             let oldRowCount = self.totalCount

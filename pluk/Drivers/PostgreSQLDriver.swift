@@ -804,7 +804,40 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func deleteDocument(in collectionName: String, id: Any) async throws {
-        throw DatabaseError.notImplemented("PostgreSQL deleteDocument not yet implemented")
+        let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
+        guard let primaryKey = id as? PostgresCell else {
+            throw DatabaseError.operationFailed("Cannot delete document without a primary key")
+        }
+        
+        do {
+            // Build the DELETE query with parameter binding
+            let queryString = """
+                DELETE FROM \(sanitizedCollectionName)
+                WHERE \(primaryKey.columnName) = $1
+            """
+            
+            // Create PostgresBindings and append the primary key value
+            var bindings = PostgresBindings(capacity: 1)
+            
+            let postgresData = PostgresData(
+                type: primaryKey.dataType,
+                typeModifier: nil,
+                formatCode: primaryKey.format,
+                value: primaryKey.bytes
+            )
+            
+            bindings.append(postgresData)
+            
+            // Execute the delete query with parameter binding
+            let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+            try await connection.query(query, logger: Logger(label: "postgres"))
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to delete document: \(error.localizedDescription)")
+        }
     }
     
     func createCollection(named collectionName: String) async throws {

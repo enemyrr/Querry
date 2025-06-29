@@ -43,6 +43,7 @@ struct ModificationHistoryEntry {
 enum RowModificationType {
     case update
     case insert
+    case delete
 }
 
 // MARK: - Row Modification Model
@@ -94,11 +95,19 @@ struct RowModification {
     }
     
     var allModifications: [RowModification] {
-        return rowModifications.values.filter { $0.hasModifications || $0.type == .insert }
+        return rowModifications.values.filter { $0.hasModifications || $0.type == .insert || $0.type == .delete }
     }
     
     var hasModifications: Bool {
         return modifiedRowCount > 0
+    }
+    
+    var hasPendingDeletions: Bool {
+        return rowModifications.values.contains { $0.type == .delete }
+    }
+    
+    var pendingDeletionCount: Int {
+        return rowModifications.values.filter { $0.type == .delete }.count
     }
     
     var canUndo: Bool {
@@ -124,6 +133,23 @@ struct RowModification {
         }
         rowModifications[rowIndex] = newRow
         print("rowModification: \(rowModifications)")
+    }
+    
+    func markAsDeleted(rowIndex: Int) {
+        if var row = rowModifications[rowIndex] {
+            if row.type == .delete {
+                // If it's already marked as delete, unmark it
+                row.type = .update // Or revert to its original state if you track that
+                rowModifications[rowIndex] = row
+            } else {
+                // If it's an update or insert, mark it as delete
+                row.type = .delete
+                rowModifications[rowIndex] = row
+            }
+        } else {
+            // If there's no modification yet, create a new one and mark it as delete
+            rowModifications[rowIndex] = RowModification(rowIndex: rowIndex, type: .delete)
+        }
     }
     
     func updateCell(rowIndex: Int, columnName: String, newValue: String, originalValue: String, dataType: String) {

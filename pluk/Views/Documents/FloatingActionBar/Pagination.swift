@@ -15,7 +15,7 @@ struct Pagination: View {
     var totalPerPage: Int
     let onRefresh: () -> Void
     let modificationTracker: TableModificationTracker
-    let onSaveChanges: () -> Void
+    let onCommitModifications: () -> Void
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var filter: String?
@@ -108,7 +108,7 @@ struct Pagination: View {
             titleVisibility: .visible
         ) {
             Button("Save") {
-                onSaveChanges()
+                onCommitModifications()
                 // Execute the pending page action after saving
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     pendingPageAction?()

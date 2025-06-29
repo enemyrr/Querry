@@ -178,18 +178,11 @@ class DatabaseService {
     }
     
     func deleteDocument(in collectionName: String, id: Any) async throws {
-        guard let driver = activeDriver,
-              let database = connectedDatabase else {
+        guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-//        try await driver.performOperation(with: database) { concreteDriver, typedDatabase in
-//            try await concreteDriver.deleteDocument(
-//                in: collectionName,
-//                database: typedDatabase,
-//                id: id
-//            )
-//        }
+        try await driver.deleteDocument(in: collectionName, id: id)
         
         clearDocumentCache(for: collectionName)
     }

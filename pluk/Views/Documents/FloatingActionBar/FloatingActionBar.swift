@@ -15,7 +15,7 @@ struct FloatingActionBar: View {
     let isProcessingUpdates: Bool
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
-    let onSaveChanges: () -> Void
+    let onCommitModifications: () -> Void
     let onNewRecord: () -> Void
     
     // Add current query result as direct parameter to preserve data during loading
@@ -312,7 +312,7 @@ struct FloatingActionBar: View {
                 totalPerPage: totalPerPage,
                 onRefresh: { onRefresh(currentPage, totalPerPage, false) },
                 modificationTracker: modificationTracker,
-                onSaveChanges: onSaveChanges
+                onCommitModifications: onCommitModifications
             )
             
             Divider()
@@ -366,47 +366,11 @@ struct FloatingActionBar: View {
                 key: "R"
             ), spacing: 10)
             
-            
-            Group {
-                // Batch delete button - only show when there are documents marked for deletion
-                //                if viewModel.pendingActionsCount(for: .delete) > 0 {
-                //                Divider()
-                //                    .frame(height: 22)
-                //                    .padding(.vertical, 6)
-                
-                //                    DeleteActionButton(
-                //                        deleteCount: viewModel.pendingActionsCount(for: .delete),
-                //                        isProcessingBatch: viewModel.isProcessingBatch,
-                //                        onDelete: {
-                //                            Task {
-                //                                await viewModel.commitPendingActions()
-                //                            }
-                //                        }
-                //                    )
-                //                    .padding(.horizontal, 2)
-            }
-            
-            // Batch update button - only show when there are documents marked for update
-            if modificationTracker.hasModifications {
-                Divider()
-                    .frame(height: 22)
-                    .padding(.vertical, 6)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                
-                UpdateActionButton(
-                    updateCount: modificationTracker.modifiedRowCount,
-                    isProcessingBatch: isProcessingUpdates,
-                    onUpdate: {
-                        onSaveChanges()
-                    }
-                )
-            }
-
-
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
+
             Button(action: {
                 onNewRecord()
             }) {
@@ -421,12 +385,49 @@ struct FloatingActionBar: View {
                 key: "N"
             ), spacing: 10)
             
+            Group {
+                if modificationTracker.hasPendingDeletions {
+                    HStack(spacing: 4) {
+                        DeleteActionButton(
+                            deleteCount: modificationTracker.pendingDeletionCount,
+                            isProcessingBatch: isProcessingUpdates,
+                            onDelete: {
+                                onCommitModifications()
+                            }
+                        )
+                        Button(action: {
+                            modificationTracker.resetAllModifications()
+                            onRefresh(currentPage, totalPerPage, true)
+                        }) {
+                            Text("Discard")
+                        }
+                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)))
+                        .customHelp("Discard deletions", position: .top)
+                    }
+                    
+                }
+            }
+            
+            // Batch update button - only show when there are documents marked for update
+            if modificationTracker.hasModifications {
+//                Divider()
+//                    .frame(height: 22)
+//                    .padding(.vertical, 6)
+//                    .transition(.opacity.combined(with: .move(edge: .top)))
+                
+                UpdateActionButton(
+                    updateCount: modificationTracker.modifiedRowCount,
+                    isProcessingBatch: isProcessingUpdates,
+                    onUpdate: {
+                        onCommitModifications()
+                    }
+                )
+            }
             
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
-            
-            
+
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     action = ActionBar.search

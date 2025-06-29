@@ -14,9 +14,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "279"
-            endingLineNumber = "279"
-            landmarkName = "handleNewRecord()"
+            startingLineNumber = "272"
+            endingLineNumber = "272"
+            landmarkName = "commitModifications()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -30,9 +30,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "180"
-            endingLineNumber = "180"
-            landmarkName = "saveModifications()"
+            startingLineNumber = "175"
+            endingLineNumber = "175"
+            landmarkName = "commitModifications()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -48,7 +48,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "134"
             endingLineNumber = "134"
-            landmarkName = "updateCell(rowIndex:columnName:newValue:originalValue:dataType:)"
+            landmarkName = "markAsNewRow(rowIndex:initialData:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -64,7 +64,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "133"
             endingLineNumber = "133"
-            landmarkName = "updateCell(rowIndex:columnName:newValue:originalValue:dataType:)"
+            landmarkName = "markAsNewRow(rowIndex:initialData:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -96,7 +96,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "294"
             endingLineNumber = "294"
-            landmarkName = "scrollToBottomAndSelectFirstCell()"
+            landmarkName = "updateTableHeaders()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -112,7 +112,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "295"
             endingLineNumber = "295"
-            landmarkName = "scrollToBottomAndSelectFirstCell()"
+            landmarkName = "updateTableHeaders()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -128,7 +128,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "299"
             endingLineNumber = "299"
-            landmarkName = "scrollToBottomAndSelectFirstCell()"
+            landmarkName = "updateTableHeaders()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -144,7 +144,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "305"
             endingLineNumber = "305"
-            landmarkName = "scrollToBottomAndSelectFirstCell()"
+            landmarkName = "setSortState(column:ascending:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

@@ -115,6 +115,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             }
         }
     }
+    var isMarkedForDeletion: Bool = false
     
     // Cache for optimization
     private var lastConfiguredColumn: String = ""
@@ -129,6 +130,15 @@ class TextCellView: NSView, NSTextFieldDelegate {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupTextField()
+    }
+    
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if isMarkedForDeletion {
+            NSColor.red.withAlphaComponent(0.3).setFill()
+            let fillRect = NSRect(x: bounds.origin.x, y: bounds.origin.y, width: bounds.width - 1, height: bounds.height - 1)
+            fillRect.fill()
+        }
     }
     
     override func prepareForReuse() {
@@ -516,6 +526,12 @@ class TextCellView: NSView, NSTextFieldDelegate {
         self.columnName = columnInfo.name
         self.dataType = columnInfo.dataType
         self.modificationTracker = modificationTracker
+        
+        if let modification = modificationTracker?.getRowModification(for: rowIndex), modification.type == .delete {
+            self.isMarkedForDeletion = true
+        } else {
+            self.isMarkedForDeletion = false
+        }
         
         // Check if this cell has existing modifications
         if let tracker = modificationTracker,
