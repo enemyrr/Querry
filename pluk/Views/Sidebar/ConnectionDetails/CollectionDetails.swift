@@ -68,3 +68,4 @@ struct ConnectionDetailsSidebar: View {
         }
     }
 }
+
