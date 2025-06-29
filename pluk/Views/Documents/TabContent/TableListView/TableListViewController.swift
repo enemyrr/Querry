@@ -175,6 +175,9 @@ struct TableListViewController: NSViewRepresentable {
         
         
         func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
+            // Get the current selection BEFORE updating the data
+            let previousSelectedRow = self.tableView.getCurrentSelectedCell()?.row
+            
             let oldRowCount = self.totalCount
             
             // Calculate old column count (prioritize QueryResult columns over schema)
@@ -219,6 +222,15 @@ struct TableListViewController: NSViewRepresentable {
             
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
+                
+                // Validate previous selection
+                if let previousSelectedRow = previousSelectedRow {
+                    if previousSelectedRow >= self.totalCount {
+                        // The previously selected row no longer exists. Clear selection.
+                        print("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
+                        self.tableView.clearAllSelection()
+                    }
+                }
                 
                 // Check if table structure changed (columns added/removed/changed)
                 if newColumnCount != oldColumnCount {

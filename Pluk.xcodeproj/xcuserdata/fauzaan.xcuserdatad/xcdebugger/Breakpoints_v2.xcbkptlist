@@ -94,9 +94,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "294"
-            endingLineNumber = "294"
-            landmarkName = "updateTableHeaders()"
+            startingLineNumber = "280"
+            endingLineNumber = "280"
+            landmarkName = "sortTableData(by:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -110,9 +110,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "295"
-            endingLineNumber = "295"
-            landmarkName = "updateTableHeaders()"
+            startingLineNumber = "281"
+            endingLineNumber = "281"
+            landmarkName = "sortTableData(by:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -126,9 +126,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "299"
-            endingLineNumber = "299"
-            landmarkName = "updateTableHeaders()"
+            startingLineNumber = "285"
+            endingLineNumber = "285"
+            landmarkName = "sortTableData(by:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -142,9 +142,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "305"
-            endingLineNumber = "305"
-            landmarkName = "setSortState(column:ascending:)"
+            startingLineNumber = "291"
+            endingLineNumber = "291"
+            landmarkName = "updateTableHeaders()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
