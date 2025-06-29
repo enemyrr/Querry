@@ -109,15 +109,13 @@ class CustomTableView: NSTableView {
             selectRowIndexes(IndexSet(), byExtendingSelection: false)
             handled = true
             
-        case 51: // Delete key
+        case 51, 117: // Delete key (forward) and Backspace key (backward)
             // Mark the selected rows for deletion
-            if let tableView = self as? CustomTableView {
-                let selectedRows = tableView.selectedRowIndexes
-                // We need a way to communicate this back to the coordinator/view model
-                // For now, let's post a notification
-                NotificationCenter.default.post(name: .didRequestDelete, object: self, userInfo: ["rows": selectedRows])
-                handled = true
-            }
+            let selectedRows = self.selectedRowIndexes
+            // We need a way to communicate this back to the coordinator/view model
+            // For now, let's post a notification
+            NotificationCenter.default.post(name: .didRequestDelete, object: self, userInfo: ["rows": selectedRows])
+            handled = true
             
         default:
             return false

@@ -59,6 +59,11 @@ struct Pluk: App {
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                // Empty - this removes the New command
+            }
+        }
         
         Window("About Pluk", id: "aboutWindow") {
             AboutView()

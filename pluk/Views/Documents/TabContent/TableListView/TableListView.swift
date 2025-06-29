@@ -160,17 +160,14 @@ struct TableListView: View {
         }
     }
     
-    // MARK: - Delete Modifications
-    private func deleteModifications() async {
-        // This will be handled by the saveModifications logic
-    }
-    
     // MARK: - Save Modifications
     private func commitModifications() async {
         guard let driver = instance.databaseService else {
             print("❌ No database driver available")
             return
         }
+        
+        NSApp.keyWindow?.makeFirstResponder(nil)
         
         let modifications = modificationTracker.allModifications
         

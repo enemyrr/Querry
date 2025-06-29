@@ -48,9 +48,9 @@ struct ConnectionDetailsSidebar: View {
                                 isScrolled = true
                             }
                         
-                        DatabaseList(viewModel: viewModel)
+                        DatabaseList(viewModel: viewModel).padding(.trailing, 16)
                     }
-                }
+                }.padding(.trailing, -16)
             }
         }
         .padding()
@@ -68,4 +68,3 @@ struct ConnectionDetailsSidebar: View {
         }
     }
 }
-
