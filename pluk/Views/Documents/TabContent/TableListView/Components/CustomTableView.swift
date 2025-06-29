@@ -219,10 +219,65 @@ class CustomTableView: NSTableView {
         // Update our internal tracking
         if let firstIndex = indexes.first {
             currentSelectedRow = firstIndex
-            // Don't auto-set column to 0 - only do this if user explicitly selects
-            // if currentSelectedColumn < 0 {
-            //     currentSelectedColumn = 0
-            // }
+        }
+    }
+    
+    override func selectColumnIndexes(_ indexes: IndexSet, byExtendingSelection extend: Bool) {
+        super.selectColumnIndexes(indexes, byExtendingSelection: extend)
+        
+        // Update our internal column tracking
+        if let firstIndex = indexes.first {
+            currentSelectedColumn = firstIndex
+            
+            // If we have a valid row selection, update the cell selection
+            if currentSelectedRow >= 0 {
+                print("📋 Column selection changed - updating cell selection to (\(currentSelectedRow), \(currentSelectedColumn))")
+                selectCell(row: currentSelectedRow, column: currentSelectedColumn)
+            }
+        } else {
+            // No columns selected, clear column tracking
+            if !extend {
+                currentSelectedColumn = -1
+                clearCurrentCellSelection()
+            }
+        }
+    }
+    
+    override func editColumn(_ column: Int, row: Int, with event: NSEvent?, select: Bool) {
+        print("✏️ editColumn called for (\(row), \(column)) with select: \(select)")
+        
+        // Validate row and column bounds
+        guard row >= 0 && row < numberOfRows && column >= 0 && column < numberOfColumns else {
+            print("❌ Invalid cell position for editing: (\(row), \(column))")
+            super.editColumn(column, row: row, with: event, select: select)
+            return
+        }
+        
+        // If select is true, update our selection to this cell
+        if select {
+            print("🎯 Selecting cell (\(row), \(column)) before editing")
+            selectCell(row: row, column: column)
+        }
+        
+        // Try to get our custom TextCellView
+        if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
+            print("✅ Found TextCellView - entering custom edit mode")
+            
+            // Update our internal tracking
+            currentSelectedRow = row
+            currentSelectedColumn = column
+            
+            // Use our custom edit mode implementation
+            cellView.enterEditMode()
+            
+            // Ensure the cell is visible
+            scrollRowToVisible(row)
+            scrollColumnToVisible(column)
+            
+        } else {
+            print("⚠️ No TextCellView found - falling back to default editing")
+            // Fall back to default behavior if we don't have a custom cell view
+            super.editColumn(column, row: row, with: event, select: select)
         }
     }
     

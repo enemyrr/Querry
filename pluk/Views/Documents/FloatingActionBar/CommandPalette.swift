@@ -85,91 +85,93 @@ struct CommandPalette: View {
         }
         
         var body: some View {
-            VStack(alignment: .leading, spacing: 0) {
-                // Navigation header
-                Text("Top matches")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-                
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        // Collection items
-                        ForEach(Array(filteredCollections.enumerated()), id: \.offset) { index, collection in
-                            Button(action: {
-                                selectActiveItem()
-                            }) {
-                                HStack {
-                                    // Collection icon
-                                    Image(systemName: "tablecells")
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 20)
-                                    
-                                    // Collection name
-                                    Text(collection.name)
-                                        .font(.body)
-                                        .foregroundColor(.primary)
-                                    
-                                    Spacer()
-                                    
+            if !filteredCollections.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Navigation header
+                    Text("Top matches")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                    
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            // Collection items
+                            ForEach(Array(filteredCollections.enumerated()), id: \.offset) { index, collection in
+                                Button(action: {
+                                    selectActiveItem()
+                                }) {
                                     HStack {
-                                        Text("Table")
-                                            .font(.caption)
+                                        // Collection icon
+                                        Image(systemName: "tablecells")
+                                            .font(.body)
                                             .foregroundColor(.secondary)
+                                            .frame(width: 20)
+                                        
+                                        // Collection name
+                                        Text(collection.name)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                        
+                                        HStack {
+                                            Text("Table")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.vertical, 4)
+                                        .padding(.horizontal, 4)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .stroke(.separator, lineWidth: 1)
+                                        )
                                     }
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 4)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .stroke(.separator, lineWidth: 1)
-                                    )
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .id(index)
+                                .onHover { isHovered in
+                                    hoveredIndex = isHovered ? index : nil
+                                }
+                                .buttonStyle(.plain)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(backgroundColorForItem(at: index))
+                                        .contentShape(Rectangle())
+                                )
                             }
-                            .id(index)
-                            .onHover { isHovered in
-                                hoveredIndex = isHovered ? index : nil
-                            }
-                            .buttonStyle(.plain)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(backgroundColorForItem(at: index))
-                                    .contentShape(Rectangle())
-                            )
                         }
+                        .scrollTargetLayout()
                     }
-                    .scrollTargetLayout()
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollPosition($scrollPosition)
+                    .frame(maxHeight: min(CGFloat(filteredCollections.count * 41), 320))
+                    .padding(.bottom, 4)
                 }
-                .scrollTargetBehavior(.viewAligned)
-                .scrollPosition($scrollPosition)
-                .frame(maxHeight: min(CGFloat(filteredCollections.count * 41), 320))
+                .padding([.horizontal, .top], 8)
                 .padding(.bottom, 4)
-            }
-            .padding([.horizontal, .top], 8)
-            .padding(.bottom, 4)
-            .modifier(GlassBackgroundStyle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .frame(maxWidth: 500)
-            .padding(.bottom, 8)
-            .onAppear {
-                withAnimation {
-                    scrollPosition.scrollTo(edge: .bottom)
+                .modifier(GlassBackgroundStyle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(.separator, lineWidth: 1)
+                )
+                .frame(maxWidth: 500)
+                .padding(.bottom, 8)
+                .onAppear {
+                    withAnimation {
+                        scrollPosition.scrollTo(edge: .bottom)
+                    }
+                    setupEventMonitor()
+                    resetActiveIndex()
                 }
-                setupEventMonitor()
-                resetActiveIndex()
-            }
-            .onDisappear {
-                removeEventMonitor()
-            }
-            .onChange(of: searchText) { _, _ in
-                resetActiveIndex()
+                .onDisappear {
+                    removeEventMonitor()
+                }
+                .onChange(of: searchText) { _, _ in
+                    resetActiveIndex()
+                }
             }
         }
         

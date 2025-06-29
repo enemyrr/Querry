@@ -481,9 +481,50 @@ class PostgreSQLDriver: DatabaseDriver {
     }
 
     func createDocument(in collectionName: String, document: [String: Any]) async throws {
-        throw DatabaseError.notImplemented("PostgreSQL createDocument not yet implemented")
+        let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        
+        guard !document.isEmpty else {
+            throw DatabaseError.operationFailed("Cannot insert an empty document.")
+        }
+        
+        // Get the schema to determine correct data types (same as updateDocument)
+        let schema = try await getSchema(for: collectionName)
+        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
+        
+        // Sort keys for consistent parameter order
+        let sortedKeys = document.keys.sorted()
+        
+        let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
+        let valuePlaceholders = (1...sortedKeys.count).map { "$\($0)" }.joined(separator: ", ")
+        
+        let queryString = "INSERT INTO \(sanitizedCollectionName) (\(columns)) VALUES (\(valuePlaceholders))"
+        
+        var bindings = PostgresBindings(capacity: sortedKeys.count)
+        
+        // Convert values using the same logic as updateDocument
+        for key in sortedKeys {
+            if let value = document[key] {
+                if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
+                    try bindings.append(convertedValue)
+                } else {
+                    bindings.append(Optional<String>.none)
+                }
+            } else {
+                bindings.append(Optional<String>.none)
+            }
+        }
+        
+        let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+        
+        do {
+            try await connection.query(query, logger: Logger(label: "postgres"))
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to create document: \(error.localizedDescription)")
+        }
     }
-    
 
     private func extractValue(from cell: PostgresCell) throws -> QueryRowInfo {
         // Check if the cell is null

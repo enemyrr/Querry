@@ -16,6 +16,7 @@ struct FloatingActionBar: View {
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onLoadDocuments: (_ filter: String?) -> Void
     let onSaveChanges: () -> Void
+    let onNewRecord: () -> Void
     
     // Add current query result as direct parameter to preserve data during loading
     let currentQueryResult: QueryResult?
@@ -407,9 +408,7 @@ struct FloatingActionBar: View {
                 .padding(.vertical, 6)
             
             Button(action: {
-                withAnimation(.spring(response: 0.3)) {
-                    //                    searchQueryViewModel.showCreateDocumentSheet = true
-                }
+                onNewRecord()
             }) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 14))

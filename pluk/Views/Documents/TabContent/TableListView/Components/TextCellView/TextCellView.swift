@@ -605,6 +605,25 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     override func viewWillDraw() {
+        let textColor: NSColor
+        let placeholderColor: NSColor
+
+        if let rowView = self.superview as? NSTableRowView, rowView.isSelected {
+            textColor = .white
+            placeholderColor = .lightGray
+        } else {
+            textColor = .controlTextColor
+            placeholderColor = .placeholderTextColor
+        }
+
+        self.textField.textColor = textColor
+        if let currentPlaceholder = self.textField.placeholderString, !currentPlaceholder.isEmpty {
+            self.textField.placeholderAttributedString = NSAttributedString(
+                string: currentPlaceholder,
+                attributes: [.foregroundColor: placeholderColor]
+            )
+        }
+        
         super.viewWillDraw()
         
         // Check and restore selection state before drawing

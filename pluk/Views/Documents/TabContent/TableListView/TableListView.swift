@@ -27,6 +27,7 @@ struct TableListView: View {
     // Modification tracking
     @State private var modificationTracker = TableModificationTracker()
     @State private var isProcessingUpdates = false
+    @State private var scrollToBottom = false
     
     // Generic error handling
     @State private var currentError: Error?
@@ -48,7 +49,8 @@ struct TableListView: View {
                                 await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
                             }
                         },
-                        modificationTracker: modificationTracker
+                        modificationTracker: modificationTracker,
+                        scrollToBottom: scrollToBottom
                     )
                 }
             }
@@ -88,6 +90,9 @@ struct TableListView: View {
                         Task {
                             await saveModifications()
                         }
+                    },
+                    onNewRecord: {
+                        handleNewRecord()
                     },
                     currentQueryResult: currentQueryResult
                 )
@@ -163,6 +168,7 @@ struct TableListView: View {
         }
         
         let modifications = modificationTracker.allModifications
+        
         guard !modifications.isEmpty else {
             print("ℹ️ No modifications to save")
             return
@@ -172,45 +178,55 @@ struct TableListView: View {
         
         for rowModification in modifications {
             do {
-                // Get the row data
-                guard let currentQueryResult = currentQueryResult,
-                      rowModification.rowIndex < currentQueryResult.rawRows.count else {
-                    print("❌ Invalid row index: \(rowModification.rowIndex)")
-                    continue
-                }
-                
-                let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
-                
-                // Create update data with only modified columns
-                var updateData: [String: Any] = [:]
-                for (columnName, cellMod) in rowModification.cellModifications {
-                    if cellMod.hasChanged {
-                        updateData[columnName] = cellMod.newValue
+                switch rowModification.type {
+                case .insert:
+                    var newDocument = [String: Any]()
+                    for (columnName, cellMod) in rowModification.cellModifications {
+                        newDocument[columnName] = cellMod.newValue
                     }
+                    try await driver.createDocument(in: selectedTab.name, document: newDocument)
+                    print("✅ Inserted new row at index \(rowModification.rowIndex)")
+                    
+                case .update:
+                    // Get the row data
+                    guard let currentQueryResult = currentQueryResult,
+                          rowModification.rowIndex < currentQueryResult.rawRows.count else {
+                        print("❌ Invalid row index: \(rowModification.rowIndex)")
+                        continue
+                    }
+                    
+                    let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
+                    
+                    // Create update data with only modified columns
+                    var updateData: [String: Any] = [:]
+                    for (columnName, cellMod) in rowModification.cellModifications {
+                        if cellMod.hasChanged {
+                            updateData[columnName] = cellMod.newValue
+                        }
+                    }
+                    
+                    // Find the primary key or unique identifier for this row
+                    var rowId: Any?
+                    if let idValue = originalRow["id"] {
+                        rowId = idValue
+                    } else if let firstColumn = currentQueryResult.columns.first {
+                        rowId = originalRow[firstColumn.name]
+                    }
+                    
+                    guard let id = rowId else {
+                        print("❌ Could not find row identifier for row \(rowModification.rowIndex)")
+                        continue
+                    }
+                    
+                    // Use the database driver to update the row
+                    try await driver.updateDocument(
+                        in: selectedTab.name,
+                        id: id,
+                        data: updateData
+                    )
+                    
+                    print("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
                 }
-                
-                // Find the primary key or unique identifier for this row
-                // This is a simplified approach - you might need to adapt based on your schema
-                var rowId: Any?
-                if let idValue = originalRow["id"] {
-                    rowId = idValue
-                } else if let firstColumn = currentQueryResult.columns.first {
-                    rowId = originalRow[firstColumn.name]
-                }
-                
-                guard let id = rowId else {
-                    print("❌ Could not find row identifier for row \(rowModification.rowIndex)")
-                    continue
-                }
-                
-                // Use the database driver to update the row
-                try await driver.updateDocument(
-                    in: selectedTab.name,
-                    id: id,
-                    data: updateData
-                )
-                
-                print("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
             } catch {
                 showError(error)
                 return
@@ -224,6 +240,46 @@ struct TableListView: View {
         await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
         
         print("✅ All modifications saved successfully")
+    }
+    
+    private func handleNewRecord() {
+        guard let schema = cachedSchema, let currentResult = cachedDocuments else { return }
+        
+        var newRawRow = [String: Any]()
+        var newProcessedRow = [String: QueryRowInfo]()
+        
+        for column in schema.columns {
+            newRawRow[column.columnName] = nil
+            newProcessedRow[column.columnName] = QueryRowInfo(
+                value: nil,
+                dataType: column.dataType,
+                format: column.formatType
+            )
+        }
+        
+        let newIndex = currentResult.rawRows.count
+        modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: newRawRow)
+        
+        var updatedRawRows = currentResult.rawRows
+        updatedRawRows.append(newRawRow)
+        
+        var updatedProcessedRows = currentResult.rows
+        updatedProcessedRows.append(newProcessedRow)
+        
+        let updatedResult = QueryResult(
+            columns: currentResult.columns,
+            rows: updatedProcessedRows,
+            totalCount: currentResult.totalCount + 1,
+            rawRows: updatedRawRows
+        )
+        
+        cachedDocuments = updatedResult
+        
+        if let updatedDocuments = cachedDocuments, let currentSchema = cachedSchema {
+            viewState = .loaded(updatedDocuments, currentSchema)
+        }
+        
+        scrollToBottom = true
     }
     
     /// Overlay content for loading/error states
@@ -375,7 +431,6 @@ struct TableListView: View {
             // Note: For raw queries, the documentsResult.columns may differ from schemaToUse.columns
             // The TableListViewController will prioritize QueryResult columns over schema columns
             viewState = .loaded(documentsResult, schemaToUse)
-            
         } catch {
             viewState = .error(error.localizedDescription)
         }

@@ -159,18 +159,11 @@ class DatabaseService {
     
     // MARK: - Document Modification
     func createDocument(in collectionName: String, document: [String: Any]) async throws {
-        guard let driver = activeDriver,
-              let database = connectedDatabase else {
+        guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-//        try await driver.performOperation(with: database) { concreteDriver, typedDatabase in
-//            try await concreteDriver.createDocument(
-//                in: collectionName,
-//                database: typedDatabase,
-//                document: document
-//            )
-//        }
+        try await driver.createDocument(in: collectionName, document: document)
         
         clearDocumentCache(for: collectionName)
     }

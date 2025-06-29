@@ -14,13 +14,15 @@ struct TableListViewController: NSViewRepresentable {
     let tableName: String
     let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
     let modificationTracker: TableModificationTracker?
+    let scrollToBottom: Bool
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
         self.onSort = onSort
         self.modificationTracker = modificationTracker
+        self.scrollToBottom = scrollToBottom
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate {
@@ -39,6 +41,7 @@ struct TableListViewController: NSViewRepresentable {
         private var autoCalculatedColumns: Set<String> = [] // Track which columns have been auto-calculated
         private var lastDataHash: Int = 0
         private var knownColumns: Set<String> = [] // Track known column identifiers
+        public var needsToSelectLastRow = false
         
         // Sorting state
         private var sortColumn: String? = nil
@@ -200,10 +203,13 @@ struct TableListViewController: NSViewRepresentable {
                 // Check if table structure changed (columns added/removed/changed)
                 if newColumnCount != oldColumnCount {
                     self.rebuildTableStructure()
-                } else if self.totalCount != oldRowCount {
-                    self.tableView.noteNumberOfRowsChanged()
                 } else {
                     self.tableView.reloadData()
+                }
+                
+                if self.needsToSelectLastRow {
+                    self.scrollToBottomAndSelectFirstCell()
+                    self.needsToSelectLastRow = false
                 }
                 
                 // Recalculate column widths if data changed significantly
@@ -279,6 +285,29 @@ struct TableListViewController: NSViewRepresentable {
             updateTableHeaders()
         }
         
+        func scrollToBottomAndSelectFirstCell() {
+            DispatchQueue.main.async {
+                let numberOfRows = self.tableView.numberOfRows
+                if numberOfRows > 0 {
+                    let lastRowIndex = numberOfRows - 1
+                    self.tableView.scrollRowToVisible(lastRowIndex)
+                    
+                    // Select the first cell of the last row
+                    let firstColumnIndex = 0 // Assuming there's always at least one column
+                    if self.tableView.numberOfColumns > firstColumnIndex {
+                        self.tableView.selectRowIndexes(IndexSet(integer: lastRowIndex), byExtendingSelection: false)
+                        self.tableView.selectColumnIndexes(IndexSet(integer: firstColumnIndex), byExtendingSelection: false)
+//
+//                        // Make the table view the first responder to show the selection and allow editing
+                        self.tableView.window?.makeFirstResponder(self.tableView)
+//                        
+//                        // Start editing the cell
+                        self.tableView.editColumn(firstColumnIndex, row: lastRowIndex, with: nil, select: true)
+                    }
+                }
+            }
+        }
+        
         private func createColumn(identifier: String, title: String, icon: NSImage?) {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
             column.title = title
@@ -322,12 +351,6 @@ struct TableListViewController: NSViewRepresentable {
         private func setupUI() {
             containerView.wantsLayer = true
             
-            // Create custom clip view
-            let customClipView = ExtendedClipView()
-            customClipView.bottomExtension = 88 // Your floating bar height
-            
-            scrollView.contentView = customClipView
-            
             // Scroll view setup
             scrollView.hasVerticalScroller = true
             scrollView.hasHorizontalScroller = true
@@ -337,12 +360,15 @@ struct TableListViewController: NSViewRepresentable {
             scrollView.backgroundColor = NSColor.clear
             
             scrollView.documentView = tableView
-            containerView.addSubview(scrollView)
-            
             scrollView.translatesAutoresizingMaskIntoConstraints = false
             
+            // Use NSScrollView's contentInsets instead of clip view's
+            scrollView.automaticallyAdjustsContentInsets = false
+            scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 100, right: 0)
+            
+            containerView.addSubview(scrollView)
+            
             NSLayoutConstraint.activate([
-                // Scroll view fills the entire container
                 scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
                 scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
                 scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
@@ -944,6 +970,9 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
+        if scrollToBottom {
+            context.coordinator.needsToSelectLastRow = true
+        }
         context.coordinator.updateRows(queryResult, newSchema: schema)
     }
     
@@ -959,21 +988,21 @@ extension Array {
     }
 }
 
-class ExtendedClipView: NSClipView {
-    var bottomExtension: CGFloat = 50
-    
-    override var documentRect: NSRect {
-        var rect = super.documentRect
-        
-        if let documentView = self.documentView {
-            let visibleHeight = self.bounds.height
-            let contentHeight = documentView.bounds.height
-            
-            if contentHeight > visibleHeight {
-                rect.size.height += bottomExtension
-            }
-        }
-        
-        return rect
-    }
-}
+//class ExtendedClipView: NSClipView {
+//    var bottomExtension: CGFloat = 50
+//    
+//    override var documentRect: NSRect {
+//        var rect = super.documentRect
+//        
+//        if let documentView = self.documentView {
+//            let visibleHeight = self.bounds.height
+//            let contentHeight = documentView.bounds.height
+//            
+//            if contentHeight > visibleHeight {
+//                rect.size.height += bottomExtension
+//            }
+//        }
+//        
+//        return rect
+//    }
+//}
