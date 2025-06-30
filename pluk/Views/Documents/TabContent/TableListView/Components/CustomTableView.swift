@@ -37,20 +37,20 @@ class CustomTableView: NSTableView {
     
     // MARK: - Non-Edit Mode Navigation
     private func handleNonEditModeNavigation(with event: NSEvent) -> Bool {
-        print("🧭 Handling navigation in non-edit mode")
+        debugLog("🧭 Handling navigation in non-edit mode")
         
         let currentColumn = currentSelectedColumn
         let currentRow = currentSelectedRow
         let keyCode = event.keyCode
         
-        print("📍 Current position: Row \(currentRow), Column \(currentColumn)")
+        debugLog("📍 Current position: Row \(currentRow), Column \(currentColumn)")
         
         // Only initialize selection if user explicitly requests navigation and there's no current selection
         if currentSelectedRow == -1 || currentSelectedColumn == -1 {
             // For keyboard navigation, only start selection if user presses arrow keys or enter
             // Don't auto-select on table mount
             if keyCode == 126 || keyCode == 125 || keyCode == 123 || keyCode == 124 || keyCode == 48 || keyCode == 36 {
-                print("🎯 User initiated navigation, initializing selection")
+                debugLog("🎯 User initiated navigation, initializing selection")
                 // If no cell is selected, start at current selected row or (0,0)
                 if selectedRow >= 0 {
                     currentSelectedRow = selectedRow
@@ -75,34 +75,34 @@ class CustomTableView: NSTableView {
         case 126: // Up arrow
             newRow = max(0, currentSelectedRow - 1)
             handled = true
-            print("⬆️ Up arrow - moving from row \(currentRow) to row \(newRow)")
+            debugLog("⬆️ Up arrow - moving from row \(currentRow) to row \(newRow)")
             
         case 125: // Down arrow
             newRow = min(numberOfRows - 1, currentSelectedRow + 1)
             handled = true
-            print("⬇️ Down arrow - moving from row \(currentRow) to row \(newRow)")
+            debugLog("⬇️ Down arrow - moving from row \(currentRow) to row \(newRow)")
             
         case 123: // Left arrow
             newColumn = max(0, currentSelectedColumn - 1)
             handled = true
-            print("⬅️ Left arrow - moving from column \(currentColumn) to column \(newColumn)")
+            debugLog("⬅️ Left arrow - moving from column \(currentColumn) to column \(newColumn)")
             
         case 124: // Right arrow
             newColumn = min(numberOfColumns - 1, currentSelectedColumn + 1)
             handled = true
-            print("➡️ Right arrow - moving from column \(currentColumn) to column \(newColumn)")
+            debugLog("➡️ Right arrow - moving from column \(currentColumn) to column \(newColumn)")
             
         case 48, 36: // Tab key
             // Enter edit mode for current cell
             if currentSelectedRow >= 0 && currentSelectedColumn >= 0 {
-                print("⏎ Enter pressed - entering edit mode for cell (\(currentRow), \(currentColumn))")
+                debugLog("⏎ Enter pressed - entering edit mode for cell (\(currentRow), \(currentColumn))")
                 enterEditModeForCell(row: currentSelectedRow, column: currentSelectedColumn)
                 handled = true
             }
             
         case 53: // Escape key
             // Clear selection
-            print("❌ Escape pressed - clearing selection")
+            debugLog("❌ Escape pressed - clearing selection")
             clearCurrentCellSelection()
             currentSelectedRow = -1
             currentSelectedColumn = -1
@@ -128,7 +128,7 @@ class CustomTableView: NSTableView {
             
             // Update selection if position changed and we're not clearing selection
             if (newRow != currentSelectedRow || newColumn != currentSelectedColumn) && keyCode != 53 {
-                print("🎯 Moving active cell from (\(currentSelectedRow), \(currentSelectedColumn)) to (\(newRow), \(newColumn))")
+                debugLog("🎯 Moving active cell from (\(currentSelectedRow), \(currentSelectedColumn)) to (\(newRow), \(newColumn))")
                 selectCell(row: newRow, column: newColumn)
             }
         }
@@ -139,15 +139,15 @@ class CustomTableView: NSTableView {
     // Enter edit mode for a specific cell
     private func enterEditModeForCell(row: Int, column: Int) {
         guard row >= 0 && row < numberOfRows && column >= 0 && column < numberOfColumns else {
-            print("❌ Invalid cell position: (\(row), \(column))")
+            debugLog("❌ Invalid cell position: (\(row), \(column))")
             return
         }
         
         if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
-            print("✅ Entering edit mode for cell at (\(row), \(column))")
+            debugLog("✅ Entering edit mode for cell at (\(row), \(column))")
             cellView.enterEditMode()
         } else {
-            print("❌ Could not find TextCellView at (\(row), \(column))")
+            debugLog("❌ Could not find TextCellView at (\(row), \(column))")
         }
     }
     
@@ -202,7 +202,7 @@ class CustomTableView: NSTableView {
     
     /// Clears all selection state completely (for pagination)
     func clearAllSelection() {
-        print("🧹 Clearing all table selection state")
+        debugLog("🧹 Clearing all table selection state")
         
         // Clear current cell selection visual state
         clearCurrentCellSelection()
@@ -217,7 +217,7 @@ class CustomTableView: NSTableView {
         // Clear any column selection
         deselectAll(nil)
         
-        print("✅ All selection state cleared")
+        debugLog("✅ All selection state cleared")
     }
     
     /// Updates selection when table selection changes externally
@@ -239,7 +239,7 @@ class CustomTableView: NSTableView {
             
             // If we have a valid row selection, update the cell selection
             if currentSelectedRow >= 0 {
-                print("📋 Column selection changed - updating cell selection to (\(currentSelectedRow), \(currentSelectedColumn))")
+                debugLog("📋 Column selection changed - updating cell selection to (\(currentSelectedRow), \(currentSelectedColumn))")
                 selectCell(row: currentSelectedRow, column: currentSelectedColumn)
             }
         } else {
@@ -252,24 +252,24 @@ class CustomTableView: NSTableView {
     }
     
     override func editColumn(_ column: Int, row: Int, with event: NSEvent?, select: Bool) {
-        print("✏️ editColumn called for (\(row), \(column)) with select: \(select)")
+        debugLog("✏️ editColumn called for (\(row), \(column)) with select: \(select)")
         
         // Validate row and column bounds
         guard row >= 0 && row < numberOfRows && column >= 0 && column < numberOfColumns else {
-            print("❌ Invalid cell position for editing: (\(row), \(column))")
+            debugLog("❌ Invalid cell position for editing: (\(row), \(column))")
             super.editColumn(column, row: row, with: event, select: select)
             return
         }
         
         // If select is true, update our selection to this cell
         if select {
-            print("🎯 Selecting cell (\(row), \(column)) before editing")
+            debugLog("🎯 Selecting cell (\(row), \(column)) before editing")
             selectCell(row: row, column: column)
         }
         
         // Try to get our custom TextCellView
         if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
-            print("✅ Found TextCellView - entering custom edit mode")
+            debugLog("✅ Found TextCellView - entering custom edit mode")
             
             // Update our internal tracking
             currentSelectedRow = row
@@ -283,7 +283,7 @@ class CustomTableView: NSTableView {
             scrollColumnToVisible(column)
             
         } else {
-            print("⚠️ No TextCellView found - falling back to default editing")
+            debugLog("⚠️ No TextCellView found - falling back to default editing")
             // Fall back to default behavior if we don't have a custom cell view
             super.editColumn(column, row: row, with: event, select: select)
         }
@@ -317,7 +317,7 @@ class CustomTableView: NSTableView {
     private func validateSelectionState() {
             // Ensure only the correct cell shows as selected
             if currentSelectedRow >= 0 && currentSelectedColumn >= 0 {
-                print("🔍 Validating selection state - should be selected: (\(currentSelectedRow), \(currentSelectedColumn))")
+                debugLog("🔍 Validating selection state - should be selected: (\(currentSelectedRow), \(currentSelectedColumn))")
                 
                 // Clear any incorrectly selected cells
                 for row in 0..<numberOfRows {
@@ -326,7 +326,7 @@ class CustomTableView: NSTableView {
                             let shouldBeSelected = (row == currentSelectedRow && col == currentSelectedColumn)
                             
                             if cellView.isSelected != shouldBeSelected {
-                                print("🔧 Correcting selection state for cell (\(row), \(col)): \(cellView.isSelected) → \(shouldBeSelected)")
+                                debugLog("🔧 Correcting selection state for cell (\(row), \(col)): \(cellView.isSelected) → \(shouldBeSelected)")
                                 
                                 if shouldBeSelected {
                                     cellView.setAsSelectedCell()
@@ -338,7 +338,7 @@ class CustomTableView: NSTableView {
                     }
                 }
             } else {
-                print("🔍 No selected cell to validate")
+                debugLog("🔍 No selected cell to validate")
             }
         }
         

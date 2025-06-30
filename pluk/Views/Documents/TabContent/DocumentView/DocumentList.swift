@@ -81,7 +81,7 @@ struct DocumentList: View {
             
             viewState = .loaded(queryResult, schemaToUse)
         } catch {
-            print(error.localizedDescription)
+            debugLog(error.localizedDescription)
             viewState = .error(error.localizedDescription)
         }
     }

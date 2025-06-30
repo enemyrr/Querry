@@ -63,9 +63,9 @@ final class BSONCorpusTests: XCTestCase {
             let exampleBSON = try BSONEncoder().encode(Test(_id: ObjectId(), name: "tata"))
             
             let exampleDecode = try BSONDecoder().decode(Test.self, from: exampleBSON)
-            print(exampleDecode)
+            debugLog(exampleDecode)
         } catch let error {
-            print(error)
+            debugLog(error)
         }
     }
     
@@ -106,7 +106,7 @@ final class BSONCorpusTests: XCTestCase {
     func testTest() {
         var doc = Document()
         doc["a"] = "b"
-        print(doc.makeData().map {
+        debugLog(doc.makeData().map {
             return "0x" + String($0, radix: 16, uppercase: true)
         }.joined(separator: ", "))
     }

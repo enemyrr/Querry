@@ -116,7 +116,7 @@ import AIProxy
             self.databases = databaseList
         } catch {
             lastError = error
-            print("Failed to load databases \(error)")
+            debugLog("Failed to load databases \(error)")
         }
     }
     
@@ -137,7 +137,7 @@ import AIProxy
             }
         } catch {
             lastError = error
-            print("Failed to load databases and collections: \(error)")
+            debugLog("Failed to load databases and collections: \(error)")
         }
     }
     

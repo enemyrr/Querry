@@ -72,7 +72,7 @@ import SwiftUI
 //                }
 //            }
 //        } catch {
-//            print(error)
+//            debugLog(error)
 //            await MainActor.run {
 //                self.error = error
 //                self.isLoading = false

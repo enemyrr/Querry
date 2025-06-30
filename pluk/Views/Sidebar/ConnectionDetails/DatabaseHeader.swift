@@ -69,7 +69,7 @@ struct DatabaseHeader: View {
             do {
                 await instance.loadDatabases()
             } catch {
-                print(error)
+                debugLog(error)
             }
         }
     }

@@ -1,5 +1,6 @@
 import Foundation
 import PostgresNIO
+import NIOCore
 
 // MARK: - PostgreSQL Wrappers
 struct PostgreSQLDatabaseWrapper: DatabaseWrapper {
@@ -452,7 +453,7 @@ class PostgreSQLDriver: DatabaseDriver {
                         do {
                             processedRowData[columnName] = try extractValue(from: cell)
                         } catch {
-                            print("extractValue: \(String(reflecting: error))")
+                            debugLog("extractValue: \(String(reflecting: error))")
                             processedRowData[columnName] = nil
                         }
                     } else {
@@ -473,7 +474,7 @@ class PostgreSQLDriver: DatabaseDriver {
             )
             
         } catch let error as PSQLError {
-            print(String(reflecting: error))
+            debugLog(String(reflecting: error))
             throw mapPSQLError(error)
         } catch {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
@@ -496,7 +497,25 @@ class PostgreSQLDriver: DatabaseDriver {
         let sortedKeys = document.keys.sorted()
         
         let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
-        let valuePlaceholders = (1...sortedKeys.count).map { "$\($0)" }.joined(separator: ", ")
+        
+        // Build value placeholders with proper casting for special column types
+        let valuePlaceholders = sortedKeys.enumerated().map { (index, key) in
+            let parameterIndex = index + 1
+            if let columnType = columnTypes[key] {
+                switch columnType.lowercased() {
+                case "jsonb":
+                    return "to_jsonb($\(parameterIndex)::text)"
+                case "json":
+                    return "$\(parameterIndex)::json"
+                case "money":
+                    return "$\(parameterIndex)::money"
+                default:
+                    return "$\(parameterIndex)"
+                }
+            } else {
+                return "$\(parameterIndex)"
+            }
+        }.joined(separator: ", ")
         
         let queryString = "INSERT INTO \(sanitizedCollectionName) (\(columns)) VALUES (\(valuePlaceholders))"
         
@@ -536,7 +555,7 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         }
         
-        print("datType: \(cell.dataType): \(String(describing: cell.columnName))")
+        debugLog("datType: \(cell.dataType): \(String(describing: cell.columnName))")
         
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
@@ -1127,7 +1146,7 @@ class PostgreSQLDriver: DatabaseDriver {
             try? await eventLoopGroup.shutdownGracefully()
             
             // Log the error but don't fail the entire operation
-            print("Warning: Could not get table count for database '\(name)': \(error.localizedDescription)")
+            debugLog("Warning: Could not get table count for database '\(name)': \(error.localizedDescription)")
             return 0
         }
     }
@@ -1348,7 +1367,22 @@ class PostgreSQLDriver: DatabaseDriver {
         
         for (key, value) in data {
             let sanitizedColumnName = try validateAndSanitizeColumnName(key)
-            setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
+            
+            // Check column type and add appropriate casting
+            if let columnType = columnTypes[key] {
+                switch columnType.lowercased() {
+                case "jsonb":
+                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)::jsonb")
+                case "json":
+                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)::json")
+                case "money":
+                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)::money")
+                default:
+                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
+                }
+            } else {
+                setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
+            }
             
             // Convert string value to appropriate type based on schema
             if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
@@ -1429,9 +1463,29 @@ class PostgreSQLDriver: DatabaseDriver {
             return uuidValue
             
         case "date", "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone":
+            // First try to fix timezone format if needed (e.g., +08 -> +08:00)
+            var normalizedDateString = stringValue
+            
+            // Handle timezone without colon: +08, -05, etc. -> +08:00, -05:00
+            let timezonePattern = #"([+-])(\d{2})$"#
+            if let regex = try? NSRegularExpression(pattern: timezonePattern, options: []) {
+                let range = NSRange(location: 0, length: normalizedDateString.count)
+                normalizedDateString = regex.stringByReplacingMatches(
+                    in: normalizedDateString,
+                    options: [],
+                    range: range,
+                    withTemplate: "$1$2:00"
+                )
+            }
+            
             // Try multiple date formats
-            let dateFormatters = [
+            let dateFormatters: [Any] = [
                 ISO8601DateFormatter(),
+                {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ssXXX"  // Handles +08:00 format
+                    return formatter
+                }(),
                 {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
@@ -1446,24 +1500,79 @@ class PostgreSQLDriver: DatabaseDriver {
             
             for formatter in dateFormatters {
                 if let formatter = formatter as? ISO8601DateFormatter {
-                    if let date = formatter.date(from: stringValue) {
+                    if let date = formatter.date(from: normalizedDateString) {
                         return date
                     }
                 } else if let formatter = formatter as? DateFormatter {
-                    if let date = formatter.date(from: stringValue) {
+                    if let date = formatter.date(from: normalizedDateString) {
                         return date
                     }
                 }
             }
             
-            throw DatabaseError.operationFailed("Invalid date value: \(stringValue)")
+            throw DatabaseError.operationFailed("Invalid date value: \(stringValue) (normalized: \(normalizedDateString))")
             
-        case "json", "jsonb":
-            // Validate JSON format
-            guard stringValue.data(using: .utf8) != nil else {
-                throw DatabaseError.operationFailed("Invalid JSON value: \(stringValue)")
+        case "jsonb":
+            // Debug: Print the actual string value and its characteristics
+            debugLog("JSONB Input Debug:")
+            debugLog("  Raw string: \(stringValue)")
+            debugLog("  String length: \(stringValue.count)")
+            debugLog("  UTF8 bytes: \(Array(stringValue.utf8))")
+            debugLog("  Has quotes: \(stringValue.hasPrefix("\"") && stringValue.hasSuffix("\""))")
+            
+            // Clean the string - remove control characters and whitespace from start/end
+            var cleanedString = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Remove any control characters (bytes < 32) from the beginning
+            while let firstChar = cleanedString.first, firstChar.asciiValue != nil && firstChar.asciiValue! < 32 {
+                cleanedString = String(cleanedString.dropFirst())
+                debugLog("  Removed control character: \(firstChar.asciiValue!)")
             }
+            
+            // Remove any control characters from the end
+            while let lastChar = cleanedString.last, lastChar.asciiValue != nil && lastChar.asciiValue! < 32 {
+                cleanedString = String(cleanedString.dropLast())
+                debugLog("  Removed trailing control character: \(lastChar.asciiValue!)")
+            }
+            
+            debugLog("  Cleaned string: \(cleanedString)")
+            debugLog("  Cleaned UTF8 bytes: \(Array(cleanedString.utf8))")
+            
+            // Clean the string if it's double-quoted
+            if cleanedString.hasPrefix("\"") && cleanedString.hasSuffix("\"") {
+                cleanedString = String(cleanedString.dropFirst().dropLast())
+                debugLog("  Removed outer quotes: \(cleanedString)")
+            }
+            
+            // Unescape if needed
+            if cleanedString.contains("\\\"") {
+                cleanedString = cleanedString.replacingOccurrences(of: "\\\"", with: "\"")
+                debugLog("  Unescaped string: \(cleanedString)")
+            }
+            
+            return cleanedString
+            
+        case "json":
+            // JSON case works fine, just return the string
             return stringValue
+            
+        case "money":
+            // Parse money value - can be in formats like "$123.45", "123.45", "$123", etc.
+            var cleanValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Remove currency symbols and commas
+            cleanValue = cleanValue.replacingOccurrences(of: "$", with: "")
+            cleanValue = cleanValue.replacingOccurrences(of: ",", with: "")
+            cleanValue = cleanValue.replacingOccurrences(of: "€", with: "")
+            cleanValue = cleanValue.replacingOccurrences(of: "£", with: "")
+            
+            // Convert to Double and validate
+            guard let doubleValue = Double(cleanValue) else {
+                throw DatabaseError.operationFailed("Invalid money value: \(stringValue)")
+            }
+            
+            // Return the decimal value as string - PostgreSQL will handle the conversion with ::money casting
+            return String(format: "%.2f", doubleValue)
             
         default:
             // Default to string for text, varchar, char, and unknown types
@@ -1560,7 +1669,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 return nsString.substring(with: versionRange)
             }
         } catch {
-            print("Regex failed for version extraction: \(error)")
+            debugLog("Regex failed for version extraction: \(error)")
         }
         
         return nil

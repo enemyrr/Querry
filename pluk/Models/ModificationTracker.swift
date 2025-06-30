@@ -132,7 +132,7 @@ struct RowModification {
             )
         }
         rowModifications[rowIndex] = newRow
-        print("rowModification: \(rowModifications)")
+        debugLog("rowModification: \(rowModifications)")
     }
     
     func markAsDeleted(rowIndex: Int) {
@@ -153,7 +153,7 @@ struct RowModification {
     }
     
     func updateCell(rowIndex: Int, columnName: String, newValue: String, originalValue: String, dataType: String) {
-        print("updateCell: \(rowModifications)")
+        debugLog("updateCell: \(rowModifications)")
         // Check if there's already a modification for this cell
         let existingModification = getCellModification(rowIndex: rowIndex, columnName: columnName)
         
@@ -169,7 +169,7 @@ struct RowModification {
                     dataType: dataType
                 )
                 modificationHistory.append(historyEntry)
-                print("📝 Updated existing modification: Row \(rowIndex), Column \(columnName), \(existing.newValue) → \(newValue)")
+                debugLog("📝 Updated existing modification: Row \(rowIndex), Column \(columnName), \(existing.newValue) → \(newValue)")
             }
         } else {
             // New modification - add to history
@@ -181,7 +181,7 @@ struct RowModification {
                 dataType: dataType
             )
             modificationHistory.append(historyEntry)
-            print("📝 New cell modification: Row \(rowIndex), Column \(columnName), \(originalValue) → \(newValue)")
+            debugLog("📝 New cell modification: Row \(rowIndex), Column \(columnName), \(originalValue) → \(newValue)")
         }
         
         if rowModifications[rowIndex] == nil {
@@ -212,7 +212,7 @@ struct RowModification {
                 dataType: cellMod.dataType
             )
             modificationHistory.append(historyEntry)
-            print("🔄 Cell reset to original: Row \(rowIndex), Column \(columnName), \(cellMod.newValue) → \(cellMod.originalValue)")
+            debugLog("🔄 Cell reset to original: Row \(rowIndex), Column \(columnName), \(cellMod.newValue) → \(cellMod.originalValue)")
         }
         
         rowModifications[rowIndex]?.removeCell(columnName: columnName)
@@ -262,11 +262,11 @@ struct RowModification {
     // MARK: - Undo Functionality
     func undo() -> Bool {
         guard let lastEntry = modificationHistory.popLast() else {
-            print("❌ No modifications to undo")
+            debugLog("❌ No modifications to undo")
             return false
         }
         
-        print("⏪ Undoing: Row \(lastEntry.rowIndex), Column \(lastEntry.columnName), \(lastEntry.newValue) → \(lastEntry.previousValue)")
+        debugLog("⏪ Undoing: Row \(lastEntry.rowIndex), Column \(lastEntry.columnName), \(lastEntry.newValue) → \(lastEntry.previousValue)")
         
         // Notify delegate about the undo operation
         undoDelegate?.willUndoModification(
@@ -341,13 +341,13 @@ struct RowModification {
     
     func clearHistory() {
         modificationHistory.removeAll()
-        print("🗑️ Cleared modification history")
+        debugLog("🗑️ Cleared modification history")
     }
     
     func printHistory() {
-        print("📋 Modification History (\(modificationHistory.count) entries):")
+        debugLog("📋 Modification History (\(modificationHistory.count) entries):")
         for (index, entry) in modificationHistory.enumerated() {
-            print("  \(index + 1). Row \(entry.rowIndex), \(entry.columnName): '\(entry.previousValue)' → '\(entry.newValue)'")
+            debugLog("  \(index + 1). Row \(entry.rowIndex), \(entry.columnName): '\(entry.previousValue)' → '\(entry.newValue)'")
         }
     }
     

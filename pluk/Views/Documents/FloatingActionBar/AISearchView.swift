@@ -248,9 +248,9 @@ struct AISearchView: View {
     private func handleQueryError(_ error: Error) async {
         if let aiError = error as? AIProxyError,
            case .unsuccessfulRequest(let statusCode, let responseBody) = aiError {
-            print("Error: Received \(statusCode) status code with response body: \(responseBody)")
+            debugLog("Error: Received \(statusCode) status code with response body: \(responseBody)")
         } else {
-            print("Error: Could not create Message: \(error.localizedDescription)")
+            debugLog("Error: Could not create Message: \(error.localizedDescription)")
         }
         processingStage = .idle
     }

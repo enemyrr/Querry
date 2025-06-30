@@ -13,7 +13,7 @@ class BSONEncoderTests: XCTestCase {
         
         let user = User(_id: ObjectId(), username: "Joannis", data: "test".data(using: .utf8)!)
         let doc = try BSONEncoder().encode(user)
-        print(doc.keys)
+        debugLog(doc.keys)
         let copy = try BSONDecoder().decode(User.self, from: doc)
         XCTAssertEqual(user._id, copy._id)
         XCTAssertEqual(user.username, copy.username)

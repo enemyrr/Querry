@@ -148,22 +148,22 @@ struct TableListView: View {
     // MARK: - Undo Functionality
     private func performUndo() async {
         guard modificationTracker.canUndo else {
-            print("ℹ️ No modifications to undo")
+            debugLog("ℹ️ No modifications to undo")
             return
         }
         
         let success = modificationTracker.undo()
         if success {
-            print("✅ Undo successful")
+            debugLog("✅ Undo successful")
         } else {
-            print("❌ Undo failed")
+            debugLog("❌ Undo failed")
         }
     }
     
     // MARK: - Save Modifications
     private func commitModifications() async {
         guard let driver = instance.databaseService else {
-            print("❌ No database driver available")
+            debugLog("❌ No database driver available")
             return
         }
         
@@ -172,11 +172,11 @@ struct TableListView: View {
         let modifications = modificationTracker.allModifications
         
         guard !modifications.isEmpty else {
-            print("ℹ️ No modifications to save")
+            debugLog("ℹ️ No modifications to save")
             return
         }
         
-        print("💾 Saving \(modifications.count) modified rows...")
+        debugLog("💾 Saving \(modifications.count) modified rows...")
         
         for rowModification in modifications {
             do {
@@ -187,13 +187,13 @@ struct TableListView: View {
                         newDocument[columnName] = cellMod.newValue
                     }
                     try await driver.createDocument(in: selectedTab.name, document: newDocument)
-                    print("✅ Inserted new row at index \(rowModification.rowIndex)")
+                    debugLog("✅ Inserted new row at index \(rowModification.rowIndex)")
                     
                 case .update:
                     // Get the row data
                     guard let currentQueryResult = currentQueryResult,
                           rowModification.rowIndex < currentQueryResult.rawRows.count else {
-                        print("❌ Invalid row index: \(rowModification.rowIndex)")
+                        debugLog("❌ Invalid row index: \(rowModification.rowIndex)")
                         continue
                     }
                     
@@ -216,7 +216,7 @@ struct TableListView: View {
                     }
                     
                     guard let id = rowId else {
-                        print("❌ Could not find row identifier for row \(rowModification.rowIndex)")
+                        debugLog("❌ Could not find row identifier for row \(rowModification.rowIndex)")
                         continue
                     }
                     
@@ -227,12 +227,12 @@ struct TableListView: View {
                         data: updateData
                     )
                     
-                    print("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
+                    debugLog("✅ Updated row \(rowModification.rowIndex) with \(updateData.count) changes")
                 case .delete:
                     // Get the row data
                     guard let currentQueryResult = currentQueryResult,
                           rowModification.rowIndex < currentQueryResult.rawRows.count else {
-                        print("❌ Invalid row index: \(rowModification.rowIndex)")
+                        debugLog("❌ Invalid row index: \(rowModification.rowIndex)")
                         continue
                     }
                     
@@ -247,12 +247,12 @@ struct TableListView: View {
                     }
                     
                     guard let id = rowId else {
-                        print("❌ Could not find row identifier for row \(rowModification.rowIndex)")
+                        debugLog("❌ Could not find row identifier for row \(rowModification.rowIndex)")
                         continue
                     }
                     
                     try await driver.deleteDocument(in: selectedTab.name, id: id)
-                    print("✅ Deleted row at index \(rowModification.rowIndex)")
+                    debugLog("✅ Deleted row at index \(rowModification.rowIndex)")
                 }
             } catch {
                 showError(error)
@@ -266,7 +266,7 @@ struct TableListView: View {
         // Optionally refresh the data to show the saved changes
         await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
         
-        print("✅ All modifications saved successfully")
+        debugLog("✅ All modifications saved successfully")
     }
     
     private func handleNewRecord() {

@@ -91,7 +91,7 @@ struct DatabaseList: View {
                     }
                 },
                 onCreateNew: {
-                    print("Create new database")
+                    debugLog("Create new database")
                     showDatabaseSelector = false
                 }
             )
@@ -152,7 +152,7 @@ struct DatabaseList: View {
             showDatabaseSelector = true
         } catch {
             loadError = error
-            print("Failed to load collections: \(error)")
+            debugLog("Failed to load collections: \(error)")
         }
 
         isLoading = false
@@ -167,7 +167,7 @@ struct DatabaseList: View {
             try await databaseService.switchActiveDatabase(to: database)
             try await instance.loadCollectionsForCurrentDatabase()
         } catch {
-            print("Failed to update connection: \(error)")
+            debugLog("Failed to update connection: \(error)")
         }
     }
 }
@@ -440,7 +440,7 @@ struct CollectionsSection: View {
             isRenaming = false
 
             // Optionally show error in UI
-            print("Rename failed: \(error.localizedDescription)")
+            debugLog("Rename failed: \(error.localizedDescription)")
         }
     }
 

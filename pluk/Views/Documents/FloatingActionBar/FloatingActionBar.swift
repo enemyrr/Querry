@@ -383,10 +383,10 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: false))
-            .keyboardShortcut("n", modifiers: .command)
-            .customHelp("Create documents", position: .top, shortcut: KeyboardShortcut(
+            .keyboardShortcut("i", modifiers: .command)
+            .customHelp("Insert Row", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
-                key: "N"
+                key: "I"
             ), spacing: 10)
             
             Group {

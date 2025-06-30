@@ -108,11 +108,11 @@ struct TableListViewController: NSViewRepresentable {
         
         // MARK: - TableModificationUndoDelegate
         func willUndoModification(rowIndex: Int, columnName: String, fromValue: String, toValue: String) {
-            print("🔄 Will undo modification: Row \(rowIndex), Column \(columnName), \(fromValue) → \(toValue)")
+            debugLog("🔄 Will undo modification: Row \(rowIndex), Column \(columnName), \(fromValue) → \(toValue)")
         }
         
         func didUndoModification(rowIndex: Int, columnName: String, newValue: String) {
-            print("✅ Did undo modification: Row \(rowIndex), Column \(columnName) → \(newValue)")
+            debugLog("✅ Did undo modification: Row \(rowIndex), Column \(columnName) → \(newValue)")
             
             // Update the UI to reflect the undo
             DispatchQueue.main.async { [weak self] in
@@ -120,14 +120,14 @@ struct TableListViewController: NSViewRepresentable {
                 
                 // Find the cell view and update its value
                 if let cellView = self.findCellView(rowIndex: rowIndex, columnName: columnName) {
-                    print("🔍 Updating cell view for undo - Row: \(rowIndex), Column: \(columnName), New Value: '\(newValue)'")
+                    debugLog("🔍 Updating cell view for undo - Row: \(rowIndex), Column: \(columnName), New Value: '\(newValue)'")
                     cellView.resetModificationState()
                     
                     // Force a refresh of the cell's appearance
                     cellView.needsDisplay = true
                     cellView.needsLayout = true
                 } else {
-                    print("⚠️ Could not find cell view for Row: \(rowIndex), Column: \(columnName)")
+                    debugLog("⚠️ Could not find cell view for Row: \(rowIndex), Column: \(columnName)")
                 }
                 
                 // Note: We might not need to reload the entire row since we're updating the cell directly
@@ -188,7 +188,7 @@ struct TableListViewController: NSViewRepresentable {
                 oldColumnCount = self.schema?.columns.count ?? 0
             }
             
-            print("oldRowCount: \(oldRowCount), oldColumnCount: \(oldColumnCount)")
+            debugLog("oldRowCount: \(oldRowCount), oldColumnCount: \(oldColumnCount)")
             
             // Check if data has significantly changed for cache invalidation
             let oldDataHash = self.lastDataHash
@@ -227,7 +227,7 @@ struct TableListViewController: NSViewRepresentable {
                 if let previousSelectedRow = previousSelectedRow {
                     if previousSelectedRow >= self.totalCount {
                         // The previously selected row no longer exists. Clear selection.
-                        print("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
+                        debugLog("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
                         self.tableView.clearAllSelection()
                     }
                 }
@@ -260,7 +260,7 @@ struct TableListViewController: NSViewRepresentable {
                 if let prototype = column.sortDescriptorPrototype,
                    prototype.key == sortDescriptor.key {
                     let columnTitle = column.title
-                    print("✅ Received sort notification for column: \(columnTitle)")
+                    debugLog("✅ Received sort notification for column: \(columnTitle)")
                     sortTableData(by: columnTitle)
                     break
                 }
@@ -274,18 +274,18 @@ struct TableListViewController: NSViewRepresentable {
                 if sortAscending {
                     // Current: ascending → Next: descending
                     sortAscending = false
-                    print("🔽 Sorting \(columnTitle) DESCENDING")
+                    debugLog("🔽 Sorting \(columnTitle) DESCENDING")
                 } else {
                     // Current: descending → Next: none (reset sort)
                     sortColumn = nil
                     sortAscending = true // Reset to default for next time
-                    print("🚫 Clearing sort for \(columnTitle)")
+                    debugLog("🚫 Clearing sort for \(columnTitle)")
                 }
             } else {
                 // Different column clicked → Start with ascending
                 sortColumn = columnTitle
                 sortAscending = true
-                print("🔼 Sorting \(columnTitle) ASCENDING")
+                debugLog("🔼 Sorting \(columnTitle) ASCENDING")
             }
             
             // Update table headers to show sort indicators
@@ -350,19 +350,19 @@ struct TableListViewController: NSViewRepresentable {
             // Priority: User modified width > Auto-calculated width > Default
             if let userWidth = userModifiedWidths[identifier] {
                 // Always respect user's manual resize
-                print("📏 Using user-modified width for '\(identifier)': \(userWidth)")
+                debugLog("📏 Using user-modified width for '\(identifier)': \(userWidth)")
                 column.width = userWidth
                 column.minWidth = 10 // Allow user flexibility
                 column.maxWidth = CGFloat.greatestFiniteMagnitude
             } else if let cachedWidth = columnWidthCache[identifier] {
                 // Use auto-calculated width
-                print("📏 Using auto-calculated width for '\(identifier)': \(cachedWidth)")
+                debugLog("📏 Using auto-calculated width for '\(identifier)': \(cachedWidth)")
                 column.width = cachedWidth
                 column.minWidth = 10 // Allow user flexibility
                 column.maxWidth = CGFloat.greatestFiniteMagnitude
             } else {
                 // Fallback to default sizing
-                print("📏 Using default sizing for '\(identifier)'")
+                debugLog("📏 Using default sizing for '\(identifier)'")
                 column.sizeToFit()
             }
             
@@ -394,9 +394,11 @@ struct TableListViewController: NSViewRepresentable {
             scrollView.documentView = tableView
             scrollView.translatesAutoresizingMaskIntoConstraints = false
             
-            // Use NSScrollView's contentInsets instead of clip view's
+            // FIXED: Use scrollerInsets to keep scrollbars at screen edges
+            // while contentInsets provides the content padding
             scrollView.automaticallyAdjustsContentInsets = false
             scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 100, right: 0)
+            scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: -100, right: 0)
             
             containerView.addSubview(scrollView)
             
@@ -610,7 +612,7 @@ struct TableListViewController: NSViewRepresentable {
                     }
                 }
                 
-                print("\(columnsToUse): \(maxContentWidth): headerWidth: \(headerWidth): optimalWidth: \(maxContentWidth)")
+                debugLog("\(columnsToUse): \(maxContentWidth): headerWidth: \(headerWidth): optimalWidth: \(maxContentWidth)")
                 let optimalWidth = max(headerWidth, maxContentWidth)
                 
                 // Cache the result and mark as auto-calculated
@@ -661,7 +663,7 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         @objc private func onItemClicked() {
-            print("row \(tableView.clickedRow), col \(tableView.clickedColumn) clicked")
+            debugLog("row \(tableView.clickedRow), col \(tableView.clickedColumn) clicked")
         }
         
         @objc private func columnDidResize(_ notification: Notification) {
@@ -689,7 +691,7 @@ struct TableListViewController: NSViewRepresentable {
             // Update persistent cache immediately
             updatePersistentColumnWidth(columnIdentifier, width: newWidth)
             
-            print("Column '\(columnIdentifier)' manually resized to width: \(newWidth)")
+            debugLog("Column '\(columnIdentifier)' manually resized to width: \(newWidth)")
         }
         
         // Row view recycling
@@ -806,7 +808,7 @@ struct TableListViewController: NSViewRepresentable {
         // MARK: - NSTableViewDelegate
         //        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
         //            let columnTitle = tableColumn.identifier.rawValue
-        //            print("🎯 Header clicked for column: \(columnTitle)")
+        //            debugLog("🎯 Header clicked for column: \(columnTitle)")
         //            sortTableData(by: columnTitle)
         //        }
         
@@ -846,7 +848,7 @@ struct TableListViewController: NSViewRepresentable {
         @objc private func columnDidMove(_ notification: Notification) {
             // Update persistent cache with new column order
             saveCurrentColumnOrder()
-            print("Column order changed - updating persistent cache")
+            debugLog("Column order changed - updating persistent cache")
         }
         
         // MARK: - Persistent Storage Methods
@@ -875,7 +877,7 @@ struct TableListViewController: NSViewRepresentable {
                 let persistentSchema = try decoder.decode(PersistentColumnSchema.self, from: data)
                 return persistentSchema
             } catch {
-                print("Failed to decode persistent schema for table '\(tableName)': \(error)")
+                debugLog("Failed to decode persistent schema for table '\(tableName)': \(error)")
                 return nil
             }
         }
@@ -909,7 +911,7 @@ struct TableListViewController: NSViewRepresentable {
                 autoCalculatedColumns.insert(columnName)
             }
             
-            print("Restored persistent schema for table '\(tableName)' with \(cachedSchema.columnWidths.count) cached column widths")
+            debugLog("Restored persistent schema for table '\(tableName)' with \(cachedSchema.columnWidths.count) cached column widths")
         }
         
         private func getOrderedColumns(_ columnsToUse: [(name: String, dataType: String?)]) -> [(name: String, dataType: String?)] {

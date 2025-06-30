@@ -181,7 +181,7 @@ struct DatabaseSelectorModal: View {
             databases = try await databaseService.getDatabaseMetadata()
         } catch {
             loadError = error
-            print("Failed to load databases: \(error)")
+            debugLog("Failed to load databases: \(error)")
         }
         
         isLoading = false

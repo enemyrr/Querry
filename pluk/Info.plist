@@ -18,5 +18,7 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+  <key>SUScheduledCheckInterval</key>
+  <integer>3600</integer>
 </dict>
 </plist>

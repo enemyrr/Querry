@@ -90,7 +90,7 @@ class ConnectionService {
         do {
             try await instance.connect()
         } catch {
-            print("Connection failed: \(error)")
+            debugLog("Connection failed: \(error)")
         }
     }
     
