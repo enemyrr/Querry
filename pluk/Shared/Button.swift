@@ -177,20 +177,19 @@ struct IconButton: View {
         Button(action: action) {
             ZStack {
                 Color.clear
-                    .frame(width: 40, height: 30)
+                    .frame(width: 50, height: 40)
                     .contentShape(Rectangle())
                 
-                // Outer selection border
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(.white).opacity(0.2), lineWidth: isSelected ? 1 : 0)
-                    .frame(width: 30, height: 30)  // Fixed outer frame
+                    .stroke(Color(.white).opacity(0.2), lineWidth: isSelected ? 1.5 : 0)
+                    .frame(width: 32, height: 32)
                 
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isSelected ? Color(.white).opacity(0.2) : .clear)
-                    .frame(width: 25, height: 25)  // Fixed inner frame
+                    .frame(width: 26, height: 26)
                     .overlay(
                         Image(systemName: systemName)
-                            .font(.system(size: 14))
+                            .font(.system(size: 12, weight: .semibold))
                     )
             }
         }
@@ -266,18 +265,16 @@ struct DatabaseIcon: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Outer selection border
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(color, lineWidth: isSelected ? 1 : 0)
-                    .frame(width: 30, height: 30)  // Fixed outer frame
+                    .stroke(color, lineWidth: isSelected ? 1.5 : 0)
+                    .frame(width: 32, height: 32)
                 
-                // Main color button
                 RoundedRectangle(cornerRadius: 8)
                     .fill(color)
-                    .frame(width: 25, height: 25)  // Fixed inner frame
+                    .frame(width: 26, height: 26)
                     .overlay(
                         Text(letter)
-                            .font(.system(size: 12))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white)
                     )
             }

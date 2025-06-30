@@ -48,6 +48,7 @@ struct NavigationSidebar: View {
             ) {
                 viewModel.changeActiveSidebarItem(.home)
             }
+            .padding(.bottom, -6)
             
             Divider()
                 .padding(.horizontal, 12)
