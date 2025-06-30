@@ -64,6 +64,7 @@ struct CommandPalette: View {
         
         @State private var activeIndex: Int = 0
         @State private var scrollPosition = ScrollPosition(idType: Int.self)
+        private var totalFilteredCollections: Int = 0
         
         @State private var eventMonitor: Any?
         @State private var hoveredIndex: Int? = nil
@@ -80,9 +81,6 @@ struct CommandPalette: View {
             return collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
         
-        private var totalFilteredCollections: Int {
-            filteredCollections.count - 1
-        }
         
         var body: some View {
             if !filteredCollections.isEmpty {
