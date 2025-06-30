@@ -206,6 +206,7 @@ protocol DatabaseWrapper {
 // MARK: - Generic Collection Wrapper
 protocol CollectionWrapper: Identifiable {
     var name: String { get }
+    var type: String { get }
 }
 
 // MARK: - Database Driver Factory

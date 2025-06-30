@@ -10,6 +10,7 @@ struct MariaDBDatabaseWrapper: DatabaseWrapper {
 struct MariaDBCollectionWrapper: CollectionWrapper {
     var id: ObjectIdentifier
     let name: String
+    let type: String = "table"
 }
 
 // MARK: - MariaDB Driver (Placeholder)

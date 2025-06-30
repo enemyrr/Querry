@@ -247,7 +247,8 @@ struct CollectionsSection: View {
             instance.createNewTab(name: collection.name)
         }) {
             HStack {
-                Image(systemName: databaseIcon)
+                databaseIcon(for: collection)
+                    .font(.footnote)
                     .opacity(0.7)
                     .animation(
                         .easeInOut(duration: 0.3),
@@ -284,13 +285,21 @@ struct CollectionsSection: View {
         .dialogSeverity(.critical)
     }
 
-    private var databaseIcon: String {
+    private func databaseIcon(for collection: any CollectionWrapper) -> some View {
+        let iconName: String
         switch instance.connection.databaseType {
         case .mongodb:
-            return "folder"
+            iconName = "folder"
         default:
-            return "table"
+            if collection.type == "view" {
+                iconName = "eye.fill"
+            } else {
+                iconName = "table"
+            }
         }
+        
+        return Image(systemName: iconName)
+            .font(collection.type == "view" ? .footnote : .body)
     }
 
     // MARK: - Inline Rename View

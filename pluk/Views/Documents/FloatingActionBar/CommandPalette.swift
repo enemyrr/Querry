@@ -101,8 +101,8 @@ struct CommandPalette: View {
                                 }) {
                                     HStack {
                                         // Collection icon
-                                        Image(systemName: "tablecells")
-                                            .font(.body)
+                                        Image(systemName: collection.type == "view" ? "eye.fill" : "tablecells")
+                                            .font(collection.type == "view" ? .footnote : .body)
                                             .foregroundColor(.secondary)
                                             .frame(width: 20)
                                         
@@ -114,10 +114,11 @@ struct CommandPalette: View {
                                         Spacer()
                                         
                                         HStack {
-                                            Text("Table")
+                                            Text(collection.type.capitalized)
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
                                         }
+                                        .frame(width: 35)
                                         .padding(.vertical, 4)
                                         .padding(.horizontal, 4)
                                         .overlay(

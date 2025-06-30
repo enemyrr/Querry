@@ -10,6 +10,7 @@ struct MySQLDatabaseWrapper: DatabaseWrapper {
 struct MySQLCollectionWrapper: CollectionWrapper {
     var id: ObjectIdentifier
     let name: String
+    let type: String = "table"
 }
 
 // MARK: - MySQL Driver (Placeholder)

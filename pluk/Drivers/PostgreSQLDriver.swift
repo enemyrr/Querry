@@ -13,6 +13,7 @@ struct PostgreSQLCollectionWrapper: CollectionWrapper {
     var id: ObjectIdentifier
     let name: String
     let oid: String
+    let type: String
 }
 
 struct PostgreSQLCell {
@@ -295,25 +296,29 @@ class PostgreSQLDriver: DatabaseDriver {
                            SELECT
                                p.oid::bigint AS oid,
                                p.relname AS table_name,
-                               n.nspname AS table_schema
+                               n.nspname AS table_schema,
+                               CASE p.relkind
+                                   WHEN 'r' THEN 'table'
+                                   WHEN 'v' THEN 'view'
+                                   ELSE 'other'
+                               END AS type
                            FROM
                                pg_class AS p
                                JOIN pg_namespace AS n ON p.relnamespace = n.oid
                            WHERE
-                               (p.relkind = 'r'
-                               OR p.relkind = 'v'
-                               OR p.relkind = 'p')
+                               (p.relkind = 'r' OR p.relkind = 'v' OR p.relkind = 'p')
                                AND n.nspname = 'public'
                            """,
                            logger: Logger(label: "postgres")
             )
             
             var collections: [PostgreSQLCollectionWrapper] = []
-            for try await (oid, tableName, _) in rows.decode((Int64, String, String).self) {
+            for try await (oid, tableName, _, type) in rows.decode((Int64, String, String, String).self) {
                 collections.append(PostgreSQLCollectionWrapper(
                     id: ObjectIdentifier(NSString(string: tableName)),
                     name: tableName,
-                    oid: oid.description
+                    oid: oid.description,
+                    type: type
                 ))
             }
             

@@ -20,21 +20,24 @@ struct MongoDBWrapper: DatabaseWrapper {
 struct MongoCollectionWrapper: CollectionWrapper {
     var id: ObjectIdentifier
     let collection: MongoCollection
+    let type: String
     
     var name: String {
         collection.name
     }
     
     // MARK: - Initializers
-    init(collection: MongoCollection) {
+    init(collection: MongoCollection, type: String = "collection") {
         self.collection = collection
         self.id = ObjectIdentifier(collection)
+        self.type = type
     }
     
     // Alternative initializer with explicit ID (if needed)
-    init(id: ObjectIdentifier, collection: MongoCollection) {
+    init(id: ObjectIdentifier, collection: MongoCollection, type: String = "collection") {
         self.id = id
         self.collection = collection
+        self.type = type
     }
     
     // MARK: - Hashable Conformance
@@ -114,7 +117,7 @@ class MongoDBDriver: DatabaseDriver {
         }
         
         let collections = try await database.listCollections()
-        return collections.map { MongoCollectionWrapper(collection: $0) }.sorted { $0.name < $1.name }
+        return collections.map { MongoCollectionWrapper(collection: $0, type: "collection") }.sorted { $0.name < $1.name }
     }
     
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
