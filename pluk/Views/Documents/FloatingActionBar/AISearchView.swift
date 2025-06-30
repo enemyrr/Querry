@@ -8,6 +8,7 @@
 import SwiftUI
 import AIProxy
 import Combine
+import PostHog
 
 struct AISearchView: View {
     @Binding var filter: String
@@ -126,6 +127,7 @@ struct AISearchView: View {
             } else {
                 Button(action: {
                     Task {
+                        PostHogSDK.shared.capture("ai_search")
                         await processNaturalLanguageQuery(search: search)
                     }
                 }) {
