@@ -378,7 +378,7 @@ struct CustomTabButton: View {
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(
-                    isHovering ? Color(.controlColor).opacity(0.5) : Color.clear
+                    isHovering ? Color(.controlColor).opacity(0.8) : Color.clear
                 )
                 .padding(.bottom, 4)
                 .opacity(isSelected ? 0 : 1)

@@ -58,7 +58,7 @@ struct TableListView: View {
                 overlayContent
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.controlBackgroundColor).opacity(0.5))
+            .background(Color(.controlBackgroundColor).opacity(0.8))
             
             VStack {
                 Spacer()
