@@ -8,6 +8,46 @@ import PostgresNIO
 import Foundation
 
 extension PostgreSQLDriver {
+    /// Generates a SET clause with proper type casting for PostgreSQL data types
+    func buildSetClause(for columnName: String, parameterIndex: Int, columnType: PostgresDataType, enumTypeName: String? = nil) -> String {
+        switch columnType {
+        case .jsonb:
+            return "\"\(columnName)\" = $\(parameterIndex)::jsonb"
+        case .json:
+            return "\"\(columnName)\" = $\(parameterIndex)::json"
+        case .money:
+            return "\"\(columnName)\" = $\(parameterIndex)::money"
+        case .numeric:
+            return "\"\(columnName)\" = $\(parameterIndex)::numeric"
+        case .uuid:
+            return "\"\(columnName)\" = $\(parameterIndex)::uuid"
+        case .time:
+            return "\"\(columnName)\" = $\(parameterIndex)::time"
+        case .timestamp:
+            return "\"\(columnName)\" = $\(parameterIndex)::timestamp"
+        case .timestamptz:
+            return "\"\(columnName)\" = $\(parameterIndex)::timestamptz"
+        case .date:
+            return "\"\(columnName)\" = $\(parameterIndex)::date"
+        case .xml:
+            return "\"\(columnName)\" = $\(parameterIndex)::xml"
+        case .bytea:
+            return "\"\(columnName)\" = $\(parameterIndex)::bytea"
+        default:
+            if columnType.isUserDefined {
+                // For enums and other user-defined types, we need to cast to the specific type
+                if let enumTypeName = enumTypeName {
+                    return "\"\(columnName)\" = $\(parameterIndex)::\(enumTypeName)"
+                } else {
+                    // Fallback if enum type name is not provided
+                    return "\"\(columnName)\" = $\(parameterIndex)"
+                }
+            } else {
+                return "\"\(columnName)\" = $\(parameterIndex)"
+            }
+        }
+    }
+    
     func encode(_ value: Any, columnName: String, columnType: PostgresDataType) throws -> PostgresEncodable? {
         guard let stringValue = value as? String else {
             throw DatabaseError.operationFailed("Expected string value for column \(columnName)")
@@ -65,55 +105,17 @@ extension PostgreSQLDriver {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to UUID for column \(columnName)")
             }
             return uuidValue
+    
+        case .date:
+            let date = try cleanedValue.toDate()
+            return date
             
-        case .date, .timestamp, .timestamptz:
-            // Your existing date parsing logic with proper error handling
-            var normalizedDateString = cleanedValue
-            
-            let timezonePattern = #"([+-])(\d{2})$"#
-            if let regex = try? NSRegularExpression(pattern: timezonePattern, options: []) {
-                let range = NSRange(location: 0, length: normalizedDateString.count)
-                normalizedDateString = regex.stringByReplacingMatches(
-                    in: normalizedDateString,
-                    options: [],
-                    range: range,
-                    withTemplate: "$1$2:00"
-                )
-            }
-            
-            let dateFormatters: [Any] = [
-                ISO8601DateFormatter(),
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ssXXX"
-                    return formatter
-                }(),
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                    return formatter
-                }(),
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    return formatter
-                }()
-            ]
-            
-            for formatter in dateFormatters {
-                if let formatter = formatter as? ISO8601DateFormatter {
-                    if let date = formatter.date(from: normalizedDateString) {
-                        return date
-                    }
-                } else if let formatter = formatter as? DateFormatter {
-                    if let date = formatter.date(from: normalizedDateString) {
-                        return date
-                    }
-                }
-            }
-            
-            throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to Date for column \(columnName). Tried formats: ISO8601, yyyy-MM-dd HH:mm:ssXXX, yyyy-MM-dd HH:mm:ss, yyyy-MM-dd")
-            
+        case .timestamp:
+            let normalizedDateString = try cleanedValue.toPostgreSQLDate()
+            return normalizedDateString
+        case .timestamp:
+            let normalizedDateString = try cleanedValue.toPostgreSQLTimestampTZ()
+            return normalizedDateString.date
         case .jsonb:
             // Your existing JSONB cleaning logic
             var cleanedString = cleanedValue
@@ -163,32 +165,45 @@ extension PostgreSQLDriver {
     }
 }
 
-struct DynamicEnum: Equatable {
-    let value: String
-}
 
-extension DynamicEnum: PostgresCodable {
-    static var psqlType: PostgresDataType { .text }
-    static var psqlFormat: PostgresFormat { .text }
-
-    // Encoding
-    func encode<JSONEncoder: PostgresJSONEncoder>(
-        into buffer: inout ByteBuffer,
-        context: PostgresEncodingContext<JSONEncoder>
-    ) {
-        buffer.writeString(value)
-    }
-
-    // Decoding
-    init<JSONDecoder: PostgresJSONDecoder>(
-        from byteBuffer: inout ByteBuffer,
-        type: PostgresDataType,
-        format: PostgresFormat,
-        context: PostgresDecodingContext<JSONDecoder>
-    ) throws {
-        guard let string = byteBuffer.readString(length: byteBuffer.readableBytes) else {
-            throw PostgresDecodingError.Code.typeMismatch
+extension String {
+    func toDate() throws -> Date? {
+        let formats = [
+            "yyyy-MM-dd",
+            "MM/dd/yyyy",
+            "MM-dd-yyyy",
+            "dd/MM/yyyy",
+            "dd-MM-yyyy",
+            "dd.MM.yyyy",
+            "MMM dd, yyyy",
+            "MMMM dd, yyyy",
+            "dd MMM yyyy",
+            "dd MMMM yyyy",
+            "EEEE, MMM dd, yyyy",
+            "yyyy/MM/dd",
+            "dd-MMM-yyyy",
+            "MM/dd/yyyy HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "HH:mm:ss",
+            "h:mm a",
+            "MMM yyyy"
+        ]
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        
+        for format in formats {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: self) {
+                return date
+            }
         }
-        self.value = string
+        
+        throw DatabaseError.operationFailed("Unable to parse date string \(self)")
     }
 }

@@ -398,9 +398,9 @@
             filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver+Encode.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "22"
-            endingLineNumber = "22"
-            landmarkName = "encode(_:columnName:columnType:)"
+            startingLineNumber = "21"
+            endingLineNumber = "21"
+            landmarkName = "buildSetClause(for:parameterIndex:columnType:enumTypeName:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -414,8 +414,8 @@
             filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver+Encode.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "158"
-            endingLineNumber = "158"
+            startingLineNumber = "124"
+            endingLineNumber = "124"
             landmarkName = "encode(_:columnName:columnType:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -695,16 +695,48 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "76F1D671-2EDA-4F1E-A161-BA4BEE3A96FF"
-            shouldBeEnabled = "Yes"
+            uuid = "3F0B467E-D69F-4D59-B970-9B6184DEC1E2"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver+Encode.swift"
+            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver+Decode.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "140"
-            endingLineNumber = "140"
-            landmarkName = "encode(_:columnName:columnType:)"
+            startingLineNumber = "146"
+            endingLineNumber = "146"
+            landmarkName = "decode(from:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "30312EB3-9C72-417E-88A9-B92D2222AFA7"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver+Decode.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "21"
+            endingLineNumber = "21"
+            landmarkName = "decode(from:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "1CB254BF-959C-44CD-9166-6539630E31B8"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver+Decode.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "172"
+            endingLineNumber = "172"
+            landmarkName = "decode(from:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

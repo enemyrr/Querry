@@ -19,6 +19,7 @@ extension PostgreSQLDriver {
             )
         }
         
+        print(cell.dataType)
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
         case .bool:
@@ -140,6 +141,14 @@ extension PostgreSQLDriver {
                 format: String(describing: cell.format)
             )
             
+        case .time:
+            let value = try cell.decode(PostgresTimeOfDayValue.self)
+            return QueryRowInfo(
+                value: value,
+                dataType: String(describing: cell.dataType),
+                format: String(describing: cell.format)
+            )
+            
         case .date:
             let value = try cell.decode(Date.self)
             let dateFormatter = DateFormatter()
@@ -154,7 +163,7 @@ extension PostgreSQLDriver {
         case .uuid:
             let value = try cell.decode(UUID.self)
             return QueryRowInfo(
-                value: value,
+                value: value.description.lowercased(),
                 dataType: "uuid",
                 format: String(describing: cell.format)
             )
@@ -219,3 +228,4 @@ extension PostgreSQLDriver {
         }
     }
 }
+

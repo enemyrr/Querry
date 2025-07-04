@@ -1105,11 +1105,18 @@ class PostgreSQLDriver: DatabaseDriver {
         // Get the schema to determine correct data types
         let schema = try await getSchema(for: tableName, in: schemaName)
         let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
+        let columnTypeNames = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
         
         for (columnName, value) in dataToUpdate {
             let columnTypeString = columnTypes[columnName] ?? 0
             let columnType = PostgresDataType(UInt32(columnTypeString))
-            setClauses.append("\(columnName) = $\(parameterIndex)")
+            let columnTypeName = columnTypeNames[columnName]
+            
+            // Use the new buildSetClause function for proper type casting
+            // For user-defined types (enums), pass the actual type name
+            let enumTypeName = columnType.isUserDefined ? columnTypeName : nil
+            let setClause = buildSetClause(for: columnName, parameterIndex: parameterIndex, columnType: columnType, enumTypeName: enumTypeName)
+            setClauses.append(setClause)
             
             let convertedValue = try encode(value, columnName: columnName, columnType: columnType)
             values.append(convertedValue)
