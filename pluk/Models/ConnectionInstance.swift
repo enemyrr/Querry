@@ -144,7 +144,6 @@ import AIProxy
     @discardableResult
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
         let schemaResult = try await _databaseService.getSchema(for: collectionName)
-        
         self.schema[collectionName] = schemaResult
         return schemaResult
     }

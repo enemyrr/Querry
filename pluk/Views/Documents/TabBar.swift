@@ -364,17 +364,17 @@ struct CustomTabButton: View {
             TabShape(isSelected: isSelected)
                 .fill(
                     isSelected
-                        ? Color(.controlBackgroundColor).opacity(0.5)
+                        ? Color(.controlBackgroundColor).opacity(0.8)
                         : Color.clear
                 )
         )
-        .overlay(
-            TabBorderShape(isSelected: isSelected)
-                .stroke(
-                    isSelected ? Color(.separatorColor) : Color.clear,
-                    lineWidth: 1
-                )
-        )
+//        .overlay(
+//            TabBorderShape(isSelected: isSelected)
+//                .stroke(
+//                    isSelected ? Color(.separatorColor) : Color.clear,
+//                    lineWidth: 1
+//                )
+//        )
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(

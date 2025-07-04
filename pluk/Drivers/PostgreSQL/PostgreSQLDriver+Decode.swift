@@ -19,7 +19,6 @@ extension PostgreSQLDriver {
             )
         }
         
-        print(cell.dataType)
         // Extract value based on PostgreSQL data type
         switch cell.dataType {
         case .bool:

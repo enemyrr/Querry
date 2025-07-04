@@ -327,6 +327,7 @@ class PostgreSQLDriver: DatabaseDriver {
         return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
+
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
@@ -362,12 +363,29 @@ class PostgreSQLDriver: DatabaseDriver {
             }
             
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
-            let schema = try await getSchema(for: collectionName, forceFetch: true)
             
+            // Single-pass processing: build everything in one loop
+            var queryColumns: [QueryColumnInfo] = []
             var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = []
+            var convertedRawRows: [[String: Any?]] = [] // Keep this as [String: Any?] for raw PostgresCell storage
+            var columnsInitialized = false
             
             for try await row in results {
+                // Extract and convert column info only once
+                if !columnsInitialized {
+                    var columnIndex = 0
+                    for cell in row {
+                        queryColumns.append(QueryColumnInfo(
+                            name: cell.columnName,
+                            dataType: String(describing: cell.dataType),
+                            format: String(describing: cell.format),
+                            index: columnIndex
+                        ))
+                        columnIndex += 1
+                    }
+                    columnsInitialized = true
+                }
+                
                 // Convert to random access row for O(1) cell access
                 let randomAccessRow = row.makeRandomAccess()
                 
@@ -375,11 +393,12 @@ class PostgreSQLDriver: DatabaseDriver {
                 var processedRowData: [String: QueryRowInfo] = [:]
                 var rawRowData: [String: Any?] = [:]
                 
-                for column in schema.columns {
-                    let columnName = column.columnName
+                for column in queryColumns {
+                    let columnName = column.name
                     if randomAccessRow.contains(columnName) {
                         let cell = randomAccessRow[columnName]
                         
+                        // ✅ Fixed: Store PostgresCell as Any in rawRowData
                         rawRowData[columnName] = cell
                         
                         // Convert to QueryRowInfo for processed row
@@ -400,14 +419,7 @@ class PostgreSQLDriver: DatabaseDriver {
             }
             
             return QueryResult(
-                columns: schema.columns.enumerated().map { (index, column) in
-                        QueryColumnInfo(
-                            name: column.columnName,
-                            dataType: column.dataType,
-                            format: column.formatType, 
-                            index: index
-                        )
-                    },
+                columns: queryColumns,
                 rows: convertedRows,
                 totalCount: convertedRows.count,
                 rawRows: convertedRawRows
@@ -981,7 +993,6 @@ class PostgreSQLDriver: DatabaseDriver {
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
-            print(error.localizedDescription)
             throw DatabaseError.operationFailed("Failed to get schema: \(error.localizedDescription)")
         }
     }
