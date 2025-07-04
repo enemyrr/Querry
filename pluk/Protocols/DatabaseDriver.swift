@@ -105,7 +105,8 @@ struct DatabaseSchemaInfo {
     let ordinalPosition: Int?
     let columnName: String
     let dataType: String
-    let formatType: String?
+    let formatType: String
+    let typeOid: Int
     let numericPrecision: Int?
     let datetimePrecision: Int?
     let numericScale: Int?
@@ -121,7 +122,8 @@ struct DatabaseSchemaInfo {
         ordinalPosition: Int? = nil,
         columnName: String,
         dataType: String,
-        formatType: String? = nil,
+        formatType: String,
+        typeOid: Int,
         numericPrecision: Int? = nil,
         datetimePrecision: Int? = nil,
         numericScale: Int? = nil,
@@ -147,6 +149,7 @@ struct DatabaseSchemaInfo {
         self.columnDefault = columnDefault
         self.foreignKey = foreignKey
         self.comment = comment
+        self.typeOid = typeOid
     }
 }
 

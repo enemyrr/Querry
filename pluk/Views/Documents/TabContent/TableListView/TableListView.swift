@@ -459,6 +459,7 @@ struct TableListView: View {
             // The TableListViewController will prioritize QueryResult columns over schema columns
             viewState = .loaded(documentsResult, schemaToUse)
         } catch {
+            debugLog(error.localizedDescription)
             viewState = .error(error.localizedDescription)
         }
     }

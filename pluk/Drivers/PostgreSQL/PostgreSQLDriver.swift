@@ -72,17 +72,6 @@ struct PostgreSQLQueryResult {
         return columns[index]
     }
     
-    // Get all values for a specific column
-//    func values(for column: String) -> [Any] {
-//        return rows.compactMap { $0.data[column] }
-//    }
-    
-    // Get all values for a column by index
-//    func values(at columnIndex: Int) -> [Any] {
-//        guard let columnName = column(at: columnIndex)?.name else { return [] }
-//        return values(for: columnName)
-//    }
-    
     // Get raw cell for lazy decoding - NOW RETURNS PostgresCell
        func rawCell(row: Int, column: String) -> PostgresCell? {
            guard row < rawRows.count else { return nil }
@@ -332,49 +321,6 @@ class PostgreSQLDriver: DatabaseDriver {
     
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
         return 0
-//        let connection = try ensureConnected()
-//        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
-//        
-//        do {
-//            let query: PostgresQuery = "SELECT * FROM \(unescaped: sanitizedCollectionName) LIMIT 150"
-//            let results = try await connection.query(query, logger: Logger(label: "postgres"))
-//            
-//            var columns: [PostgreSQLColumnInfo] = []
-//            var rawRows: [PostgresRandomAccessRow] = [] // Store random access rows
-//            var columnsInitialized = false
-//            
-//            for try await row in results {
-//                // Extract column info only once
-//                if !columnsInitialized {
-//                    var columnIndex = 0
-//                    for cell in row {
-//                        columns.append(PostgreSQLColumnInfo(
-//                            name: cell.columnName,
-//                            dataType: cell.dataType,
-//                            format: cell.format,
-//                            index: columnIndex
-//                        ))
-//                        columnIndex += 1
-//                    }
-//                    columnsInitialized = true
-//                }
-//                
-//                // Convert to random access row for O(1) cell access
-//                rawRows.append(row.makeRandomAccess())
-//            }
-//            
-//            return PostgreSQLQueryResult(
-//                columns: columns,
-//                rows: rawRows,
-//                totalCount: rawRows.count,
-//                rawRows: rawRows,
-//            )
-//            
-//        } catch let error as PSQLError {
-//            throw mapPSQLError(error)
-//        } catch {
-//            throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
-//        }
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
@@ -416,29 +362,12 @@ class PostgreSQLDriver: DatabaseDriver {
             }
             
             let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            let schema = try await getSchema(for: collectionName, forceFetch: true)
             
-            // Single-pass processing: build everything in one loop
-            var queryColumns: [QueryColumnInfo] = []
             var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = [] // Keep this as [String: Any?] for raw PostgresCell storage
-            var columnsInitialized = false
+            var convertedRawRows: [[String: Any?]] = []
             
             for try await row in results {
-                // Extract and convert column info only once
-                if !columnsInitialized {
-                    var columnIndex = 0
-                    for cell in row {
-                        queryColumns.append(QueryColumnInfo(
-                            name: cell.columnName,
-                            dataType: String(describing: cell.dataType),
-                            format: String(describing: cell.format),
-                            index: columnIndex
-                        ))
-                        columnIndex += 1
-                    }
-                    columnsInitialized = true
-                }
-                
                 // Convert to random access row for O(1) cell access
                 let randomAccessRow = row.makeRandomAccess()
                 
@@ -446,17 +375,16 @@ class PostgreSQLDriver: DatabaseDriver {
                 var processedRowData: [String: QueryRowInfo] = [:]
                 var rawRowData: [String: Any?] = [:]
                 
-                for column in queryColumns {
-                    let columnName = column.name
+                for column in schema.columns {
+                    let columnName = column.columnName
                     if randomAccessRow.contains(columnName) {
                         let cell = randomAccessRow[columnName]
                         
-                        // ✅ Fixed: Store PostgresCell as Any in rawRowData
                         rawRowData[columnName] = cell
                         
                         // Convert to QueryRowInfo for processed row
                         do {
-                            processedRowData[columnName] = try extractValue(from: cell)
+                            processedRowData[columnName] = try decode(from: cell)
                         } catch {
                             debugLog("extractValue: \(String(reflecting: error))")
                             processedRowData[columnName] = nil
@@ -472,7 +400,14 @@ class PostgreSQLDriver: DatabaseDriver {
             }
             
             return QueryResult(
-                columns: queryColumns,
+                columns: schema.columns.enumerated().map { (index, column) in
+                        QueryColumnInfo(
+                            name: column.columnName,
+                            dataType: column.dataType,
+                            format: column.formatType, 
+                            index: index
+                        )
+                    },
                 rows: convertedRows,
                 totalCount: convertedRows.count,
                 rawRows: convertedRawRows
@@ -494,7 +429,6 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Cannot insert an empty document.")
         }
         
-        // Get the schema to determine correct data types (same as updateDocument)
         let schema = try await getSchema(for: collectionName)
         let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
         
@@ -529,11 +463,11 @@ class PostgreSQLDriver: DatabaseDriver {
         // Convert values using the same logic as updateDocument
         for key in sortedKeys {
             if let value = document[key] {
-                if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
-                    try bindings.append(convertedValue)
-                } else {
-                    bindings.append(Optional<String>.none)
-                }
+//                if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
+//                    try bindings.append(convertedValue)
+//                } else {
+//                    bindings.append(Optional<String>.none)
+//                }
             } else {
                 bindings.append(Optional<String>.none)
             }
@@ -550,247 +484,36 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
 
-    private func extractValue(from cell: PostgresCell) throws -> QueryRowInfo {
-        // Check if the cell is null
-        if cell.bytes == nil {
-            return QueryRowInfo(
-                value: nil,
-                dataType: "nil",
-                format: nil
-            )
-        }
-        
-        debugLog("datType: \(cell.dataType): \(String(describing: cell.columnName))")
-        
-        // Extract value based on PostgreSQL data type
-        switch cell.dataType {
-        case .bool:
-            let value = try cell.decode(Bool.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "bool",
-                format: String(describing: cell.format)
-            )
-            
-        case .int2:
-            let value = try cell.decode(Int16.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "int2",
-                format: String(describing: cell.format)
-            )
-            
-        case .int4:
-            let value = try cell.decode(Int32.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "int4",
-                format: String(describing: cell.format)
-            )
-            
-        case .int8:
-            let value = try cell.decode(Int64.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "int8",
-                format: String(describing: cell.format)
-            )
-            
-        case .float4:
-            let value = try cell.decode(Float.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "float4",
-                format: String(describing: cell.format)
-            )
-            
-        case .float8:
-            let value = try cell.decode(Double.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "float8",
-                format: String(describing: cell.format)
-            )
-            
-        case .text, .varchar, .char:
-            let value = try cell.decode(String.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .textArray, .varcharArray, .charArray:
-            let stringArray = try cell.decode([String].self)
-            return QueryRowInfo(
-                value: "{" + stringArray.joined(separator: ",") + "}",
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .int4Array:
-            let int4Array = try cell.decode([Int32].self)
-            return QueryRowInfo(
-                value: "[" + int4Array.map { String($0) }.joined(separator: ", ") + "]",
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .int4Range:
-            let range = try cell.decode(Range<Int32>.self)
-            return QueryRowInfo(
-                value: range.description,
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .int8Range:
-            let range = try cell.decode(Range<Int64>.self)
-            return QueryRowInfo(
-                value: "[\(range.lowerBound),\(range.upperBound))",
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .numrange:
-            let stringValue = try cell.decode(String.self)
-            return QueryRowInfo(
-                   value: stringValue,
-                   dataType: String(describing: cell.dataType),
-                   format: String(describing: cell.format)
-               )
-            
-        case .timestamp:
-            let value = try cell.decode(Date.self)
-            let dateFormatter = DateFormatter()
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            let dateString = dateFormatter.string(from: value)
-            return QueryRowInfo(
-                value: dateString,
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .timestamptz:
-            let value = try cell.decode(Date.self)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ssX"
-            let dateString = dateFormatter.string(from: value)
-            return QueryRowInfo(
-                value: dateString,
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .date:
-            let value = try cell.decode(Date.self)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: value)
-            return QueryRowInfo(
-                value: dateString,
-                dataType: "date",
-                format: String(describing: cell.format)
-            )
-            
-        case .uuid:
-            let value = try cell.decode(UUID.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "uuid",
-                format: String(describing: cell.format)
-            )
-            
-        case .json, .jsonb:
-            let jsonString = try cell.decode(String.self)
-            return QueryRowInfo(
-                value: jsonString,
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-            
-        case .bytea:
-            let value = try cell.decode(Data.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: "bytea",
-                format: String(describing: cell.format)
-            )
-            
-        case .numeric:
-            let value = try cell.decode(Decimal.self)
-            return QueryRowInfo(
-                value: value.description,
-                dataType: "numeric",
-                format: String(describing: cell.format)
-            )
-            
-        case .money:
-            guard var bytes = cell.bytes else {
-                return QueryRowInfo(
-                    value: nil,
-                    dataType: "nil",
-                    format: nil
-                )
-            }
-            
-            guard let rawValue = bytes.readInteger(as: Int64.self) else {
-                // Fallback for safety, though binary should contain Int64
-                let stringValue = try? cell.decode(String.self)
-                return QueryRowInfo(
-                    value: stringValue,
-                    dataType: "money",
-                    format: String(describing: cell.format)
-                )
-            }
-            // PostgreSQL money type is a 64-bit integer of cents.
-            let decimalValue = Decimal(rawValue) / 100.0
-            return QueryRowInfo(
-                value: decimalValue.description,
-                dataType: "money",
-                format: String(describing: cell.format)
-            )
-            
-        default:
-            let value = try cell.decode(String.self)
-            return QueryRowInfo(
-                value: value,
-                dataType: String(describing: cell.dataType),
-                format: String(describing: cell.format)
-            )
-        }
-    }
 
-    // MARK: - Fixed updateDocument method
     func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
         let connection = try ensureConnected()
-        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         guard !data.isEmpty else {
-            throw DatabaseError.operationFailed("No data provided for update")
+            throw DatabaseError.operationFailed("No changes detected to update")
         }
         
         guard let primaryKey = id as? PostgresCell else {
-            throw DatabaseError.operationFailed("Cannot update document without a primary key")
+            throw DatabaseError.operationFailed("Failed to identify the primary key to update")
         }
         
         do {
-            // Get the schema to find primary key column name
-            let (setClause, values) = try await buildParameterizedSetClause(from: data, for: collectionName)
+            let (setClause, values) = try await buildParameterizedSetClause(dataToUpdate: data, for: collectionName)
            
             // Build the UPDATE query with parameter binding
             let queryString = """
-                UPDATE \(sanitizedCollectionName)
+                UPDATE \(collectionName)
                 SET \(setClause)
                 WHERE \(primaryKey.columnName) = $\(values.count + 1)
             """
             
-            // Create PostgresBindings and append all values
             var bindings = PostgresBindings(capacity: values.count + 1)
             
             for value in values {
-                try bindings.append(value)
+                if let value = value {
+                    try bindings.append(value)
+                } else {
+                    bindings.appendNull()
+                }
             }
             
             // Convert PostgresCell to PostgresData
@@ -1159,50 +882,62 @@ class PostgreSQLDriver: DatabaseDriver {
     // Cache for database schemas with performance optimizations
     private let databaseSchema = SchemaCache()
 
-    func getSchema(for tableName: String, in schemaName: String = "public") async throws -> DatabaseSchemaResult {
+    func getSchema(for tableName: String, in schemaName: String = "public", forceFetch: Bool = false) async throws -> DatabaseSchemaResult {
         let cacheKey = SchemaKey(schemaName, tableName)
         
-        // Check if schema is already cached
-        if let cachedSchema = await databaseSchema.get(cacheKey) {
-            return cachedSchema
-        }
+        if !forceFetch, let cachedSchema = await databaseSchema.get(cacheKey) {
+               return cachedSchema
+           }
         
         let connection = try ensureConnected()
         
         do {
             let schemaQuery = PostgresQuery("""
                 SELECT
-                    ordinal_position,
-                    column_name,
-                    udt_name AS data_type,
-                    data_type AS format_type,
-                    COALESCE(numeric_precision, 0) AS numeric_precision,
-                    COALESCE(datetime_precision, 0) AS datetime_precision,
-                    COALESCE(numeric_scale, 0) AS numeric_scale,
-                    COALESCE(character_maximum_length, 0) AS data_length,
-                    is_nullable,
+                    c.ordinal_position,
+                    c.column_name,
+                    c.udt_name AS data_type,
+                    COALESCE(t.oid, 0)::bigint AS pg_type_oid,
+                    t.typname AS pg_type_name,
+                    t.typtype,  -- 'e' for enum, 'b' for base type, 'c' for composite, etc.
+                    CASE 
+                        WHEN t.typtype = 'e' THEN 'enum'
+                        WHEN t.typtype = 'c' THEN 'composite'
+                        WHEN t.typtype = 'd' THEN 'domain'
+                        WHEN c.data_type = 'ARRAY' THEN 'array'
+                        ELSE 'base'
+                    END AS type_category,
+                    COALESCE(c.numeric_precision, 0) AS numeric_precision,
+                    COALESCE(c.datetime_precision, 0) AS datetime_precision,
+                    COALESCE(c.numeric_scale, 0) AS numeric_scale,
+                    COALESCE(c.character_maximum_length, 0) AS data_length,
+                    c.is_nullable,
                     '' AS check_col,
                     '' AS check_constraint,
-                    COALESCE(column_default, '') AS column_default,
+                    COALESCE(c.column_default, '') AS column_default,
                     '' AS foreign_key,
                     '' AS comment
                 FROM
-                    information_schema.columns
+                    information_schema.columns c
+                LEFT JOIN pg_type t ON t.typname = c.udt_name
                 WHERE
-                    table_name = '\(unescaped: tableName)'
-                    AND table_schema = '\(unescaped: schemaName)'
-                ORDER BY ordinal_position;
+                    c.table_name = '\(unescaped: tableName)'
+                    AND c.table_schema = '\(unescaped: schemaName)'
+                ORDER BY c.ordinal_position;
             """)
             
             let results = try await connection.query(schemaQuery, logger: Logger(label: "postgres"))
             var databaseSchemaInfo: [DatabaseSchemaInfo] = []
             
-            for try await (ordinalPosition, columnName, dataType, formatType, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, foreignKey, comment) in results.decode((Int, String, String, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
+            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, foreignKey, comment) in results.decode((
+                            Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
+                let format = PostgresDataType(UInt32(pgTypeOid))
                 let schemaInfo = DatabaseSchemaInfo(
                     ordinalPosition: ordinalPosition,
                     columnName: columnName,
                     dataType: dataType,
-                    formatType: formatType,
+                    formatType: format.description,
+                    typeOid: Int(format.rawValue),
                     numericPrecision: numericPrecision,
                     datetimePrecision: datetimePrecision,
                     numericScale: numericScale,
@@ -1233,6 +968,7 @@ class PostgreSQLDriver: DatabaseDriver {
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
+            print(error.localizedDescription)
             throw DatabaseError.operationFailed("Failed to get schema: \(error.localizedDescription)")
         }
     }
@@ -1361,40 +1097,22 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    private func buildParameterizedSetClause(from data: [String: Any], for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable]) {
+    private func buildParameterizedSetClause(dataToUpdate: [String: Any], for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable?]) {
         var setClauses: [String] = []
-        var values: [PostgresEncodable] = []
+        var values: [PostgresEncodable?] = []
         var parameterIndex = 1
         
         // Get the schema to determine correct data types
         let schema = try await getSchema(for: tableName, in: schemaName)
-        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
+        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
         
-        for (key, value) in data {
-            let sanitizedColumnName = try validateAndSanitizeColumnName(key)
+        for (columnName, value) in dataToUpdate {
+            let columnTypeString = columnTypes[columnName] ?? 0
+            let columnType = PostgresDataType(UInt32(columnTypeString))
+            setClauses.append("\(columnName) = $\(parameterIndex)")
             
-            // Check column type and add appropriate casting
-            if let columnType = columnTypes[key] {
-                switch columnType.lowercased() {
-                case "jsonb":
-                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)::jsonb")
-                case "json":
-                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)::json")
-                case "money":
-                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)::money")
-                default:
-                    setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
-                }
-            } else {
-                setClauses.append("\(sanitizedColumnName) = $\(parameterIndex)")
-            }
-            
-            // Convert string value to appropriate type based on schema
-            if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
-                values.append(convertedValue)
-            } else {
-                throw DatabaseError.operationFailed("Failed to convert value for column \(key)")
-            }
+            let convertedValue = try encode(value, columnName: columnName, columnType: columnType)
+            values.append(convertedValue)
             
             parameterIndex += 1
         }
@@ -1403,187 +1121,6 @@ class PostgreSQLDriver: DatabaseDriver {
     }
 
     
-    private func convertStringToPostgresType(_ value: Any, columnName: String, columnTypes: [String: String]) throws -> PostgresEncodable? {
-        guard let stringValue = value as? String else {
-            throw DatabaseError.operationFailed("Expected string value for column \(columnName)")
-        }
-        
-        // Handle empty strings and null values
-        if stringValue.isEmpty || stringValue.lowercased() == "null" {
-            return Optional<String>.none
-        }
-        
-        // Get the column type from schema
-        guard let columnType = columnTypes[columnName] else {
-            // Default to string if type not found
-            return stringValue
-        }
-        
-        // Convert based on PostgreSQL data type
-        switch columnType.lowercased() {
-        case "bool", "boolean":
-            let lowercased = stringValue.lowercased()
-            if ["true", "1", "yes", "on"].contains(lowercased) {
-                return true
-            } else if ["false", "0", "no", "off"].contains(lowercased) {
-                return false
-            } else {
-                throw DatabaseError.operationFailed("Invalid boolean value: \(stringValue)")
-            }
-            
-        case "int2", "smallint":
-            guard let intValue = Int16(stringValue) else {
-                throw DatabaseError.operationFailed("Invalid int2 value: \(stringValue)")
-            }
-            return intValue
-            
-        case "int4", "int", "integer":
-            guard let intValue = Int32(stringValue) else {
-                throw DatabaseError.operationFailed("Invalid int4 value: \(stringValue)")
-            }
-            return intValue
-            
-        case "int8", "bigint":
-            guard let intValue = Int64(stringValue) else {
-                throw DatabaseError.operationFailed("Invalid int8 value: \(stringValue)")
-            }
-            return intValue
-            
-        case "float4", "real":
-            guard let floatValue = Float(stringValue) else {
-                throw DatabaseError.operationFailed("Invalid float4 value: \(stringValue)")
-            }
-            return floatValue
-            
-        case "float8", "double precision", "numeric", "decimal":
-            guard let doubleValue = Double(stringValue) else {
-                throw DatabaseError.operationFailed("Invalid float8 value: \(stringValue)")
-            }
-            return doubleValue
-            
-        case "uuid":
-            guard let uuidValue = UUID(uuidString: stringValue) else {
-                throw DatabaseError.operationFailed("Invalid UUID value: \(stringValue)")
-            }
-            return uuidValue
-            
-        case "date", "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone":
-            // First try to fix timezone format if needed (e.g., +08 -> +08:00)
-            var normalizedDateString = stringValue
-            
-            // Handle timezone without colon: +08, -05, etc. -> +08:00, -05:00
-            let timezonePattern = #"([+-])(\d{2})$"#
-            if let regex = try? NSRegularExpression(pattern: timezonePattern, options: []) {
-                let range = NSRange(location: 0, length: normalizedDateString.count)
-                normalizedDateString = regex.stringByReplacingMatches(
-                    in: normalizedDateString,
-                    options: [],
-                    range: range,
-                    withTemplate: "$1$2:00"
-                )
-            }
-            
-            // Try multiple date formats
-            let dateFormatters: [Any] = [
-                ISO8601DateFormatter(),
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ssXXX"  // Handles +08:00 format
-                    return formatter
-                }(),
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                    return formatter
-                }(),
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd"
-                    return formatter
-                }()
-            ]
-            
-            for formatter in dateFormatters {
-                if let formatter = formatter as? ISO8601DateFormatter {
-                    if let date = formatter.date(from: normalizedDateString) {
-                        return date
-                    }
-                } else if let formatter = formatter as? DateFormatter {
-                    if let date = formatter.date(from: normalizedDateString) {
-                        return date
-                    }
-                }
-            }
-            
-            throw DatabaseError.operationFailed("Invalid date value: \(stringValue) (normalized: \(normalizedDateString))")
-            
-        case "jsonb":
-            // Debug: Print the actual string value and its characteristics
-            debugLog("JSONB Input Debug:")
-            debugLog("  Raw string: \(stringValue)")
-            debugLog("  String length: \(stringValue.count)")
-            debugLog("  UTF8 bytes: \(Array(stringValue.utf8))")
-            debugLog("  Has quotes: \(stringValue.hasPrefix("\"") && stringValue.hasSuffix("\""))")
-            
-            // Clean the string - remove control characters and whitespace from start/end
-            var cleanedString = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Remove any control characters (bytes < 32) from the beginning
-            while let firstChar = cleanedString.first, firstChar.asciiValue != nil && firstChar.asciiValue! < 32 {
-                cleanedString = String(cleanedString.dropFirst())
-                debugLog("  Removed control character: \(firstChar.asciiValue!)")
-            }
-            
-            // Remove any control characters from the end
-            while let lastChar = cleanedString.last, lastChar.asciiValue != nil && lastChar.asciiValue! < 32 {
-                cleanedString = String(cleanedString.dropLast())
-                debugLog("  Removed trailing control character: \(lastChar.asciiValue!)")
-            }
-            
-            debugLog("  Cleaned string: \(cleanedString)")
-            debugLog("  Cleaned UTF8 bytes: \(Array(cleanedString.utf8))")
-            
-            // Clean the string if it's double-quoted
-            if cleanedString.hasPrefix("\"") && cleanedString.hasSuffix("\"") {
-                cleanedString = String(cleanedString.dropFirst().dropLast())
-                debugLog("  Removed outer quotes: \(cleanedString)")
-            }
-            
-            // Unescape if needed
-            if cleanedString.contains("\\\"") {
-                cleanedString = cleanedString.replacingOccurrences(of: "\\\"", with: "\"")
-                debugLog("  Unescaped string: \(cleanedString)")
-            }
-            
-            return cleanedString
-            
-        case "json":
-            // JSON case works fine, just return the string
-            return stringValue
-            
-        case "money":
-            // Parse money value - can be in formats like "$123.45", "123.45", "$123", etc.
-            var cleanValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Remove currency symbols and commas
-            cleanValue = cleanValue.replacingOccurrences(of: "$", with: "")
-            cleanValue = cleanValue.replacingOccurrences(of: ",", with: "")
-            cleanValue = cleanValue.replacingOccurrences(of: "€", with: "")
-            cleanValue = cleanValue.replacingOccurrences(of: "£", with: "")
-            
-            // Convert to Double and validate
-            guard let doubleValue = Double(cleanValue) else {
-                throw DatabaseError.operationFailed("Invalid money value: \(stringValue)")
-            }
-            
-            // Return the decimal value as string - PostgreSQL will handle the conversion with ::money casting
-            return String(format: "%.2f", doubleValue)
-            
-        default:
-            // Default to string for text, varchar, char, and unknown types
-            return stringValue
-        }
-    }
     
     private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
         let trimmed = columnName.trimmingCharacters(in: .whitespacesAndNewlines)
