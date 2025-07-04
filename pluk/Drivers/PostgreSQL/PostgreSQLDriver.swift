@@ -429,56 +429,69 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Cannot insert an empty document.")
         }
         
-        let schema = try await getSchema(for: collectionName)
-        let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
-        
-        // Sort keys for consistent parameter order
-        let sortedKeys = document.keys.sorted()
-        
-        let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
-        
-        // Build value placeholders with proper casting for special column types
-        let valuePlaceholders = sortedKeys.enumerated().map { (index, key) in
-            let parameterIndex = index + 1
-            if let columnType = columnTypes[key] {
-                switch columnType.lowercased() {
-                case "jsonb":
-                    return "to_jsonb($\(parameterIndex)::text)"
-                case "json":
-                    return "$\(parameterIndex)::json"
-                case "money":
-                    return "$\(parameterIndex)::money"
-                default:
-                    return "$\(parameterIndex)"
-                }
-            } else {
-                return "$\(parameterIndex)"
-            }
-        }.joined(separator: ", ")
-        
-        let queryString = "INSERT INTO \(sanitizedCollectionName) (\(columns)) VALUES (\(valuePlaceholders))"
-        
-        var bindings = PostgresBindings(capacity: sortedKeys.count)
-        
-        // Convert values using the same logic as updateDocument
-        for key in sortedKeys {
-            if let value = document[key] {
-//                if let convertedValue = try convertStringToPostgresType(value, columnName: key, columnTypes: columnTypes) {
-//                    try bindings.append(convertedValue)
-//                } else {
-//                    bindings.append(Optional<String>.none)
-//                }
-            } else {
-                bindings.append(Optional<String>.none)
-            }
-        }
-        
-        let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
-        
         do {
+            // Get the schema to determine correct data types
+            let schema = try await getSchema(for: collectionName)
+            let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
+            let columnTypeNames = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
+            
+            // Sort keys for consistent parameter order
+            let sortedKeys = document.keys.sorted()
+            
+            let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
+            
+            // Build value placeholders with proper casting for special column types
+            var valuePlaceholders: [String] = []
+            var values: [PostgresEncodable?] = []
+            var parameterIndex = 1
+            
+            for key in sortedKeys {
+                let columnTypeString = columnTypes[key] ?? 0
+                let columnType = PostgresDataType(UInt32(columnTypeString))
+                let columnTypeName = columnTypeNames[key]
+                
+                // For user-defined types (enums), pass the actual type name
+                let enumTypeName = columnType.isUserDefined ? columnTypeName : nil
+                
+                // Use buildSetClause to get the type casting, but extract just the casting part
+                let setClause = buildSetClause(for: key, parameterIndex: parameterIndex, columnType: columnType, enumTypeName: enumTypeName)
+                // Extract just the parameter placeholder with casting from the SET clause
+                if let castingPart = setClause.split(separator: "=").last?.trimmingCharacters(in: .whitespaces) {
+                    valuePlaceholders.append(castingPart)
+                } else {
+                    valuePlaceholders.append("$\(parameterIndex)")
+                }
+                
+                // Convert and add value
+                if let value = document[key] {
+                    let convertedValue = try encode(value, columnName: key, columnType: columnType)
+                    values.append(convertedValue)
+                } else {
+                    values.append(nil)
+                }
+                
+                parameterIndex += 1
+            }
+            
+            let queryString = "INSERT INTO \(sanitizedCollectionName) (\(columns)) VALUES (\(valuePlaceholders.joined(separator: ", ")))"
+            
+            var bindings = PostgresBindings(capacity: values.count)
+            
+            for value in values {
+                if let value = value {
+                    try bindings.append(value)
+                } else {
+                    bindings.appendNull()
+                }
+            }
+            
+            let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
             try await connection.query(query, logger: Logger(label: "postgres"))
+            
         } catch let error as PSQLError {
             throw mapPSQLError(error)
+        } catch let error as DatabaseError {
+            throw error
         } catch {
             throw DatabaseError.operationFailed("Failed to create document: \(error.localizedDescription)")
         }

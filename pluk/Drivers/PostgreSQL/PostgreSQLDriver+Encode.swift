@@ -110,10 +110,7 @@ extension PostgreSQLDriver {
             let date = try cleanedValue.toDate()
             return date
             
-        case .timestamp:
-            let normalizedDateString = try cleanedValue.toPostgreSQLDate()
-            return normalizedDateString
-        case .timestamp:
+        case .timestamptz:
             let normalizedDateString = try cleanedValue.toPostgreSQLTimestampTZ()
             return normalizedDateString.date
         case .jsonb:
