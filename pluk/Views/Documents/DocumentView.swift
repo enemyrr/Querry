@@ -18,7 +18,6 @@ struct DocumentView: View {
     var body: some View {
         VStack(spacing: 0) {
             TabBar()
-                .padding(.bottom, -1)
             
             if instance.tabs.isEmpty  {
                 VStack {

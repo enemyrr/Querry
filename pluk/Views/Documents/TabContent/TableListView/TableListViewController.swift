@@ -157,7 +157,6 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         
-        
         // MARK: - Selection Management
         func clearTableSelection() {
             DispatchQueue.main.async { [weak self] in
@@ -462,6 +461,9 @@ struct TableListViewController: NSViewRepresentable {
             tableView.allowsColumnResizing = true
             tableView.allowsColumnReordering = true
             tableView.columnAutoresizingStyle = .noColumnAutoresizing
+            
+            tableView.gridStyleMask = [.solidVerticalGridLineMask]
+            tableView.gridColor = NSColor.separatorColor
             
             // Enable column selection only
             tableView.allowsColumnSelection = false
@@ -814,36 +816,69 @@ struct TableListViewController: NSViewRepresentable {
         
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,
-                  let queryResult = queryResult,
-                  row < self.totalCount else {
+                  let queryResult = queryResult else {
                 return NSTextField(labelWithString: "No data")
             }
             
-            var cellView = tableView.makeView(withIdentifier: CellIdentifier.textCell, owner: self) as? TextCellView
-            
-            if cellView == nil {
-                cellView = TextCellView()
-            } else {
-                cellView?.prepareForReuse() // CRITICAL: Reset state
-            }
-            
-            //            if cellView == nil {
-            //                cellView = TextCellView()
-            //                cellView?.identifier = CellIdentifier.textCell
-            //            }
-            
-            
-            // Use the new configure method with modification tracking
             let columnName = tableColumn.identifier.rawValue
             let queryRowInfo = queryResult.value(row: row, column: columnName)
             let columnInfo = queryResult.column(named: columnName)
             
-            if columnInfo != nil {
-                cellView?.configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo!, rowIndex: row, modificationTracker: modificationTracker)
+            guard let columnInfo = columnInfo else {
+                return NSTextField(labelWithString: "Invalid column")
             }
+            
+            // Determine cell type based on data type
+            let cellIdentifier = getCellIdentifier(for: columnInfo.dataType)
+            
+            var cellView = tableView.makeView(withIdentifier: cellIdentifier, owner: self) as? TextCellView
+            
+            if cellView == nil {
+                cellView = createCellView(for: columnInfo.dataType)
+                cellView?.identifier = cellIdentifier
+            } else {
+                cellView?.prepareForReuse()
+            }
+            
+            cellView?.configure(queryRowInfo: queryRowInfo,
+                               columnInfo: columnInfo,
+                               rowIndex: row,
+                               modificationTracker: modificationTracker)
             
             return cellView
         }
+        
+        private func getCellIdentifier(for dataType: String) -> NSUserInterfaceItemIdentifier {
+            switch dataType {
+            case "text":
+                return CellIdentifier.textCell
+            case "interger":
+                return CellIdentifier.textCell
+//            case .datetime, .timestamp:
+//                return CellIdentifier.dateCell
+//            case .boolean:
+//                return CellIdentifier.booleanCell
+            default:
+                return CellIdentifier.textCell
+            }
+        }
+        
+        
+        private func createCellView(for dataType: String) -> TextCellView {
+            switch dataType {
+            case "text":
+                return TextCellView()
+            case "interger":
+                return TextCellView()
+//            case .datetime, .timestamp:
+//                return DateCellView()
+//            case .boolean:
+//                return BooleanCellView()
+            default:
+                return TextCellView()
+            }
+        }
+
         
         @objc private func columnDidMove(_ notification: Notification) {
             // Update persistent cache with new column order
@@ -947,7 +982,7 @@ struct TableListViewController: NSViewRepresentable {
         private func saveCurrentColumnOrder() {
             let currentOrder = tableView.tableColumns.map { $0.identifier.rawValue }
             
-            guard var cachedSchema = loadPersistentSchema(for: tableName) else {
+            guard let cachedSchema = loadPersistentSchema(for: tableName) else {
                 return
             }
             
@@ -963,7 +998,7 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         private func updatePersistentColumnWidth(_ columnIdentifier: String, width: CGFloat) {
-            guard var cachedSchema = loadPersistentSchema(for: tableName) else {
+            guard let cachedSchema = loadPersistentSchema(for: tableName) else {
                 // Create new schema if none exists
                 let newSchema = createSchemaCache(signature: currentSchemaSignature, columns: [])
                 var updatedWidths = newSchema.columnWidths
@@ -1021,22 +1056,3 @@ extension Array {
         return indices.contains(index) ? self[index] : nil
     }
 }
-
-//class ExtendedClipView: NSClipView {
-//    var bottomExtension: CGFloat = 50
-//    
-//    override var documentRect: NSRect {
-//        var rect = super.documentRect
-//        
-//        if let documentView = self.documentView {
-//            let visibleHeight = self.bounds.height
-//            let contentHeight = documentView.bounds.height
-//            
-//            if contentHeight > visibleHeight {
-//                rect.size.height += bottomExtension
-//            }
-//        }
-//        
-//        return rect
-//    }
-//}
