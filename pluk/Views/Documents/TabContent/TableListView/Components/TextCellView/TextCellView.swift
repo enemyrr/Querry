@@ -195,11 +195,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             // Handle single click for selection
             if event.clickCount == 1 {
                 // Exit edit mode for any currently editing cell when selecting a new cell
-                if let currentEditingCell = TextCellView.currentEditingCell, currentEditingCell !== self {
-                    debugLog("Single click - exiting edit mode for previous cell")
-                    TextCellView.exitCurrentEditMode()
-                }
-                
+                TextCellView.exitCurrentEditMode()
                 setSelected(true)
             }
             

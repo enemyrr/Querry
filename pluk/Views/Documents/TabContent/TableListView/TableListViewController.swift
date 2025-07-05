@@ -15,14 +15,16 @@ struct TableListViewController: NSViewRepresentable {
     let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
     let modificationTracker: TableModificationTracker?
     let scrollToBottom: Bool
+    let onDeleteNewRow: ((Int) -> Void)? // Callback for deleting new rows
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
         self.onSort = onSort
         self.modificationTracker = modificationTracker
         self.scrollToBottom = scrollToBottom
+        self.onDeleteNewRow = onDeleteNewRow
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate {
@@ -50,6 +52,9 @@ struct TableListViewController: NSViewRepresentable {
         // Callback for database-level sorting
         var onSort: ((String, Bool) -> Void)?
         
+        // Callback for deleting new rows
+        var onDeleteNewRow: ((Int) -> Void)?
+        
         // Persistent storage
         private var tableName: String = ""
         private var currentSchemaSignature: String = ""
@@ -64,12 +69,13 @@ struct TableListViewController: NSViewRepresentable {
         // Store modification tracker reference
         weak var modificationTracker: TableModificationTracker?
         
-        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil) {
+        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil) {
             self.schema = schema
             self.queryResult = queryResult
             self.tableName = tableName
             self.onSort = onSort
             self.modificationTracker = modificationTracker
+            self.onDeleteNewRow = onDeleteNewRow
             
             if let queryResult = queryResult {
                 self.rows = queryResult.rawRows
@@ -94,11 +100,13 @@ struct TableListViewController: NSViewRepresentable {
                 return
             }
             
-            // Store the first deleted row for selection logic
-            let firstDeletedRow = rows.first ?? 0
-            
             for row in rows {
-                modificationTracker?.markAsDeleted(rowIndex: row)
+                if let rowModification = modificationTracker?.getRowModification(for: row),
+                   rowModification.type == .insert {
+                    onDeleteNewRow?(rowModification.rowIndex)
+                } else {
+                    modificationTracker?.markAsDeleted(rowIndex: row)
+                }
             }
             
             // Force all cells in the affected rows to update their appearance
@@ -1032,7 +1040,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker)
+        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker, onDeleteNewRow: onDeleteNewRow)
     }
     
     func makeNSView(context: Context) -> NSView {

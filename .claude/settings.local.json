@@ -3,7 +3,14 @@
     "allow": [
       "Bash(rg:*)",
       "Bash(xcodebuild:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(rg -n \"scrollToBottom\\s*=\\s*true\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
+      "Bash(rg -B 5 -A 5 \"onChange.*scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
+      "Bash(rg -n -B 5 -A 10 \"\\.onChange.*of.*scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
+      "Bash(rg -n \".onChange\\(of: scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
+      "Bash(rg -n \"onChange.*scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/)",
+      "Bash(rg -n -A 20 \"func updateNSView\" pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)",
+      "Bash(rg -n \"needsToSelectLastRow\" pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)"
     ],
     "deny": []
   }

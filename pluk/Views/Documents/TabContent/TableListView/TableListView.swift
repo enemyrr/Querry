@@ -49,7 +49,10 @@ struct TableListView: View {
                             }
                         },
                         modificationTracker: modificationTracker,
-                        scrollToBottom: scrollToBottom
+                        scrollToBottom: scrollToBottom,
+                        onDeleteNewRow: { index in
+                            deleteNewlyAddedRecord(atIndex: index)
+                        }
                     )
                 }
             }
@@ -271,6 +274,43 @@ struct TableListView: View {
         }
         
         scrollToBottom = true
+    }
+    
+    func deleteNewlyAddedRecord(atIndex: Int) {
+        guard let currentResult = cachedDocuments else { return }
+        
+        // Ensure the index is valid
+        guard atIndex >= 0 && atIndex < currentResult.rawRows.count else {
+            debugLog("❌ Invalid index for deletion: \(atIndex)")
+            return
+        }
+        
+        // Remove from raw rows
+        var updatedRawRows = currentResult.rawRows
+        modificationTracker.deleteRow(rowIndex: atIndex)
+        updatedRawRows.remove(at: atIndex)
+        
+        // Remove from processed rows
+        var updatedProcessedRows = currentResult.rows
+        updatedProcessedRows.remove(at: atIndex)
+        
+        // Create updated result
+        let updatedResult = QueryResult(
+            columns: currentResult.columns,
+            rows: updatedProcessedRows,
+            totalCount: currentResult.totalCount - 1,
+            rawRows: updatedRawRows
+        )
+        
+        // Update cached documents
+        cachedDocuments = updatedResult
+        
+        // Update view state
+        if let updatedDocuments = cachedDocuments, let currentSchema = cachedSchema {
+            viewState = .loaded(updatedDocuments, currentSchema)
+        }
+        
+        debugLog("✅ Deleted new record at index \(atIndex)")
     }
     
     /// Overlay content for loading/error states
