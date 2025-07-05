@@ -53,18 +53,12 @@ struct DocumentView: View {
                 .cornerRadius(16)
                 .padding(.top, 0)
                 .padding([.horizontal, .bottom], 8)
-                .onAppear {
-                    setupEventMonitor()
-                }
-                .onDisappear {
-                    removeEventMonitor()
-                }
-                .onKeyPress(.init("p"), phases: .down) { keyPress in
-                    if keyPress.modifiers.contains(.command) {
-                        return .handled
-                    }
-                    return .ignored
-                }
+//                .onAppear {
+//                    setupEventMonitor()
+//                }
+//                .onDisappear {
+//                    removeEventMonitor()
+//                }
             } else {
                 NSTabViewWrapper()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

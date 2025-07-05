@@ -136,7 +136,7 @@ struct RowModification {
     }
     
     func deleteRow(rowIndex: Int) {
-        if var row = rowModifications[rowIndex] {
+        if rowModifications[rowIndex] != nil {
             rowModifications.removeValue(forKey: rowIndex)
         }
     }

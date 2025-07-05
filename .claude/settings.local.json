@@ -1,16 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(rg:*)",
-      "Bash(xcodebuild:*)",
-      "Bash(grep:*)",
-      "Bash(rg -n \"scrollToBottom\\s*=\\s*true\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
-      "Bash(rg -B 5 -A 5 \"onChange.*scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
-      "Bash(rg -n -B 5 -A 10 \"\\.onChange.*of.*scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
-      "Bash(rg -n \".onChange\\(of: scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/TableListView.swift)",
-      "Bash(rg -n \"onChange.*scrollToBottom\" pluk/Views/Documents/TabContent/TableListView/)",
-      "Bash(rg -n -A 20 \"func updateNSView\" pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)",
-      "Bash(rg -n \"needsToSelectLastRow\" pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)"
+      "Bash(rg \"setupEventMonitor|removeEventMonitor|\\.onAppear|\\.onDisappear\" --type swift -A 2 -B 2 pluk/Views/Documents/DocumentView.swift)",
+      "Bash(rg \"\\.onKeyPress\" --type swift -A 5 -B 5 pluk/Views/Documents/DocumentView.swift)",
+      "Bash(rg -n 'keyboardShortcut.*\"\"f\"\"' /Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk --type swift)",
+      "Bash(rg -n 'NSEvent.*addLocalMonitorForEvents|addGlobalMonitorForEvents|performKeyEquivalent' /Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk --type swift)",
+      "Bash(rg -n \"keyboardShortcut.*f.*command|\\.keyboardShortcut\\(\"\"f\"\"\" --type swift)",
+      "Bash(rg \"keyboardShortcut\" --type swift -n pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
+      "Bash(rg \"^    }$\" --type swift -n -A 5 -B 5 pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
+      "Bash(rg -A 10 -B 5 \"\\.onTapOutsideGesture\" pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
+      "Bash(rg \"\\.keyboardShortcut\" --type swift -n pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)"
     ],
     "deny": []
   }

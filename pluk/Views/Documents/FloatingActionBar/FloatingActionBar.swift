@@ -71,14 +71,6 @@ struct FloatingActionBar: View {
     private let screenWidth = NSScreen.main?.frame.width ?? 200
     
     var body: some View {
-        Button("") {
-            showQueryEditor = true
-        }
-        .keyboardShortcut("f", modifiers: [.command])
-        .padding(0)
-        .opacity(0)
-        .frame(width: 0, height: 0)
-        
         VStack(spacing: 0) {
             if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette {
                 topRectangleView
@@ -194,6 +186,98 @@ struct FloatingActionBar: View {
                 action = .main
             }
         }
+        .onAppear {
+            setupEventMonitor()
+        }
+        .onDisappear {
+            removeEventMonitor()
+        }
+    }
+    
+    @State private var eventMonitor: Any?
+    
+    private func setupEventMonitor() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            switch event.keyCode {
+            case 3: // 'f' key
+                if event.modifierFlags.contains(.command) {
+                    showQueryEditor = true
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 15: // 'r' key
+                if event.modifierFlags.contains(.command) && !isLoading {
+                    // Cancel any existing loading operations before starting new one
+                    loadingTask?.cancel()
+                    debounceTask?.cancel()
+                    onRefresh(currentPage, totalPerPage, true)
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 34: // 'i' key
+                if event.modifierFlags.contains(.command) {
+                    onNewRecord()
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 37: // 'l' key
+                if event.modifierFlags.contains(.command) {
+                    withAnimation(.spring(response: 0.3)) {
+                        action = ActionBar.search
+                    }
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 35: // 'p' key
+                if event.modifierFlags.contains(.command) {
+                    withAnimation(.spring(response: 0.3)) {
+                        action = .commandPalette
+                    }
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 1: // 's' key
+                if event.modifierFlags.contains(.command) {
+                    // Handle save based on current state
+                    if modificationTracker.hasPendingDeletions {
+                        onCommitModifications()
+                    } else if modificationTracker.hasModifications {
+                        onCommitModifications()
+                    }
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 51: // Delete key with Cmd+Shift
+                if event.modifierFlags.contains([.command, .shift]) && !filter.isEmpty {
+                    filter = ""
+                    onLoadDocuments(filter)
+                    return nil // Consume the event
+                }
+                return event
+                
+            case 53: // 'esc' key
+                withAnimation(.spring(response: 0.3)) {
+                    action = .main
+                }
+                return event
+                
+            default:
+                return event // Let other keys pass through
+            }
+        }
+    }
+    
+    private func removeEventMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
     }
     
     @State private var isHoveringTopRectangle: Bool = false
@@ -255,7 +339,6 @@ struct FloatingActionBar: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6)))
-                    .keyboardShortcut(.delete, modifiers: [.command, .shift])
                     .customHelp("Clear filter", position: .top, shortcut: KeyboardShortcut(
                         modifiers: [.command, .shift],
                         key: "DELETE"
@@ -363,7 +446,6 @@ struct FloatingActionBar: View {
                     }
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: debouncedIsLoading))
-            .keyboardShortcut("r", modifiers: .command)
             .disabled(isLoading)
             .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
@@ -383,7 +465,6 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: false))
-            .keyboardShortcut("i", modifiers: .command)
             .customHelp("Insert Row", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "I"
@@ -442,7 +523,6 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .keyboardShortcut("l", modifiers: .command)
             .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "L"
@@ -462,7 +542,6 @@ struct FloatingActionBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .keyboardShortcut("p", modifiers: .command)
             .customHelp("Command Palette", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "P"
@@ -492,7 +571,6 @@ struct FloatingActionBar: View {
                 BadgedFilterIcon()
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .keyboardShortcut("p", modifiers: .command)
             .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "p"
@@ -567,7 +645,6 @@ struct FloatingActionBar: View {
             .disabled(isProcessingBatch)
             .transition(.scale.combined(with: .opacity))
             .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-            .keyboardShortcut("s", modifiers: .command)
             .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "S"
@@ -604,7 +681,6 @@ struct FloatingActionBar: View {
             .disabled(isProcessingBatch)
             .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
             .transition(.scale.combined(with: .opacity))
-            .keyboardShortcut("s", modifiers: .command)
             .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "S"
