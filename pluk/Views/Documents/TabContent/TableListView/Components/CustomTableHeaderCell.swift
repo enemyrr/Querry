@@ -10,10 +10,13 @@ import AppKit
 
 class CustomTableHeaderCell: NSTableHeaderCell {
     private var titleLabel: NSTextField?
+    private var fieldType: String?
     
     // Sort state
     private var isActiveSortColumn = false
     private var sortAscending = true
+    
+    // No need to store icon rect anymore
     
     override init(textCell string: String) {
         super.init(textCell: string)
@@ -23,13 +26,15 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         super.init(coder: coder)
     }
     
-    func configure(title: String) {
+    func configure(title: String, fieldType: String? = nil) {
         titleLabel?.stringValue = title
+        self.fieldType = fieldType
     }
     
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)
-        drawTitle(in: cellFrame, icon: getSortIcon())
+        let typeIconData = getDataTypeIcon()
+        drawTitle(in: cellFrame, sortIcon: getSortIcon(), typeIconData: typeIconData)
     }
     
     private func getSortIcon() -> NSImage? {
@@ -49,7 +54,61 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     }
     
     
-    private func drawTitle(in rect: NSRect, icon: NSImage?) {
+    private func getDataTypeIcon() -> (icon: NSImage, size: CGFloat)? {
+        guard let fieldType = fieldType else { return nil }
+        
+        let symbolName: String
+        let customSize: CGFloat
+        
+        switch fieldType.lowercased() {
+        case "text", "character varying", "varchar", "character":
+            symbolName = "textformat.alt"
+            customSize = 10
+        case let type where type.contains("int"):
+            symbolName = "number"
+            customSize = 11
+        case "numeric", "decimal", "real", "double precision", "float", "money":
+            symbolName = "dollarsign"
+            customSize = 13
+        case let type where type.hasPrefix("unknown") || "boolean" == type || "bool" == type:
+            symbolName = "switch.2"
+            customSize = 14
+        case "xml":
+            symbolName = "ellipsis.curlybraces"
+            customSize = 13
+        case let type where type.hasPrefix("timestamp") || type.hasPrefix("date"):
+            symbolName = "calendar"
+            customSize = 13
+        case "time", "time with time zone", "time without time zone", "timez":
+            symbolName = "clock"
+            customSize = 14
+        case "uuid":
+            symbolName = "qrcode"
+            customSize = 12
+        case "json", "jsonb":
+            symbolName = "curlybraces"
+            customSize = 13
+        case "array":
+            symbolName = "square.stack"
+            customSize = 13
+        case "bytea":
+            symbolName = "doc.text"
+            customSize = 12
+        default:
+            symbolName = "questionmark.circle"
+            customSize = 14
+        }
+        
+        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+            .applying(.init(hierarchicalColor: .tertiaryLabelColor))
+        
+        guard let icon = NSImage(systemSymbolName: symbolName, accessibilityDescription: fieldType)?
+            .withSymbolConfiguration(config) else { return nil }
+        
+        return (icon, customSize)
+    }
+    
+    private func drawTitle(in rect: NSRect, sortIcon: NSImage?, typeIconData: (icon: NSImage, size: CGFloat)?) {
         var textRect = rect.insetBy(dx: 2, dy: 0)
         textRect.size.width -= 20 // Space for sort indicator
         
@@ -70,17 +129,44 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         // Draw the text
         let attributedTitle = NSAttributedString(string: title, attributes: attributes)
         let titleSize = attributedTitle.size()
+        
+        // Calculate space needed for icons
+        var iconSpace: CGFloat = 0
+        if typeIconData != nil {
+            iconSpace += 20 // Space for type icon
+        }
+        
+        // Draw type icon first (left of title)
+        if let typeIconData = typeIconData {
+            let typeIcon = typeIconData.icon
+            let targetHeight = typeIconData.size
+            let naturalSize = typeIcon.size
+            let scale = targetHeight / naturalSize.height
+            let scaledWidth = naturalSize.width * scale
+            let scaledHeight = targetHeight
+            
+            let iconRect = NSRect(
+                x: textRect.minX + 6,
+                y: rect.midY - scaledHeight / 2,
+                width: scaledWidth,
+                height: scaledHeight
+            )
+            
+            typeIcon.draw(in: iconRect)
+        }
+        
+        // Draw title (offset if there's a type icon)
         let titleRect = NSRect(
-            x: textRect.minX + 6,
+            x: textRect.minX + 6 + iconSpace,
             y: textRect.midY - titleSize.height / 2,
-            width: textRect.width,
+            width: textRect.width - iconSpace,
             height: titleSize.height
         )
         
         attributedTitle.draw(in: titleRect)
         
-        if let icon = icon {
-            let naturalSize = icon.size
+        if let sortIcon = sortIcon {
+            let naturalSize = sortIcon.size
             let maxIconHeight = rect.height * 0.25
             
             let scale = maxIconHeight / naturalSize.height
@@ -94,7 +180,7 @@ class CustomTableHeaderCell: NSTableHeaderCell {
                 height: scaledHeight
             )
             
-            icon.draw(in: iconRect)
+            sortIcon.draw(in: iconRect)
         }
     }
     
@@ -122,10 +208,11 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     override func cellSize(forBounds rect: NSRect) -> NSSize {
         let font = NSFont.systemFont(ofSize: 12, weight: .medium)
         let attributes = [NSAttributedString.Key.font: font]
+        
         let titleSize = (title as NSString).size(withAttributes: attributes)
         
-        // Add padding for your custom drawing
-        let width = titleSize.width + 40 // Space for borders, icons, etc.
+        // Add padding for your custom drawing including type icon
+        let width = titleSize.width + 60 // Space for borders, type icon, sort icon, etc.
         let height = max(titleSize.height + 8, 32) // Minimum height
         
         return NSSize(width: width, height: height)
@@ -134,7 +221,8 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     override func highlight(_ flag: Bool, withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)
-        drawTitle(in: cellFrame, icon: getSortIcon())
+        let typeIconData = getDataTypeIcon()
+        drawTitle(in: cellFrame, sortIcon: getSortIcon(), typeIconData: typeIconData)
     }
     
     func updateSortIndicator(isActive: Bool, ascending: Bool) {
@@ -145,5 +233,10 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         if let controlView = controlView {
             controlView.setNeedsDisplay(controlView.bounds)
         }
+    }
+    
+    // MARK: - Tooltip Support
+    func getFieldType() -> String? {
+        return fieldType
     }
 }

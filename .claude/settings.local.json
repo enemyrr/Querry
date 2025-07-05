@@ -9,7 +9,9 @@
       "Bash(rg \"keyboardShortcut\" --type swift -n pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
       "Bash(rg \"^    }$\" --type swift -n -A 5 -B 5 pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
       "Bash(rg -A 10 -B 5 \"\\.onTapOutsideGesture\" pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
-      "Bash(rg \"\\.keyboardShortcut\" --type swift -n pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)"
+      "Bash(rg \"\\.keyboardShortcut\" --type swift -n pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
+      "Bash(rg \"func makeCoordinator\" --type swift -A 5 -B 2 pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)",
+      "Bash(rg \"// MARK:\" --type swift -n pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)"
     ],
     "deny": []
   }

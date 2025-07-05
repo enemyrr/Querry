@@ -354,7 +354,7 @@ struct TableListViewController: NSViewRepresentable {
             }
         }
         
-        private func createColumn(identifier: String, title: String, icon: NSImage?) {
+        private func createColumn(identifier: String, title: String, dataType: String?, icon: NSImage?) {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
             column.title = title
             
@@ -382,7 +382,7 @@ struct TableListViewController: NSViewRepresentable {
             
             //             Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-            customHeaderCell.configure(title: title)
+            customHeaderCell.configure(title: title, fieldType: dataType)
             column.headerCell = customHeaderCell
             
             let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
@@ -468,6 +468,7 @@ struct TableListViewController: NSViewRepresentable {
                 createColumn(
                     identifier: columnInfo.name,
                     title: columnInfo.name,
+                    dataType: columnInfo.dataType,
                     icon: nil
                 )
             }
@@ -516,22 +517,21 @@ struct TableListViewController: NSViewRepresentable {
             // Remove intercell spacing to eliminate padding between columns
             tableView.intercellSpacing = NSSize(width: 0, height: 0)
             
-            if let headerView = tableView.headerView {
-                headerView.frame.size.height = 32
-                
-                let visualEffectView = NSVisualEffectView()
-                visualEffectView.frame = headerView.bounds
-                visualEffectView.material = .hudWindow
-                visualEffectView.blendingMode = .withinWindow
-                visualEffectView.state = .active
-                visualEffectView.autoresizingMask = [.width, .height]
-                
-                visualEffectView.wantsLayer = true
-                visualEffectView.layer?.zPosition = -1000
-                
-                headerView.addSubview(visualEffectView)
-                tableView.headerView = headerView
-            }
+            // Create custom header view
+            let customHeaderView = CustomTableHeaderView(frame: NSRect(x: 0, y: 0, width: tableView.bounds.width, height: 32))
+            
+            let visualEffectView = NSVisualEffectView()
+            visualEffectView.frame = customHeaderView.bounds
+            visualEffectView.material = .hudWindow
+            visualEffectView.blendingMode = .withinWindow
+            visualEffectView.state = .active
+            visualEffectView.autoresizingMask = [.width, .height]
+            
+            visualEffectView.wantsLayer = true
+            visualEffectView.layer?.zPosition = -1000
+            
+            customHeaderView.addSubview(visualEffectView)
+            tableView.headerView = customHeaderView
         }
         
         private func rebuildTableStructure() {
