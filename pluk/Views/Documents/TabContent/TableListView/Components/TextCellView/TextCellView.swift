@@ -7,7 +7,6 @@
 
 import Foundation
 import AppKit
-import PostgresNIO
 
 // MARK: - Custom NSTextField that handles Escape key via cancelOperation
 class EditableTextField: NSTextField {
@@ -99,7 +98,7 @@ class EditableTextField: NSTextField {
 class TextCellView: NSView, NSTextFieldDelegate {
     private var textField: EditableTextField!
     private var rightBorderView: NSView?
-    private var bottomBorderLayer: CALayer?
+    private var bottomBorderView: NSView?
     
     // Static reference to track which cell is currently editing
     private static weak var currentEditingCell: TextCellView?
@@ -484,7 +483,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     private func setSelected(_ selected: Bool) {
-        //        debugLog("🎯 Setting cell (\(rowIndex), \(columnName)) selected: \(selected)")
+        debugLog("🎯 Setting cell (\(rowIndex), \(columnName)) selected: \(selected)")
         isSelected = selected
         
         if !wantsLayer {
@@ -572,19 +571,39 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     private func createBorderViewIfNeeded() {
-        if bottomBorderLayer == nil {
+        if rightBorderView == nil || bottomBorderView == nil {
             createBorderView()
         }
     }
     
     private func createBorderView() {
-        wantsLayer = true
-        bottomBorderLayer = CALayer()
-        bottomBorderLayer?.backgroundColor = NSColor.separatorColor.cgColor
-        bottomBorderLayer?.frame = CGRect(x: 0, y: 0, width: frame.width, height: 1)
-        bottomBorderLayer?.autoresizingMask = [.layerWidthSizable]
+        // Right border
+        rightBorderView = NSView()
+        rightBorderView?.wantsLayer = true
+        rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
         
-        layer?.addSublayer(bottomBorderLayer!)
+        addSubview(rightBorderView!)
+        rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            rightBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
+            rightBorderView!.topAnchor.constraint(equalTo: topAnchor),
+            rightBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
+            rightBorderView!.widthAnchor.constraint(equalToConstant: 1.0)
+        ])
+        
+        // Bottom border
+        bottomBorderView = NSView()
+        bottomBorderView?.wantsLayer = true
+        bottomBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        
+        addSubview(bottomBorderView!)
+        bottomBorderView?.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            bottomBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 0),
+            bottomBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
+            bottomBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
+            bottomBorderView!.heightAnchor.constraint(equalToConstant: 1.0)
+        ])
     }
     
     func setAsSelectedCell() {

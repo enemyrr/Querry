@@ -13,7 +13,6 @@ struct TableListView: View {
     @Environment(ConnectionInstance.self) private var instance
     
     @State private var viewState: TableListViewState = .loading
-    @State private var searchFilter: String = ""
     @State private var sortColumn: String?
     @State private var sortAscending: Bool = true
     
@@ -78,12 +77,8 @@ struct TableListView: View {
                         }
                     },
                     onLoadDocuments: { filter in
-                        if let filter = filter {
-                            searchFilter = filter
-                        }
-                        
                         Task {
-                            await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+                            await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
                         }
                     },
                     onCommitModifications: {
@@ -101,13 +96,6 @@ struct TableListView: View {
         }
         .task(id: selectedTab.name) {
             await loadDocumentsIfNeeded()
-        }
-        .onChange(of: searchFilter) { _, newValue in
-            loadingTask?.cancel()
-            modificationTracker.resetAllModifications()
-            loadingTask = Task {
-                await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
-            }
         }
         .onChange(of: instance.id) { _, _ in
             loadingTask?.cancel()
@@ -134,30 +122,6 @@ struct TableListView: View {
     private func showError(_ error: Error) {
         currentError = error
         showingErrorAlert = true
-    }
-    
-    private func handleErrorRetry(_ error: Error) async {
-        // Generic retry logic - you can customize this based on the error type
-        if error is DatabaseError {
-            await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
-        } else {
-            await loadDocumentsIfNeeded()
-        }
-    }
-    
-    // MARK: - Undo Functionality
-    private func performUndo() async {
-        guard modificationTracker.canUndo else {
-            debugLog("ℹ️ No modifications to undo")
-            return
-        }
-        
-        let success = modificationTracker.undo()
-        if success {
-            debugLog("✅ Undo successful")
-        } else {
-            debugLog("❌ Undo failed")
-        }
     }
     
     // MARK: - Save Modifications
@@ -361,7 +325,7 @@ struct TableListView: View {
     }
     
     /// Load documents with options to force fetch and control schema fetching
-    private func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300) async {
+    private func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
         guard let driver = instance.databaseService else {
             viewState = .error("Driver not set")
             return
@@ -394,7 +358,7 @@ struct TableListView: View {
                 async let schemaTask = instance.getSchema(for: selectedTab.name)
                 async let documentsTask = driver.findDocuments(
                     in: selectedTab.name,
-                    filter: searchFilter,
+                    filter: filter ?? "",
                     skip: (page - 1) * limit,
                     limit: limit,
                     sortBy: sortColumn,
@@ -425,7 +389,7 @@ struct TableListView: View {
                 
                 let documents = try await driver.findDocuments(
                     in: selectedTab.name,
-                    filter: searchFilter,
+                    filter: filter ?? "",
                     skip: (page - 1) * limit,
                     limit: limit,
                     sortBy: sortColumn,

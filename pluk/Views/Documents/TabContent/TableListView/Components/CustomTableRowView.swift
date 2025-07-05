@@ -9,13 +9,6 @@ import Foundation
 import AppKit
 
 class CustomTableRowView: NSTableRowView {
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-    }
-    
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
     
     override func drawSelection(in dirtyRect: NSRect) {
         guard let tableView = self.superview as? NSTableView else {

@@ -117,30 +117,6 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         bottomBorder.stroke()
     }
     
-    override func drawFocusRingMask(withFrame cellFrame: NSRect, in controlView: NSView) {
-        drawCustomBackground(in: cellFrame)
-    }
-    
-    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-        drawCustomBackground(in: cellFrame)
-    }
-    
-    override func draw(withExpansionFrame cellFrame: NSRect, in view: NSView) {
-        drawCustomBackground(in: cellFrame)
-    }
-    
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        return rect
-    }
-    
-    override func draggingImageComponents(withFrame frame: NSRect, in view: NSView) -> [NSDraggingImageComponent] {
-        drawCustomBackground(in: frame)
-        return []
-    }
-    
-    override func drawSortIndicator(withFrame cellFrame: NSRect, in controlView: NSView, ascending: Bool, priority: Int) {
-        drawCustomBackground(in: cellFrame)
-    }
     
     
     override func cellSize(forBounds rect: NSRect) -> NSSize {

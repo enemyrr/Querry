@@ -16,7 +16,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "269"
             endingLineNumber = "269"
-            landmarkName = "commitModifications()"
+            landmarkName = "handleNewRecord()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -78,9 +78,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "280"
-            endingLineNumber = "280"
-            landmarkName = "sortTableData(by:)"
+            startingLineNumber = "233"
+            endingLineNumber = "233"
+            landmarkName = "updateRows(_:newSchema:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -94,9 +94,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "281"
-            endingLineNumber = "281"
-            landmarkName = "sortTableData(by:)"
+            startingLineNumber = "234"
+            endingLineNumber = "234"
+            landmarkName = "updateRows(_:newSchema:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -110,9 +110,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "285"
-            endingLineNumber = "285"
-            landmarkName = "sortTableData(by:)"
+            startingLineNumber = "238"
+            endingLineNumber = "238"
+            landmarkName = "updateRows(_:newSchema:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -126,9 +126,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "291"
-            endingLineNumber = "291"
-            landmarkName = "sortTableData(by:)"
+            startingLineNumber = "244"
+            endingLineNumber = "244"
+            landmarkName = "updateRows(_:newSchema:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -176,7 +176,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "264"
             endingLineNumber = "264"
-            landmarkName = "commitModifications()"
+            landmarkName = "handleNewRecord()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -192,7 +192,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "263"
             endingLineNumber = "263"
-            landmarkName = "commitModifications()"
+            landmarkName = "handleNewRecord()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -608,7 +608,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "353"
             endingLineNumber = "353"
-            landmarkName = "loadDocumentsIfNeeded()"
+            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:filter:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -624,7 +624,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "391"
             endingLineNumber = "391"
-            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:)"
+            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:filter:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -640,7 +640,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "406"
             endingLineNumber = "406"
-            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:)"
+            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:filter:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -656,7 +656,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "405"
             endingLineNumber = "405"
-            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:)"
+            landmarkName = "loadDocuments(forceFetch:fetchSchema:page:limit:filter:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -750,9 +750,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "906"
-            endingLineNumber = "906"
-            landmarkName = "loadPersistentSchema(for:)"
+            startingLineNumber = "856"
+            endingLineNumber = "856"
+            landmarkName = "tableView(_:heightOfRow:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -814,10 +814,10 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "892"
-            endingLineNumber = "892"
-            landmarkName = "PersistentColumnSchema"
-            landmarkType = "14">
+            startingLineNumber = "842"
+            endingLineNumber = "842"
+            landmarkName = "estimateWidth(_:font:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -832,8 +832,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "158"
             endingLineNumber = "158"
-            landmarkName = "TextCellView"
-            landmarkType = "3">
+            landmarkName = "prepareForReuse()"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -990,41 +990,9 @@
             filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "479"
-            endingLineNumber = "479"
-            landmarkName = "setupTable()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "D4091E09-0CD3-4FE8-AC85-2810D6DB2F00"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "155"
-            endingLineNumber = "155"
-            landmarkName = "handleUndo()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "9E25E57D-5357-48FE-8314-BB8B5DDD4591"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "156"
-            endingLineNumber = "156"
-            landmarkName = "handleUndo()"
+            startingLineNumber = "429"
+            endingLineNumber = "429"
+            landmarkName = "createColumn(identifier:title:icon:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1106,36 +1074,38 @@
             endingLineNumber = "23"
             landmarkName = "keyDown(with:)"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "4562ED09-2053-4517-B2AA-7EC9B0FA3DCE - 7e25ea11d470ee7b"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.CustomTableView.keyDown(with: __C.NSEvent) -&gt; ()"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/Components/CustomTableView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "23"
-                  endingLineNumber = "23">
-               </Location>
-               <Location
-                  uuid = "4562ED09-2053-4517-B2AA-7EC9B0FA3DCE - 7e25ea11d470ee7b"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Pluk.CustomTableView.keyDown(with: __C.NSEvent) -&gt; ()"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Views/Documents/TabContent/TableListView/Components/CustomTableView.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "23"
-                  endingLineNumber = "23">
-               </Location>
-            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "0AB7F2AF-6F97-41D3-AEA4-D684D3A41077"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "102"
+            endingLineNumber = "102"
+            landmarkName = "handleDeleteKey(notification:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "40797DBD-5BD1-4702-B512-289EC5295DC6"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "101"
+            endingLineNumber = "101"
+            landmarkName = "handleDeleteKey(notification:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

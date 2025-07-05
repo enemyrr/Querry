@@ -94,11 +94,25 @@ struct TableListViewController: NSViewRepresentable {
                 return
             }
             
+            // Store the first deleted row for selection logic
+            let firstDeletedRow = rows.first ?? 0
+            
             for row in rows {
                 modificationTracker?.markAsDeleted(rowIndex: row)
             }
             
-            // Tell the table view to redraw the affected rows
+            // Force all cells in the affected rows to update their appearance
+            for row in rows {
+                for columnIndex in 0..<tableView.numberOfColumns {
+                    if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? TextCellView {
+                        // Directly update the cell's deletion state
+                        cellView.isMarkedForDeletion = true
+                        cellView.needsDisplay = true
+                    }
+                }
+            }
+            
+            // Also reload the rows to ensure proper state
             tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
         }
         
@@ -157,13 +171,6 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         
-        // MARK: - Selection Management
-        func clearTableSelection() {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.tableView.clearAllSelection()
-            }
-        }
         
         func setupTableView() -> NSView {
             setupUI()
@@ -462,9 +469,6 @@ struct TableListViewController: NSViewRepresentable {
             tableView.allowsColumnReordering = true
             tableView.columnAutoresizingStyle = .noColumnAutoresizing
             
-            tableView.gridStyleMask = [.solidVerticalGridLineMask]
-            tableView.gridColor = NSColor.separatorColor
-            
             // Enable column selection only
             tableView.allowsColumnSelection = false
             tableView.allowsMultipleSelection = true
@@ -664,9 +668,6 @@ struct TableListViewController: NSViewRepresentable {
             return self.totalCount
         }
         
-        @objc private func onItemClicked() {
-            debugLog("row \(tableView.clickedRow), col \(tableView.clickedColumn) clicked")
-        }
         
         @objc private func columnDidResize(_ notification: Notification) {
             guard let _ = notification.object as? NSTableView,
