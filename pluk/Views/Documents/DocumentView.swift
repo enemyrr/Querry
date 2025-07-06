@@ -53,12 +53,12 @@ struct DocumentView: View {
                 .cornerRadius(16)
                 .padding(.top, 0)
                 .padding([.horizontal, .bottom], 8)
-//                .onAppear {
-//                    setupEventMonitor()
-//                }
-//                .onDisappear {
-//                    removeEventMonitor()
-//                }
+                .onAppear {
+                    setupEventMonitor()
+                }
+                .onDisappear {
+                    removeEventMonitor()
+                }
             } else {
                 NSTabViewWrapper()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
