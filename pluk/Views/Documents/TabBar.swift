@@ -39,6 +39,19 @@ struct TabBar: View {
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
         .frame(height: 36)
+        .background(
+            // Add hidden buttons for Cmd+1 through Cmd+9
+            ForEach(0..<9) { index in
+                Button(action: {
+                    instance.selectTabByIndex(index)
+                }) {
+                    EmptyView()
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command])
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
+        )
 
     }
 
@@ -258,55 +271,12 @@ struct NSTabViewWrapper: NSViewRepresentable {
             _ tabView: NSTabView,
             willSelect tabViewItem: NSTabViewItem?
         ) {
-            // Add context menu for tab closing
-            if let item = tabViewItem,
-                let identifier = item.identifier as? String,
-                let tab = instance.tabs.first(where: {
-                    $0.id.uuidString == identifier
-                })
-            {
-
-                let menu = NSMenu()
-                let closeItem = NSMenuItem(
-                    title: "Close Tab",
-                    action: #selector(closeTab(_:)),
-                    keyEquivalent: "w"
-                )
-                closeItem.keyEquivalentModifierMask = [.command]
-                closeItem.representedObject = tab
-                closeItem.target = self
-                menu.addItem(closeItem)
-
-                // Add close other tabs option
-                let closeOthersItem = NSMenuItem(
-                    title: "Close Other Tabs",
-                    action: #selector(closeOtherTabs(_:)),
-                    keyEquivalent: ""
-                )
-                closeOthersItem.representedObject = tab
-                closeOthersItem.target = self
-                menu.addItem(closeOthersItem)
-
-                item.view?.menu = menu
+            // Remove any context menu from tab content view to prevent it from appearing on right-click
+            if let item = tabViewItem {
+                item.view?.menu = nil
             }
         }
 
-        @objc private func closeTab(_ sender: NSMenuItem) {
-            if let tab = sender.representedObject as? DatabaseTab {
-                instance.removeTab(tab)
-            }
-        }
-
-        @objc private func closeOtherTabs(_ sender: NSMenuItem) {
-            if let currentTab = sender.representedObject as? DatabaseTab {
-                let tabsToClose = instance.tabs.filter {
-                    $0.id != currentTab.id
-                }
-                for tab in tabsToClose {
-                    instance.removeTab(tab)
-                }
-            }
-        }
     }
 }
 

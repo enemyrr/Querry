@@ -328,6 +328,11 @@ import AIProxy
         }
     }
     
+    func selectTabByIndex(_ index: Int) {
+        guard index >= 0 && index < tabs.count else { return }
+        selectedTab = tabs[index]
+    }
+    
     // MARK: - Pagination Management (direct and simple)
     
     func updateCurrentPage(_ page: Int) {
