@@ -114,7 +114,7 @@ class CustomTableView: NSTableView {
             let selectedRows = self.selectedRowIndexes
             // We need a way to communicate this back to the coordinator/view model
             // For now, let's post a notification
-            NotificationCenter.default.post(name: .didRequestDelete, object: self, userInfo: ["rows": selectedRows])
+            NotificationCenter.default.post(name: .didRequestDelete, object: self, userInfo: ["rows": selectedRows, "tableView": self])
             handled = true
             
         default:

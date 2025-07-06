@@ -96,7 +96,9 @@ struct TableListViewController: NSViewRepresentable {
         
         @objc private func handleDeleteKey(notification: Notification) {
             guard let userInfo = notification.userInfo,
-                  let rows = userInfo["rows"] as? IndexSet else {
+                  let rows = userInfo["rows"] as? IndexSet,
+                  let notificationTableView = userInfo["tableView"] as? NSTableView,
+                  notificationTableView === self.tableView else {
                 return
             }
             
