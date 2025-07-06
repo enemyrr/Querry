@@ -325,6 +325,37 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+struct FilterSubmitButtonStyle: ButtonStyle {
+    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)      // Vertical padding for height
+            .foregroundColor(isEnabled ? Color(.controlBackgroundColor).opacity(0.8) : .secondary)     // White text color
+            .background(
+                // Use system accent color for native feel, or specify custom blue
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .opacity(isHovering ? 0.8 : 1.0)
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovered in
+                isHovering = isHovered
+                
+                if isHovered {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
 struct ChatSendButtonStyle: ButtonStyle {
     static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
     @Environment(\.isEnabled) private var isEnabled
@@ -416,6 +447,37 @@ struct CustomMenuButtonStyle: ButtonStyle {
         }
     }
 }
+
+struct FilterDropdownStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.separator)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color(.controlBackgroundColor) : Color.white)
+                        .opacity(0.2)
+                    : Color(.controlBackgroundColor).opacity(0.2)
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 
 struct OutlineButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme

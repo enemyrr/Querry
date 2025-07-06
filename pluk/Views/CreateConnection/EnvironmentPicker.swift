@@ -22,6 +22,7 @@ struct EnvironmentPicker: View {
             } label: {
                 Text(selectedEnvironment.rawValue)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                
                 Image(systemName: "chevron.compact.down")
                     .scaleEffect(CGSize(width: 0.7, height: 1.5))
             }

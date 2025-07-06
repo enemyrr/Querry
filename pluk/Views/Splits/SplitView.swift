@@ -205,34 +205,18 @@ enum SplitViewDirection: Codable {
                 .padding()
                 .background(Color.blue.opacity(0.1))
             } right: {
-                // Nested split for middle and right panes
-                SplitView(.horizontal, $rightSplit, dividerColor: .orange) {
-                    // Middle pane
-                    VStack {
-                        Text("Middle Pane")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("\(String(format: "%.1f%%", (1 - leftSplit) * rightSplit * 100))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color.green.opacity(0.1))
-                } right: {
-                    // Right pane
-                    VStack {
-                        Text("Right Pane")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("\(String(format: "%.1f%%", (1 - leftSplit) * (1 - rightSplit) * 100))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color.purple.opacity(0.1))
+                // Right pane
+                VStack {
+                    Text("Right Pane")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Text("\(String(format: "%.1f%%", (1 - leftSplit) * (1 - rightSplit) * 100))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
+                .padding()
+                .background(Color.purple.opacity(0.1))
             }
             .frame(height: 300)
             .padding()

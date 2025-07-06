@@ -34,7 +34,9 @@ struct TableListView: View {
     
     var body: some View {
         ZStack {
-            VStack {
+            VStack(spacing: 0) {
+                FilterBuilderView(columns: cachedSchema?.columns ?? [])
+                
                 if cachedSchema != nil || currentQueryResult != nil {
                     TableListViewController(
                         schema: cachedSchema,
