@@ -99,10 +99,15 @@ class CustomTableHeaderView: NSTableHeaderView {
                     
                     if iconRect.contains(locationInView) {
                         if currentHoveredColumn != columnIndex {
-                            // Show tooltip below the icon
+                            // Show tooltip below the icon, centered
+                            // Calculate the icon center position
+                            let iconCenterX = iconRect.midX
+                            // Position tooltip below the header (at the bottom of the header view)
+                            let tooltipY = self.bounds.maxY
+                            
                             let tooltipPoint = NSPoint(
-                                x: iconRect.midX,
-                                y: iconRect.minY
+                                x: iconCenterX,
+                                y: tooltipY
                             )
                             TooltipManager.shared.showTooltip(fieldType, at: tooltipPoint, relativeTo: self)
                             currentHoveredColumn = columnIndex

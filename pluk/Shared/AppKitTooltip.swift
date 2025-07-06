@@ -76,9 +76,10 @@ class AppKitTooltip: NSWindow {
         // Convert point to screen coordinates
         let screenPoint = window.convertPoint(toScreen: view.convert(point, to: nil))
         
-        // Position tooltip
+        // Position tooltip centered horizontally at the point, and below it
         var tooltipOrigin = screenPoint
-        tooltipOrigin.y -= 4 // Small offset below cursor
+        tooltipOrigin.x -= self.frame.width / 2  // Center horizontally
+        tooltipOrigin.y -= (self.frame.height + 2) // Position below with 4px gap
         
         self.setFrameOrigin(tooltipOrigin)
         
