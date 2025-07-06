@@ -207,7 +207,7 @@ struct FloatingActionBar: View {
                 return event
                 
             case 15: // 'r' key
-                if event.modifierFlags.contains(.command) && !isLoading {
+                if event.modifierFlags.contains(.command) {
                     // Cancel any existing loading operations before starting new one
                     loadingTask?.cancel()
                     debounceTask?.cancel()
