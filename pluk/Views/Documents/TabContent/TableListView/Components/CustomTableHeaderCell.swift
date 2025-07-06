@@ -37,8 +37,12 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)
-        let typeIconData = getDataTypeIcon()
-        drawTitle(in: cellFrame, sortIcon: getSortIcon(), typeIconData: typeIconData)
+        
+        // Only draw content if this is a valid column header (not empty space)
+        if !title.isEmpty {
+            let typeIconData = getDataTypeIcon()
+            drawTitle(in: cellFrame, sortIcon: getSortIcon(), typeIconData: typeIconData)
+        }
     }
     
     private func getSortIcon() -> NSImage? {
@@ -240,8 +244,12 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     override func highlight(_ flag: Bool, withFrame cellFrame: NSRect, in controlView: NSView) {
         drawCustomBackground(in: cellFrame)
-        let typeIconData = getDataTypeIcon()
-        drawTitle(in: cellFrame, sortIcon: getSortIcon(), typeIconData: typeIconData)
+        
+        // Only draw content if this is a valid column header (not empty space)
+        if !title.isEmpty {
+            let typeIconData = getDataTypeIcon()
+            drawTitle(in: cellFrame, sortIcon: getSortIcon(), typeIconData: typeIconData)
+        }
     }
     
     func updateSortIndicator(isActive: Bool, ascending: Bool) {
