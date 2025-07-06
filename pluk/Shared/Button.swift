@@ -332,8 +332,8 @@ struct FilterSubmitButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)      // Vertical padding for height
+            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
             .foregroundColor(isEnabled ? Color(.controlBackgroundColor).opacity(0.8) : .secondary)     // White text color
             .background(
                 // Use system accent color for native feel, or specify custom blue
@@ -666,6 +666,27 @@ struct RenameSaveButtonStyle: ButtonStyle {
                 isHovering = hovering
             }
         }
+    }
+}
+
+struct FilterClearButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, 6)
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .offset(y: 8)
+                    .opacity(isHovering ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.2), value: isHovering)
+            )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isHovering = hovering
+                }
+            }
     }
 }
 

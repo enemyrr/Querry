@@ -101,7 +101,7 @@ struct BuildInfo {
 }
 
 // MARK: - Schema Information Structures
-struct DatabaseSchemaInfo {
+struct DatabaseSchemaInfo: Equatable {
     let ordinalPosition: Int?
     let columnName: String
     let dataType: String
