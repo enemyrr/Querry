@@ -4,7 +4,6 @@
 //
 //  Created by Fauzaan on 7/2/25.
 //
-
 import SwiftUI
 
 /// A split view shows a left and right (or top and bottom) view with a divider in the middle to do resizing.
@@ -184,4 +183,61 @@ struct SplitView<L: View, R: View>: View {
 
 enum SplitViewDirection: Codable {
     case horizontal, vertical
+}
+
+#Preview("3-Way Horizontal Split") {
+    struct ThreeWaySplitPreview: View {
+        @State private var leftSplit: CGFloat = 0.33  // First split at 33%
+        @State private var rightSplit: CGFloat = 0.5  // Second split at 50% of remaining space
+        
+        var body: some View {
+            SplitView(.horizontal, $leftSplit, dividerColor: .gray) {
+                // Left pane (33% of total)
+                VStack {
+                    Text("Left Pane")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Text("\(String(format: "%.1f%%", leftSplit * 100))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+            } right: {
+                // Nested split for middle and right panes
+                SplitView(.horizontal, $rightSplit, dividerColor: .orange) {
+                    // Middle pane
+                    VStack {
+                        Text("Middle Pane")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("\(String(format: "%.1f%%", (1 - leftSplit) * rightSplit * 100))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.green.opacity(0.1))
+                } right: {
+                    // Right pane
+                    VStack {
+                        Text("Right Pane")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("\(String(format: "%.1f%%", (1 - leftSplit) * (1 - rightSplit) * 100))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.purple.opacity(0.1))
+                }
+            }
+            .frame(height: 300)
+            .padding()
+        }
+    }
+    
+    return ThreeWaySplitPreview()
 }
