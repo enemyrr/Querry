@@ -368,13 +368,13 @@ struct CustomTabButton: View {
                         : Color.clear
                 )
         )
-//        .overlay(
-//            TabBorderShape(isSelected: isSelected)
-//                .stroke(
-//                    isSelected ? Color(.separatorColor) : Color.clear,
-//                    lineWidth: 1
-//                )
-//        )
+        .overlay(
+            TabBorderShape(isSelected: isSelected)
+                .stroke(
+                    isSelected ? Color(.separatorColor) : Color.clear,
+                    lineWidth: 0.3
+                )
+        )
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(

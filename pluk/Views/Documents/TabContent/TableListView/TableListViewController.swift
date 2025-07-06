@@ -382,7 +382,11 @@ struct TableListViewController: NSViewRepresentable {
             
             //             Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-            customHeaderCell.configure(title: title, fieldType: dataType)
+            // TODO: Once the schema includes isPrimaryKey and isForeignKey information, pass them here
+            // For now, we can do a simple check based on column name as a placeholder
+            let isPrimaryKey = identifier.lowercased() == "id" || identifier.lowercased().hasSuffix("_id") && identifier.lowercased().count == 2
+            let isForeignKey = identifier.lowercased().hasSuffix("_id") && identifier.lowercased().count > 2
+            customHeaderCell.configure(title: title, fieldType: dataType, isPrimaryKey: isPrimaryKey, isForeignKey: isForeignKey)
             column.headerCell = customHeaderCell
             
             let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
