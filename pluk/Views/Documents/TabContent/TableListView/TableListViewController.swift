@@ -15,14 +15,16 @@ struct TableListViewController: NSViewRepresentable {
     let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
     let modificationTracker: TableModificationTracker?
     let scrollToBottom: Bool
+    let onDeleteNewRow: ((Int) -> Void)? // Callback for deleting new rows
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
         self.onSort = onSort
         self.modificationTracker = modificationTracker
         self.scrollToBottom = scrollToBottom
+        self.onDeleteNewRow = onDeleteNewRow
     }
     
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate {
@@ -50,6 +52,9 @@ struct TableListViewController: NSViewRepresentable {
         // Callback for database-level sorting
         var onSort: ((String, Bool) -> Void)?
         
+        // Callback for deleting new rows
+        var onDeleteNewRow: ((Int) -> Void)?
+        
         // Persistent storage
         private var tableName: String = ""
         private var currentSchemaSignature: String = ""
@@ -64,12 +69,13 @@ struct TableListViewController: NSViewRepresentable {
         // Store modification tracker reference
         weak var modificationTracker: TableModificationTracker?
         
-        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil) {
+        init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil) {
             self.schema = schema
             self.queryResult = queryResult
             self.tableName = tableName
             self.onSort = onSort
             self.modificationTracker = modificationTracker
+            self.onDeleteNewRow = onDeleteNewRow
             
             if let queryResult = queryResult {
                 self.rows = queryResult.rawRows
@@ -90,15 +96,33 @@ struct TableListViewController: NSViewRepresentable {
         
         @objc private func handleDeleteKey(notification: Notification) {
             guard let userInfo = notification.userInfo,
-                  let rows = userInfo["rows"] as? IndexSet else {
+                  let rows = userInfo["rows"] as? IndexSet,
+                  let notificationTableView = userInfo["tableView"] as? NSTableView,
+                  notificationTableView === self.tableView else {
                 return
             }
             
             for row in rows {
-                modificationTracker?.markAsDeleted(rowIndex: row)
+                if let rowModification = modificationTracker?.getRowModification(for: row),
+                   rowModification.type == .insert {
+                    onDeleteNewRow?(rowModification.rowIndex)
+                } else {
+                    modificationTracker?.markAsDeleted(rowIndex: row)
+                }
             }
             
-            // Tell the table view to redraw the affected rows
+            // Force all cells in the affected rows to update their appearance
+            for row in rows {
+                for columnIndex in 0..<tableView.numberOfColumns {
+                    if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? TextCellView {
+                        // Directly update the cell's deletion state
+                        cellView.isMarkedForDeletion = true
+                        cellView.needsDisplay = true
+                    }
+                }
+            }
+            
+            // Also reload the rows to ensure proper state
             tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
         }
         
@@ -157,14 +181,6 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         
-        
-        // MARK: - Selection Management
-        func clearTableSelection() {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.tableView.clearAllSelection()
-            }
-        }
         
         func setupTableView() -> NSView {
             setupUI()
@@ -340,7 +356,7 @@ struct TableListViewController: NSViewRepresentable {
             }
         }
         
-        private func createColumn(identifier: String, title: String, icon: NSImage?) {
+        private func createColumn(identifier: String, title: String, dataType: String?, icon: NSImage?) {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
             column.title = title
             
@@ -368,7 +384,11 @@ struct TableListViewController: NSViewRepresentable {
             
             //             Add custom header
             let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-            customHeaderCell.configure(title: title)
+            // TODO: Once the schema includes isPrimaryKey and isForeignKey information, pass them here
+            // For now, we can do a simple check based on column name as a placeholder
+            let isPrimaryKey = identifier.lowercased() == "id" || identifier.lowercased().hasSuffix("_id") && identifier.lowercased().count == 2
+            let isForeignKey = identifier.lowercased().hasSuffix("_id") && identifier.lowercased().count > 2
+            customHeaderCell.configure(title: title, fieldType: dataType, isPrimaryKey: isPrimaryKey, isForeignKey: isForeignKey)
             column.headerCell = customHeaderCell
             
             let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
@@ -454,6 +474,7 @@ struct TableListViewController: NSViewRepresentable {
                 createColumn(
                     identifier: columnInfo.name,
                     title: columnInfo.name,
+                    dataType: columnInfo.dataType,
                     icon: nil
                 )
             }
@@ -502,22 +523,21 @@ struct TableListViewController: NSViewRepresentable {
             // Remove intercell spacing to eliminate padding between columns
             tableView.intercellSpacing = NSSize(width: 0, height: 0)
             
-            if let headerView = tableView.headerView {
-                headerView.frame.size.height = 32
-                
-                let visualEffectView = NSVisualEffectView()
-                visualEffectView.frame = headerView.bounds
-                visualEffectView.material = .hudWindow
-                visualEffectView.blendingMode = .withinWindow
-                visualEffectView.state = .active
-                visualEffectView.autoresizingMask = [.width, .height]
-                
-                visualEffectView.wantsLayer = true
-                visualEffectView.layer?.zPosition = -1000
-                
-                headerView.addSubview(visualEffectView)
-                tableView.headerView = headerView
-            }
+            // Create custom header view
+            let customHeaderView = CustomTableHeaderView(frame: NSRect(x: 0, y: 0, width: tableView.bounds.width, height: 32))
+            
+            let visualEffectView = NSVisualEffectView()
+            visualEffectView.frame = customHeaderView.bounds
+            visualEffectView.material = .hudWindow
+            visualEffectView.blendingMode = .withinWindow
+            visualEffectView.state = .active
+            visualEffectView.autoresizingMask = [.width, .height]
+            
+            visualEffectView.wantsLayer = true
+            visualEffectView.layer?.zPosition = -1000
+            
+            customHeaderView.addSubview(visualEffectView)
+            tableView.headerView = customHeaderView
         }
         
         private func rebuildTableStructure() {
@@ -662,9 +682,6 @@ struct TableListViewController: NSViewRepresentable {
             return self.totalCount
         }
         
-        @objc private func onItemClicked() {
-            debugLog("row \(tableView.clickedRow), col \(tableView.clickedColumn) clicked")
-        }
         
         @objc private func columnDidResize(_ notification: Notification) {
             guard let _ = notification.object as? NSTableView,
@@ -814,36 +831,69 @@ struct TableListViewController: NSViewRepresentable {
         
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn = tableColumn,
-                  let queryResult = queryResult,
-                  row < self.totalCount else {
+                  let queryResult = queryResult else {
                 return NSTextField(labelWithString: "No data")
             }
             
-            var cellView = tableView.makeView(withIdentifier: CellIdentifier.textCell, owner: self) as? TextCellView
-            
-            if cellView == nil {
-                cellView = TextCellView()
-            } else {
-                cellView?.prepareForReuse() // CRITICAL: Reset state
-            }
-            
-            //            if cellView == nil {
-            //                cellView = TextCellView()
-            //                cellView?.identifier = CellIdentifier.textCell
-            //            }
-            
-            
-            // Use the new configure method with modification tracking
             let columnName = tableColumn.identifier.rawValue
             let queryRowInfo = queryResult.value(row: row, column: columnName)
             let columnInfo = queryResult.column(named: columnName)
             
-            if columnInfo != nil {
-                cellView?.configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo!, rowIndex: row, modificationTracker: modificationTracker)
+            guard let columnInfo = columnInfo else {
+                return NSTextField(labelWithString: "Invalid column")
             }
+            
+            // Determine cell type based on data type
+            let cellIdentifier = getCellIdentifier(for: columnInfo.dataType)
+            
+            var cellView = tableView.makeView(withIdentifier: cellIdentifier, owner: self) as? TextCellView
+            
+            if cellView == nil {
+                cellView = createCellView(for: columnInfo.dataType)
+                cellView?.identifier = cellIdentifier
+            } else {
+                cellView?.prepareForReuse()
+            }
+            
+            cellView?.configure(queryRowInfo: queryRowInfo,
+                               columnInfo: columnInfo,
+                               rowIndex: row,
+                               modificationTracker: modificationTracker)
             
             return cellView
         }
+        
+        private func getCellIdentifier(for dataType: String) -> NSUserInterfaceItemIdentifier {
+            switch dataType {
+            case "text":
+                return CellIdentifier.textCell
+            case "interger":
+                return CellIdentifier.textCell
+//            case .datetime, .timestamp:
+//                return CellIdentifier.dateCell
+//            case .boolean:
+//                return CellIdentifier.booleanCell
+            default:
+                return CellIdentifier.textCell
+            }
+        }
+        
+        
+        private func createCellView(for dataType: String) -> TextCellView {
+            switch dataType {
+            case "text":
+                return TextCellView()
+            case "interger":
+                return TextCellView()
+//            case .datetime, .timestamp:
+//                return DateCellView()
+//            case .boolean:
+//                return BooleanCellView()
+            default:
+                return TextCellView()
+            }
+        }
+
         
         @objc private func columnDidMove(_ notification: Notification) {
             // Update persistent cache with new column order
@@ -947,7 +997,7 @@ struct TableListViewController: NSViewRepresentable {
         private func saveCurrentColumnOrder() {
             let currentOrder = tableView.tableColumns.map { $0.identifier.rawValue }
             
-            guard var cachedSchema = loadPersistentSchema(for: tableName) else {
+            guard let cachedSchema = loadPersistentSchema(for: tableName) else {
                 return
             }
             
@@ -963,7 +1013,7 @@ struct TableListViewController: NSViewRepresentable {
         }
         
         private func updatePersistentColumnWidth(_ columnIdentifier: String, width: CGFloat) {
-            guard var cachedSchema = loadPersistentSchema(for: tableName) else {
+            guard let cachedSchema = loadPersistentSchema(for: tableName) else {
                 // Create new schema if none exists
                 let newSchema = createSchemaCache(signature: currentSchemaSignature, columns: [])
                 var updatedWidths = newSchema.columnWidths
@@ -996,7 +1046,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker)
+        return Coordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker, onDeleteNewRow: onDeleteNewRow)
     }
     
     func makeNSView(context: Context) -> NSView {
@@ -1021,22 +1071,3 @@ extension Array {
         return indices.contains(index) ? self[index] : nil
     }
 }
-
-//class ExtendedClipView: NSClipView {
-//    var bottomExtension: CGFloat = 50
-//    
-//    override var documentRect: NSRect {
-//        var rect = super.documentRect
-//        
-//        if let documentView = self.documentView {
-//            let visibleHeight = self.bounds.height
-//            let contentHeight = documentView.bounds.height
-//            
-//            if contentHeight > visibleHeight {
-//                rect.size.height += bottomExtension
-//            }
-//        }
-//        
-//        return rect
-//    }
-//}

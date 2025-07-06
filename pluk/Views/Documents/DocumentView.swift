@@ -18,7 +18,6 @@ struct DocumentView: View {
     var body: some View {
         VStack(spacing: 0) {
             TabBar()
-                .padding(.bottom, -1)
             
             if instance.tabs.isEmpty  {
                 VStack {
@@ -50,11 +49,7 @@ struct DocumentView: View {
                     maxHeight: .infinity,
                     alignment: .center
                 )
-                .background(Color(.controlColor).opacity(0.1))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(.separator, lineWidth: 1)
-                )
+                .background(Color(.controlBackgroundColor).opacity(0.8))
                 .cornerRadius(16)
                 .padding(.top, 0)
                 .padding([.horizontal, .bottom], 8)
@@ -63,12 +58,6 @@ struct DocumentView: View {
                 }
                 .onDisappear {
                     removeEventMonitor()
-                }
-                .onKeyPress(.init("p"), phases: .down) { keyPress in
-                    if keyPress.modifiers.contains(.command) {
-                        return .handled
-                    }
-                    return .ignored
                 }
             } else {
                 NSTabViewWrapper()
@@ -143,8 +132,8 @@ class TabContentView: NSView {
         wantsLayer = true
         
         // Add simple border around content
-        layer?.borderWidth = 1.0
-        layer?.borderColor = NSColor.separatorColor.cgColor
+//        layer?.borderWidth = 1.0
+//        layer?.borderColor = NSColor.separatorColor.cgColor
         layer?.cornerRadius = 16.0
         
         switch databaseType {

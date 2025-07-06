@@ -135,6 +135,12 @@ struct RowModification {
         debugLog("rowModification: \(rowModifications)")
     }
     
+    func deleteRow(rowIndex: Int) {
+        if rowModifications[rowIndex] != nil {
+            rowModifications.removeValue(forKey: rowIndex)
+        }
+    }
+    
     func markAsDeleted(rowIndex: Int) {
         if var row = rowModifications[rowIndex] {
             if row.type == .delete {

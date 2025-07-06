@@ -55,7 +55,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         switch self {
         case .supabase: return "supabase"
         case .neon: return "neon"
-        case .postgres: return "postgres"
+        case .postgres: return "postgres.pdf"
         case .mongodb: return "database.mongodb"
         case .mysql: return "mysql"
         case .mariadb: return "mariadb"

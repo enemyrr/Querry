@@ -114,7 +114,7 @@ class CustomTableView: NSTableView {
             let selectedRows = self.selectedRowIndexes
             // We need a way to communicate this back to the coordinator/view model
             // For now, let's post a notification
-            NotificationCenter.default.post(name: .didRequestDelete, object: self, userInfo: ["rows": selectedRows])
+            NotificationCenter.default.post(name: .didRequestDelete, object: self, userInfo: ["rows": selectedRows, "tableView": self])
             handled = true
             
         default:
@@ -343,29 +343,6 @@ class CustomTableView: NSTableView {
         }
         
     
-    private func drawCellSelection(tableView: NSTableView, selectedColumns: IndexSet) {
-        for columnIndex in selectedColumns {
-            guard columnIndex < tableView.numberOfColumns else { continue }
-            
-            let columnRect = tableView.rect(ofColumn: columnIndex)
-            let cellRect = NSRect(
-                x: columnRect.origin.x,
-                y: 0,
-                width: columnRect.width,
-                height: rowHeight  // Adjust for your padding
-            )
-            
-            // CUSTOMIZE THESE VALUES:
-            NSColor.systemBlue.withAlphaComponent(0.2).setFill()  // Background color
-            cellRect.fill()
-            
-            // Optional border
-            NSColor.systemBlue.withAlphaComponent(0.8).setStroke()
-            let borderPath = NSBezierPath(rect: cellRect)
-            borderPath.lineWidth = 1.0  // Border thickness
-            borderPath.stroke()
-        }
-    }
     
     override func mouseDown(with event: NSEvent) {
         // Convert click point to table view coordinates

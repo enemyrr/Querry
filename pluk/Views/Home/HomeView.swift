@@ -142,16 +142,15 @@ struct DatabaseTypeIcon: View {
     let databaseType: DatabaseType
     
     var body: some View {
-        ZStack {
+        HStack {
             RoundedRectangle(cornerRadius: 8)
                 .fill(databaseType.backgroundColor)
                 .frame(width: 28, height: 28)
                 .overlay(
                     Image(databaseType.icon)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
                         .frame(width: 18, height: 18)
-                        .foregroundStyle(databaseType.foregroundColor)
+                        .aspectRatio(contentMode: .fit)
                 )
         }
     }

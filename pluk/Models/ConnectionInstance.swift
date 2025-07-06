@@ -144,7 +144,6 @@ import AIProxy
     @discardableResult
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
         let schemaResult = try await _databaseService.getSchema(for: collectionName)
-        
         self.schema[collectionName] = schemaResult
         return schemaResult
     }
@@ -290,14 +289,20 @@ import AIProxy
         guard !tabs.isEmpty else { return }
         
         if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
-            let newSelectedIndex = max(0, index - 1)
+            let wasSelected = selectedTab?.id == tab.id
             tabs.remove(at: index)
             
-            if !tabs.isEmpty {
-                selectedTab = tabs[newSelectedIndex]
-            } else {
-                selectedTab = nil
+            // Only change selection if we removed the selected tab
+            if wasSelected {
+                if !tabs.isEmpty {
+                    // Select the tab at the same index, or the previous one if we removed the last tab
+                    let newSelectedIndex = min(index, tabs.count - 1)
+                    selectedTab = tabs[newSelectedIndex]
+                } else {
+                    selectedTab = nil
+                }
             }
+            // If the removed tab wasn't selected, keep the current selection
         }
     }
     
@@ -327,6 +332,11 @@ import AIProxy
            currentIndex > 0 {
             selectedTab = tabs[currentIndex - 1]
         }
+    }
+    
+    func selectTabByIndex(_ index: Int) {
+        guard index >= 0 && index < tabs.count else { return }
+        selectedTab = tabs[index]
     }
     
     // MARK: - Pagination Management (direct and simple)

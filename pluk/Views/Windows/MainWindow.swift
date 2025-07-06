@@ -29,7 +29,7 @@ struct MainWindow: View {
                     .edgesIgnoringSafeArea(.all)
             } else {
                 Color(hex: 0xFCFCFC)
-                    .opacity(0.015)
+                    .opacity(0.5)
                     .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             }
@@ -39,7 +39,7 @@ struct MainWindow: View {
                case .connection(let instanceId) = activeTab.type,
                let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
                 connectionInstance.connection.color.color
-                    .opacity(0.20)
+                    .opacity(0.10)
                     .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             }

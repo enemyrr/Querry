@@ -7,11 +7,28 @@
 
 import Foundation
 import AppKit
-import PostgresNIO
 
 // MARK: - Custom NSTextField that handles Escape key via cancelOperation
 class EditableTextField: NSTextField {
     weak var cellView: TextCellView?
+    
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Check for Cmd+Z
+        if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "z" {
+            // First, check if there's an undo operation available
+            let undoManager = self.window?.firstResponder?.undoManager
+            
+            if let undoManager = undoManager, undoManager.canUndo {
+                // There's something to undo, let the default implementation handle it
+                return super.performKeyEquivalent(with: event)
+            } else {
+                let _ = cellView?.modificationTracker?.undo()
+                return true
+            }
+        }
+        
+        return super.performKeyEquivalent(with: event)
+    }
     
     // Override cancdelOperation which is called when Escape is pressed during editing
     override func cancelOperation(_ sender: Any?) {
@@ -117,11 +134,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     var isMarkedForDeletion: Bool = false
     
-    // Cache for optimization
-    private var lastConfiguredColumn: String = ""
-    private var lastConfiguredValue: String = ""
-    private var lastCellDataHash: Int = 0
-    
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setupTextField()
@@ -183,11 +195,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             // Handle single click for selection
             if event.clickCount == 1 {
                 // Exit edit mode for any currently editing cell when selecting a new cell
-                if let currentEditingCell = TextCellView.currentEditingCell, currentEditingCell !== self {
-                    debugLog("Single click - exiting edit mode for previous cell")
-                    TextCellView.exitCurrentEditMode()
-                }
-                
+                TextCellView.exitCurrentEditMode()
                 setSelected(true)
             }
             
@@ -263,8 +271,17 @@ class TextCellView: NSView, NSTextFieldDelegate {
             currentEditingCell.exitEditMode()
         }
         
-        // Store original value for modification tracking
-        originalValue = textField.stringValue
+        // Store original value for modification tracking ONLY if this cell hasn't been modified yet
+        // This preserves the true original value when returning to modified cells
+        if !isModified {
+            // This is a fresh cell that hasn't been modified yet
+            originalValue = textField.stringValue
+            debugLog("📝 Setting fresh originalValue: '\(originalValue)'")
+        } else {
+            // This cell is already modified, so originalValue should already be set correctly
+            // from the modification tracker during configuration - don't overwrite it
+            debugLog("🔒 Preserving existing originalValue: '\(originalValue)' (current text: '\(textField.stringValue)')")
+        }
         
         // Enable editing
         textField.isEditable = true
@@ -392,15 +409,15 @@ class TextCellView: NSView, NSTextFieldDelegate {
             switch movement {
             case .tab:
                 debugLog("Tab key pressed - moving to next cell")
-                handleTabKeyInEditMode()
+                return handleTabKeyInEditMode()
                 
             case .backtab:
                 debugLog("Shift+Tab key pressed - moving to previous cell")
-                handleShiftTabKeyInEditMode()
+                return handleShiftTabKeyInEditMode()
                 
             case .return:
                 debugLog("Return key pressed - moving down")
-                handleEnterKeyInEditMode()
+                return handleEnterKeyInEditMode()
                 
             default:
                 debugLog("Other movement: \(movement)")
@@ -408,7 +425,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             }
         }
         
-        // Track the complete cell modification when editing ends
+        // All other actions other then keyboard handling: like mouse click
         let finalValue = textField.stringValue
         if let tracker = modificationTracker, rowIndex >= 0 {
             if finalValue != originalValue {
@@ -484,9 +501,10 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo) {
+        createBorderViewIfNeeded()
+        
         guard let queryRowInfo = queryRowInfo else {
             textField.placeholderString = "(EMPTY)"
-            createBorderViewIfNeeded()
             return
         }
         
@@ -496,7 +514,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         guard let value = queryRowInfo.value else {
             textField.placeholderString = "(NULL)"
             textField.stringValue = ""
-            createBorderViewIfNeeded()
             return
         }
         
@@ -515,8 +532,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
             textField.stringValue = stringRepresentation
             textField.textColor = NSColor.controlTextColor
         }
-        
-        createBorderViewIfNeeded()
     }
     
     // New method that includes tracking information
@@ -548,23 +563,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
             configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo)
             isModified = false
             updateModificationAppearance()
-        }
-        
-        // Check if this cell should be selected and restore selection state
-        if let tableView = findTableView() as? CustomTableView,
-           let selectedCell = tableView.getCurrentSelectedCell() {
-            let currentColumnIndex = tableView.columnIndex(for: columnInfo.name)
-            let shouldBeSelected = (selectedCell.row == rowIndex && selectedCell.column == currentColumnIndex)
-            
-            debugLog("🔍 Cell (\(rowIndex), \(currentColumnIndex)) - Should be selected: \(shouldBeSelected) (Selected cell: \(selectedCell.row), \(selectedCell.column))")
-            
-            if shouldBeSelected {
-                setSelected(true)
-            } else {
-                setSelected(false)
-            }
-        } else {
-            setSelected(false)
         }
     }
     
@@ -607,7 +605,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
     func setAsSelectedCell() {
         // Set this cell as selected
         setSelected(true)
-        
         debugLog("Cell selected at row: \(rowIndex), column: \(columnName)")
     }
     
@@ -623,7 +620,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     override func viewWillDraw() {
         let textColor: NSColor
         let placeholderColor: NSColor
-
+        
         if let rowView = self.superview as? NSTableRowView, rowView.isSelected {
             textColor = .white
             placeholderColor = .lightGray
@@ -631,7 +628,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
             textColor = .controlTextColor
             placeholderColor = .placeholderTextColor
         }
-
+        
         self.textField.textColor = textColor
         if let currentPlaceholder = self.textField.placeholderString, !currentPlaceholder.isEmpty {
             self.textField.placeholderAttributedString = NSAttributedString(
@@ -656,35 +653,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 setSelected(false)
             }
         }
-    }
-    
-    // MARK: - For Large Tables: Constraint Caching
-    private var constraintsCache: [NSLayoutConstraint]?
-    
-    private func setupTextFieldWithConstraintCaching() {
-        textField = EditableTextField(frame: .zero)
-        textField.configureForTableCell()
-        textField.cellView = self  // Connect the text field to this cell view
-        
-        // Use custom padded cell for internal text padding
-        let paddedCell = PaddedTextFieldCell()
-        //        paddedCell.textPadding = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
-        textField.cell = paddedCell
-        
-        addSubview(textField)
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        
-        // TextField fills entire cell - internal padding handled by custom cell
-        if constraintsCache == nil {
-            constraintsCache = [
-                textField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 0),
-                textField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
-                textField.topAnchor.constraint(equalTo: topAnchor, constant: 0),
-                textField.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
-            ]
-        }
-        
-        NSLayoutConstraint.activate(constraintsCache!)
     }
 }
 
@@ -776,6 +744,7 @@ extension TextCellView {
         if let tracker = modificationTracker, rowIndex >= 0 {
             let finalValue = textField.stringValue
             if finalValue != originalValue {
+                // Cell was changed - add to modification tracker
                 tracker.updateCell(
                     rowIndex: rowIndex,
                     columnName: columnName,
@@ -784,6 +753,10 @@ extension TextCellView {
                     dataType: dataType
                 )
                 debugLog("💾 Saved changes: \(originalValue) → \(finalValue)")
+            } else {
+                // Cell was reverted to original value - remove from tracker
+                tracker.resetCell(rowIndex: rowIndex, columnName: columnName)
+                debugLog("🔄 Cell reverted to original: Row \(rowIndex), Column \(columnName)")
             }
         }
     }
