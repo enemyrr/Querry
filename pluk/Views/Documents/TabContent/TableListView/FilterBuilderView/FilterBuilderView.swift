@@ -68,6 +68,7 @@ struct FilterBuilderView: View {
                             })
                             .buttonStyle(FilterSubmitButtonStyle())
                             .transition(.slide)
+                            .fixedSize()
                         }
                         
                         
@@ -92,6 +93,7 @@ struct FilterBuilderView: View {
                             .padding(.vertical, 6)
                             .background(Color(.controlColor).opacity(0.3))
                             .cornerRadius(8)
+                            .fixedSize()
                         }
                         .buttonStyle(PlainButtonStyle())
                         .disabled(conditions.count >= 8)
@@ -101,6 +103,7 @@ struct FilterBuilderView: View {
                             onApplyFilter("")
                         }
                         .buttonStyle(FilterClearButtonStyle())
+                        .fixedSize()
                     }
                     
                     Spacer()

@@ -1,36 +1,32 @@
 //
-//  FloatingDropdown.swift
+//  ArrayFloatingDropdown.swift
 //  Pluk
 //
-//  Created by Assistant on 7/7/25.
+//  Created by Fauzaan on 7/8/25.
 //
 
 import SwiftUI
 import AppKit
 
-/// A generic floating dropdown that works with any CaseIterable enum
-struct EnumFloatingDropdown<T: CaseIterable & Hashable>: View where T.AllCases: RandomAccessCollection, T: RawRepresentable, T.RawValue == String {
+/// A floating dropdown that works with arrays of any type
+struct ArrayFloatingDropdown<T: Hashable>: View {
+    let items: [T]
     @Binding var selection: T
     @State private var isShowingDropdown = false
     @State private var activeIndex: Int = 0
     @State private var hoveredIndex: Int? = nil
     
     let width: CGFloat
-    let itemDisplay: ((T) -> String)?
-    let itemSymbol: ((T) -> String)?
+    let itemDisplay: (T) -> String
     
-    private var items: [T] {
-        Array(T.allCases)
-    }
-    
-    init(selection: Binding<T>,
+    init(items: [T],
+         selection: Binding<T>,
          width: CGFloat = 120,
-         itemDisplay: ((T) -> String)? = nil,
-         itemSymbol: ((T) -> String)? = nil) {
+         itemDisplay: @escaping (T) -> String) {
+        self.items = items
         self._selection = selection
         self.width = width
         self.itemDisplay = itemDisplay
-        self.itemSymbol = itemSymbol
     }
     
     var body: some View {
@@ -38,7 +34,7 @@ struct EnumFloatingDropdown<T: CaseIterable & Hashable>: View where T.AllCases: 
             isShowingDropdown.toggle()
         }) {
             HStack {
-                Text(itemDisplay?(selection) ?? selection.rawValue).lineLimit(1)
+                Text(itemDisplay(selection)).lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.compact.down")
                     .scaleEffect(CGSize(width: 0.7, height: 1.5))
@@ -52,13 +48,12 @@ struct EnumFloatingDropdown<T: CaseIterable & Hashable>: View where T.AllCases: 
             height: CGFloat(items.count),
             arrowEdge: .bottom
         ) {
-            DropdownListView(
+            ArrayDropdownListView(
                 items: items,
                 selection: selection,
                 activeIndex: $activeIndex,
                 hoveredIndex: $hoveredIndex,
                 itemDisplay: itemDisplay,
-                itemSymbol: itemSymbol,
                 onSelect: { item in
                     selection = item
                     isShowingDropdown = false
@@ -77,14 +72,13 @@ struct EnumFloatingDropdown<T: CaseIterable & Hashable>: View where T.AllCases: 
     }
 }
 
-/// The dropdown list content
-private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.RawValue == String {
+/// The dropdown list content for arrays
+private struct ArrayDropdownListView<T: Hashable>: View {
     let items: [T]
     let selection: T
     @Binding var activeIndex: Int
     @Binding var hoveredIndex: Int?
-    let itemDisplay: ((T) -> String)?
-    let itemSymbol: ((T) -> String)?
+    let itemDisplay: (T) -> String
     let onSelect: (T) -> Void
     let onDismiss: () -> Void
     
@@ -97,16 +91,9 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
                     onSelect(item)
                 }) {
                     HStack {
-                        Text(itemDisplay?(item) ?? item.rawValue)
+                        Text(itemDisplay(item))
                             .foregroundColor(.primary)
-                        
                         Spacer()
-                        
-                        if let symbol = itemSymbol?(item) {
-                            Text(symbol)
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 14, design: .monospaced))
-                        }
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)

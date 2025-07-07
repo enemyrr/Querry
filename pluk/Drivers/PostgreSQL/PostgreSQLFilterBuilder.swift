@@ -10,11 +10,18 @@ enum FilterConjunction: String, CaseIterable {
 enum FilterOperator: String, CaseIterable {
     case equals = "equals"
     case notEquals = "not equals"
-    case contains = "contains"
     case startsWith = "starts with"
     case endsWith = "ends with"
     case greaterThan = "greater than"
+    case greaterThanOrEquals = "greater or equals"
     case lessThan = "less than"
+    case lessThanOrEquals = "less than or equals"
+    case like = "like"
+    case ilike = "ilike"
+    case notLike = "not like"
+    case isIn = "in"
+    case isNull = "is null"
+    case isNotNull = "is not null"
 }
 
 struct FilterCondition {
@@ -56,16 +63,32 @@ extension PostgreSQLDriver {
                 sql += "\(escapedField) = \(escapedValue)"
             case .notEquals:
                 sql += "\(escapedField) != \(escapedValue)"
-            case .contains:
-                sql += "\(escapedField) ILIKE '%\(condition.value.replacingOccurrences(of: "'", with: "''"))%'"
             case .startsWith:
                 sql += "\(escapedField) ILIKE '\(condition.value.replacingOccurrences(of: "'", with: "''"))%'"
             case .endsWith:
                 sql += "\(escapedField) ILIKE '%\(condition.value.replacingOccurrences(of: "'", with: "''"))'"
             case .greaterThan:
                 sql += "\(escapedField) > \(escapedValue)"
+            case .greaterThanOrEquals:
+                sql += "\(escapedField) >= \(escapedValue)"
             case .lessThan:
                 sql += "\(escapedField) < \(escapedValue)"
+            case .lessThanOrEquals:
+                sql += "\(escapedField) <= \(escapedValue)"
+            case .like:
+                sql += "\(escapedField) LIKE \(escapedValue)"
+            case .ilike:
+                sql += "\(escapedField) ILIKE \(escapedValue)"
+            case .notLike:
+                sql += "\(escapedField) NOT LIKE \(escapedValue)"
+            case .isIn:
+                // For IN operator, value should be comma-separated list: "1,2,3"
+                let inValues = condition.value.split(separator: ",").map { "'\($0.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "'", with: "''"))'" }.joined(separator: ", ")
+                sql += "\(escapedField) IN (\(inValues))"
+            case .isNull:
+                sql += "\(escapedField) IS NULL"
+            case .isNotNull:
+                sql += "\(escapedField) IS NOT NULL"
             }
         }
         

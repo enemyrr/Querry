@@ -332,6 +332,7 @@ struct FilterSubmitButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .lineLimit(1)
             .padding(.vertical, 6)
             .padding(.horizontal, 12)
             .foregroundColor(isEnabled ? Color(.controlBackgroundColor).opacity(0.8) : .secondary)     // White text color

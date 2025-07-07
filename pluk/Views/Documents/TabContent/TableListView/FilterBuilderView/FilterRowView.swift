@@ -37,32 +37,18 @@ struct FilterRowView: View {
             .background(Color(.controlColor).opacity(0.5))
             .cornerRadius(6)
             
-            /// Field dropdown
-            Menu {
-                ForEach(columns, id: \.columnName) { column in
-                    Button(column.columnName) {
-                        condition.field = column.columnName
-                    }
-                }
-            } label: {
-                Text(condition.field.isEmpty ? "Select field" : condition.field).lineLimit(1).truncationMode(.tail)
-                Spacer()
-                Image(systemName: "chevron.compact.down")
-                    .scaleEffect(CGSize(width: 0.7, height: 1.5))
-            }
-            .menuStyle(.button)
-            .buttonStyle(FilterDropdownStyle())
-            .frame(width: 120)
+           
+            /// Field
+            FieldDropdown(columns: columns, selectedColumnName: $condition.field)
             
-            
-            // Operator dropdown
+            /// Operator
             OperatorDropdown(selectedOperator: $condition.filterOperator)
             
             // Value input
             TextField("Enter a value", text: $condition.value)
                 .textFieldStyle(FilterTextFieldStyle())
                 .focused(focusedField ?? FocusState<Int?>().projectedValue, equals: fieldIndex)
-                .frame(width: 150)
+                .frame(width: 160)
         }
     }
 }
