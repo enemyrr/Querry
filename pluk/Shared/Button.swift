@@ -458,7 +458,6 @@ struct FilterDropdownStyle: ButtonStyle {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .cornerRadius(6)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .stroke(.separator)
@@ -472,6 +471,7 @@ struct FilterDropdownStyle: ButtonStyle {
                     : Color(.controlBackgroundColor).opacity(0.2)
                 )
         )
+        .cornerRadius(6)
         .onHover { hovering in
             isHovering = hovering
         }
