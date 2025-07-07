@@ -68,11 +68,11 @@ struct FilterTextFieldStyle: TextFieldStyle {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(Color(.controlBackgroundColor).opacity(isFocused ? 0.2 : 0))
-            .cornerRadius(6)
-            .overlay(
+            .background(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(.separator)
             )
+            .cornerRadius(6)
             .focused($isFocused)
         
     }

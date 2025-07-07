@@ -31,11 +31,17 @@ struct TableListView: View {
     // Generic error handling
     @State private var currentError: Error?
     @State private var showingErrorAlert = false
+    @State private var showingViewStateError = false
+    @State private var viewStateErrorMessage: String = ""
     
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                FilterBuilderView(columns: cachedSchema?.columns ?? [])
+                FilterBuilderView(columns: cachedSchema?.columns ?? [], tableName: selectedTab.name) { filter in
+                    Task {
+                        await loadDocuments(forceFetch: true, filter: filter)
+                    }
+                }
                 
                 if cachedSchema != nil || currentQueryResult != nil {
                     TableListViewController(
@@ -58,11 +64,8 @@ struct TableListView: View {
                     )
                 }
             }
-            .overlay {
-                overlayContent
-            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.controlBackgroundColor).opacity(0.8))
+            .background(Color(.black).opacity(0.6))
             
             VStack {
                 Spacer()
@@ -120,6 +123,20 @@ struct TableListView: View {
             Button("OK") {}
         } message: { error in
             Text(error.localizedDescription)
+        }
+        .alert(
+            "Error",
+            isPresented: $showingViewStateError
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(viewStateErrorMessage)
+        }
+        .onChange(of: viewState) { _, newValue in
+            if case .error(let message) = newValue {
+                viewStateErrorMessage = message
+                showingViewStateError = true
+            }
         }
     }
     
@@ -315,40 +332,6 @@ struct TableListView: View {
         debugLog("✅ Deleted new record at index \(atIndex)")
     }
     
-    /// Overlay content for loading/error states
-    @ViewBuilder
-    private var overlayContent: some View {
-        switch viewState {
-        case .error(let message):
-            ZStack {
-                // Semi-transparent background
-                Color(.controlBackgroundColor)
-                    .opacity(0.8)
-                    .cornerRadius(20)
-                
-                // Error content
-                ContentUnavailableView {
-                    Label("Failed to Load", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(message)
-                } actions: {
-                    Button("Retry") {
-                        Task {
-                            await loadDocumentsIfNeeded()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(24)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            }
-            
-        case .loaded, .loading:
-            // No overlay when data is loaded
-            EmptyView()
-        }
-    }
-    
     /// Load documents only if they don't exist in cache or tab has changed
     private func loadDocumentsIfNeeded() async {
         let shouldFetch = cachedTabName != selectedTab.name ||
@@ -527,8 +510,30 @@ struct TableListView: View {
     }
 }
 
-enum TableListViewState {
+enum TableListViewState: Equatable {
     case loading
     case error(String)
     case loaded(QueryResult, DatabaseSchemaResult)
+    
+    var isError: Bool {
+        if case .error = self {
+            return true
+        }
+        return false
+    }
+    
+    static func == (lhs: TableListViewState, rhs: TableListViewState) -> Bool {
+        switch (lhs, rhs) {
+        case (.loading, .loading):
+            return true
+        case (.error(let lhsMessage), .error(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        case (.loaded(let lhsResult, let lhsSchema), .loaded(let rhsResult, let rhsSchema)):
+            // Simple comparison - you might want to implement proper equality for QueryResult and DatabaseSchemaResult
+            return lhsResult.totalCount == rhsResult.totalCount && 
+                   lhsSchema.columns.count == rhsSchema.columns.count
+        default:
+            return false
+        }
+    }
 }

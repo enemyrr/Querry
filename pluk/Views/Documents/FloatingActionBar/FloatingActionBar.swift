@@ -200,8 +200,11 @@ struct FloatingActionBar: View {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
             switch event.keyCode {
             case 3: // 'f' key
-                if event.modifierFlags.contains(.command) {
+                if event.modifierFlags.contains([.command, .shift]) {
                     showQueryEditor = true
+                    return nil // Consume the event
+                } else if event.modifierFlags.contains(.command) {
+                    NotificationCenter.default.post(name: NSNotification.Name("ToggleFilterBuilder"), object: nil)
                     return nil // Consume the event
                 }
                 return event

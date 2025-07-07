@@ -112,6 +112,29 @@ class DatabaseService {
         return result
     }
     
+    /// Generates a filter query from conditions using the appropriate database driver
+    func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
+            return ""
+        }
+        
+        switch connection.databaseType {
+        case .postgres, .supabase, .neon:
+            if let postgresDriver = driver as? PostgreSQLDriver {
+                return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName)
+            }
+        case .mongodb:
+            // TODO: Implement MongoDB filter generation
+            return ""
+        case .mysql, .mariadb:
+            // TODO: Implement MySQL filter generation
+            return ""
+        }
+        
+        return ""
+    }
+    
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
         guard let driver = activeDriver else { return nil }
         
