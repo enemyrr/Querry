@@ -12,7 +12,15 @@
       "Bash(rg \"\\.keyboardShortcut\" --type swift -n pluk/Views/Documents/FloatingActionBar/FloatingActionBar.swift)",
       "Bash(rg \"func makeCoordinator\" --type swift -A 5 -B 2 pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)",
       "Bash(rg \"// MARK:\" --type swift -n pluk/Views/Documents/TabContent/TableListView/TableListViewController.swift)",
-      "Bash(grep -n \"func.*Tab\" /Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Models/ConnectionInstance.swift)"
+      "Bash(grep -n \"func.*Tab\" /Users/fauzaan/Desktop/Webscroll/Pluk/pluk/pluk/Models/ConnectionInstance.swift)",
+      "Bash(rg -n \"func findDocuments.*filter.*String\" --type swift -A 20)",
+      "Bash(rg -n \"buildWhereClause\" --type swift -A 10 -B 2)",
+      "Bash(rg -n \"filter.*String\" --type swift -A 5 -B 5)",
+      "Bash(rg -n \"onLoadDocuments.*filter\" --type swift -A 3 -B 3)",
+      "Bash(rg -n \"rawQuery.*String\" --type swift -A 5 -B 5)",
+      "Bash(rg -n \"filter.*Dictionary\\|filter.*rawQuery\" --type swift -A 5 -B 5)",
+      "Bash(rg -n \"extension.*DatabaseDriver\\|func findDocuments.*String\" --type swift -A 10)",
+      "Bash(rg -n \"FilterCondition\\|FilterOperator\" --type swift -A 3 -B 3)"
     ],
     "deny": []
   }

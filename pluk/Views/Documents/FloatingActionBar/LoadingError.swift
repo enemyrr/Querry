@@ -86,12 +86,12 @@ struct LoadingErrorIndicator: View {
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(
-                        statusColor.opacity(0.65)) // Increased border opacity
-                    .blendMode(.plusLighter)
-            )
+//            .overlay(
+//                RoundedRectangle(cornerRadius: cornerRadius)
+//                    .stroke(
+//                        statusColor.opacity(0.65)) // Increased border opacity
+//                    .blendMode(.plusLighter)
+//            )
             .onAppear {
                 // Enhanced animations with faster timing
                 withAnimation(

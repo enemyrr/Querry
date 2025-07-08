@@ -15,7 +15,7 @@ struct CustomTextFieldStyle: TextFieldStyle {
             .textFieldStyle(.plain)
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
-            .background(Color.black.opacity(isFocused ? 0.2 : 0))
+            .background(Color(.controlBackgroundColor).opacity(isFocused ? 0.2 : 0))
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
@@ -56,5 +56,24 @@ struct TextEditorWithPlaceholder: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.separator, lineWidth: 1)
         )
+    }
+}
+
+struct FilterTextFieldStyle: TextFieldStyle {
+    @FocusState private var isFocused: Bool
+    
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .textFieldStyle(.plain)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(.controlBackgroundColor).opacity(isFocused ? 0.2 : 0))
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(.separator)
+            )
+            .cornerRadius(6)
+            .focused($isFocused)
+        
     }
 }

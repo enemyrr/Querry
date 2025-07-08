@@ -1,0 +1,170 @@
+//
+//  Filter.swift
+//  Pluk
+//
+//  Created by Fauzaan on 7/6/25.
+//
+
+import SwiftUI
+
+// MARK: - Main Filter Builder View
+struct FilterBuilderView: View {
+    var columns: [DatabaseSchemaInfo]
+    var tableName: String
+    var onApplyFilter: (String) -> Void
+    
+    @Environment(ConnectionInstance.self) private var instance
+    @State private var showFilterBuilder: Bool = false
+    @State private var conditions: [FilterCondition] = [
+        FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")
+    ]
+    @FocusState private var focusedField: Int?
+    @State private var keyMonitor: Any?
+    
+    private var hasValidCondition: Bool {
+        conditions.contains { condition in
+            !condition.field.isEmpty && !condition.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+    
+    private func generateSQLFilter() -> String {
+        guard let databaseService = instance.databaseService else { return "" }
+        return databaseService.generateFilterQuery(from: conditions, tableName: tableName)
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            if showFilterBuilder {
+                HStack(alignment: .top, spacing: 28) {
+                    // Filter rows with overlay divider
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(conditions.indices, id: \.self) { index in
+                            FilterRowView(
+                                columns: columns,
+                                condition: $conditions[index],
+                                isFirstRow: index == 0,
+                                onDelete: {
+                                    if conditions.count > 1 {
+                                        conditions.remove(at: index)
+                                    } else {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showFilterBuilder = false
+                                        }
+                                    }
+                                },
+                                focusedField: $focusedField,
+                                fieldIndex: index
+                            )
+                        }
+                    }
+                    .background(alignment: .trailing) {
+                        Rectangle()
+                            .fill(Color(.separatorColor))
+                            .frame(width: 1)
+                            .offset(x: 14)
+                    }
+                    
+                    // Action buttons
+                    HStack(spacing: 14) {
+                        if hasValidCondition {
+                            Button("Apply", action: {
+                                let sqlFilter = generateSQLFilter()
+                                onApplyFilter(sqlFilter)
+                            })
+                            .buttonStyle(FilterSubmitButtonStyle())
+                            .transition(.slide)
+                            .fixedSize()
+                        }
+                        
+                        
+                        Button(action: {
+                            if conditions.count < 8 {
+                                let newCondition = FilterCondition(
+                                    conjunction: .and,
+                                    field: columns.isEmpty ? "" : columns[0].columnName,
+                                    filterOperator: .equals,
+                                    value: ""
+                                )
+                                conditions.append(newCondition)
+                            }
+                        }) {
+                            HStack {
+                                HStack {
+                                    Image(systemName: "plus")
+                                    Text("Add Filter").lineLimit(1)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color(.controlColor).opacity(0.3))
+                            .cornerRadius(8)
+                            .fixedSize()
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(conditions.count >= 8)
+                        
+                        Button("Clear filters") {
+                            conditions = [FilterCondition(conjunction: .whereClause, field: columns.isEmpty ? "" : columns[0].columnName, filterOperator: .equals, value: "")]
+                            onApplyFilter("")
+                        }
+                        .buttonStyle(FilterClearButtonStyle())
+                        .fixedSize()
+                    }
+                    
+                    Spacer()
+                }
+                .padding(12)
+                .padding(.bottom, -4)
+                .onAppear {
+                    if !columns.isEmpty && conditions[0].field.isEmpty {
+                        conditions[0].field = columns[0].columnName
+                    }
+                }
+                .onChange(of: columns) {
+                    if !columns.isEmpty && conditions[0].field.isEmpty {
+                        conditions[0].field = columns[0].columnName
+                    }
+                }
+                .onAppear {
+                    setupKeyboardShortcuts()
+                }
+                .onDisappear {
+                    removeKeyboardShortcuts()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ToggleFilterBuilder"))) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showFilterBuilder.toggle()
+                
+                // Focus on first field when opening
+                if showFilterBuilder {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        focusedField = 0
+                    }
+                }
+            }
+        }
+    }
+    
+    private func setupKeyboardShortcuts() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Check for Cmd+Enter
+            if event.modifierFlags.contains(.command) && event.keyCode == 36 { // 36 is Enter key
+                if hasValidCondition {
+                    let sqlFilter = generateSQLFilter()
+                    onApplyFilter(sqlFilter)
+                    return nil // Consume the event
+                }
+            }
+            return event
+        }
+    }
+    
+    private func removeKeyboardShortcuts() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
+    }
+}

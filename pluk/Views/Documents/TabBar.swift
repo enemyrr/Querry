@@ -10,7 +10,7 @@ import AppKit
 struct TabBar: View {
     @Environment(AppViewModel.self) private var appViewModel
     @Environment(ConnectionInstance.self) private var instance
-
+    
     var body: some View {
         HStack(spacing: 0) {
             if !appViewModel.isSidebarVisible {
@@ -18,10 +18,10 @@ struct TabBar: View {
                     .padding(.vertical, 6)
                     .padding(.leading, 8)
             }
-
+            
             if !instance.tabs.isEmpty {
                 navigationButtons
-
+                
                 customTabButtons
                     .background(
                         Button(action: {
@@ -31,9 +31,9 @@ struct TabBar: View {
                         }) {
                             EmptyView()
                         }
-                        .keyboardShortcut("w", modifiers: [.command])
-                        .opacity(0)
-                        .accessibilityHidden(true)
+                            .keyboardShortcut("w", modifiers: [.command])
+                            .opacity(0)
+                            .accessibilityHidden(true)
                     )
             }
         }
@@ -52,9 +52,9 @@ struct TabBar: View {
                 .accessibilityHidden(true)
             }
         )
-
+        
     }
-
+    
     private var navigationButtons: some View {
         HStack(spacing: 0) {
             NavigationButton(
@@ -75,7 +75,7 @@ struct TabBar: View {
                     key: "["
                 )
             )
-
+            
             NavigationButton(
                 icon: "chevron.right",
                 action: {
@@ -97,7 +97,7 @@ struct TabBar: View {
         }
         .padding(.leading, 10)
     }
-
+    
     private var customTabButtons: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -139,37 +139,37 @@ struct TabBar: View {
 
 struct NSTabViewWrapper: NSViewRepresentable {
     @Environment(ConnectionInstance.self) private var instance
-
+    
     func makeNSView(context: Context) -> NSTabView {
         let tabView = NSTabView()
         tabView.delegate = context.coordinator
         tabView.tabViewType = .noTabsNoBorder  // Hide default tabs, we'll use custom ones
         tabView.drawsBackground = false
-
+        
         return tabView
     }
-
+    
     func updateNSView(_ nsView: NSTabView, context: Context) {
         context.coordinator.updateTabs(nsView)
     }
-
+    
     func makeCoordinator() -> Coordinator {
         return Coordinator(instance: instance)
     }
-
+    
     class Coordinator: NSObject, NSTabViewDelegate {
         let instance: ConnectionInstance
         private var isUpdating = false
-
+        
         init(instance: ConnectionInstance) {
             self.instance = instance
         }
-
+        
         func updateTabs(_ tabView: NSTabView) {
             guard !isUpdating else { return }
             isUpdating = true
             defer { isUpdating = false }
-
+            
             // Remove tabs that no longer exist
             let currentTabIdentifiers = Set(
                 tabView.tabViewItems.compactMap { $0.identifier as? String }
@@ -177,7 +177,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
             let expectedTabIdentifiers = Set(
                 instance.tabs.map { $0.id.uuidString }
             )
-
+            
             for identifier in currentTabIdentifiers {
                 if !expectedTabIdentifiers.contains(identifier) {
                     if let item = tabView.tabViewItems.first(where: {
@@ -187,11 +187,11 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     }
                 }
             }
-
+            
             // Add or update tabs
             for (index, tab) in instance.tabs.enumerated() {
                 let identifier = tab.id.uuidString
-
+                
                 if let existingItem = tabView.tabViewItems.first(where: {
                     ($0.identifier as? String) == identifier
                 }) {
@@ -200,7 +200,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     existingItem.label = tabLabel
                     existingItem.image = NSImage(
                         systemSymbolName: instance.connection.databaseType
-                            == .mongodb ? "document.fill" : "table",
+                        == .mongodb ? "document.fill" : "table",
                         accessibilityDescription: nil
                     )
                 } else {
@@ -210,10 +210,10 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     tabViewItem.label = tabLabel
                     tabViewItem.image = NSImage(
                         systemSymbolName: instance.connection.databaseType
-                            == .mongodb ? "document.fill" : "table",
+                        == .mongodb ? "document.fill" : "table",
                         accessibilityDescription: nil
                     )
-
+                    
                     // Create the actual content view for the tab
                     let tabContentView = TabContentView(
                         tab: tab,
@@ -221,7 +221,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                         selectedTab: instance.selectedTab
                     )
                     tabViewItem.view = tabContentView
-
+                    
                     // Insert at correct position
                     if index < tabView.numberOfTabViewItems {
                         tabView.insertTabViewItem(tabViewItem, at: index)
@@ -230,42 +230,42 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     }
                 }
             }
-
+            
             // Select the correct tab
             if let selectedTab = instance.selectedTab,
-                let item = tabView.tabViewItems.first(where: {
-                    ($0.identifier as? String) == selectedTab.id.uuidString
-                })
+               let item = tabView.tabViewItems.first(where: {
+                   ($0.identifier as? String) == selectedTab.id.uuidString
+               })
             {
                 tabView.selectTabViewItem(item)
             }
         }
-
+        
         // MARK: - NSTabViewDelegate
-
+        
         func tabView(
             _ tabView: NSTabView,
             didSelect tabViewItem: NSTabViewItem?
         ) {
             guard !isUpdating,
-                let identifier = tabViewItem?.identifier as? String,
-                let tab = instance.tabs.first(where: {
-                    $0.id.uuidString == identifier
-                })
+                  let identifier = tabViewItem?.identifier as? String,
+                  let tab = instance.tabs.first(where: {
+                      $0.id.uuidString == identifier
+                  })
             else {
                 return
             }
-
+            
             instance.selectTab(tab)
         }
-
+        
         func tabView(
             _ tabView: NSTabView,
             shouldSelect tabViewItem: NSTabViewItem?
         ) -> Bool {
             return true
         }
-
+        
         // Handle tab closing via context menu or gesture
         func tabView(
             _ tabView: NSTabView,
@@ -276,7 +276,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                 item.view?.menu = nil
             }
         }
-
+        
     }
 }
 
@@ -288,17 +288,17 @@ struct CustomTabButton: View {
     let onClose: () -> Void
     let databaseType: DatabaseType
     @State private var isHovering = false
-
+    
     var body: some View {
         VStack {
             ZStack {
                 HStack(spacing: 8) {
                     Image(
                         systemName: databaseType == .mongodb
-                            ? "document.fill" : "table"
+                        ? "document.fill" : "table"
                     )
                     .font(.system(size: 12))
-
+                    
                     Text(tab.name)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -308,10 +308,10 @@ struct CustomTabButton: View {
                             .font(.system(size: 14, weight: .bold))
                             .padding(.leading, -7)
                     }
-
+                    
                     Spacer()
                 }
-
+                
                 if isHovering {
                     HStack {
                         Spacer()
@@ -333,9 +333,14 @@ struct CustomTabButton: View {
         .background(
             TabShape(isSelected: isSelected)
                 .fill(
-                    isSelected
-                        ? Color(.controlBackgroundColor).opacity(0.8)
-                        : Color.clear
+                    LinearGradient(
+                        colors: [
+                            Color(isSelected ? .black : .clear).opacity(0.8),
+                            Color(isSelected ? .black : .clear).opacity(0.6),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
         )
         .overlay(
@@ -356,7 +361,8 @@ struct CustomTabButton: View {
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
             }
-        }.onTapGesture {
+        }
+        .onTapGesture {
             onSelect()
         }
     }
@@ -365,57 +371,57 @@ struct CustomTabButton: View {
 // Custom tab shape for styling
 struct TabShape: Shape {
     let isSelected: Bool
-
+    
     func path(in rect: CGRect) -> Path {
         var path = Path()
-
+        
         if isSelected {
             let radius: CGFloat = 8
             let curveRadius: CGFloat = 10
             let smoothness: CGFloat = 1
-
+            
             // Start from bottom left (extended)
             path.move(to: CGPoint(x: -curveRadius, y: rect.height))
-
+            
             // Bottom left outward curve
             path.addQuadCurve(
                 to: CGPoint(x: 0, y: rect.height - curveRadius),
                 control: CGPoint(x: -2 * smoothness, y: rect.height)
             )
-
+            
             // Left side line up
             path.addLine(to: CGPoint(x: 0, y: radius))
-
+            
             // Top left rounded corner
             path.addQuadCurve(
                 to: CGPoint(x: radius, y: 0),
                 control: CGPoint(x: 0, y: 0)
             )
-
+            
             // Top line
             path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
-
+            
             // Top right rounded corner
             path.addQuadCurve(
                 to: CGPoint(x: rect.width, y: radius),
                 control: CGPoint(x: rect.width, y: 0)
             )
-
+            
             // Right side line down
             path.addLine(
                 to: CGPoint(x: rect.width, y: rect.height - curveRadius)
             )
-
+            
             // Bottom right outward curve
             path.addQuadCurve(
                 to: CGPoint(x: rect.width + curveRadius, y: rect.height),
                 control: CGPoint(x: rect.width + 2 * smoothness, y: rect.height)
             )
-
+            
             // Bottom line to close
             path.addLine(to: CGPoint(x: -curveRadius, y: rect.height))
         }
-
+        
         return path
     }
 }
@@ -423,54 +429,54 @@ struct TabShape: Shape {
 // Custom border shape that excludes bottom border for selected tabs
 struct TabBorderShape: Shape {
     let isSelected: Bool
-
+    
     func path(in rect: CGRect) -> Path {
         var path = Path()
-
+        
         if isSelected {
             let radius: CGFloat = 8
             let curveRadius: CGFloat = 10
             let smoothness: CGFloat = 1
-
+            
             // Start from bottom left outward curve
             path.move(to: CGPoint(x: -curveRadius, y: rect.height))
-
+            
             // Bottom left outward curve
             path.addQuadCurve(
                 to: CGPoint(x: 0, y: rect.height - curveRadius),
                 control: CGPoint(x: -2 * smoothness, y: rect.height)
             )
-
+            
             // Left side line up
             path.addLine(to: CGPoint(x: 0, y: radius))
-
+            
             // Top left rounded corner
             path.addQuadCurve(
                 to: CGPoint(x: radius, y: 0),
                 control: CGPoint(x: 0, y: 0)
             )
-
+            
             // Top line
             path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
-
+            
             // Top right rounded corner
             path.addQuadCurve(
                 to: CGPoint(x: rect.width, y: radius),
                 control: CGPoint(x: rect.width, y: 0)
             )
-
+            
             // Right side line down
             path.addLine(
                 to: CGPoint(x: rect.width, y: rect.height - curveRadius)
             )
-
+            
             // Bottom right outward curve
             path.addQuadCurve(
                 to: CGPoint(x: rect.width + curveRadius, y: rect.height),
                 control: CGPoint(x: rect.width + 2 * smoothness, y: rect.height)
             )
         }
-
+        
         return path
     }
 }
@@ -479,7 +485,7 @@ struct NavigationButton: View {
     let icon: String
     let action: () -> Void
     let isDisabled: Bool
-
+    
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)

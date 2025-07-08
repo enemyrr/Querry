@@ -49,7 +49,7 @@ struct DocumentView: View {
                     maxHeight: .infinity,
                     alignment: .center
                 )
-                .background(Color(.controlBackgroundColor).opacity(0.8))
+                .background(Color(.black).opacity(0.6))
                 .cornerRadius(16)
                 .padding(.top, 0)
                 .padding([.horizontal, .bottom], 8)

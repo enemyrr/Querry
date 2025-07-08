@@ -1,11 +1,3 @@
-//
-//  SplitView.Divider.swift
-//  Pluk
-//
-//  Created by Fauzaan on 7/2/25.
-//
-
-import Foundation
 import SwiftUI
 
 extension SplitView {
@@ -69,7 +61,7 @@ extension SplitView {
                     .fill(color)
                     .frame(width: visibleWidth, height: visibleHeight)
             }
-//            .backport.pointerStyle(pointerStyle)
+            .backport.pointerStyle(pointerStyle)
             .onHover { isHovered in
                 // macOS 15+ we use the pointerStyle helper which is much less
                 // error-prone versus manual NSCursor push/pop
@@ -88,9 +80,11 @@ extension SplitView {
                     NSCursor.pop()
                 }
             }
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(axLabel)
             .accessibilityValue("\(Int(split * 100))%")
             .accessibilityHint(axHint)
+            .accessibilityAddTraits(.isButton)
             .accessibilityAdjustableAction { direction in
                 let adjustment: CGFloat = 0.025
                 switch direction {
