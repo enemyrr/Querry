@@ -23,6 +23,10 @@ struct DocumentList: View {
                         DocumentListScrollView(queryResult: cachedQueryResult)
                     }
                 }
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.black.opacity(0.5))
+                )
                 .background {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(.separator, lineWidth: 1)

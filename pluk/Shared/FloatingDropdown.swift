@@ -167,9 +167,9 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
     
     private func backgroundColorForItem(at index: Int) -> Color {
         if index == activeIndex {
-            return .orange
+            return Color(hex: "#C25B06")
         } else if hoveredIndex == index {
-            return .orange
+            return Color(hex: "#C25B06")
         } else {
             return .clear
         }

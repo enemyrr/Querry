@@ -512,6 +512,7 @@ class PostgreSQLDriver: DatabaseDriver {
 
     func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
         let connection = try ensureConnected()
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         guard !data.isEmpty else {
             throw DatabaseError.operationFailed("No changes detected to update")
@@ -526,7 +527,7 @@ class PostgreSQLDriver: DatabaseDriver {
            
             // Build the UPDATE query with parameter binding
             let queryString = """
-                UPDATE \(collectionName)
+                UPDATE \(sanitizedCollectionName)
                 SET \(setClause)
                 WHERE \(primaryKey.columnName) = $\(values.count + 1)
             """

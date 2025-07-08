@@ -19,6 +19,7 @@ struct FilterBuilderView: View {
         FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")
     ]
     @FocusState private var focusedField: Int?
+    @State private var keyMonitor: Any?
     
     private var hasValidCondition: Bool {
         conditions.contains { condition in
@@ -124,6 +125,12 @@ struct FilterBuilderView: View {
                         conditions[0].field = columns[0].columnName
                     }
                 }
+                .onAppear {
+                    setupKeyboardShortcuts()
+                }
+                .onDisappear {
+                    removeKeyboardShortcuts()
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ToggleFilterBuilder"))) { _ in
@@ -137,6 +144,27 @@ struct FilterBuilderView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private func setupKeyboardShortcuts() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Check for Cmd+Enter
+            if event.modifierFlags.contains(.command) && event.keyCode == 36 { // 36 is Enter key
+                if hasValidCondition {
+                    let sqlFilter = generateSQLFilter()
+                    onApplyFilter(sqlFilter)
+                    return nil // Consume the event
+                }
+            }
+            return event
+        }
+    }
+    
+    private func removeKeyboardShortcuts() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
         }
     }
 }
