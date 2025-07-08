@@ -45,6 +45,10 @@ struct FilterBuilderView: View {
                                 onDelete: {
                                     if conditions.count > 1 {
                                         conditions.remove(at: index)
+                                    } else {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showFilterBuilder = false
+                                        }
                                     }
                                 },
                                 focusedField: $focusedField,

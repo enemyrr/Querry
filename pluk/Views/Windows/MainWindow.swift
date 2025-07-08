@@ -24,7 +24,7 @@ struct MainWindow: View {
             
             if colorScheme == .dark {
                 Color(hex: 0x030303)
-                    .opacity(0.2)
+                    .opacity(0.3)
                     .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             } else {

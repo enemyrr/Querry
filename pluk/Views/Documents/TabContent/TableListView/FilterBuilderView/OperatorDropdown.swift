@@ -43,7 +43,7 @@ struct OperatorDropdown: View {
             case .endsWith:
                 return "$"
             case .isIn:
-                return "IN"
+                return ""
             case .isNull:
                 return ""
             case .isNotNull:
