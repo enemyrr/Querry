@@ -11,6 +11,7 @@ import AppKit
 
 struct DocumentView: View {
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.colorScheme) var colorScheme
     @State private var commandFilter: String = ""
     @State private var isCommandBarVisible: Bool = false
     @State private var eventMonitor: Any?
@@ -49,7 +50,9 @@ struct DocumentView: View {
                     maxHeight: .infinity,
                     alignment: .center
                 )
-                .background(Color(.black).opacity(0.6))
+                .background(
+                    Color(colorScheme == .dark ? .black : .white).opacity(0.6)
+                )
                 .cornerRadius(16)
                 .padding(.top, 0)
                 .padding([.horizontal, .bottom], 8)

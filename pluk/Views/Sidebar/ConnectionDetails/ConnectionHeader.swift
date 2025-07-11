@@ -8,6 +8,7 @@ import SwiftUI
 
 // MARK: - Connection Header
 struct ConnectionHeader: View {
+    @Environment(\.colorScheme) var colorScheme
     let name: String
     let status: ConnectionStatus
     let version: String?
@@ -127,8 +128,10 @@ struct ConnectionHeader: View {
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
-                    statusColor.opacity(isHovered ? 0.3 : 0.15))
-                .blendMode(.plusLighter)
+                    statusColor.opacity(
+                        colorScheme == .dark ? (isHovered ? 0.3 : 0.15) : (isHovered ? 0.8 : 5))
+                )
+                .blendMode(colorScheme == .dark ? .plusLighter : .normal)
         )
         .cornerRadius(12)
         .animation(.easeInOut(duration: 0.3), value: status)

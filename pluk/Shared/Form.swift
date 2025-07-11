@@ -22,7 +22,7 @@ struct FormField<Content: View>: View {
            VStack(alignment: .leading, spacing: 6) {
                HStack {
                    Text(label)
-                       .foregroundColor(.white.opacity(0.7))
+                       .foregroundColor(.secondary)
                        .font(.system(size: 13))
                    
                    Spacer()

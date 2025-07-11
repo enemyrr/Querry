@@ -68,7 +68,7 @@ struct DatabaseSelectorModal: View {
                     .padding(.vertical, 12)
                     .background {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.black.opacity(0.2))
+                            .fill(Color(.controlColor).opacity(0.2))
                     }
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)

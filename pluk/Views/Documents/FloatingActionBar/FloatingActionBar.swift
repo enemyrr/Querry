@@ -174,6 +174,27 @@ struct FloatingActionBar: View {
             .task(id: processingStage) {
                 await handleProcessingStageChange()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .addNewRecord)) { notification in
+                // Only process if this notification is for our table
+                if let notificationTableName = notification.userInfo?["tableName"] as? String,
+                   notificationTableName == tableName {
+                    Task {
+                        onNewRecord()
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .tableRefresh)) { notification in
+                // Only process if this notification is for our table
+                if let notificationTableName = notification.userInfo?["tableName"] as? String,
+                   notificationTableName == tableName {
+                    Task {
+                        loadingTask?.cancel()
+                        debounceTask?.cancel()
+                        
+                        onRefresh(currentPage, totalPerPage, true)
+                    }
+                }
+            }
             .onDisappear {
                 // Cancel all active tasks to prevent crashes
                 animationTask?.cancel()
@@ -286,6 +307,7 @@ struct FloatingActionBar: View {
     @State private var isHoveringTopRectangle: Bool = false
     @State private var animatedFilterText: String = ""
     var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
+    @Environment(\.colorScheme) var colorScheme
     
     private var topRectangleView: some View {
         VStack {
@@ -382,7 +404,7 @@ struct FloatingActionBar: View {
             RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
         )
-        .shadow(color: isHoveringTopRectangle ? Color.black.opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)
+        .shadow(color: isHoveringTopRectangle ? Color(colorScheme == .dark ? .black : .white).opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)
         .contentShape(Rectangle())
         .onHover { hovering in
             isHoveringTopRectangle = hovering
@@ -521,8 +543,10 @@ struct FloatingActionBar: View {
                     action = ActionBar.search
                 }
             }) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14))
+                Image("sparkle")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 16)  // 16pt matches 14pt text line height well
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))

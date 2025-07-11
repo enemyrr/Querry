@@ -66,11 +66,7 @@ struct DatabaseHeader: View {
 
         }
         .task(id: instance.connectionStatus) {
-            do {
-                await instance.loadDatabases()
-            } catch {
-                debugLog(error)
-            }
+            await instance.loadDatabases()
         }
     }
 }
@@ -78,6 +74,7 @@ struct DatabaseHeader: View {
 
 // MARK: - SearchInput
 private struct SearchInput: View {
+    @Environment(\.colorScheme) var colorScheme
     var viewModel: SidebarViewModel
     @State private var localSearchText: String = ""
     @FocusState private var isSearchFocused: Bool
@@ -95,7 +92,7 @@ private struct SearchInput: View {
             .focused($isSearchFocused)
             .textFieldStyle(.plain)
             .font(.system(size: 14))
-            .foregroundColor(.white)
+            .foregroundColor(Color(.controlColor))
             .onExitCommand {
                 viewModel.searchText = ""
             }
@@ -122,10 +119,10 @@ private struct SearchInput: View {
                         .font(.system(size: 10))
                         .padding(.vertical, 2)
                         .padding(.horizontal, 4)
-                        .foregroundColor(.white.opacity(0.2))
+                        .foregroundColor(Color(.controlTextColor).opacity(0.2))
                         .background(
                             RoundedRectangle(cornerRadius: 4)
-                                .stroke(.white.opacity(0.2))
+                                .stroke(Color(.controlTextColor).opacity(0.2))
                         )
                 }
                 
@@ -137,7 +134,7 @@ private struct SearchInput: View {
         .padding(.vertical, 6)
         .background {
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.2))
+                .fill(Color(colorScheme == .dark ? .black : .controlColor).opacity(0.2))
         }
         .onTapGesture {
             isSearchFocused = true

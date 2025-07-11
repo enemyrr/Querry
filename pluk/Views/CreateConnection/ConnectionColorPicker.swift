@@ -16,7 +16,7 @@ struct ConnectionColorPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Color")
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundColor(.secondary)
                 .font(.system(size: 13))
             
             Button(action: {
@@ -33,7 +33,6 @@ struct ConnectionColorPicker: View {
                             )
                         
                         Text(color.displayName)
-                            .foregroundColor(.white)
                     } else {
                         Text("Select a color")
                             .foregroundColor(.secondary)
@@ -132,7 +131,7 @@ struct ColorPickerPopover: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Choose a Color")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.secondary)
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
             

@@ -488,7 +488,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
         
         if selected {
             layer?.borderWidth = 1.0
-            layer?.borderColor = NSColor.white.cgColor
+            layer?.borderColor = NSApp.effectiveAppearance.name == .darkAqua ? NSColor.white.cgColor : NSColor.controlTextColor.cgColor
         } else {
             // Remove border when not selected
             layer?.borderWidth = 0.0
@@ -618,16 +618,8 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     override func viewWillDraw() {
-        let textColor: NSColor
-        let placeholderColor: NSColor
-        
-        if let rowView = self.superview as? NSTableRowView, rowView.isSelected {
-            textColor = .white
-            placeholderColor = .lightGray
-        } else {
-            textColor = .controlTextColor
-            placeholderColor = .placeholderTextColor
-        }
+        let textColor: NSColor = .textColor
+        let placeholderColor: NSColor = .placeholderTextColor
         
         self.textField.textColor = textColor
         if let currentPlaceholder = self.textField.placeholderString, !currentPlaceholder.isEmpty {

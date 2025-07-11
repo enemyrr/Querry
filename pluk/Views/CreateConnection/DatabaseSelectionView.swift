@@ -72,7 +72,7 @@ struct DatabaseSelectionView: View {
                     .padding(.vertical, 12)
                     .background {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.black.opacity(0.2))
+                            .fill(Color(.controlColor).opacity(0.2))
                     }
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -176,6 +176,7 @@ struct DatabaseTypesGrid: View {
 
 // MARK: - Database Type Card
 struct DatabaseTypeCard: View {
+    @Environment(\.colorScheme) var colorScheme
     let databaseType: DatabaseType
     let isSelected: Bool
     let isHovered: Bool
@@ -236,7 +237,7 @@ struct DatabaseTypeCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(borderColor)
-                    .blendMode(.plusLighter)
+                    .blendMode(colorScheme == .dark ? .plusLighter : .normal)
                     .scaleEffect(isHovered ? 1.01 : 1.0)
             )
         }

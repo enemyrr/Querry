@@ -282,6 +282,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
 
 // Custom tab button with your styling
 struct CustomTabButton: View {
+    @Environment(\.colorScheme) var colorScheme
     let tab: DatabaseTab
     let isSelected: Bool
     let onSelect: () -> Void
@@ -335,8 +336,8 @@ struct CustomTabButton: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(isSelected ? .black : .clear).opacity(0.8),
-                            Color(isSelected ? .black : .clear).opacity(0.6),
+                            Color(isSelected ? Color(colorScheme == .dark ? .black : .white) : .clear).opacity(0.8),
+                            Color(isSelected ? Color(colorScheme == .dark ? .black : .white) : .clear).opacity(0.6),
                         ],
                         startPoint: .top,
                         endPoint: .bottom

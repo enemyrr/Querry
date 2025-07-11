@@ -11,6 +11,7 @@ import AppKit
 struct TableListView: View {
     let selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.colorScheme) var colorScheme
     
     @State private var viewState: TableListViewState = .loading
     @State private var sortColumn: String?
@@ -65,7 +66,9 @@ struct TableListView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.black).opacity(0.6))
+            .background(
+                Color(colorScheme == .dark ? .black : .white).opacity(0.6)
+            )
             
             VStack {
                 Spacer()

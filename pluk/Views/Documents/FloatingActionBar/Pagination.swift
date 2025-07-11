@@ -46,7 +46,6 @@ struct Pagination: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .foregroundColor(.white)
                     .opacity(isPreviousDisabled ? 0.3 : 1)
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
@@ -83,7 +82,6 @@ struct Pagination: View {
                 }
             }) {
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.white)
                     .opacity(isNextDisabled ? 0.3 : 1)
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
