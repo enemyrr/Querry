@@ -11,7 +11,6 @@ import Combine
 
 // MARK: - Menu Actions Extension
 extension TableCoordinator {
-    
     @objc func refreshCurrentTable() {
         NotificationCenter.default.post(
             name: .tableRefresh,

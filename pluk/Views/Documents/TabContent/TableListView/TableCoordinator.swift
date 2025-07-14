@@ -377,8 +377,17 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         tableView.addTableColumn(column)
         
+        tableView.target = self
+        tableView.doubleAction = #selector(tableViewDoubleClick(_:))
+        
         // Reset flag after adding column
         isSettingWidthsProgrammatically = false
+    }
+    
+    @objc func tableViewDoubleClick(_ sender:AnyObject) {
+        if let cellLocation = tableView.getCurrentSelectedCell() {
+            tableView.enterEditModeForCell(row: cellLocation.row, column: cellLocation.column)
+        }
     }
     
     private func setupUI() {
@@ -466,7 +475,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
         
         // Enable column selection only
-        tableView.allowsColumnSelection = false
+        tableView.allowsColumnSelection = true
         tableView.allowsMultipleSelection = true
         tableView.allowsEmptySelection = true
         

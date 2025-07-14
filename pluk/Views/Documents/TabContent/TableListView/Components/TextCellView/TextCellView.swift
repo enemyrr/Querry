@@ -182,39 +182,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         ])
     }
     
-    // MARK: - Double-Click Edit Handler (called from CustomTableView)
-    func handleDoubleClickEdit(at point: NSPoint, with event: NSEvent) {
-        debugLog("TextCellView clicked - clickCount: \(event.clickCount)")
-        
-        // Check if the click is inside the text field bounds
-        let textFieldPoint = textField.convert(point, from: self)
-        
-        if textField.bounds.contains(textFieldPoint) {
-            debugLog("Click is inside text field bounds")
-            
-            // Handle single click for selection
-            if event.clickCount == 1 {
-                // Exit edit mode for any currently editing cell when selecting a new cell
-                TextCellView.exitCurrentEditMode()
-                setSelected(true)
-            }
-            
-            // Only handle double-clicks for editing
-            if event.clickCount == 2 {
-                debugLog("Double click - entering edit mode")
-                
-                // Explicitly exit any currently editing cell first
-                TextCellView.exitCurrentEditMode()
-                
-                // Small delay to ensure previous cell has exited edit mode
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                    self.enterEditMode()
-                    self.textField.selectText(nil)
-                }
-            }
-        }
-    }
-    
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         debugLog("🔍 Command during editing: \(NSStringFromSelector(commandSelector))")
         
@@ -478,28 +445,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         return nil
     }
     
-    private func setSelected(_ selected: Bool) {
-        debugLog("🎯 Setting cell (\(rowIndex), \(columnName)) selected: \(selected)")
-        isSelected = selected
-        
-        if !wantsLayer {
-            wantsLayer = true
-        }
-        
-        if selected {
-            layer?.borderWidth = 1.0
-            layer?.borderColor = NSApp.effectiveAppearance.name == .darkAqua ? NSColor.white.cgColor : NSColor.controlTextColor.cgColor
-        } else {
-            // Remove border when not selected
-            layer?.borderWidth = 0.0
-            layer?.borderColor = NSColor.clear.cgColor
-            layer?.cornerRadius = 0.0
-        }
-        
-        needsDisplay = true  // Trigger redraw
-        
-    }
-    
     func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo) {
         createBorderViewIfNeeded()
         
@@ -602,17 +547,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         ])
     }
     
-    func setAsSelectedCell() {
-        // Set this cell as selected
-        setSelected(true)
-        debugLog("Cell selected at row: \(rowIndex), column: \(columnName)")
-    }
-    
-    /// Clears the selection state of this cell
-    func clearSelection() {
-        setSelected(false)
-    }
-    
     override func layout() {
         super.layout()
     }
@@ -630,21 +564,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         }
         
         super.viewWillDraw()
-        
-        // Check and restore selection state before drawing
-        if let tableView = findTableView() as? CustomTableView,
-           let selectedCell = tableView.getCurrentSelectedCell() {
-            let currentColumnIndex = tableView.columnIndex(for: columnName)
-            let shouldBeSelected = (selectedCell.row == rowIndex && selectedCell.column == currentColumnIndex)
-            
-            if shouldBeSelected && !isSelected {
-                debugLog("🔄 Restoring selection for cell (\(rowIndex), \(currentColumnIndex)) in viewWillDraw")
-                setSelected(true)
-            } else if !shouldBeSelected && isSelected {
-                debugLog("🔄 Clearing incorrect selection for cell (\(rowIndex), \(currentColumnIndex)) in viewWillDraw")
-                setSelected(false)
-            }
-        }
     }
 }
 

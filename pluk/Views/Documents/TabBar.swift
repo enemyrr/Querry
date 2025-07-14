@@ -34,7 +34,7 @@ struct TabBar: View {
                             .keyboardShortcut("w", modifiers: [.command])
                             .opacity(0)
                             .accessibilityHidden(true)
-                    )
+                    ).padding(.trailing, 20)
             }
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
@@ -129,7 +129,7 @@ struct TabBar: View {
             .onChange(of: instance.selectedTab) { _, newValue in
                 if let tab = newValue {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(tab.id, anchor: .trailing)
+                        proxy.scrollTo(tab.id, anchor: .bottomTrailing)
                     }
                 }
             }
