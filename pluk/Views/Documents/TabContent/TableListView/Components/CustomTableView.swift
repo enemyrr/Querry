@@ -170,8 +170,41 @@ class CustomTableView: NSTableView {
         super.mouseDown(with: event)
     }
     
+    override func rightMouseDown(with event: NSEvent) {
+        let clickPoint = convert(event.locationInWindow, from: nil)
+        let clickedRow = row(at: clickPoint)
+        let clickedColumn = column(at: clickPoint)
+        
+        debugLog("🖱️ Right click at: (\(clickedRow), \(clickedColumn))")
+        
+        // Store right-click location for menu validation
+        rightClickedRow = clickedRow
+        rightClickedColumn = clickedColumn
+        
+        // Only update selection if no multiple selection exists or if right-clicking outside selected rows
+        let currentSelection = selectedRowIndexes
+        let hasMultipleSelection = currentSelection.count > 1
+        let rightClickedOnSelectedRow = clickedRow >= 0 && currentSelection.contains(clickedRow)
+        
+        if !hasMultipleSelection || !rightClickedOnSelectedRow {
+            // Update selection to the right-clicked location
+            if clickedRow >= 0 {
+                selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+                if clickedColumn >= 0 {
+                    setClickedColumn(clickedColumn)
+                }
+            }
+        }
+        
+        super.rightMouseDown(with: event)
+    }
+    
     // Helper to store clicked column (since NSTableView doesn't always track this reliably)
     private var storedClickedColumn: Int = -1
+    
+    // Store right-click location for context menu validation (separate from selection)
+    private var rightClickedRow: Int = -1
+    private var rightClickedColumn: Int = -1
     
     private func setClickedColumn(_ column: Int) {
         storedClickedColumn = column
@@ -195,6 +228,8 @@ class CustomTableView: NSTableView {
         
         if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
             debugLog("✅ Entering edit mode for cell at (\(row), \(column))")
+            // Make sure row is selected
+            selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             cellView.enterEditMode()
         } else {
             debugLog("❌ Could not find TextCellView at (\(row), \(column))")
@@ -234,6 +269,11 @@ class CustomTableView: NSTableView {
     /// Gets the currently selected cell coordinates
     func getCurrentSelectedCell() -> (row: Int, column: Int)? {
         return currentCellLocation
+    }
+    
+    /// Gets the right-clicked cell coordinates (for context menu validation)
+    func getRightClickedCell() -> (row: Int, column: Int) {
+        return (rightClickedRow, rightClickedColumn)
     }
     
     /// Programmatically select a specific cell

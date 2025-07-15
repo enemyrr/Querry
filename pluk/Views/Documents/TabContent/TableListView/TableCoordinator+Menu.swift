@@ -28,16 +28,19 @@ extension TableCoordinator {
     }
     
     @objc func editItem() {
-        // Get the currently selected row and column
-        let selectedRow = tableView.selectedRow
-        let selectedColumn = tableView.selectedColumn
-        
-        guard selectedRow >= 0 && selectedColumn >= 0 else {
+        // Get the currently selected cell (which was updated by right-click)
+        guard let currentCell = tableView.getCurrentSelectedCell() else {
             return
         }
         
-        // Start editing the selected cell
-        tableView.editColumn(selectedColumn, row: selectedRow, with: nil, select: true)
+        let row = currentCell.row
+        let column = currentCell.column
+        
+        guard row >= 0 && column >= 0 else {
+            return
+        }
+        
+        tableView.enterEditModeForCell(row: row, column: column)
     }
     
     @objc func deleteItem() {
@@ -47,11 +50,10 @@ extension TableCoordinator {
             return
         }
         
-        
         NotificationCenter.default.post(
             name: .didRequestDelete,
             object: self,
-            userInfo: ["rows": selectedRows, "tableView": self]
+            userInfo: ["rows": selectedRows, "tableView": tableView]
         )
     }
 }

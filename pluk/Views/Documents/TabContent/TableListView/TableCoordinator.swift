@@ -7,8 +7,9 @@
 
 import Foundation
 import AppKit
+import Cocoa
 
-class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate {
+class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, NSMenuDelegate {
     var rows: [[String: Any?]]
     var schema: DatabaseSchemaResult?
     var totalCount: Int
@@ -52,6 +53,12 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     // Store modification tracker reference
     weak var modificationTracker: TableModificationTracker?
     
+    // Menu item references for validation
+    private weak var editMenuItem: NSMenuItem?
+    private weak var deleteMenuItem: NSMenuItem?
+    private weak var addRowMenuItem: NSMenuItem?
+    private weak var refreshMenuItem: NSMenuItem?
+    
     init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
@@ -81,7 +88,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     @objc private func handleDeleteKey(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let rows = userInfo["rows"] as? IndexSet,
-              let notificationTableView = userInfo["tableView"] as? NSTableView,
+              let notificationTableView = userInfo["tableView"] as? CustomTableView,
               notificationTableView === self.tableView else {
             return
         }
@@ -238,7 +245,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             
             if self.needsToSelectLastRow {
                 self.scrollToBottomAndSelectFirstCell()
-                self.needsToSelectLastRow = false
             }
             
             // Recalculate column widths if data changed significantly
@@ -315,6 +321,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     func scrollToBottomAndSelectFirstCell() {
         DispatchQueue.main.async {
+            self.needsToSelectLastRow = false
             let numberOfRows = self.tableView.numberOfRows
             if numberOfRows > 0 {
                 let lastRowIndex = numberOfRows - 1
@@ -492,6 +499,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         refreshItem.keyEquivalentModifierMask = [.command]
         refreshItem.target = self
         menu.addItem(refreshItem)
+        self.refreshMenuItem = refreshItem
         
         // Separator
         menu.addItem(NSMenuItem.separator())
@@ -501,11 +509,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         addRowItem.keyEquivalentModifierMask = [.command]
         addRowItem.target = self
         menu.addItem(addRowItem)
+        self.addRowMenuItem = addRowItem
         
         // Edit menu item
         let editItem = NSMenuItem(title: "Edit", action: #selector(editItem), keyEquivalent: "\r")
         editItem.target = self
         menu.addItem(editItem)
+        self.editMenuItem = editItem
         
         // Separator
         menu.addItem(NSMenuItem.separator())
@@ -515,7 +525,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         deleteItem.keyEquivalentModifierMask = []
         deleteItem.target = self
         menu.addItem(deleteItem)
+        self.deleteMenuItem = deleteItem
         
+        menu.delegate = self
+        menu.autoenablesItems = false
         tableView.menu = menu
         
         // Set up column resize and reorder notifications
@@ -1063,5 +1076,54 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         )
         
         savePersistentSchema(updatedSchema, for: tableName)
+    }
+    
+    // MARK: - NSMenuDelegate
+    
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        // Use actual right-click location for menu validation
+        let rightClickLocation = tableView.getRightClickedCell()
+        let rightClickedRow = rightClickLocation.row
+        let rightClickedColumn = rightClickLocation.column
+        let hasValidRow = rightClickedRow >= 0
+        let hasValidCell = hasValidRow && rightClickedColumn >= 0
+        let hasData = totalCount > 0
+        
+        debugLog("Menu validation - rightClickedRow: \(rightClickedRow), rightClickedColumn: \(rightClickedColumn), hasValidRow: \(hasValidRow), hasValidCell: \(hasValidCell), hasData: \(hasData)")
+        
+        // Update using stored references
+        editMenuItem?.isEnabled = hasValidCell
+        deleteMenuItem?.isEnabled = hasValidRow && hasData
+        addRowMenuItem?.isEnabled = true
+        refreshMenuItem?.isEnabled = true
+        
+        // Also update via loop as backup
+        for item in menu.items {
+            guard let action = item.action else { continue }
+            
+            switch action {
+            case #selector(editItem):
+                item.isEnabled = hasValidCell
+                debugLog("Edit item enabled: \(item.isEnabled)")
+                
+            case #selector(deleteItem):
+                item.isEnabled = hasValidRow && hasData
+                debugLog("Delete item enabled: \(item.isEnabled)")
+                
+            case #selector(addRow):
+                item.isEnabled = true
+                
+            case #selector(refreshCurrentTable):
+                item.isEnabled = true
+                
+            default:
+                break
+            }
+        }
+    }
+    
+    func menuWillOpen(_ menu: NSMenu) {
+        debugLog("Menu will open - calling menuNeedsUpdate")
+        menuNeedsUpdate(menu)
     }
 }
