@@ -27,7 +27,7 @@ struct TableListView: View {
     // Modification tracking
     @State private var modificationTracker = TableModificationTracker()
     @State private var isProcessingUpdates = false
-    @State private var scrollToBottom = false
+    @State private var needsToSelectLastRow = false
     
     // Generic error handling
     @State private var currentError: Error?
@@ -58,9 +58,10 @@ struct TableListView: View {
                             }
                         },
                         modificationTracker: modificationTracker,
-                        scrollToBottom: scrollToBottom,
+                        needsToSelectLastRow: needsToSelectLastRow,
                         onDeleteNewRow: { index in
                             deleteNewlyAddedRecord(atIndex: index)
+                            needsToSelectLastRow = false
                         }
                     )
                 }
@@ -295,7 +296,7 @@ struct TableListView: View {
             viewState = .loaded(updatedDocuments, currentSchema)
         }
         
-        scrollToBottom = true
+        needsToSelectLastRow = true
     }
     
     func deleteNewlyAddedRecord(atIndex: Int) {

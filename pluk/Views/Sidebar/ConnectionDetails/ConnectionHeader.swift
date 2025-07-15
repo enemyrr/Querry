@@ -76,20 +76,6 @@ struct ConnectionHeader: View {
                 // Base background
                 statusColor.opacity(0.06)
                 
-                // Inner glow layer
-                Group {
-                    ForEach(0..<4) { i in
-                        RoundedRectangle(cornerRadius: 12)
-                            .inset(by: Double(i) * 0.5)
-                            .stroke(
-                                statusColor.opacity(isHovered ? 0.1 : 0.05),
-                                lineWidth: 1
-                            )
-                    }
-                }
-                .blur(radius: 4)
-                .blendMode(.plusLighter)
-                
                 // Moving bubble with dynamic color
                 Circle()
                     .fill(

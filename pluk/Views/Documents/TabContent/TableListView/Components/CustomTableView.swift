@@ -94,7 +94,8 @@ class CustomTableView: NSTableView {
             handled = true
             
         case 124: // Right arrow - move to next column
-            let newColumn = max(0, (storedClickedColumn >= 0 ? storedClickedColumn : 0) + 1)
+            let currentColumn = storedClickedColumn >= 0 ? storedClickedColumn : 0
+            let newColumn = min(numberOfColumns - 1, currentColumn + 1)
             setClickedColumn(newColumn)
             refreshSelectedRowByReselection()
             handled = true

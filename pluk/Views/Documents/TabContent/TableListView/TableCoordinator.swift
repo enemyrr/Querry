@@ -284,7 +284,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             sortAscending = true
             debugLog("🔼 Sorting \(columnTitle) ASCENDING")
         }
-        
         // Update table headers to show sort indicators
         updateTableHeaders()
         
@@ -324,14 +323,11 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
                 // Select the first cell of the last row
                 let firstColumnIndex = 0 // Assuming there's always at least one column
                 if self.tableView.numberOfColumns > firstColumnIndex {
-                    self.tableView.selectRowIndexes(IndexSet(integer: lastRowIndex), byExtendingSelection: false)
-                    self.tableView.selectColumnIndexes(IndexSet(integer: firstColumnIndex), byExtendingSelection: false)
-                    //
-                    //                        // Make the table view the first responder to show the selection and allow editing
+                    // Make the table view the first responder to show the selection and allow editing
                     self.tableView.window?.makeFirstResponder(self.tableView)
-                    //
-                    //                        // Start editing the cell
+                    // Start editing the cell
                     self.tableView.editColumn(firstColumnIndex, row: lastRowIndex, with: nil, select: true)
+                    self.tableView.selectCell(row: lastRowIndex, column: firstColumnIndex)
                 }
             }
         }

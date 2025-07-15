@@ -14,16 +14,16 @@ struct TableListViewController: NSViewRepresentable {
     let tableName: String
     let onSort: ((String, Bool) -> Void)? // Callback for sorting: (column, ascending)
     let modificationTracker: TableModificationTracker?
-    let scrollToBottom: Bool
+    let needsToSelectLastRow: Bool
     let onDeleteNewRow: ((Int) -> Void)? // Callback for deleting new rows
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, scrollToBottom: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, needsToSelectLastRow: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
         self.onSort = onSort
         self.modificationTracker = modificationTracker
-        self.scrollToBottom = scrollToBottom
+        self.needsToSelectLastRow = needsToSelectLastRow
         self.onDeleteNewRow = onDeleteNewRow
     }
     
@@ -36,7 +36,7 @@ struct TableListViewController: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSView, context: Context) {
-        if scrollToBottom {
+        if needsToSelectLastRow {
             context.coordinator.needsToSelectLastRow = true
         }
         context.coordinator.updateRows(queryResult, newSchema: schema)
