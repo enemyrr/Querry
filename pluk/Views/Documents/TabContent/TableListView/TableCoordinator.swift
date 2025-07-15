@@ -220,9 +220,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         }
         
         // Invalidate column width cache if data changed significantly
-        if oldDataHash != newDataHash {
-            invalidateColumnWidthCache()
-        }
+        // FIX: Instead of revalidating all columns only revalidate the new column:
+        // if oldDataHash != newDataHash {
+        //    invalidateColumnWidthCache()
+        // }
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -857,12 +858,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     // MARK: - NSTableViewDelegate
-    //        func tableView(_ tableView: NSTableView, mouseDownInHeaderOf tableColumn: NSTableColumn) {
-    //            let columnTitle = tableColumn.identifier.rawValue
-    //            debugLog("🎯 Header clicked for column: \(columnTitle)")
-    //            sortTableData(by: columnTitle)
-    //        }
-    
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard let tableColumn = tableColumn,
               let queryResult = queryResult else {

@@ -283,8 +283,18 @@ struct TableListView: View {
         var updatedProcessedRows = currentResult.rows
         updatedProcessedRows.append(newProcessedRow)
         
+        // Always use schema to populate columns for consistency
+        let columnsFromSchema = schema.columns.enumerated().map { (index, schemaColumn) in
+            QueryColumnInfo(
+                name: schemaColumn.columnName,
+                dataType: schemaColumn.dataType,
+                format: schemaColumn.formatType,
+                index: index
+            )
+        }
+        
         let updatedResult = QueryResult(
-            columns: currentResult.columns,
+            columns: columnsFromSchema,
             rows: updatedProcessedRows,
             totalCount: currentResult.totalCount + 1,
             rawRows: updatedRawRows
