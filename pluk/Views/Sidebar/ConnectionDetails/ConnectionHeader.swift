@@ -70,6 +70,7 @@ struct ConnectionHeader: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
+        .modifier(GlassBackgroundStyle())
         .background(
             ZStack {
                 // Base background
@@ -125,6 +126,7 @@ struct ConnectionHeader: View {
                     }
             }
         )
+        
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
