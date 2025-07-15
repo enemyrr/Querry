@@ -376,7 +376,7 @@ struct FloatingActionBar: View {
         .padding(.top, 6)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
-        .padding(.bottom, isHoveringTopRectangle ? 8 : 5)
+        .padding(.bottom, 5)
         .modifier(GlassBackgroundStyleRoundedTop())
         .background(
             Group {
@@ -401,15 +401,21 @@ struct FloatingActionBar: View {
             }
         )
         .overlay(
-            RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
+            RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
         )
-        .shadow(color: isHoveringTopRectangle ? Color(colorScheme == .dark ? .black : .white).opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)
+        .shadow(
+            color: Color(colorScheme == .dark ? .black : .gray).opacity(isHoveringTopRectangle ? 0.3 : 0.1),
+            radius: isHoveringTopRectangle ? 8 : 3,
+            x: 0,
+            y: isHoveringTopRectangle ? 4 : 1
+        )
+        .scaleEffect(isHoveringTopRectangle ? 1.02 : 1.0)
         .contentShape(Rectangle())
         .onHover { hovering in
             isHoveringTopRectangle = hovering
         }
-        .animation(.spring(response: 0.2), value: isHoveringTopRectangle)
+        .animation(.smooth(duration: 0.15), value: isHoveringTopRectangle)
         .onTapGesture {
             openQueryEditor()
         }
