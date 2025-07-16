@@ -1,6 +1,7 @@
 import Foundation
 import PostgresNIO
 import NIOCore
+import NIOSSL
 
 // MARK: - PostgreSQL Wrappers
 struct PostgreSQLDatabaseWrapper: DatabaseWrapper {
@@ -1039,6 +1040,69 @@ class PostgreSQLDriver: DatabaseDriver {
         let password = url.password ?? ""
         let database = String(url.path.dropFirst()) // Remove leading "/"
         
+        // Parse query parameters for SSL mode and other options
+        var sslMode: PostgresConnection.Configuration.TLS = .disable
+        
+        if let query = url.query {
+            let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
+            
+            for item in queryItems {
+                switch item.name.lowercased() {
+                case "sslmode":
+                    if let value = item.value {
+                        switch value.lowercased() {
+                        case "disable":
+                            sslMode = .disable
+                        case "require":
+                            // Create a default SSL context for require mode
+                            do {
+                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
+                                sslMode = .require(sslContext)
+                            } catch {
+                                // Fall back to disable if SSL context creation fails
+                                sslMode = .disable
+                            }
+                        case "prefer":
+                            // Create a default SSL context for prefer mode
+                            do {
+                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
+                                sslMode = .prefer(sslContext)
+                            } catch {
+                                // Fall back to disable if SSL context creation fails
+                                sslMode = .disable
+                            }
+                        case "allow":
+                            // PostgresNIO doesn't have 'allow', map to 'prefer'
+                            do {
+                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
+                                sslMode = .prefer(sslContext)
+                            } catch {
+                                sslMode = .disable
+                            }
+                        case "verify-ca", "verify-full":
+                            // Best effort mapping to require with SSL context
+                            do {
+                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
+                                sslMode = .require(sslContext)
+                            } catch {
+                                sslMode = .disable
+                            }
+                        default:
+                            // If unknown SSL mode, default to prefer for safety
+                            do {
+                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
+                                sslMode = .prefer(sslContext)
+                            } catch {
+                                sslMode = .disable
+                            }
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+        }
+        
         // Validate required fields
         if username.isEmpty {
             throw DatabaseError.configurationError("Username is required")
@@ -1050,7 +1114,7 @@ class PostgreSQLDriver: DatabaseDriver {
             username: username,
             password: password.isEmpty ? nil : password,
             database: database,
-            tls: .disable // You might want to make this configurable
+            tls: sslMode
         )
     }
     
