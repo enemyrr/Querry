@@ -35,7 +35,7 @@ jobs:
       - name: Build Release (arm64)
         run: |
           ./scripts/build.sh --configuration Release
-          mv build/Build/Products/Release/VibeTunnel.app build/Build/Products/Release/VibeTunnel-arm64.app
+          mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk.app
 
       # - name: Build Release (x86_64)
       #   run: |
