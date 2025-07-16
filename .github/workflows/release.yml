@@ -32,9 +32,11 @@ jobs:
         with:
           xcode-version: "16.4"
 
-      - name: Resolve Dependencies
-        run: ./scripts/build.sh --configuration Release --arch arm64
-          mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-arm64.app
+      - name: Build Release (arm64)
+        working-directory: mac
+        run: |
+          ./scripts/build.sh --configuration Release --arch arm64
+          mv build/Build/Products/Release/VibeTunnel.app build/Build/Products/Release/VibeTunnel-arm64.app
 
       - name: Build Release (x86_64)
         run: |
