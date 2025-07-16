@@ -153,7 +153,7 @@ struct FloatingActionBar: View {
                     cornerRadius: action == .main ? 12 : 20
                 )
             )
-            .overlay(alignment: .center) {
+            .background(alignment: .center) {
                 if case .error = viewState {
                     LoadingErrorIndicator(cornerRadius: action == .main ? 12 : 20)
                 }
@@ -173,6 +173,27 @@ struct FloatingActionBar: View {
             )
             .task(id: processingStage) {
                 await handleProcessingStageChange()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .addNewRecord)) { notification in
+                // Only process if this notification is for our table
+                if let notificationTableName = notification.userInfo?["tableName"] as? String,
+                   notificationTableName == tableName {
+                    Task {
+                        onNewRecord()
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .tableRefresh)) { notification in
+                // Only process if this notification is for our table
+                if let notificationTableName = notification.userInfo?["tableName"] as? String,
+                   notificationTableName == tableName {
+                    Task {
+                        loadingTask?.cancel()
+                        debounceTask?.cancel()
+                        
+                        onRefresh(currentPage, totalPerPage, true)
+                    }
+                }
             }
             .onDisappear {
                 // Cancel all active tasks to prevent crashes
@@ -286,6 +307,7 @@ struct FloatingActionBar: View {
     @State private var isHoveringTopRectangle: Bool = false
     @State private var animatedFilterText: String = ""
     var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
+    @Environment(\.colorScheme) var colorScheme
     
     private var topRectangleView: some View {
         VStack {
@@ -354,7 +376,7 @@ struct FloatingActionBar: View {
         .padding(.top, 6)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
-        .padding(.bottom, isHoveringTopRectangle ? 8 : 5)
+        .padding(.bottom, 5)
         .modifier(GlassBackgroundStyleRoundedTop())
         .background(
             Group {
@@ -379,15 +401,21 @@ struct FloatingActionBar: View {
             }
         )
         .overlay(
-            RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
+            RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
         )
-        .shadow(color: isHoveringTopRectangle ? Color.black.opacity(0.2) : Color.clear, radius: 3, x: 0, y: 1)
+        .shadow(
+            color: Color(colorScheme == .dark ? .black : .gray).opacity(isHoveringTopRectangle ? 0.3 : 0.1),
+            radius: isHoveringTopRectangle ? 8 : 3,
+            x: 0,
+            y: isHoveringTopRectangle ? 4 : 1
+        )
+        .scaleEffect(isHoveringTopRectangle ? 1.02 : 1.0)
         .contentShape(Rectangle())
         .onHover { hovering in
             isHoveringTopRectangle = hovering
         }
-        .animation(.spring(response: 0.2), value: isHoveringTopRectangle)
+        .animation(.smooth(duration: 0.15), value: isHoveringTopRectangle)
         .onTapGesture {
             openQueryEditor()
         }
@@ -521,8 +549,10 @@ struct FloatingActionBar: View {
                     action = ActionBar.search
                 }
             }) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14))
+                Image("sparkle")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 16)  // 16pt matches 14pt text line height well
                     .contentShape(Rectangle())
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))

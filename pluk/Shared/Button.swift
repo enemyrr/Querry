@@ -52,9 +52,10 @@ struct ActionButtonStyle: ButtonStyle {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(
-                    isHovering || isActive
-                    ? (colorScheme == .dark ? Color.black : Color.black)
-                        .opacity(0.3)
+                    (isHovering || isActive)
+                    ? (colorScheme == .dark
+                       ? Color.black.opacity(0.3)
+                       : Color(.secondarySystemFill))
                     : Color.clear
                 )
         )
@@ -123,6 +124,8 @@ struct XMarkButtonStyle: ButtonStyle {
 
 
 struct TabBarButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
@@ -131,13 +134,16 @@ struct TabBarButtonStyle: ButtonStyle {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(
-                    Color(.controlColor).opacity(0.3)
+                    (colorScheme == .dark
+                     ? Color(.controlColor)
+                     : Color(.secondarySystemFill))
                 )
         )
     }
 }
 
 struct TabCloseButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     var padding: EdgeInsets = EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
     var disableScaleEffect: Bool = false
@@ -151,8 +157,10 @@ struct TabCloseButtonStyle: ButtonStyle {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(
-                    isHovering || isActive
-                    ? Color(.controlColor).opacity(0.5)
+                    (isHovering || isActive)
+                    ? (colorScheme == .dark
+                       ? Color.white.opacity(0.3)
+                       : Color(.secondarySystemFill))
                     : Color.clear
                 )
         )

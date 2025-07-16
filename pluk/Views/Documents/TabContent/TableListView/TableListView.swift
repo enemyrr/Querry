@@ -11,6 +11,7 @@ import AppKit
 struct TableListView: View {
     let selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.colorScheme) var colorScheme
     
     @State private var viewState: TableListViewState = .loading
     @State private var sortColumn: String?
@@ -26,7 +27,7 @@ struct TableListView: View {
     // Modification tracking
     @State private var modificationTracker = TableModificationTracker()
     @State private var isProcessingUpdates = false
-    @State private var scrollToBottom = false
+    @State private var needsToSelectLastRow = false
     
     // Generic error handling
     @State private var currentError: Error?
@@ -57,15 +58,18 @@ struct TableListView: View {
                             }
                         },
                         modificationTracker: modificationTracker,
-                        scrollToBottom: scrollToBottom,
+                        needsToSelectLastRow: needsToSelectLastRow,
                         onDeleteNewRow: { index in
                             deleteNewlyAddedRecord(atIndex: index)
+                            needsToSelectLastRow = false
                         }
                     )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.black).opacity(0.6))
+            .background(
+                Color(colorScheme == .dark ? .black : .white).opacity(0.6)
+            )
             
             VStack {
                 Spacer()
@@ -279,8 +283,18 @@ struct TableListView: View {
         var updatedProcessedRows = currentResult.rows
         updatedProcessedRows.append(newProcessedRow)
         
+        // Always use schema to populate columns for consistency
+        let columnsFromSchema = schema.columns.enumerated().map { (index, schemaColumn) in
+            QueryColumnInfo(
+                name: schemaColumn.columnName,
+                dataType: schemaColumn.dataType,
+                format: schemaColumn.formatType,
+                index: index
+            )
+        }
+        
         let updatedResult = QueryResult(
-            columns: currentResult.columns,
+            columns: columnsFromSchema,
             rows: updatedProcessedRows,
             totalCount: currentResult.totalCount + 1,
             rawRows: updatedRawRows
@@ -292,7 +306,7 @@ struct TableListView: View {
             viewState = .loaded(updatedDocuments, currentSchema)
         }
         
-        scrollToBottom = true
+        needsToSelectLastRow = true
     }
     
     func deleteNewlyAddedRecord(atIndex: Int) {

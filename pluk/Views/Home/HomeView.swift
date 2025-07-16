@@ -16,6 +16,8 @@ struct HomeView: View {
     @State private var showDatabaseModal = false
     @State private var selectedConnectionId: PersistentIdentifier?
     @State private var showCreateSheet = false
+    @State private var showConnectionAlert = false
+    @State private var pendingConnection: Connection?
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -50,8 +52,7 @@ struct HomeView: View {
                             selectedConnectionId = connection.persistentModelID
                         },
                         onOpen: { connection in
-                            let instanceId = viewModel.createNewConnectionInstance(for: connection)
-                            viewModel.changeActiveSidebarItem(.connection(instanceId))
+                            handleConnectionOpen(connection)
                         }
                     )
                 }
@@ -73,6 +74,39 @@ struct HomeView: View {
             .padding(8)
         }
         .postHogScreenView("HomeView")
+        .alert(pendingConnection != nil ? "\"\(pendingConnection!.name)\" is already connected" : "", isPresented: $showConnectionAlert) {
+            Button("Continue Current Tab") {
+                if let connection = pendingConnection,
+                   let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
+                    viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
+                }
+                pendingConnection = nil
+            }
+            Button("Create New Tab") {
+                if let connection = pendingConnection {
+                    let instanceId = viewModel.createNewConnectionInstance(for: connection)
+                    viewModel.changeActiveSidebarItem(.connection(instanceId))
+                }
+                pendingConnection = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingConnection = nil
+            }
+        } message: {
+            if let connection = pendingConnection {
+                Text("You’re already connected to \(connection.name) in another tab. Continuing will reuse the existing tab. Want to open a new one instead?")
+            }
+        }
+    }
+    
+    private func handleConnectionOpen(_ connection: Connection) {
+        if ConnectionService.shared.getExistingInstance(for: connection) != nil {
+            pendingConnection = connection
+            showConnectionAlert = true
+        } else {
+            let instanceId = viewModel.createNewConnectionInstance(for: connection)
+            viewModel.changeActiveSidebarItem(.connection(instanceId))
+        }
     }
 }
 
@@ -238,7 +272,7 @@ struct ConnectionListItem: View {
             }
         }
         .contextMenu {
-            Button(role: .destructive) {
+            Button {
                 onOpen(connection)
                 connection.lastOpenedAt = Date()
             } label: {

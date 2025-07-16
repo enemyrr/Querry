@@ -112,5 +112,6 @@ public extension NSTextField {
         isBordered = false
         isBezeled = false
         bezelStyle = .squareBezel  // Reset bezel style
+        focusRingType = .none  // Disable the white focus ring
     }
 }

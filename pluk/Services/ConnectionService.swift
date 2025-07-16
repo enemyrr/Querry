@@ -86,6 +86,10 @@ class ConnectionService {
         connectionInstances.first { $0.id == instanceId }
     }
     
+    func getExistingInstance(for connection: Connection) -> ConnectionInstance? {
+        connectionInstances.first { $0.connection.persistentModelID == connection.persistentModelID }
+    }
+    
     func connect(to instance: ConnectionInstance) async {
         do {
             try await instance.connect()

@@ -156,7 +156,7 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         
         // Calculate space needed for icons
         var iconSpace: CGFloat = 0
-        var currentX: CGFloat = textRect.minX + 6
+        let currentX: CGFloat = textRect.minX + 6
         
         // Draw type icon
         if let typeIconData = typeIconData {

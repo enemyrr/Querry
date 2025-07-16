@@ -143,7 +143,6 @@ struct CreateCollectionForm: View {
             HStack {
                 Text("Create collection")
                     .font(.title3)
-                    .foregroundColor(.white)
                 
                 Spacer()
             }

@@ -50,9 +50,11 @@ struct NavigationSidebar: View {
             }
             .padding(.bottom, -6)
             
-            Divider()
-                .padding(.horizontal, 12)
-                .padding(.bottom, -6)
+            if !viewModel.connections.isEmpty {
+                Divider()
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, -6)
+            }
             
             ForEach(viewModel.connections) { instance in
                 let instanceId = instance.id

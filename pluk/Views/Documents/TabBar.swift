@@ -34,7 +34,7 @@ struct TabBar: View {
                             .keyboardShortcut("w", modifiers: [.command])
                             .opacity(0)
                             .accessibilityHidden(true)
-                    )
+                    ).padding(.trailing, 20)
             }
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
@@ -129,7 +129,7 @@ struct TabBar: View {
             .onChange(of: instance.selectedTab) { _, newValue in
                 if let tab = newValue {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(tab.id, anchor: .trailing)
+                        proxy.scrollTo(tab.id, anchor: .bottomTrailing)
                     }
                 }
             }
@@ -282,6 +282,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
 
 // Custom tab button with your styling
 struct CustomTabButton: View {
+    @Environment(\.colorScheme) var colorScheme
     let tab: DatabaseTab
     let isSelected: Bool
     let onSelect: () -> Void
@@ -335,8 +336,8 @@ struct CustomTabButton: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(isSelected ? .black : .clear).opacity(0.8),
-                            Color(isSelected ? .black : .clear).opacity(0.6),
+                            Color(isSelected ? Color(colorScheme == .dark ? .black : .white) : .clear).opacity(0.8),
+                            Color(isSelected ? Color(colorScheme == .dark ? .black : .white) : .clear).opacity(0.6),
                         ],
                         startPoint: .top,
                         endPoint: .bottom

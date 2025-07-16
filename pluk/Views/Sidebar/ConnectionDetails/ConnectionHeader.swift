@@ -8,6 +8,7 @@ import SwiftUI
 
 // MARK: - Connection Header
 struct ConnectionHeader: View {
+    @Environment(\.colorScheme) var colorScheme
     let name: String
     let status: ConnectionStatus
     let version: String?
@@ -69,24 +70,11 @@ struct ConnectionHeader: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity)
+        .modifier(GlassBackgroundStyle())
         .background(
             ZStack {
                 // Base background
                 statusColor.opacity(0.06)
-                
-                // Inner glow layer
-                Group {
-                    ForEach(0..<4) { i in
-                        RoundedRectangle(cornerRadius: 12)
-                            .inset(by: Double(i) * 0.5)
-                            .stroke(
-                                statusColor.opacity(isHovered ? 0.1 : 0.05),
-                                lineWidth: 1
-                            )
-                    }
-                }
-                .blur(radius: 4)
-                .blendMode(.plusLighter)
                 
                 // Moving bubble with dynamic color
                 Circle()
@@ -124,11 +112,14 @@ struct ConnectionHeader: View {
                     }
             }
         )
+        
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
-                    statusColor.opacity(isHovered ? 0.3 : 0.15))
-                .blendMode(.plusLighter)
+                    statusColor.opacity(
+                        colorScheme == .dark ? (isHovered ? 0.3 : 0.15) : (isHovered ? 0.8 : 5))
+                )
+                .blendMode(colorScheme == .dark ? .plusLighter : .normal)
         )
         .cornerRadius(12)
         .animation(.easeInOut(duration: 0.3), value: status)

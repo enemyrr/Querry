@@ -20,7 +20,8 @@
       "Bash(rg -n \"rawQuery.*String\" --type swift -A 5 -B 5)",
       "Bash(rg -n \"filter.*Dictionary\\|filter.*rawQuery\" --type swift -A 5 -B 5)",
       "Bash(rg -n \"extension.*DatabaseDriver\\|func findDocuments.*String\" --type swift -A 10)",
-      "Bash(rg -n \"FilterCondition\\|FilterOperator\" --type swift -A 3 -B 3)"
+      "Bash(rg -n \"FilterCondition\\|FilterOperator\" --type swift -A 3 -B 3)",
+      "Bash(xcodebuild -project Pluk.xcodeproj -scheme Pluk -destination 'platform=macOS' build)"
     ],
     "deny": []
   }
