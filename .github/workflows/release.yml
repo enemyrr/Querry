@@ -44,40 +44,40 @@ jobs:
       #     ./scripts/build.sh --configuration Release --arch x86_64
       #     mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-x86_64.app
 
-    # - name: Create DMGs and ZIPs
-    #   working-directory: mac
-    #   run: |
-    #     VERSION="${{ github.event.inputs.version || github.ref_name }}"
-    #     VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+      - name: Create DMGs and ZIPs
+        working-directory: mac
+        run: |
+        VERSION="${{ github.event.inputs.version || github.ref_name }}"
+        VERSION="${VERSION#v}"  # Remove 'v' prefix if present
 
-    #     # Create arm64 DMG and ZIP
-    #     ./scripts/create-dmg.sh "build/Build/Products/Release/VibeTunnel-arm64.app"
-    #     ./scripts/create-zip.sh "build/Build/Products/Release/VibeTunnel-arm64.app"
+        # Create arm64 DMG and ZIP
+        ./scripts/create-dmg.sh "build/Build/Products/Release/Pluk.app"
+        ./scripts/create-zip.sh "build/Build/Products/Release/Pluk.app"
 
-    #     # Create Intel DMG and ZIP
-    #     # ./scripts/create-dmg.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
-    #     # ./scripts/create-zip.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
+         # Create Intel DMG and ZIP
+         # ./scripts/create-dmg.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
+         # ./scripts/create-zip.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
 
-    #     # List created files
-    #     echo "Created files:"
-    #     ls -la build/*.dmg build/*.zip
+        # List created files
+        echo "Created files:"
+        ls -la build/*.dmg build/*.zip
 
-    # - name: Upload Release Artifacts
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: mac-release
-    #     path: |
-    #       mac/build/*.dmg
-    #       mac/build/*.zip
-    #     retention-days: 7
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-release
+          path: |
+            mac/build/*.dmg
+            mac/build/*.zip
+          retention-days: 7
 
-    # - name: Create GitHub Release
-    #   if: startsWith(github.ref, 'refs/tags/')
-    #   uses: softprops/action-gh-release@v2
-    #   with:
-    #     files: |
-    #       mac/build/*.dmg
-    #       mac/build/*.zip
-    #     draft: true
-    #     prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-    #     generate_release_notes: true
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mac/build/*.dmg
+            mac/build/*.zip
+          draft: true
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
