@@ -47,20 +47,20 @@ jobs:
       - name: Create DMGs and ZIPs
         working-directory: mac
         run: |
-        VERSION="${{ github.event.inputs.version || github.ref_name }}"
-        VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
 
-        # Create arm64 DMG and ZIP
-        ./scripts/create-dmg.sh "build/Build/Products/Release/Pluk.app"
-        ./scripts/create-zip.sh "build/Build/Products/Release/Pluk.app"
+          # Create arm64 DMG and ZIP
+          ./scripts/create-dmg.sh "build/Build/Products/Release/Pluk.app"
+          ./scripts/create-zip.sh "build/Build/Products/Release/Pluk.app"
 
-         # Create Intel DMG and ZIP
-         # ./scripts/create-dmg.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
-         # ./scripts/create-zip.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
+          # Create Intel DMG and ZIP
+          # ./scripts/create-dmg.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
+          # ./scripts/create-zip.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
 
-        # List created files
-        echo "Created files:"
-        ls -la build/*.dmg build/*.zip
+          # List created files
+          echo "Created files:"
+          ls -la build/*.dmg build/*.zip
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
