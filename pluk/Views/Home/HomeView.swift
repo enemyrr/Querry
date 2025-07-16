@@ -100,7 +100,7 @@ struct HomeView: View {
     }
     
     private func handleConnectionOpen(_ connection: Connection) {
-        if let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
+        if ConnectionService.shared.getExistingInstance(for: connection) != nil {
             pendingConnection = connection
             showConnectionAlert = true
         } else {
