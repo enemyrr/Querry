@@ -35,14 +35,6 @@ jobs:
       - name: Build Release (arm64)
         run: |
           ./scripts/build.sh --configuration Release
-          mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk.app
-
-      # - name: Build Release (x86_64)
-      #   run: |
-      #     # Clean build directory for x86_64 build
-      #     rm -rf build/Build/Products/Release/Pluk.app
-      #     ./scripts/build.sh --configuration Release --arch x86_64
-      #     mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-x86_64.app
 
       - name: Create DMGs and ZIPs
         working-directory: mac
@@ -53,10 +45,6 @@ jobs:
           # Create arm64 DMG and ZIP
           ./scripts/create-dmg.sh "build/Build/Products/Release/Pluk.app"
           ./scripts/create-zip.sh "build/Build/Products/Release/Pluk.app"
-
-          # Create Intel DMG and ZIP
-          # ./scripts/create-dmg.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
-          # ./scripts/create-zip.sh "build/Build/Products/Release/VibeTunnel-x86_64.app"
 
           # List created files
           echo "Created files:"
