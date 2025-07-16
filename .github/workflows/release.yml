@@ -34,14 +34,11 @@ jobs:
 
       - name: Resolve Dependencies
         run: |
-          xcodebuild -resolvePackageDependencies
-
-      - name: Build Release (arm64)
+          xcodebuild -resolvePackageDependenciexcodebuild -resolvePackageDependencies: Build Release (arm64)
         run: ./scripts/build.sh --configuration Release --arch arm64
           mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-arm64.app
 
       - name: Build Release (x86_64)
-        working-directory: mac
         run: |
           # Clean build directory for x86_64 build
           rm -rf build/Build/Products/Release/Pluk.app
