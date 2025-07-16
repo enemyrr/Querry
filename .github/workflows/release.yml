@@ -33,8 +33,6 @@ jobs:
           xcode-version: "16.4"
 
       - name: Resolve Dependencies
-        run: |
-          xcodebuild -resolvePackageDependenciexcodebuild -resolvePackageDependencies: Build Release (arm64)
         run: ./scripts/build.sh --configuration Release --arch arm64
           mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-arm64.app
 
