@@ -34,15 +34,15 @@ jobs:
 
       - name: Build Release (arm64)
         run: |
-          ./scripts/build.sh --configuration Release --arch arm64
+          ./scripts/build.sh --configuration Release
           mv build/Build/Products/Release/VibeTunnel.app build/Build/Products/Release/VibeTunnel-arm64.app
 
-      - name: Build Release (x86_64)
-        run: |
-          # Clean build directory for x86_64 build
-          rm -rf build/Build/Products/Release/Pluk.app
-          ./scripts/build.sh --configuration Release --arch x86_64
-          mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-x86_64.app
+      # - name: Build Release (x86_64)
+      #   run: |
+      #     # Clean build directory for x86_64 build
+      #     rm -rf build/Build/Products/Release/Pluk.app
+      #     ./scripts/build.sh --configuration Release --arch x86_64
+      #     mv build/Build/Products/Release/Pluk.app build/Build/Products/Release/Pluk-x86_64.app
 
     # - name: Create DMGs and ZIPs
     #   working-directory: mac
