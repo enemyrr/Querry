@@ -178,10 +178,8 @@ class PostgreSQLDriver: DatabaseDriver {
             
             return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
         } catch let error as PSQLError {
-            await cleanup()
             throw mapPSQLError(error)
         } catch {
-            await cleanup()
             throw DatabaseError.connectionFailed("Failed to establish PostgreSQL connection: \(error.localizedDescription)")
         }
     }
@@ -206,10 +204,24 @@ class PostgreSQLDriver: DatabaseDriver {
         self.isConnected = false
     }
     
-    private func ensureConnected() throws -> PostgresConnection {
-        guard isConnected, let connection = self.connection else {
+    private func ensureConnected() async throws -> PostgresConnection {
+        guard let connection = self.connection else {
             throw DatabaseError.connectionFailed("Not connected to PostgreSQL database")
         }
+        
+        if connection.isClosed {
+            do {
+                guard let config = self.configuration else {
+                    throw DatabaseError.configurationError("No active connection configuration")
+                }
+                
+                _ = try await establishConnection(with: config)
+                return self.connection!
+            } catch {
+                throw DatabaseError.connectionFailed("Failed to reconnect to PostgreSQL database")
+            }
+        }
+        
         return connection
     }
     
@@ -229,7 +241,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func getBuildInfo() async throws -> BuildInfo {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         do {
             let rows = try await connection.query("SELECT version()", logger: Logger(label: "postgres"))
             
@@ -255,7 +267,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func listDatabases() async throws -> [PostgreSQLDatabaseWrapper] {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         
         do {
             let rows = try await connection.query(
@@ -278,7 +290,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func listCollections() async throws -> [PostgreSQLCollectionWrapper] {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         
         do {
             let rows = try await connection.query("""
@@ -329,7 +341,7 @@ class PostgreSQLDriver: DatabaseDriver {
     
 
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         do {
@@ -424,17 +436,17 @@ class PostgreSQLDriver: DatabaseDriver {
                 totalCount: convertedRows.count,
                 rawRows: convertedRawRows
             )
-            
         } catch let error as PSQLError {
             debugLog(String(reflecting: error))
             throw mapPSQLError(error)
         } catch {
+            print(error)
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
 
     func createDocument(in collectionName: String, document: [String: Any]) async throws {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         guard !document.isEmpty else {
@@ -511,7 +523,7 @@ class PostgreSQLDriver: DatabaseDriver {
 
 
     func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         guard !data.isEmpty else {
@@ -577,7 +589,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func deleteDocument(in collectionName: String, id: Any) async throws {
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
         
         guard let primaryKey = id as? PostgresCell else {
@@ -800,7 +812,7 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("No configuration available")
         }
         
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         
         do {
             // Step 1: Get all database names and sizes in one efficient query
@@ -915,7 +927,7 @@ class PostgreSQLDriver: DatabaseDriver {
                return cachedSchema
            }
         
-        let connection = try ensureConnected()
+        let connection = try await ensureConnected()
         
         do {
             let schemaQuery = PostgresQuery("""
@@ -1251,7 +1263,7 @@ class PostgreSQLDriver: DatabaseDriver {
     
     // MARK: - Helper method to get primary key column
        private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
-           let connection = try ensureConnected()
+           let connection = try await ensureConnected()
            
            do {
                let query = PostgresQuery("""
@@ -1321,7 +1333,7 @@ enum DatabaseError: Error, LocalizedError {
         case .notImplemented(let message):
             return "Not implemented: \(message)"
         case .connectionFailed(let message):
-            return "Connection failed: \(message)"
+            return message
         case .operationFailed(let message):
             return message
         case .authenticationFailed(let message):

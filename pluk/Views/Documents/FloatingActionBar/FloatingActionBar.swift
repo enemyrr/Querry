@@ -153,7 +153,7 @@ struct FloatingActionBar: View {
                     cornerRadius: action == .main ? 12 : 20
                 )
             )
-            .overlay(alignment: .center) {
+            .background(alignment: .center) {
                 if case .error = viewState {
                     LoadingErrorIndicator(cornerRadius: action == .main ? 12 : 20)
                 }
