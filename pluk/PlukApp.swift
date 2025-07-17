@@ -16,7 +16,7 @@ struct Pluk: App {
     @Environment(\.openWindow) private var openWindow
     @State private var window: NSWindow!
     
-    private let updaterController: SPUStandardUpdaterController
+    private let sparkleManager = SparkleUpdaterManager.shared
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Connection.self,
@@ -31,7 +31,7 @@ struct Pluk: App {
     }()
     
     init() {
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        // SparkleUpdaterManager.shared is initialized automatically
         
         let POSTHOG_API_KEY = "phc_sUeCOX55NMF1KRMylcacBuRrAdZmOtPLLQE0To9eeSK"
         let POSTHOG_HOST = "https://us.i.posthog.com"
@@ -83,7 +83,9 @@ struct Pluk: App {
             }
             
             CommandGroup(after: .appInfo) {
-                CheckForUpdatesView(updater: updaterController.updater)
+                if let updater = sparkleManager.updaterController?.updater {
+                    CheckForUpdatesView(updater: updater)
+                }
             }
         }
     }

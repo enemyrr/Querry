@@ -50,7 +50,7 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
 
     private static let prereleaseAppcastURL: URL = {
         guard let url =
-            URL(string: "https://r2.pluk.sh/appcast.xml")
+            URL(string: "https://r2.pluk.sh/appcast-prerelease.xml")
         else {
             fatalError("Invalid prerelease appcast URL - this should never happen with a hardcoded URL")
         }
@@ -68,13 +68,20 @@ public enum UpdateChannel: String, CaseIterable, Codable, Sendable {
     }
 
     /// The current update channel based on user defaults
+    /// NOTE: Currently hardcoded to .prerelease - all users are beta users for now
+    /// The foundation supports future stable switching when needed
     public static var current: Self {
-        if let rawValue = UserDefaults.standard.string(forKey: "updateChannel"),
-           let channel = Self(rawValue: rawValue)
-        {
-            return channel
-        }
-        return defaultChannel
+        // TODO: Remove this override when ready to support stable users
+        // For now, everyone gets beta releases regardless of stored preference
+        return .prerelease
+        
+        // Future implementation (commented out):
+        // if let rawValue = UserDefaults.standard.string(forKey: "updateChannel"),
+        //    let channel = Self(rawValue: rawValue)
+        // {
+        //     return channel
+        // }
+        // return defaultChannel
     }
 
     /// The default update channel based on the current app version

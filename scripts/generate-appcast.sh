@@ -413,7 +413,7 @@ main() {
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
         <title>Pluk Updates</title>
-        <link>https://r2.pluk.sh/Pluk.dmg</link>
+        <link>https://r2.pluk.sh/</link>
         <description>Pluk automatic updates feed</description>
         <language>en</language>
 EOF
@@ -429,8 +429,8 @@ EOF
         
         if [ -n "$dmg_assets_b64" ] && [ "$dmg_assets_b64" != "null" ]; then
             local first_dmg_b64=$(echo "$dmg_assets_b64" | head -1)
-            local dmg_url=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.url')
             local dmg_name=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.name')
+            local dmg_url="https://r2.pluk.sh/releases/$dmg_name"
             
             print_info "Using DMG: $dmg_name for $tag_name"
             
@@ -456,7 +456,7 @@ EOF
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
         <title>Pluk Pre-release Updates</title>
-        <link>https://r2.pluk.sh/Pluk.dmg</link>
+        <link>https://r2.pluk.sh/</link>
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
 EOF
@@ -472,8 +472,8 @@ EOF
         
         if [ -n "$dmg_assets_b64" ] && [ "$dmg_assets_b64" != "null" ]; then
             local first_dmg_b64=$(echo "$dmg_assets_b64" | head -1)
-            local dmg_url=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.url')
             local dmg_name=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.name')
+            local dmg_url="https://r2.pluk.sh/releases/$dmg_name"
             
             print_info "Using DMG: $dmg_name for $tag_name (pre-release)"
             
@@ -500,8 +500,8 @@ EOF
         
         if [ -n "$dmg_assets_b64" ] && [ "$dmg_assets_b64" != "null" ]; then
             local first_dmg_b64=$(echo "$dmg_assets_b64" | head -1)
-            local dmg_url=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.url')
             local dmg_name=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.name')
+            local dmg_url="https://r2.pluk.sh/releases/$dmg_name"
             
             print_info "Using DMG: $dmg_name for $tag_name (stable in pre-release feed)"
             

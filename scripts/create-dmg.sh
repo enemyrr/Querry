@@ -120,7 +120,7 @@ tell application "Finder"
         set statusbar visible of container window to false
         
         -- Set window bounds (centered, 500x320)
-        set the bounds of container window to {400, 100, 900, 420}
+        set the bounds of container window to {400, 100, 900, 500}
         
         -- Configure icon view options
         set viewOptions to the icon view options of container window

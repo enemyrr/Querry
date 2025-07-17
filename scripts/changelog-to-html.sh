@@ -41,10 +41,10 @@ if [ -z "$CHANGELOG_FILE" ]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
     # Try multiple locations in order of preference
-    if [ -f "$SCRIPT_DIR/../../CHANGELOG.md" ]; then
-        CHANGELOG_FILE="$SCRIPT_DIR/../../CHANGELOG.md"
-    elif [ -f "$SCRIPT_DIR/../CHANGELOG.md" ]; then
+    if [ -f "$SCRIPT_DIR/../CHANGELOG.md" ]; then
         CHANGELOG_FILE="$SCRIPT_DIR/../CHANGELOG.md"
+    elif [ -f "$SCRIPT_DIR/../../CHANGELOG.md" ]; then
+        CHANGELOG_FILE="$SCRIPT_DIR/../../CHANGELOG.md"
     elif [ -f "CHANGELOG.md" ]; then
         CHANGELOG_FILE="CHANGELOG.md"
     elif [ -f "../CHANGELOG.md" ]; then
@@ -54,8 +54,8 @@ if [ -z "$CHANGELOG_FILE" ]; then
     else
         echo "Error: Could not find CHANGELOG.md in any expected location"
         echo "Searched in:"
-        echo "  - $SCRIPT_DIR/../../CHANGELOG.md (project root from mac/scripts)"
-        echo "  - $SCRIPT_DIR/../CHANGELOG.md (mac directory)"
+        echo "  - $SCRIPT_DIR/../CHANGELOG.md (project root from scripts)"
+        echo "  - $SCRIPT_DIR/../../CHANGELOG.md (parent of project root)"
         echo "  - ./CHANGELOG.md (current directory)"
         echo "  - ../CHANGELOG.md (parent directory)"
         echo "  - ../../CHANGELOG.md (grandparent directory)"

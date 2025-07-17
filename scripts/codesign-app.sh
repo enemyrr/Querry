@@ -94,9 +94,9 @@ if [ -d "$APP_BUNDLE/Contents/Frameworks" ]; then
 fi
 
 # Sign embedded binaries (like pluk)
-if [ -f "$APP_BUNDLE/Contents/Resources/MacOS/Pluk" ]; then
+if [ -f "$APP_BUNDLE/Contents/MacOS/Pluk" ]; then
     log "Signing Pluk binary..."
-    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/Resources/pluk" || log "Warning: Failed to sign pluk"
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$APP_BUNDLE/Contents/MacOS/Pluk" || log "Warning: Failed to sign pluk"
 fi
 
 # Sign the main executable

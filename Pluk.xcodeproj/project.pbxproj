@@ -52,6 +52,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				version.xcconfig,
 			);
 			target = 9A529E7A2D23CFC700618009 /* Pluk */;
 		};
@@ -232,7 +233,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1620;
-				LastUpgradeCheck = 1630;
+				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					9A529E7A2D23CFC700618009 = {
 						CreatedOnToolsVersion = 16.2;

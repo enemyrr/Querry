@@ -77,14 +77,14 @@ check_warn() {
 
 # 1. Check Git status
 # echo "📌 Git Status:"
-# # Refresh the index to avoid false positives
-# git update-index --refresh >/dev/null 2>&1 || true
-# if git diff-index --quiet HEAD -- 2>/dev/null; then
-#     check_pass "Working directory is clean"
-# else
-#     check_fail "Uncommitted changes detected"
-#     git status --short
-# fi
+# Refresh the index to avoid false positives
+git update-index --refresh >/dev/null 2>&1 || true
+if git diff-index --quiet HEAD -- 2>/dev/null; then
+    check_pass "Working directory is clean"
+else
+    check_fail "Uncommitted changes detected"
+    git status --short
+fi
 
 # Check if on main branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)

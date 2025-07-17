@@ -708,7 +708,7 @@ echo ""
 echo -e "${GREEN}✅ DMG notarized and verified${NC}"
 
 
-# Step 6: Create GitHub release
+# Step 7: Create GitHub release
 echo ""
 echo -e "${BLUE}📋 Step 7/9: Creating GitHub release...${NC}"
 
@@ -829,7 +829,7 @@ fi
 
 echo -e "${GREEN}✅ GitHub release created${NC}"
 
-# Step 7: Update appcast
+# Step 8: Update appcast
 echo ""
 echo -e "${BLUE}📋 Step 8/9: Updating appcast...${NC}"
 
@@ -918,6 +918,18 @@ if [[ "$RELEASE_TYPE" != "stable" ]]; then
     echo "📝 Note: This is a pre-release. Users with 'Include Pre-releases' enabled will receive this update."
 else
     echo "📝 Note: This is a stable release. All users will receive this update."
+fi
+
+# Step 9: Upload to Cloudflare R2
+echo ""
+echo -e "${BLUE}📋 Step 9/9: Uploading to Cloudflare R2...${NC}"
+
+if "$SCRIPT_DIR/upload-to-r2.sh" "$DMG_PATH" "$ZIP_PATH" "$RELEASE_VERSION" "$RELEASE_TYPE"; then
+    echo -e "${GREEN}✅ Files uploaded to R2${NC}"
+else
+    echo -e "${YELLOW}⚠️  R2 upload failed - continuing without upload${NC}"
+    echo "   You can manually upload later with:"
+    echo "   $SCRIPT_DIR/upload-to-r2.sh \"$DMG_PATH\" \"$ZIP_PATH\" \"$RELEASE_VERSION\" \"$RELEASE_TYPE\""
 fi
 
 echo ""
