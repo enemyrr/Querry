@@ -7,7 +7,7 @@
         <language>en</language>
         <item>
             <title>Pluk 0.0.1 Beta 14</title>
-            <link>https://github.com/pluk-sh/app-pluk/releases/download/v0.0.1-beta.14/Pluk-0.0.1-beta.14.dmg</link>
+            <link>https://r2.pluk.sh/Pluk-0.0.1-beta.14.dmg</link>
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.14</sparkle:shortVersionString>
             <description><![CDATA[
@@ -45,12 +45,12 @@
 </ul>
 <p><a href="https://github.com/pluk-sh/app-pluk/blob/main/CHANGELOG.md#001-beta14-20250717">View full changelog</a></p></div>
             ]]></description>
-            <pubDate>Thu, 17 Jul 2025 14:00:24 +0000</pubDate>
+            <pubDate>Thu, 17 Jul 2025 14:11:18 +0000</pubDate>
             <enclosure 
-                url="https://github.com/pluk-sh/app-pluk/releases/download/v0.0.1-beta.14/Pluk-0.0.1-beta.14.dmg"
-                length="16797541"
+                url="https://r2.pluk.sh/Pluk-0.0.1-beta.14.dmg"
+                length=""
                 type="application/octet-stream"
-                sparkle:edSignature="/wOzQVbY4gPPHIi0aKANCk9N6DB51seqbGiMmwxXtQCYCmZPQgQlAtGURc3f3mytp8t3lGj/TVhllRx955qiBg=="
+                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
