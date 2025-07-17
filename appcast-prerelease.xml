@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
         <title>Pluk Pre-release Updates</title>
-        <link>https://r2.pluk.sh/Pluk.dmg</link>
+        <link>https://r2.pluk.sh/</link>
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
@@ -11,12 +11,44 @@
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.14</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 14</h2><p><strong>Pre-release version</strong></p><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.14</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+                <h2>Pluk 0.0.1 Beta 14</h2><p><strong>Pre-release version</strong></p><div><h3>✨ New Features</h3>
+#### <strong>Enhanced Table Interaction</strong>
+<ul>
+<li><strong>Right-click Context Menu</strong> - Table rows now support right-click actions for quick access to row-specific operations</li>
+<li><strong>Multi-row Selection</strong> - Select multiple rows simultaneously for batch operations and improved workflow efficiency</li>
+</ul>
+#### <strong>Smart Connection Management</strong>
+<ul>
+<li><strong>Intelligent Tab Handling</strong> - When opening a connection, Pluk now asks whether to create a new tab or use an existing connection tab, preventing accidental duplicate connections</li>
+</ul>
+<h3>🎨 UI Improvements</h3>
+#### <strong>Visual Polish</strong>
+<ul>
+<li><strong>Enhanced Light Theme</strong> - Improved light mode with better contrast, readability, and visual consistency across all interface elements</li>
+<li><strong>Smoother Cell Selection</strong> - More responsive and fluid cell selection animations for a polished user experience</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+#### <strong>Database Operations</strong>
+<ul>
+<li><strong>FIXED</strong>: Insert operations now work correctly even when tables contain no existing records</li>
+<li><strong>FIXED</strong>: Neon database connections no longer fail due to TLS configuration errors, ensuring reliable PostgreSQL connectivity</li>
+</ul>
+#### <strong>Connection Reliability</strong>
+<ul>
+<li><strong>FIXED</strong>: Automatic reconnection system now properly restores connections when network interruptions occur</li>
+<li><strong>FIXED</strong>: Tab bar display no longer gets cut off on the last tab, ensuring all tabs remain fully visible and accessible</li>
+</ul>
+<h3>🔧 Under the Hood</h3>
+<ul>
+<li>Improved error handling for database connection edge cases</li>
+<li>Enhanced connection state management for better reliability</li>
+</ul>
+<p><a href="https://github.com/pluk-sh/app-pluk/blob/main/CHANGELOG.md#001-beta14-20250717">View full changelog</a></p></div>
             ]]></description>
-            <pubDate>Thu, 17 Jul 2025 13:31:43 +0000</pubDate>
+            <pubDate>Thu, 17 Jul 2025 14:00:24 +0000</pubDate>
             <enclosure 
                 url="https://github.com/pluk-sh/app-pluk/releases/download/v0.0.1-beta.14/Pluk-0.0.1-beta.14.dmg"
-                length="16787188"
+                length="16797541"
                 type="application/octet-stream"
                 sparkle:edSignature="/wOzQVbY4gPPHIi0aKANCk9N6DB51seqbGiMmwxXtQCYCmZPQgQlAtGURc3f3mytp8t3lGj/TVhllRx955qiBg=="
             />
