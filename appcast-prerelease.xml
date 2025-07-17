@@ -45,12 +45,12 @@
 </ul>
 <p><a href="https://github.com/pluk-sh/app-pluk/blob/main/CHANGELOG.md#001-beta14-20250717">View full changelog</a></p></div>
             ]]></description>
-            <pubDate>Thu, 17 Jul 2025 14:23:11 +0000</pubDate>
+            <pubDate>Thu, 17 Jul 2025 14:57:44 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg"
-                length=""
+                length="16777680"
                 type="application/octet-stream"
-                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+                sparkle:edSignature="YY4TuzcWhIFVSejQjT94RZngFB7hDTtbAet875ZWMuvW2XTjRnZhZ97ZvYcYTq9jPo81UmQK7rqlfA/YkU+4Dw=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
