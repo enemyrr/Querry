@@ -65,4 +65,3 @@ else
 fi
 
 echo "✅ DMG notarization complete: $DMG_PATH"
-

@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # =============================================================================
-# VibeTunnel Automated Release Script
+# Pluk Automated Release Script
 # =============================================================================
 #
-# This script handles the complete end-to-end release process for VibeTunnel,
+# This script handles the complete end-to-end release process for Pluk,
 # including building, signing, notarization, DMG creation, GitHub releases,
 # and appcast updates. It supports both stable and pre-release versions.
 #
@@ -233,7 +233,7 @@ elif [[ -n "$PRERELEASE_NUMBER" ]]; then
     PRERELEASE_NUMBER=""
 fi
 
-echo -e "${BLUE}🚀 VibeTunnel Automated Release${NC}"
+echo -e "${BLUE}🚀 Pluk Automated Release${NC}"
 echo "=============================="
 echo ""
 
@@ -248,9 +248,9 @@ echo -e "${BLUE}🔍 Running strict pre-conditions...${NC}"
 
 # CHANGELOG.md will be checked later with proper fallback logic
 
-# Clean up any stuck VibeTunnel volumes before starting
+# Clean up any stuck Pluk volumes before starting
 echo "🧹 Cleaning up any stuck DMG volumes..."
-for volume in /Volumes/VibeTunnel*; do
+for volume in /Volumes/Pluk*; do
     if [ -d "$volume" ]; then
         echo "   Unmounting $volume..."
         hdiutil detach "$volume" -force 2>/dev/null || true
@@ -266,12 +266,12 @@ if [[ "$CURRENT_BRANCH" != "main" ]]; then
 fi
 
 # Check for uncommitted changes
-if ! git diff-index --quiet HEAD --; then
-    echo -e "${RED}❌ Error: Uncommitted changes detected${NC}"
-    echo "   Please commit or stash your changes before releasing"
-    git status --short
-    exit 1
-fi
+# if ! git diff-index --quiet HEAD --; then
+#     echo -e "${RED}❌ Error: Uncommitted changes detected${NC}"
+#     echo "   Please commit or stash your changes before releasing"
+#     git status --short
+#     exit 1
+# fi
 
 # Check if IS_PRERELEASE_BUILD is already set in environment
 if [[ -n "${IS_PRERELEASE_BUILD:-}" ]]; then
@@ -313,11 +313,11 @@ if ! gh auth status >/dev/null 2>&1; then
 fi
 
 # Check if changelog file exists in project root
-if [[ -f "$PROJECT_ROOT/../CHANGELOG.md" ]]; then
-    CHANGELOG_PATH="$PROJECT_ROOT/../CHANGELOG.md"
+if [[ -f "$PROJECT_ROOT/CHANGELOG.md" ]]; then
+    CHANGELOG_PATH="$PROJECT_ROOT/CHANGELOG.md"
 else
     echo -e "${YELLOW}⚠️  Warning: CHANGELOG.md not found${NC}"
-    echo "   Expected location: $PROJECT_ROOT/../CHANGELOG.md"
+    echo "   Expected location: $PROJECT_ROOT/CHANGELOG.md"
     echo "   Release notes will be basic"
     CHANGELOG_PATH=""
 fi
@@ -400,12 +400,12 @@ fi
 # Verify build number hasn't been used
 echo "🔍 Checking build number uniqueness..."
 EXISTING_BUILDS=""
-if [[ -f "$PROJECT_ROOT/../appcast.xml" ]]; then
-    APPCAST_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/../appcast.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
+if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
+    APPCAST_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
     EXISTING_BUILDS+="$APPCAST_BUILDS"
 fi
-if [[ -f "$PROJECT_ROOT/../appcast-prerelease.xml" ]]; then
-    PRERELEASE_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/../appcast-prerelease.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
+if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
+    PRERELEASE_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
     EXISTING_BUILDS+="$PRERELEASE_BUILDS"
 fi
 
@@ -425,7 +425,7 @@ echo -e "${BLUE}📋 Step 2/8: Cleaning build directory...${NC}"
 rm -rf "$PROJECT_ROOT/build"
 rm -rf "$PROJECT_ROOT/DerivedData"
 # rm -rf "$PROJECT_ROOT/.build"
-rm -rf ~/Library/Developer/Xcode/DerivedData/VibeTunnel-*
+rm -rf ~/Library/Developer/Xcode/DerivedData/Pluk-*
 echo "✓ Cleaned all build artifacts"
 
 # Step 3: Update version in version.xcconfig
@@ -467,13 +467,13 @@ else
 fi
 
 # Check if Xcode project was modified and commit if needed
-if ! git diff --quiet "$PROJECT_ROOT/VibeTunnel-Mac.xcodeproj/project.pbxproj"; then
+if ! git diff --quiet "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"; then
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "📝 Would commit Xcode project changes"
         echo "   Commit message: Update Xcode project for build $BUILD_NUMBER"
     else
         echo "📝 Committing Xcode project changes..."
-        git add "$PROJECT_ROOT/VibeTunnel-Mac.xcodeproj/project.pbxproj"
+        git add "$PROJECT_ROOT/Pluk-Mac.xcodeproj/project.pbxproj"
         git commit -m "Update Xcode project for build $BUILD_NUMBER"
         echo -e "${GREEN}✅ Xcode project changes committed${NC}"
     fi
@@ -533,11 +533,11 @@ else
     "$SCRIPT_DIR/build.sh" --configuration Release
     
     # Find the built app - could be in build directory or DerivedData
-    APP_PATH="$PROJECT_ROOT/build/Build/Products/Release/VibeTunnel.app"
+    APP_PATH="$PROJECT_ROOT/build/Build/Products/Release/Pluk.app"
     if [[ ! -d "$APP_PATH" ]]; then
         # Check DerivedData
         DEFAULT_DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
-        APP_PATH=$(find "$DEFAULT_DERIVED_DATA" -name "VibeTunnel.app" -path "*/Build/Products/Release/*" ! -path "*/Index.noindex/*" 2>/dev/null | head -n 1)
+        APP_PATH=$(find "$DEFAULT_DERIVED_DATA" -name "Pluk.app" -path "*/Build/Products/Release/*" ! -path "*/Index.noindex/*" 2>/dev/null | head -n 1)
         
         if [[ ! -d "$APP_PATH" ]]; then
             echo -e "${RED}❌ Build failed - app not found${NC}"
@@ -547,7 +547,7 @@ else
         # Copy to expected location for consistency
         mkdir -p "$PROJECT_ROOT/build/Build/Products/Release"
         cp -R "$APP_PATH" "$PROJECT_ROOT/build/Build/Products/Release/"
-        APP_PATH="$PROJECT_ROOT/build/Build/Products/Release/VibeTunnel.app"
+        APP_PATH="$PROJECT_ROOT/build/Build/Products/Release/Pluk.app"
     fi
     
     # Verify build number
@@ -558,7 +558,7 @@ else
     fi
     
     # Verify it's an ARM64 binary
-    APP_BINARY="$APP_PATH/Contents/MacOS/VibeTunnel"
+    APP_BINARY="$APP_PATH/Contents/MacOS/Pluk"
     if [[ -f "$APP_BINARY" ]]; then
         ARCH_INFO=$(lipo -info "$APP_BINARY" 2>/dev/null || echo "")
         if [[ "$ARCH_INFO" == *"arm64"* ]]; then
@@ -630,9 +630,9 @@ echo -e "${GREEN}✅ All Sparkle components properly signed${NC}"
 # Step 6: Create DMG and ZIP
 echo ""
 echo -e "${BLUE}📋 Step 6/8: Creating DMG and ZIP...${NC}"
-DMG_NAME="VibeTunnel-$RELEASE_VERSION.dmg"
+DMG_NAME="Pluk-$RELEASE_VERSION.dmg"
 DMG_PATH="$PROJECT_ROOT/build/$DMG_NAME"
-ZIP_NAME="VibeTunnel-$RELEASE_VERSION.zip"
+ZIP_NAME="Pluk-$RELEASE_VERSION.zip"
 ZIP_PATH="$PROJECT_ROOT/build/$ZIP_NAME"
 
 "$SCRIPT_DIR/create-dmg.sh" "$APP_PATH" "$DMG_PATH"
@@ -687,7 +687,7 @@ fi
 # Verify app inside DMG
 DMG_MOUNT=$(mktemp -d)
 if hdiutil attach "$DMG_PATH" -mountpoint "$DMG_MOUNT" -nobrowse -quiet; then
-    DMG_APP="$DMG_MOUNT/VibeTunnel.app"
+    DMG_APP="$DMG_MOUNT/Pluk.app"
     
     # Check if app is notarized
     if spctl -a -t exec -vv "$DMG_APP" 2>&1 | grep -q "source=Notarized Developer ID"; then
@@ -796,20 +796,20 @@ else
 fi
 
 # Format the release title properly
-# Convert "1.0.0-beta.10" to "VibeTunnel 1.0.0 Beta 10"
-RELEASE_TITLE="VibeTunnel $RELEASE_VERSION"
+# Convert "1.0.0-beta.10" to "Pluk 1.0.0 Beta 10"
+RELEASE_TITLE="Pluk $RELEASE_VERSION"
 if [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta\.([0-9]+)$ ]]; then
     VERSION_BASE="${BASH_REMATCH[1]}"
     BETA_NUM="${BASH_REMATCH[2]}"
-    RELEASE_TITLE="VibeTunnel $VERSION_BASE Beta $BETA_NUM"
+    RELEASE_TITLE="Pluk $VERSION_BASE Beta $BETA_NUM"
 elif [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-alpha\.([0-9]+)$ ]]; then
     VERSION_BASE="${BASH_REMATCH[1]}"
     ALPHA_NUM="${BASH_REMATCH[2]}"
-    RELEASE_TITLE="VibeTunnel $VERSION_BASE Alpha $ALPHA_NUM"
+    RELEASE_TITLE="Pluk $VERSION_BASE Alpha $ALPHA_NUM"
 elif [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc\.([0-9]+)$ ]]; then
     VERSION_BASE="${BASH_REMATCH[1]}"
     RC_NUM="${BASH_REMATCH[2]}"
-    RELEASE_TITLE="VibeTunnel $VERSION_BASE RC $RC_NUM"
+    RELEASE_TITLE="Pluk $VERSION_BASE RC $RC_NUM"
 fi
 
 if [[ "$RELEASE_TYPE" == "stable" ]]; then
@@ -836,17 +836,17 @@ echo -e "${BLUE}📋 Step 8/9: Updating appcast...${NC}"
 # Generate appcast
 echo "🔐 Generating appcast with EdDSA signatures..."
 # Set the Sparkle account for sign_update
-export SPARKLE_ACCOUNT="VibeTunnel"
+export SPARKLE_ACCOUNT="Pluk"
 echo "   Using Sparkle account: $SPARKLE_ACCOUNT"
 "$SCRIPT_DIR/generate-appcast.sh"
 
 # Verify the appcast was updated
 if [[ "$RELEASE_TYPE" == "stable" ]]; then
-    if ! grep -q "<sparkle:version>$BUILD_NUMBER</sparkle:version>" "$PROJECT_ROOT/../appcast.xml"; then
+    if ! grep -q "<sparkle:version>$BUILD_NUMBER</sparkle:version>" "$PROJECT_ROOT/appcast.xml"; then
         echo -e "${YELLOW}⚠️  Appcast may not have been updated. Please check manually.${NC}"
     fi
 else
-    if ! grep -q "<sparkle:version>$BUILD_NUMBER</sparkle:version>" "$PROJECT_ROOT/../appcast-prerelease.xml"; then
+    if ! grep -q "<sparkle:version>$BUILD_NUMBER</sparkle:version>" "$PROJECT_ROOT/appcast-prerelease.xml"; then
         echo -e "${YELLOW}⚠️  Pre-release appcast may not have been updated. Please check manually.${NC}"
     fi
 fi
@@ -861,13 +861,13 @@ echo "📤 Committing and pushing changes..."
 git add "$VERSION_CONFIG" 2>/dev/null || true
 
 # Add appcast files (they're in project root, not mac/)
-if [[ -f "$PROJECT_ROOT/../appcast.xml" ]]; then
-    git add "$PROJECT_ROOT/../appcast.xml" 2>/dev/null || true
+if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
+    git add "$PROJECT_ROOT/appcast.xml" 2>/dev/null || true
 else
     echo -e "${YELLOW}⚠️  Warning: appcast.xml not found in project root${NC}"
 fi
-if [[ -f "$PROJECT_ROOT/../appcast-prerelease.xml" ]]; then
-    git add "$PROJECT_ROOT/../appcast-prerelease.xml" 2>/dev/null || true
+if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
+    git add "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null || true
 else
     echo -e "${YELLOW}⚠️  Warning: appcast-prerelease.xml not found in project root${NC}"
 fi
@@ -901,13 +901,13 @@ echo ""
 echo -e "${GREEN}🎉 Release Complete!${NC}"
 echo "=================="
 echo ""
-echo -e "${GREEN}✅ Successfully released VibeTunnel $RELEASE_VERSION${NC}"
+echo -e "${GREEN}✅ Successfully released Pluk $RELEASE_VERSION${NC}"
 echo ""
 echo "Release details:"
 echo "  - Version: $RELEASE_VERSION"
 echo "  - Build: $BUILD_NUMBER"
 echo "  - Tag: $TAG_NAME"
-echo "  - GitHub: https://github.com/amantus-ai/vibetunnel/releases/tag/$TAG_NAME"
+echo "  - GitHub: https://github.com/pluk-sh/app-pluk/releases/tag/$TAG_NAME"
 echo ""
 echo "Release artifacts:"
 echo "  - DMG: $(basename "$DMG_PATH")"

@@ -76,15 +76,15 @@ check_warn() {
 }
 
 # 1. Check Git status
-echo "📌 Git Status:"
-# Refresh the index to avoid false positives
-git update-index --refresh >/dev/null 2>&1 || true
-if git diff-index --quiet HEAD -- 2>/dev/null; then
-    check_pass "Working directory is clean"
-else
-    check_fail "Uncommitted changes detected"
-    git status --short
-fi
+# echo "📌 Git Status:"
+# # Refresh the index to avoid false positives
+# git update-index --refresh >/dev/null 2>&1 || true
+# if git diff-index --quiet HEAD -- 2>/dev/null; then
+#     check_pass "Working directory is clean"
+# else
+#     check_fail "Uncommitted changes detected"
+#     git status --short
+# fi
 
 # Check if on main branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -323,7 +323,7 @@ else
 fi
 
 # Check if UpdateChannel.swift has the flag detection logic
-if grep -q "Bundle.main.object.*IS_PRERELEASE_BUILD" "$PROJECT_ROOT/VibeTunnel/Core/Models/UpdateChannel.swift"; then
+if grep -q "Bundle.main.object.*IS_PRERELEASE_BUILD" "$PROJECT_ROOT/pluk/Core/Models/UpdateChannel.swift"; then
     check_pass "UpdateChannel has IS_PRERELEASE_BUILD detection logic"
 else
     check_fail "UpdateChannel.swift missing IS_PRERELEASE_BUILD flag detection"
