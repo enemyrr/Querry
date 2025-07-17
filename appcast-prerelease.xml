@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Pluk Pre-release Updates</title>
+        <link>https://r2.pluk.sh/Pluk.dmg</link>
+        <description>Pluk pre-release and beta updates feed</description>
+        <language>en</language>
+        <item>
+            <title>Pluk 0.0.1 Beta 14</title>
+            <link>https://github.com/pluk-sh/app-pluk/releases/download/v0.0.1-beta.14/Pluk-0.0.1-beta.14.dmg</link>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.14</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 14</h2><p><strong>Pre-release version</strong></p><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.14</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+            ]]></description>
+            <pubDate>Thu, 17 Jul 2025 13:31:43 +0000</pubDate>
+            <enclosure 
+                url="https://github.com/pluk-sh/app-pluk/releases/download/v0.0.1-beta.14/Pluk-0.0.1-beta.14.dmg"
+                length="16787188"
+                type="application/octet-stream"
+                sparkle:edSignature="/wOzQVbY4gPPHIi0aKANCk9N6DB51seqbGiMmwxXtQCYCmZPQgQlAtGURc3f3mytp8t3lGj/TVhllRx955qiBg=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
