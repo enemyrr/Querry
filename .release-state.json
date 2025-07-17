@@ -1,0 +1,25 @@
+{
+    "release_type": "beta",
+    "release_version": "0.0.1-beta.14",
+    "build_number": "264",
+    "tag_name": "v0.0.1-beta.14",
+    "started_at": "2025-07-17T15:14:24Z",
+    "current_step": 1,
+    "steps": {
+        "1": {"name": "preflight_check", "status": "pending"},
+        "2": {"name": "clean_build", "status": "pending"},
+        "3": {"name": "set_version", "status": "pending"},
+        "4": {"name": "build_app", "status": "pending"},
+        "5": {"name": "sign_notarize", "status": "pending"},
+        "6": {"name": "create_dmg_zip", "status": "pending"},
+        "7": {"name": "github_release", "status": "pending"},
+        "8": {"name": "update_appcast", "status": "pending"},
+        "9": {"name": "commit_push", "status": "pending"}
+    },
+    "artifacts": {
+        "app_path": "",
+        "dmg_path": "",
+        "zip_path": "",
+        "sparkle_signature": ""
+    }
+}
