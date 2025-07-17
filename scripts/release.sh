@@ -337,12 +337,15 @@ echo ""
 
 # Step 1: Run pre-flight check
 echo -e "${BLUE}📋 Step 1/8: Running pre-flight check...${NC}"
+update_step 1 "in_progress"
 if ! "$SCRIPT_DIR/preflight-check.sh"; then
     echo ""
     echo -e "${RED}❌ Pre-flight check failed. Please fix the issues above.${NC}"
+    update_step 1 "failed"
     exit 1
 fi
 
+update_step 1 "completed"
 echo ""
 echo -e "${GREEN}✅ Pre-flight check passed!${NC}"
 echo ""
@@ -422,15 +425,18 @@ echo ""
 
 # Step 2: Clean build directory
 echo -e "${BLUE}📋 Step 2/8: Cleaning build directory...${NC}"
+update_step 2 "in_progress"
 rm -rf "$PROJECT_ROOT/build"
 rm -rf "$PROJECT_ROOT/DerivedData"
 # rm -rf "$PROJECT_ROOT/.build"
 rm -rf ~/Library/Developer/Xcode/DerivedData/Pluk-*
 echo "✓ Cleaned all build artifacts"
+update_step 2 "completed"
 
 # Step 3: Update version in version.xcconfig
 echo ""
 echo -e "${BLUE}📋 Step 3/8: Setting version...${NC}"
+update_step 3 "in_progress"
 
 # Determine the version string to set
 if [[ "$RELEASE_TYPE" == "stable" ]]; then
@@ -466,6 +472,8 @@ else
     echo -e "${GREEN}✅ Version updated to: $VERSION_TO_SET${NC}"
 fi
 
+update_step 3 "completed"
+
 # Check if Xcode project was modified and commit if needed
 if ! git diff --quiet "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"; then
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -482,6 +490,7 @@ fi
 # Step 4: Build the app
 echo ""
 echo -e "${BLUE}📋 Step 4/8: Building universal application...${NC}"
+update_step 4 "in_progress"
 
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "🔨 Would build ARM64 binary with:"
@@ -570,11 +579,17 @@ else
     fi
     
     echo -e "${GREEN}✅ Build complete${NC}"
+    
+    # Save artifact path
+    save_artifact "app_path" "$APP_PATH"
 fi
+
+update_step 4 "completed"
 
 # Step 5: Sign and notarize
 echo ""
 echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
+update_step 5 "in_progress"
 
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "🔐 Would sign and notarize the application"
@@ -627,9 +642,12 @@ fi
 
 echo -e "${GREEN}✅ All Sparkle components properly signed${NC}"
 
+update_step 5 "completed"
+
 # Step 6: Create DMG and ZIP
 echo ""
 echo -e "${BLUE}📋 Step 6/8: Creating DMG and ZIP...${NC}"
+update_step 6 "in_progress"
 DMG_NAME="Pluk-$RELEASE_VERSION.dmg"
 DMG_PATH="$PROJECT_ROOT/build/$DMG_NAME"
 ZIP_NAME="Pluk-$RELEASE_VERSION.zip"
@@ -648,6 +666,10 @@ if [[ ! -f "$ZIP_PATH" ]]; then
 fi
 
 echo -e "${GREEN}✅ DMG and ZIP created${NC}"
+
+# Save artifact paths
+save_artifact "dmg_path" "$DMG_PATH"
+save_artifact "zip_path" "$ZIP_PATH"
 
 # Step 6.5: Notarize DMG
 echo ""
@@ -707,10 +729,13 @@ fi
 echo ""
 echo -e "${GREEN}✅ DMG notarized and verified${NC}"
 
+update_step 6 "completed"
+
 
 # Step 7: Create GitHub release
 echo ""
 echo -e "${BLUE}📋 Step 7/9: Creating GitHub release...${NC}"
+update_step 7 "in_progress"
 
 # Check if tag already exists locally
 if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
@@ -829,9 +854,12 @@ fi
 
 echo -e "${GREEN}✅ GitHub release created${NC}"
 
+update_step 7 "completed"
+
 # Step 8: Update appcast
 echo ""
 echo -e "${BLUE}📋 Step 8/9: Updating appcast...${NC}"
+update_step 8 "in_progress"
 
 # Generate appcast
 echo "🔐 Generating appcast with EdDSA signatures..."
@@ -852,6 +880,8 @@ else
 fi
 
 echo -e "${GREEN}✅ Appcast updated${NC}"
+
+update_step 8 "completed"
 
 # Commit and push appcast and version files
 echo ""
@@ -923,6 +953,7 @@ fi
 # Step 9: Upload to Cloudflare R2
 echo ""
 echo -e "${BLUE}📋 Step 9/9: Uploading to Cloudflare R2...${NC}"
+update_step 9 "in_progress"
 
 if "$SCRIPT_DIR/upload-to-r2.sh" "$DMG_PATH" "$ZIP_PATH" "$RELEASE_VERSION" "$RELEASE_TYPE"; then
     echo -e "${GREEN}✅ Files uploaded to R2${NC}"
@@ -931,6 +962,11 @@ else
     echo "   You can manually upload later with:"
     echo "   $SCRIPT_DIR/upload-to-r2.sh \"$DMG_PATH\" \"$ZIP_PATH\" \"$RELEASE_VERSION\" \"$RELEASE_TYPE\""
 fi
+
+update_step 9 "completed"
+
+# Clean up state tracking
+cleanup_state
 
 echo ""
 echo "💡 Next steps:"

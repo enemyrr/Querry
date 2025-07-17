@@ -120,7 +120,6 @@ if [ -z "$version_content" ]; then
     cat << EOF
 <h2>Pluk $VERSION</h2>
 <p>Latest version of Pluk with new features and improvements.</p>
-<p><a href="https://github.com/pluk-sh/app-pluk/blob/main/CHANGELOG.md">View full changelog</a></p>
 EOF
     exit 0
 fi
@@ -155,5 +154,3 @@ if [ "$in_list" = true ]; then
     echo "</ul>"
 fi
 
-# Add link to full changelog
-echo "<p><a href=\"https://github.com/pluk-sh/app-pluk/blob/main/CHANGELOG.md#${VERSION//./}-$(date +%Y%m%d)\">View full changelog</a></p>"
