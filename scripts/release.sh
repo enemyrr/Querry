@@ -67,7 +67,7 @@
 #   ./scripts/release.sh --dry-run beta 1     # Preview beta.1 release
 #
 # OUTPUT:
-#   - GitHub release at: https://github.com/amantus-ai/vibetunnel/releases
+#   - GitHub release at: https://github.com/amantus-ai/pluk/releases
 #   - Signed DMG file in build/ directory
 #   - Updated appcast.xml and appcast-prerelease.xml files
 #   - Git commits and tags pushed to repository

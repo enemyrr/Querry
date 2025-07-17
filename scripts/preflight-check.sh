@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # =============================================================================
-# VibeTunnel Pre-flight Check Script
+# Pluk Pre-flight Check Script
 # =============================================================================
 #
-# This script validates that everything is ready for a VibeTunnel release by
+# This script validates that everything is ready for a Pluk release by
 # performing comprehensive checks on git status, build configuration, tools,
 # certificates, and the IS_PRERELEASE_BUILD system.
 #
@@ -57,7 +57,7 @@ NC='\033[0m' # No Color
 # Track if any checks fail
 CHECKS_PASSED=true
 
-echo "🔍 VibeTunnel Release Pre-flight Check"
+echo "🔍 Pluk Release Pre-flight Check"
 echo "===================================="
 echo ""
 
@@ -316,7 +316,7 @@ echo ""
 echo "📌 IS_PRERELEASE_BUILD System:"
 
 # Check if IS_PRERELEASE_BUILD is configured in Info.plist
-if grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/VibeTunnel-Info.plist" || grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/VibeTunnel/Info.plist" 2>/dev/null; then
+if grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/Pluk-Info.plist" || grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/Pluk/Info.plist" 2>/dev/null; then
     check_pass "IS_PRERELEASE_BUILD flag configured in Info.plist"
 else
     check_warn "IS_PRERELEASE_BUILD flag not found in Info.plist (will be set at build time)"
@@ -337,7 +337,7 @@ else
 fi
 
 # Check if AppBehaviorSettingsManager uses defaultChannel
-APP_BEHAVIOR_SETTINGS="$PROJECT_ROOT/VibeTunnel/Core/Services/Settings/AppBehaviorSettingsManager.swift"
+APP_BEHAVIOR_SETTINGS="$PROJECT_ROOT/Pluk/Core/Services/Settings/AppBehaviorSettingsManager.swift"
 if [[ -f "$APP_BEHAVIOR_SETTINGS" ]]; then
     if grep -q "UpdateChannel.defaultChannel" "$APP_BEHAVIOR_SETTINGS"; then
         check_pass "AppBehaviorSettingsManager uses UpdateChannel.defaultChannel()"
