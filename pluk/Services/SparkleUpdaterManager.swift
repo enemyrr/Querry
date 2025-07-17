@@ -147,7 +147,7 @@ extension SparkleUpdaterManager {
     public nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         // Use UpdateChannel.current which is hardcoded to .prerelease for now
         let channel = UpdateChannel.current
-        return channel.includesPreReleases ? Set(["", "prerelease"]) : Set([""])
+        return channel.includesPreReleases ? Set(["stable", "prerelease"]) : Set([""])
     }
 
     public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {

@@ -83,8 +83,12 @@ struct Pluk: App {
             }
             
             CommandGroup(after: .appInfo) {
-                if let updater = sparkleManager.updaterController?.updater {
-                    CheckForUpdatesView(updater: updater)
+                Button("Check for Updates") {
+                    Task {
+                        await MainActor.run {
+                            sparkleManager.checkForUpdates()
+                        }
+                    }
                 }
             }
         }
