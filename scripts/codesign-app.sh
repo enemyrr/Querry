@@ -21,7 +21,7 @@ fi
 log "Code signing $APP_BUNDLE with identity: $SIGN_IDENTITY"
 
 # Create entitlements with hardened runtime
-ENTITLEMENTS_FILE="Pluk/Resources/pluk.entitlements"
+ENTITLEMENTS_FILE="pluk/Resources/pluk.entitlements"
 TMP_ENTITLEMENTS="/tmp/Pluk_entitlements.plist"
 
 if [ -f "$ENTITLEMENTS_FILE" ]; then
@@ -52,21 +52,17 @@ else
 <dict>
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    <key>com.apple.security.hardened-runtime</key>
+    <key>com.apple.security.files.user-selected.read-only</key>
     <true/>
     <key>com.apple.security.network.client</key>
     <true/>
-    <key>com.apple.security.files.user-selected.read-only</key>
-    <true/>
-    <key>com.apple.security.files.downloads.read-write</key>
-    <true/>
-    <key>com.apple.security.automation.apple-events</key>
+    <key>com.apple.security.network.server</key>
     <true/>
     <!-- Sparkle XPC Service temporary exceptions -->
     <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
     <array>
         <string>${BUNDLE_ID}-spks</string>
-        <string>${BUNDLE_ID}-spkd</string>
+        <string>${BUNDLE_ID}-spki</string>
     </array>
 </dict>
 </plist>
