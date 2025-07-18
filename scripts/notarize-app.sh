@@ -135,19 +135,29 @@ EOF
 
 # Create entitlements files
 MAIN_ENTITLEMENTS="/tmp/main_entitlements.plist"
-XPC_ENTITLEMENTS="/tmp/xpc_entitlements.plist"
 
 # Use actual Pluk entitlements for the main app
-if [ -f "pluk/Resources/pluk.entitlements" ]; then
-    cp "pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS"
+if [ -f "Pluk/Resources/pluk.entitlements" ]; then
+    ENTITLEMENTS_SOURCE="Pluk/Resources/pluk.entitlements"
 elif [ -f "$PROJECT_ROOT/Pluk/Resources/pluk.entitlements" ]; then
-    cp "$PROJECT_ROOT/Pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS"
+    ENTITLEMENTS_SOURCE="$PROJECT_ROOT/Pluk/Resources/pluk.entitlements"
 else
     log "Warning: Pluk.entitlements not found, using default entitlements"
     create_entitlements "$MAIN_ENTITLEMENTS" "false"
+    ENTITLEMENTS_SOURCE=""
 fi
 
-create_entitlements "$XPC_ENTITLEMENTS" "true"
+if [ -n "$ENTITLEMENTS_SOURCE" ]; then
+    # Get the bundle identifier from the app bundle
+    BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "doc.pluk")
+    log "Using entitlements from $ENTITLEMENTS_SOURCE with bundle ID: $BUNDLE_ID"
+    
+    # Copy entitlements and replace the bundle identifier variable
+    sed "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID/g" "$ENTITLEMENTS_SOURCE" > "$MAIN_ENTITLEMENTS"
+fi
+
+# Don't create XPC entitlements - they should use same entitlements as main app for Sparkle
+# The XPC services will inherit the proper entitlements from the main app
 
 # ============================================================================
 # Signing Functions
@@ -225,14 +235,15 @@ fi
 
 # Sign XPC services (directories, not files)
 # IMPORTANT: Do NOT use --deep flag, sign each component individually
+# Use the main app entitlements for XPC services to ensure proper Sparkle communication
 if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
-    log "Signed Installer.xpc"
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp --entitlements "$MAIN_ENTITLEMENTS" $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+    log "Signed Installer.xpc with main app entitlements"
 fi
 if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
-    # For Sparkle versions >= 2.6, preserve entitlements
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp --preserve-metadata=entitlements $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
-    log "Signed Downloader.xpc"
+    # For Sparkle versions >= 2.6, use main app entitlements for consistency
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp --entitlements "$MAIN_ENTITLEMENTS" $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+    log "Signed Downloader.xpc with main app entitlements"
 fi
 
 # Sign other Sparkle components
@@ -347,4 +358,4 @@ fi
 success "Notarization and stapling completed successfully"
 
 # Clean up temporary files
-rm -f "$MAIN_ENTITLEMENTS" "$XPC_ENTITLEMENTS"
+rm -f "$MAIN_ENTITLEMENTS"
