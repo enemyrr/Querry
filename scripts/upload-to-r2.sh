@@ -186,13 +186,13 @@ if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
 fi
 
 # Upload stable appcast if it exists
-if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
-    echo "📤 Uploading stable appcast.xml..."
-    aws s3 cp "$PROJECT_ROOT/appcast.xml" "s3://$R2_BUCKET_NAME/appcast-stable.xml" \
-        --endpoint-url="$R2_ENDPOINT_URL" \
-        --content-type="application/xml"
-    echo -e "${GREEN}✅ Stable appcast uploaded: appcast-stable.xml${NC}"
-fi
+# if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
+#     echo "📤 Uploading stable appcast.xml..."
+#     aws s3 cp "$PROJECT_ROOT/appcast.xml" "s3://$R2_BUCKET_NAME/appcast-stable.xml" \
+#         --endpoint-url="$R2_ENDPOINT_URL" \
+#         --content-type="application/xml"
+#     echo -e "${GREEN}✅ Stable appcast uploaded: appcast-stable.xml${NC}"
+# fi
 
 echo ""
 echo -e "${GREEN}🎉 Upload Complete!${NC}"
