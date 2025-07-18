@@ -27,39 +27,11 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
     override public init() {
         super.init()
 
-        // Skip initialization during tests
-        let isRunningInTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
-            ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil ||
-            ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil ||
-            ProcessInfo.processInfo.arguments.contains("-XCTest") ||
-            NSClassFromString("XCTestCase") != nil
-
-        if isRunningInTests {
-            logger.info("Running in test mode, skipping Sparkle initialization")
-            return
-        }
-
-        // Check if installed from App Store
-        if ProcessInfo.processInfo.installedFromAppStore {
-            logger.info("App installed from App Store, skipping Sparkle initialization")
-            return
-        }
-
-        // Initialize Sparkle with standard configuration
-        #if DEBUG
-            // In debug mode, start the updater for testing
-            updaterController = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: self,
-                userDriverDelegate: nil
-            )
-        #else
-            updaterController = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: self,
-                userDriverDelegate: nil
-            )
-        #endif
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: self,
+            userDriverDelegate: nil
+        )
 
         // Configure automatic updates
         if let updater = updaterController?.updater {
@@ -147,7 +119,7 @@ extension SparkleUpdaterManager {
     public nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         // Use UpdateChannel.current which is hardcoded to .prerelease for now
         let channel = UpdateChannel.current
-        return channel.includesPreReleases ? Set(["stable", "prerelease"]) : Set([""])
+        return channel.includesPreReleases ? Set(["", "prerelease"]) : Set([""])
     }
 
     public nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
@@ -193,19 +165,5 @@ public final class SparkleViewModel {
     public func setUpdateChannel(_ channel: UpdateChannel) {
         updateChannel = channel
         updaterManager.setUpdateChannel(channel)
-    }
-}
-
-
-// MARK: - ProcessInfo Extension
-
-extension ProcessInfo {
-    fileprivate var installedFromAppStore: Bool {
-        // Check for App Store receipt
-        let receiptURL = Bundle.main.appStoreReceiptURL
-        if let receiptURL {
-            return receiptURL.lastPathComponent == "receipt" && FileManager.default.fileExists(atPath: receiptURL.path)
-        }
-        return false
     }
 }

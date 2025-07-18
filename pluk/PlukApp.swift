@@ -31,8 +31,6 @@ struct Pluk: App {
     }()
     
     init() {
-        // SparkleUpdaterManager.shared is initialized automatically
-        
         let POSTHOG_API_KEY = "phc_sUeCOX55NMF1KRMylcacBuRrAdZmOtPLLQE0To9eeSK"
         let POSTHOG_HOST = "https://us.i.posthog.com"
         let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
