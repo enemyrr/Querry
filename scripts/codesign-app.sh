@@ -35,10 +35,10 @@ if [ -f "$ENTITLEMENTS_FILE" ]; then
     sed -e "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID/g" "$ENTITLEMENTS_FILE" > "$TMP_ENTITLEMENTS"
     
     # Ensure hardened runtime is enabled
-    if ! grep -q "com.apple.security.hardened-runtime" "$TMP_ENTITLEMENTS"; then
-        awk '/<\/dict>/ { print "    <key>com.apple.security.hardened-runtime</key>\n    <true/>"; } { print; }' "$TMP_ENTITLEMENTS" > "${TMP_ENTITLEMENTS}.new"
-        mv "${TMP_ENTITLEMENTS}.new" "$TMP_ENTITLEMENTS"
-    fi
+    # if ! grep -q "com.apple.security.hardened-runtime" "$TMP_ENTITLEMENTS"; then
+    #     awk '/<\/dict>/ { print "    <key>com.apple.security.hardened-runtime</key>\n    <true/>"; } { print; }' "$TMP_ENTITLEMENTS" > "${TMP_ENTITLEMENTS}.new"
+    #     mv "${TMP_ENTITLEMENTS}.new" "$TMP_ENTITLEMENTS"
+    # fi
 else
     log "Creating entitlements file with hardened runtime..."
     # Get the bundle identifier
