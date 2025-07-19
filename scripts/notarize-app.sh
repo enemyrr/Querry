@@ -1,42 +1,12 @@
-
 #!/bin/bash
-
-# =============================================================================
-# Pluk App Notarization Script
-# =============================================================================
-#
-# This script handles complete notarization for Pluk including:
-# - Hardened runtime signing
-# - Proper signing of all components (including Sparkle)
-# - Apple notarization submission and stapling
-#
-# USAGE:
-#   ./scripts/notarize-app.sh <app_path>
-#
-# ARGUMENTS:
-#   app_path    Path to the .app bundle to notarize
-#
-# ENVIRONMENT VARIABLES:
-#   SIGN_IDENTITY                     Developer ID identity (optional)
-#   APP_STORE_CONNECT_API_KEY_P8      App Store Connect API key
-#   APP_STORE_CONNECT_KEY_ID          API Key ID
-#   APP_STORE_CONNECT_ISSUER_ID       API Issuer ID
-#
-# =============================================================================
+# notarize-app.sh - Complete notarization script for Pluk with Sparkle
+# Handles hardened runtime, proper signing of all components, and notarization
 
 set -eo pipefail
-
-# Source common functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[[ -f "$SCRIPT_DIR/common.sh" ]] && source "$SCRIPT_DIR/common.sh"
 
 # ============================================================================
 # Configuration
 # ============================================================================
-
-# Get the script and project directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 log() {
     echo "[$(date "+%Y-%m-%d %H:%M:%S")] $1"
@@ -52,18 +22,8 @@ success() {
 }
 
 APP_BUNDLE="${1:-build/Build/Products/Release/Pluk.app}"
-# Use environment variable or detect from keychain
-SIGN_IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')}"
+SIGN_IDENTITY="Developer ID Application: Mohamed Fauzaan (5P3TSMNV42)"
 TIMEOUT_MINUTES=30
-
-# Validate signing identity
-if [[ -z "$SIGN_IDENTITY" ]]; then
-    error "No signing identity found. Please set SIGN_IDENTITY environment variable."
-    echo "Example: export SIGN_IDENTITY=\"Developer ID Application: Your Name (TEAMID)\""
-    exit 1
-fi
-
-log "Using signing identity: $SIGN_IDENTITY"
 
 # Check if app bundle exists
 if [ ! -d "$APP_BUNDLE" ]; then
@@ -82,7 +42,7 @@ API_KEY_FILE=$(mktemp)
 echo "$APP_STORE_CONNECT_API_KEY_P8" | sed 's/\\n/\n/g' > "$API_KEY_FILE"
 
 cleanup() {
-    rm -f "$API_KEY_FILE" "/tmp/Pluk.zip"
+    rm -f "$API_KEY_FILE" "/tmp/Pluk_notarize.zip"
 }
 trap cleanup EXIT
 
@@ -121,8 +81,8 @@ EOF
     <true/>
     <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
     <array>
-        <string>doc.pluk.pluk-spks</string>
-        <string>doc.pluk.pluk-spkd</string>
+        <string>doc.pluk-spks</string>
+        <string>doc.pluk-spkd</string>
     </array>
 EOF
     fi
@@ -135,29 +95,10 @@ EOF
 
 # Create entitlements files
 MAIN_ENTITLEMENTS="/tmp/main_entitlements.plist"
+XPC_ENTITLEMENTS="/tmp/xpc_entitlements.plist"
 
-# Use actual Pluk entitlements for the main app
-if [ -f "Pluk/Resources/pluk.entitlements" ]; then
-    ENTITLEMENTS_SOURCE="Pluk/Resources/pluk.entitlements"
-elif [ -f "$PROJECT_ROOT/Pluk/Resources/pluk.entitlements" ]; then
-    ENTITLEMENTS_SOURCE="$PROJECT_ROOT/Pluk/Resources/pluk.entitlements"
-else
-    log "Warning: Pluk.entitlements not found, using default entitlements"
-    create_entitlements "$MAIN_ENTITLEMENTS" "false"
-    ENTITLEMENTS_SOURCE=""
-fi
-
-if [ -n "$ENTITLEMENTS_SOURCE" ]; then
-    # Get the bundle identifier from the app bundle
-    BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "doc.pluk")
-    log "Using entitlements from $ENTITLEMENTS_SOURCE with bundle ID: $BUNDLE_ID"
-    
-    # Copy entitlements and replace the bundle identifier variable
-    sed "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID/g" "$ENTITLEMENTS_SOURCE" > "$MAIN_ENTITLEMENTS"
-fi
-
-# Don't create XPC entitlements - they should use same entitlements as main app for Sparkle
-# The XPC services will inherit the proper entitlements from the main app
+create_entitlements "$MAIN_ENTITLEMENTS" "false"
+create_entitlements "$XPC_ENTITLEMENTS" "true"
 
 # ============================================================================
 # Signing Functions
@@ -223,44 +164,70 @@ else
     log "Warning: fix-sparkle-sandbox.sh not found or not executable"
 fi
 
-# 1. Sign Sparkle components manually per documentation
-# https://sparkle-project.org/documentation/sandboxing/#code-signing
-log "Signing Sparkle components per documentation..."
+# 1. Sign XPC services first (they need special entitlements)
+log "Signing XPC services..."
+find "$APP_BUNDLE/Contents" -name "*.xpc" -type d | while read xpc; do
+    if [ -f "$xpc/Contents/MacOS/"* ]; then
+        executable=$(find "$xpc/Contents/MacOS" -type f -perm +111 | head -1)
+        if [ -n "$executable" ]; then
+            sign_binary "$executable" "$XPC_ENTITLEMENTS" "XPC service executable"
+        fi
+    fi
+    sign_app_bundle "$xpc" "$XPC_ENTITLEMENTS" "XPC service bundle"
+done
 
-# Add keychain option if available
-keychain_opts=""
-if [ -n "${KEYCHAIN_NAME:-}" ]; then
-    keychain_opts="--keychain $KEYCHAIN_NAME"
+# 2. Handle Sparkle framework with comprehensive signing
+SPARKLE_FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE_FRAMEWORK" ]; then
+    log "Found Sparkle framework, performing comprehensive signing..."
+    
+    # Sign XPC services in Sparkle
+    find "$SPARKLE_FRAMEWORK" -name "*.xpc" -type d | while read xpc; do
+        if [ -f "$xpc/Contents/MacOS/"* ]; then
+            executable=$(find "$xpc/Contents/MacOS" -type f -perm +111 | head -1)
+            if [ -n "$executable" ]; then
+                sign_binary "$executable" "$XPC_ENTITLEMENTS" "Sparkle XPC executable"
+            fi
+        fi
+        sign_app_bundle "$xpc" "$XPC_ENTITLEMENTS" "Sparkle XPC service"
+    done
+    
+    # Sign standalone executables in Sparkle
+    find "$SPARKLE_FRAMEWORK" -type f -perm +111 -not -path "*/MacOS/*" -not -path "*/XPCServices/*" | while read executable; do
+        sign_binary "$executable" "$MAIN_ENTITLEMENTS" "Sparkle executable"
+    done
+    
+    # Sign nested app bundles in Sparkle
+    find "$SPARKLE_FRAMEWORK" -name "*.app" -type d | while read app; do
+        if [ -f "$app/Contents/MacOS/"* ]; then
+            executable=$(find "$app/Contents/MacOS" -type f -perm +111 | head -1)
+            if [ -n "$executable" ]; then
+                sign_binary "$executable" "$MAIN_ENTITLEMENTS" "Sparkle app executable"
+            fi
+        fi
+        sign_app_bundle "$app" "$MAIN_ENTITLEMENTS" "Sparkle app bundle"
+    done
+    
+    # Sign the main Sparkle framework binary
+    if [ -f "$SPARKLE_FRAMEWORK/Sparkle" ]; then
+        sign_binary "$SPARKLE_FRAMEWORK/Sparkle" "$MAIN_ENTITLEMENTS" "Sparkle framework binary"
+    fi
+    
+    # Sign the framework bundle
+    log "Signing Sparkle framework bundle..."
+    keychain_opts=""
+    if [ -n "${KEYCHAIN_NAME:-}" ]; then
+        keychain_opts="--keychain $KEYCHAIN_NAME"
+    fi
+    
+    codesign \
+        --force \
+        --sign "$SIGN_IDENTITY" \
+        --options runtime \
+        --timestamp \
+        $keychain_opts \
+        "$SPARKLE_FRAMEWORK"
 fi
-
-# Sign XPC services (directories, not files)
-# IMPORTANT: Do NOT use --deep flag, sign each component individually
-# Use the main app entitlements for XPC services to ensure proper Sparkle communication
-if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp --entitlements "$MAIN_ENTITLEMENTS" $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
-    log "Signed Installer.xpc with main app entitlements"
-fi
-if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
-    # For Sparkle versions >= 2.6, use main app entitlements for consistency
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp --entitlements "$MAIN_ENTITLEMENTS" $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
-    log "Signed Downloader.xpc with main app entitlements"
-fi
-
-# Sign other Sparkle components
-if [ -f "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
-    log "Signed Autoupdate"
-fi
-if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" ]; then
-    codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
-    log "Signed Updater.app"
-fi
-
-# Finally sign the framework itself
-codesign -f -s "$SIGN_IDENTITY" -o runtime --timestamp $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-log "Signed Sparkle.framework"
-
-# 2. Sparkle framework is already signed above per documentation
 
 # 3. Sign other frameworks
 log "Signing other frameworks..."
@@ -358,4 +325,4 @@ fi
 success "Notarization and stapling completed successfully"
 
 # Clean up temporary files
-rm -f "$MAIN_ENTITLEMENTS"
+rm -f "$MAIN_ENTITLEMENTS" "$XPC_ENTITLEMENTS"
