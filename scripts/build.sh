@@ -108,7 +108,6 @@ if command -v xcbeautify &> /dev/null; then
         -configuration "$CONFIGURATION" \
         -derivedDataPath "$BUILD_DIR" \
         -destination "platform=macOS" \
-        $XCCONFIG_ARG \
         build | xcbeautify
 else
     echo "🔨 Building (install xcbeautify for cleaner output)..."
@@ -118,7 +117,6 @@ else
         -configuration "$CONFIGURATION" \
         -derivedDataPath "$BUILD_DIR" \
         -destination "platform=macOS" \
-        $XCCONFIG_ARG \
         build
 fi
 
