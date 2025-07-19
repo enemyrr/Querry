@@ -250,9 +250,13 @@ perform_notarization() {
         exit 1
     fi
     
-    # Note: notarize-app.sh handles all signing internally with proper Sparkle support
-    # Skip redundant signing here to avoid double-signing issues
-    log "Notarization script will handle all signing with proper Sparkle component support..."
+    # Ensure app is signed if needed
+    if [ "$DO_SIGNING" = true ] || ! codesign --verify --verbose=1 "$APP_BUNDLE_PATH" &>/dev/null; then
+        log "Signing needs to be performed before notarization..."
+        perform_signing
+    else
+        log "App already properly signed, skipping signing step"
+    fi
     
     # Call the notarization script
     if ! "$SCRIPT_DIR/notarize-app.sh" "$APP_BUNDLE_PATH"; then
@@ -297,13 +301,7 @@ log "Found app bundle at $APP_BUNDLE_PATH"
 
 # Check if we should do code signing
 if [ "$DO_SIGNING" = true ]; then
-    # Only perform separate signing if we're NOT doing notarization
-    # When notarizing, let notarize-app.sh handle all signing for proper Sparkle support
-    if [ "$DO_NOTARIZATION" = false ]; then
-        perform_signing
-    else
-        log "Skipping separate signing step - notarization will handle signing with proper Sparkle support"
-    fi
+    perform_signing
 else
     log "Skipping code signing as requested"
 fi
@@ -350,4 +348,3 @@ if [ "$CREATE_ZIP" = true ] && [ -f "$FINAL_ZIP_PATH" ]; then
 fi
 
 success "Script completed successfully!"
-

@@ -577,60 +577,60 @@ else
 fi
 
 
-# Step 5: Sign and notarize
-# echo ""
-# echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
-#
-# if [[ "$DRY_RUN" == "true" ]]; then
-#     echo "🔐 Would sign and notarize the application"
-#     echo "   Command: $SCRIPT_DIR/sign-and-notarize.sh --sign-and-notarize"
-#     echo -e "${GREEN}✅ Signing and notarization would be performed${NC}"
-#     
-#     # For dry run, we need to exit early since we don't have actual build artifacts
-#     echo ""
-#     echo -e "${BLUE}📋 Remaining steps (would be performed):${NC}"
-#     echo "   6/8: Creating DMG and ZIP"
-#     echo "   7/8: Creating GitHub release with tag $TAG_NAME"
-#     echo "   8/8: Updating appcast files"
-#     echo "   9/9: Committing and pushing changes"
-#     echo ""
-#     echo "📦 Release summary:"
-#     echo "   Type: $RELEASE_TYPE"
-#     echo "   Version: $RELEASE_VERSION"
-#     echo "   Build: $BUILD_NUMBER"
-#     echo "   Tag: $TAG_NAME"
-#     echo ""
-#     echo -e "${GREEN}🎉 Dry run complete!${NC}"
-#     echo ""
-#     echo "To perform the actual release, run without --dry-run:"
-#     echo "   $0 $RELEASE_TYPE${PRERELEASE_NUMBER:+ $PRERELEASE_NUMBER}"
-#     exit 0
-# fi
-#
-# "$SCRIPT_DIR/sign-and-notarize.sh" --sign-and-notarize
-#
-# # Verify Sparkle component signing
-# echo ""
-# echo -e "${BLUE}🔍 Verifying Sparkle component signatures...${NC}"
-# SPARKLE_OK=true
-#
-# # Check each Sparkle component for proper signing with timestamps
-# if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-#     CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1)
-#     if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
-#         echo "✅ Installer.xpc properly signed with timestamp"
-#     else
-#         echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
-#         SPARKLE_OK=false
-#     fi
-# fi
-#
-# if [ "$SPARKLE_OK" = false ]; then
-#     echo -e "${RED}❌ Sparkle component signing verification failed!${NC}"
-#     exit 1
-# fi
-#
-# echo -e "${GREEN}✅ All Sparkle components properly signed${NC}"
+Step 5: Sign and notarize
+echo ""
+echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo "🔐 Would sign and notarize the application"
+    echo "   Command: $SCRIPT_DIR/sign-and-notarize.sh --sign-and-notarize"
+    echo -e "${GREEN}✅ Signing and notarization would be performed${NC}"
+    
+    # For dry run, we need to exit early since we don't have actual build artifacts
+    echo ""
+    echo -e "${BLUE}📋 Remaining steps (would be performed):${NC}"
+    echo "   6/8: Creating DMG and ZIP"
+    echo "   7/8: Creating GitHub release with tag $TAG_NAME"
+    echo "   8/8: Updating appcast files"
+    echo "   9/9: Committing and pushing changes"
+    echo ""
+    echo "📦 Release summary:"
+    echo "   Type: $RELEASE_TYPE"
+    echo "   Version: $RELEASE_VERSION"
+    echo "   Build: $BUILD_NUMBER"
+    echo "   Tag: $TAG_NAME"
+    echo ""
+    echo -e "${GREEN}🎉 Dry run complete!${NC}"
+    echo ""
+    echo "To perform the actual release, run without --dry-run:"
+    echo "   $0 $RELEASE_TYPE${PRERELEASE_NUMBER:+ $PRERELEASE_NUMBER}"
+    exit 0
+fi
+
+"$SCRIPT_DIR/sign-and-notarize.sh" --sign-and-notarize
+
+# Verify Sparkle component signing
+echo ""
+echo -e "${BLUE}🔍 Verifying Sparkle component signatures...${NC}"
+SPARKLE_OK=true
+
+# Check each Sparkle component for proper signing with timestamps
+if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
+    CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1)
+    if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
+        echo "✅ Installer.xpc properly signed with timestamp"
+    else
+        echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
+        SPARKLE_OK=false
+    fi
+fi
+
+if [ "$SPARKLE_OK" = false ]; then
+    echo -e "${RED}❌ Sparkle component signing verification failed!${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ All Sparkle components properly signed${NC}"
 #
 #
 # # Step 6: Create DMG and ZIP
