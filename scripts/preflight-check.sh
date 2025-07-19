@@ -330,11 +330,11 @@ else
 fi
 
 # Check if release script sets the environment variable
-# if grep -q "export IS_PRERELEASE_BUILD=" "$PROJECT_ROOT/scripts/release.sh"; then
-#     check_pass "Release script sets IS_PRERELEASE_BUILD environment variable"
-# else
-#     check_fail "Release script missing IS_PRERELEASE_BUILD environment variable setup"
-# fi
+if grep -q "export IS_PRERELEASE_BUILD=" "$PROJECT_ROOT/scripts/release.sh"; then
+    check_pass "Release script sets IS_PRERELEASE_BUILD environment variable"
+else
+    check_fail "Release script missing IS_PRERELEASE_BUILD environment variable setup"
+fi
 
 # Check if AppBehaviorSettingsManager uses defaultChannel
 APP_BEHAVIOR_SETTINGS="$PROJECT_ROOT/Pluk/Core/Services/Settings/AppBehaviorSettingsManager.swift"
