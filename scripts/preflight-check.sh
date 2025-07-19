@@ -1,7 +1,48 @@
 #!/bin/bash
 
-# Pre-flight Check Script for Pluk Releases
-# This script validates everything is ready for a release
+# =============================================================================
+# Pluk Pre-flight Check Script
+# =============================================================================
+#
+# This script validates that everything is ready for a Pluk release by
+# performing comprehensive checks on git status, build configuration, tools,
+# certificates, and the IS_PRERELEASE_BUILD system.
+#
+# USAGE:
+#   ./scripts/preflight-check.sh
+#
+# VALIDATION CHECKS:
+#   - Git repository status (clean working tree, main branch, synced)
+#   - Version information and build number validation
+#   - Required development tools (Rust, Node.js, GitHub CLI, Sparkle tools)
+#   - Code signing certificates and notarization credentials
+#   - Sparkle configuration (keys, appcast files)
+#   - IS_PRERELEASE_BUILD system configuration
+#
+# EXIT CODES:
+#   0  All checks passed - ready to release
+#   1  Some checks failed - fix issues before releasing
+#
+# DEPENDENCIES:
+#   - git (repository management)
+#   - cargo/rustup (Rust toolchain)
+#   - node/pnpm (web frontend build)
+#   - gh (GitHub CLI)
+#   - sign_update (Sparkle EdDSA signing)
+#   - xcbeautify (optional, build output formatting)
+#   - security (keychain access for certificates)
+#   - xmllint (appcast validation)
+#
+# ENVIRONMENT VARIABLES:
+#   APP_STORE_CONNECT_API_KEY_P8    App Store Connect API key (for notarization)
+#   APP_STORE_CONNECT_KEY_ID        API Key ID
+#   APP_STORE_CONNECT_ISSUER_ID     API Key Issuer ID
+#
+# EXAMPLES:
+#   ./scripts/preflight-check.sh
+#
+# =============================================================================
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +76,9 @@ check_warn() {
 }
 
 # 1. Check Git status
-echo "📌 Git Status:"
+# echo "📌 Git Status:"
+# Refresh the index to avoid false positives
+git update-index --refresh >/dev/null 2>&1 || true
 if git diff-index --quiet HEAD -- 2>/dev/null; then
     check_pass "Working directory is clean"
 else
@@ -65,17 +108,30 @@ echo ""
 
 # 2. Check version information
 echo "📌 Version Information:"
-MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$PROJECT_ROOT/Project.swift" | sed 's/.*"MARKETING_VERSION": "\(.*\)".*/\1/')
-BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$PROJECT_ROOT/Project.swift" | sed 's/.*"CURRENT_PROJECT_VERSION": "\(.*\)".*/\1/')
-
-echo "   Marketing Version: $MARKETING_VERSION"
-echo "   Build Number: $BUILD_NUMBER"
-
-# Check for Info.plist overrides
-if grep "CFBundleShortVersionString" "$PROJECT_ROOT/Project.swift" | grep -v "MARKETING_VERSION" | grep -q .; then
-    check_fail "Info.plist has version overrides - remove them"
+VERSION_CONFIG="$PROJECT_ROOT/Pluk/version.xcconfig"
+if [[ -f "$VERSION_CONFIG" ]]; then
+    MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$VERSION_CONFIG" | sed 's/.*MARKETING_VERSION = //')
+    BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$VERSION_CONFIG" | sed 's/.*CURRENT_PROJECT_VERSION = //')
+    
+    echo "   Marketing Version: $MARKETING_VERSION"
+    echo "   Build Number: $BUILD_NUMBER"
+    
+    check_pass "Version configuration found in version.xcconfig"
 else
-    check_pass "No Info.plist version overrides"
+    check_fail "Version configuration file not found at $VERSION_CONFIG"
+    MARKETING_VERSION=""
+    BUILD_NUMBER=""
+fi
+
+# Check for existing pre-release suffix in version
+if [[ -n "$MARKETING_VERSION" ]] && [[ "$MARKETING_VERSION" =~ -([a-zA-Z]+)\.([0-9]+)$ ]]; then
+    SUFFIX_TYPE="${BASH_REMATCH[1]}"
+    SUFFIX_NUMBER="${BASH_REMATCH[2]}"
+    check_warn "Version already contains pre-release suffix: $MARKETING_VERSION"
+    echo "   Pre-release type: $SUFFIX_TYPE"
+    echo "   Pre-release number: $SUFFIX_NUMBER"
+    echo "   ⚠️  Make sure to use matching arguments with release.sh"
+    echo "   Example: ./scripts/release.sh $SUFFIX_TYPE $SUFFIX_NUMBER"
 fi
 
 echo ""
@@ -83,12 +139,12 @@ echo ""
 # 3. Check build numbers
 echo "📌 Build Number Validation:"
 USED_BUILD_NUMBERS=""
-if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
-    APPCAST_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
+if [[ -f "$PROJECT_ROOT/../appcast.xml" ]]; then
+    APPCAST_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/../appcast.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
     USED_BUILD_NUMBERS+="$APPCAST_BUILDS"
 fi
-if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
-    PRERELEASE_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
+if [[ -f "$PROJECT_ROOT/../appcast-prerelease.xml" ]]; then
+    PRERELEASE_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/../appcast-prerelease.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
     USED_BUILD_NUMBERS+="$PRERELEASE_BUILDS"
 fi
 
@@ -123,6 +179,37 @@ fi
 
 echo ""
 
+# Check if Xcode project uses version.xcconfig
+echo "📌 Xcode Project Configuration:"
+XCODEPROJ="$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"
+if [[ -f "$XCODEPROJ" ]]; then
+    if grep -q "version.xcconfig" "$XCODEPROJ"; then
+        check_pass "Xcode project references version.xcconfig"
+        
+        # Check if MARKETING_VERSION uses variable expansion
+        if grep -q 'MARKETING_VERSION = "$(MARKETING_VERSION)"' "$XCODEPROJ"; then
+            check_pass "MARKETING_VERSION uses version.xcconfig value"
+        else
+            check_warn "MARKETING_VERSION may not use version.xcconfig value"
+            echo "   Consider updating to: MARKETING_VERSION = \"\$(MARKETING_VERSION)\""
+        fi
+        
+        # Check if CURRENT_PROJECT_VERSION uses variable expansion  
+        if grep -q 'CURRENT_PROJECT_VERSION = "$(CURRENT_PROJECT_VERSION)"' "$XCODEPROJ" || grep -q 'CURRENT_PROJECT_VERSION = $(CURRENT_PROJECT_VERSION)' "$XCODEPROJ"; then
+            check_pass "CURRENT_PROJECT_VERSION uses version.xcconfig value"
+        else
+            check_warn "CURRENT_PROJECT_VERSION may not use version.xcconfig value"
+            echo "   Consider updating to use version.xcconfig"
+        fi
+    else
+        check_fail "Xcode project doesn't reference version.xcconfig - versions may not match!"
+    fi
+else
+    check_fail "Xcode project file not found"
+fi
+
+echo ""
+
 # 4. Check required tools
 echo "📌 Required Tools:"
 
@@ -138,12 +225,6 @@ else
     check_fail "GitHub CLI not installed - run: brew install gh"
 fi
 
-# Tuist
-if command -v tuist &> /dev/null; then
-    check_pass "Tuist installed"
-else
-    check_fail "Tuist not installed - run: curl -Ls https://install.tuist.io | bash"
-fi
 
 # Sparkle tools
 if [[ -f "$HOME/.local/bin/sign_update" ]]; then
@@ -184,11 +265,16 @@ echo ""
 echo "📌 Sparkle Configuration:"
 
 # Check public key
-PUBLIC_KEY=$(grep 'SUPublicEDKey' "$PROJECT_ROOT/Project.swift" | sed 's/.*"SUPublicEDKey": "\(.*\)".*/\1/')
-if [[ -n "$PUBLIC_KEY" ]]; then
-    check_pass "Sparkle public key configured"
+PUBLIC_KEY_FILE="$PROJECT_ROOT/Pluk/sparkle-public-ed-key.txt"
+if [[ -f "$PUBLIC_KEY_FILE" ]]; then
+    PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE" | tr -d '\n')
+    if [[ -n "$PUBLIC_KEY" ]]; then
+        check_pass "Sparkle public key configured"
+    else
+        check_fail "Sparkle public key file is empty"
+    fi
 else
-    check_fail "Sparkle public key not found in Project.swift"
+    check_fail "Sparkle public key file not found at $PUBLIC_KEY_FILE"
 fi
 
 # Check private key in keychain
@@ -204,8 +290,8 @@ echo ""
 # 7. Check appcast files
 echo "📌 Appcast Files:"
 
-if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
-    if xmllint --noout "$PROJECT_ROOT/appcast.xml" 2>/dev/null; then
+if [[ -f "$PROJECT_ROOT/../appcast.xml" ]]; then
+    if xmllint --noout "$PROJECT_ROOT/../appcast.xml" 2>/dev/null; then
         check_pass "appcast.xml is valid XML"
     else
         check_fail "appcast.xml has XML errors"
@@ -214,8 +300,8 @@ else
     check_warn "appcast.xml not found (OK if no stable releases yet)"
 fi
 
-if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
-    if xmllint --noout "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null; then
+if [[ -f "$PROJECT_ROOT/../appcast-prerelease.xml" ]]; then
+    if xmllint --noout "$PROJECT_ROOT/../appcast-prerelease.xml" 2>/dev/null; then
         check_pass "appcast-prerelease.xml is valid XML"
     else
         check_fail "appcast-prerelease.xml has XML errors"
@@ -226,7 +312,45 @@ fi
 
 echo ""
 
-# 8. Summary
+# 8. Check IS_PRERELEASE_BUILD Configuration
+echo "📌 IS_PRERELEASE_BUILD System:"
+
+# Check if IS_PRERELEASE_BUILD is configured in Info.plist
+if grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/Pluk-Info.plist" || grep -q 'IS_PRERELEASE_BUILD' "$PROJECT_ROOT/Pluk/Info.plist" 2>/dev/null; then
+    check_pass "IS_PRERELEASE_BUILD flag configured in Info.plist"
+else
+    check_warn "IS_PRERELEASE_BUILD flag not found in Info.plist (will be set at build time)"
+fi
+
+# Check if UpdateChannel.swift has the flag detection logic
+if grep -q "Bundle.main.object.*IS_PRERELEASE_BUILD" "$PROJECT_ROOT/pluk/Core/Models/UpdateChannel.swift"; then
+    check_pass "UpdateChannel has IS_PRERELEASE_BUILD detection logic"
+else
+    check_fail "UpdateChannel.swift missing IS_PRERELEASE_BUILD flag detection"
+fi
+
+# Check if release script sets the environment variable
+if grep -q "export IS_PRERELEASE_BUILD=" "$PROJECT_ROOT/scripts/release.sh"; then
+    check_pass "Release script sets IS_PRERELEASE_BUILD environment variable"
+else
+    check_fail "Release script missing IS_PRERELEASE_BUILD environment variable setup"
+fi
+
+# Check if AppBehaviorSettingsManager uses defaultChannel
+APP_BEHAVIOR_SETTINGS="$PROJECT_ROOT/Pluk/Core/Services/Settings/AppBehaviorSettingsManager.swift"
+if [[ -f "$APP_BEHAVIOR_SETTINGS" ]]; then
+    if grep -q "UpdateChannel.defaultChannel" "$APP_BEHAVIOR_SETTINGS"; then
+        check_pass "AppBehaviorSettingsManager uses UpdateChannel.defaultChannel()"
+    else
+        check_fail "AppBehaviorSettingsManager not using UpdateChannel.defaultChannel() for auto-detection"
+    fi
+else
+    check_warn "AppBehaviorSettingsManager.swift not found - skipping UpdateChannel check"
+fi
+
+echo ""
+
+# 9. Summary
 echo "📊 Pre-flight Summary:"
 echo "===================="
 
