@@ -8,6 +8,10 @@ set -eo pipefail
 # Configuration
 # ============================================================================
 
+# Get the script and project directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 log() {
     echo "[$(date "+%Y-%m-%d %H:%M:%S")] $1"
 }
@@ -67,8 +71,6 @@ create_entitlements() {
     <false/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <false/>
-    <key>com.apple.security.hardened-runtime</key>
-    <true/>
 EOF
 
     if [ "$is_xpc_service" = "true" ]; then
@@ -97,7 +99,16 @@ EOF
 MAIN_ENTITLEMENTS="/tmp/main_entitlements.plist"
 XPC_ENTITLEMENTS="/tmp/xpc_entitlements.plist"
 
-create_entitlements "$MAIN_ENTITLEMENTS" "false"
+# Use actual Pluk entitlements for the main app
+if [ -f "pluk/Resources/pluk.entitlements" ]; then
+    cp "pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS"
+elif [ -f "$PROJECT_ROOT/pluk/Resources/pluk.entitlements" ]; then
+    cp "$PROJECT_ROOT/pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS"
+else
+    log "Warning: Pluk.entitlements not found, using default entitlements"
+    create_entitlements "$MAIN_ENTITLEMENTS" "false"
+fi
+
 create_entitlements "$XPC_ENTITLEMENTS" "true"
 
 # ============================================================================
@@ -156,6 +167,9 @@ sign_app_bundle() {
 
 log "Performing deep signing with proper Sparkle framework handling..."
 
+
+# 1. Sign Sparkle components manually per documentation
+# https://sparkle-project.org/documentation/sandboxing/#code-signing
 log "Signing Sparkle components per documentation..."
 
 # Add keychain option if available
