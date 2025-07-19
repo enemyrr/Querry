@@ -474,7 +474,7 @@ if ! git diff --quiet "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"; then
         echo "   Commit message: Update Xcode project for build $BUILD_NUMBER"
     else
         echo "📝 Committing Xcode project changes..."
-        git add "$PROJECT_ROOT/Pluk-Mac.xcodeproj/project.pbxproj"
+        git add "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"
         git commit -m "Update Xcode project for build $BUILD_NUMBER"
         echo -e "${GREEN}✅ Xcode project changes committed${NC}"
     fi

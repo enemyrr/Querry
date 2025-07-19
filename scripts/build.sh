@@ -108,6 +108,7 @@ if command -v xcbeautify &> /dev/null; then
         -configuration "$CONFIGURATION" \
         -derivedDataPath "$BUILD_DIR" \
         -destination "platform=macOS" \
+        $XCCONFIG_ARG \
         build | xcbeautify
 else
     echo "🔨 Building (install xcbeautify for cleaner output)..."
@@ -117,26 +118,12 @@ else
         -configuration "$CONFIGURATION" \
         -derivedDataPath "$BUILD_DIR" \
         -destination "platform=macOS" \
+        $XCCONFIG_ARG \
         build
 fi
 
 # Find the app in the appropriate location
-if [[ "${CI:-false}" == "true" ]] || [[ "${USE_CUSTOM_DERIVED_DATA:-false}" == "true" ]]; then
-    APP_PATH="$BUILD_DIR/Build/Products/$CONFIGURATION/Pluk.app"
-else
-    # When using default derived data, get the build product path from xcodebuild
-    DEFAULT_DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
-    # Find the most recent Pluk build (exclude Index.noindex)
-    APP_PATH=$(find "$DEFAULT_DERIVED_DATA" -name "Pluk.app" -path "*/Build/Products/$CONFIGURATION/*" ! -path "*/Index.noindex/*" 2>/dev/null | head -n 1)
-    
-    if [[ -z "$APP_PATH" ]]; then
-        # Fallback: try to get from xcode-select
-        BUILT_PRODUCTS_DIR=$(xcodebuild -project Pluk-Mac.xcodeproj -scheme Pluk-Mac -configuration "$CONFIGURATION" -showBuildSettings | grep "BUILT_PRODUCTS_DIR" | head -n 1 | awk '{print $3}')
-        if [[ -n "$BUILT_PRODUCTS_DIR" ]]; then
-            APP_PATH="$BUILT_PRODUCTS_DIR/Pluk.app"
-        fi
-    fi
-fi
+APP_PATH="$BUILD_DIR/Build/Products/$CONFIGURATION/Pluk.app"
 
 if [[ ! -d "$APP_PATH" ]]; then
     echo "Error: Build failed - app not found"
