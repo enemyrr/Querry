@@ -53,22 +53,5 @@
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
-        <item>
-            <title>Pluk 0.0.1 Beta 15</title>
-            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg</link>
-            <sparkle:version>265</sparkle:version>
-            <sparkle:shortVersionString>0.0.1-beta.15</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 15</h2><p><strong>Pre-release version</strong></p><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.15</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
-            ]]></description>
-            <pubDate>Fri, 18 Jul 2025 15:03:02 +0000</pubDate>
-            <enclosure 
-                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg"
-                length="16822001"
-                type="application/octet-stream"
-                sparkle:edSignature="ECmedxNV8EeqwVSPNS4rhmVuil+jofRygs9R6IQSXJzk/2ptCGzQLepE0lvcMiDTKUqn4NtHQTaQQ/ujp4L5Dw=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
     </channel>
 </rss>
