@@ -11,7 +11,7 @@
             <sparkle:version>265</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.15</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 15</h2><p><strong>Pre-release version</strong></p><div><h3>✨ New Features</h3>
+                <h2>Pluk 0.0.1 Beta 15</h2><div><h3>✨ New Features</h3>
 <h4><strong>Enhanced Table Interaction</strong></h4>
 <ul>
 <li><strong>Right-click Context Menu</strong> - Table rows now support right-click actions for quick access to row-specific operations</li>
