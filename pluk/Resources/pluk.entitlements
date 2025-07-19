@@ -12,10 +12,5 @@
 	<true/>
 	<key>com.apple.security.hardened-runtime</key>
 	<true/>
-  <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
-  <array>
-    <string>doc.pluk-spks</string>
-    <string>doc.pluk-spkd</string>
-  </array>
 </dict>
 </plist>

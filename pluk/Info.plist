@@ -20,7 +20,5 @@
 	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>3600</integer>
-	<key>SUEnableDownloaderService</key>
-	<false/>
 </dict>
 </plist>
