@@ -577,7 +577,7 @@ else
 fi
 
 
-Step 5: Sign and notarize
+# Step 5: Sign and notarize
 echo ""
 echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
 
