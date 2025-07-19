@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# Pluk Changelog to HTML Converter
+# VibeMeter Changelog to HTML Converter
 # =============================================================================
 #
 # Converts specific version sections from CHANGELOG.md to HTML format for
@@ -73,8 +73,10 @@ markdown_to_html() {
     local text="$1"
     
     # Convert headers
+    text=$(echo "$text" | sed 's/^#### \(.*\)$/<h4>\1<\/h4>/')
     text=$(echo "$text" | sed 's/^### \(.*\)$/<h3>\1<\/h3>/')
     text=$(echo "$text" | sed 's/^## \(.*\)$/<h2>\1<\/h2>/')
+    text=$(echo "$text" | sed 's/^# \(.*\)$/<h1>\1<\/h1>/')
     
     # Convert bullet points with emoji support
     text=$(echo "$text" | sed 's/^- \*\*\([^*]*\)\*\*\(.*\)$/<li><strong>\1<\/strong>\2<\/li>/')
