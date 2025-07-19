@@ -156,78 +156,40 @@ sign_app_bundle() {
 
 log "Performing deep signing with proper Sparkle framework handling..."
 
-# 0. Fix Sparkle XPC services for sandbox
-log "Fixing Sparkle XPC services for sandboxed operation..."
-if [ -x "$SCRIPT_DIR/fix-sparkle-sandbox.sh" ]; then
-    "$SCRIPT_DIR/fix-sparkle-sandbox.sh" "$APP_BUNDLE" || log "Warning: Sparkle sandbox fix failed (continuing anyway)"
-else
-    log "Warning: fix-sparkle-sandbox.sh not found or not executable"
+log "Signing Sparkle components per documentation..."
+
+# Add keychain option if available
+keychain_opts=""
+if [ -n "${KEYCHAIN_NAME:-}" ]; then
+    keychain_opts="--keychain $KEYCHAIN_NAME"
 fi
 
-# 1. Sign XPC services first (they need special entitlements)
-log "Signing XPC services..."
-find "$APP_BUNDLE/Contents" -name "*.xpc" -type d | while read xpc; do
-    if [ -f "$xpc/Contents/MacOS/"* ]; then
-        executable=$(find "$xpc/Contents/MacOS" -type f -perm +111 | head -1)
-        if [ -n "$executable" ]; then
-            sign_binary "$executable" "$XPC_ENTITLEMENTS" "XPC service executable"
-        fi
-    fi
-    sign_app_bundle "$xpc" "$XPC_ENTITLEMENTS" "XPC service bundle"
-done
-
-# 2. Handle Sparkle framework with comprehensive signing
-SPARKLE_FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-if [ -d "$SPARKLE_FRAMEWORK" ]; then
-    log "Found Sparkle framework, performing comprehensive signing..."
-    
-    # Sign XPC services in Sparkle
-    find "$SPARKLE_FRAMEWORK" -name "*.xpc" -type d | while read xpc; do
-        if [ -f "$xpc/Contents/MacOS/"* ]; then
-            executable=$(find "$xpc/Contents/MacOS" -type f -perm +111 | head -1)
-            if [ -n "$executable" ]; then
-                sign_binary "$executable" "$XPC_ENTITLEMENTS" "Sparkle XPC executable"
-            fi
-        fi
-        sign_app_bundle "$xpc" "$XPC_ENTITLEMENTS" "Sparkle XPC service"
-    done
-    
-    # Sign standalone executables in Sparkle
-    find "$SPARKLE_FRAMEWORK" -type f -perm +111 -not -path "*/MacOS/*" -not -path "*/XPCServices/*" | while read executable; do
-        sign_binary "$executable" "$MAIN_ENTITLEMENTS" "Sparkle executable"
-    done
-    
-    # Sign nested app bundles in Sparkle
-    find "$SPARKLE_FRAMEWORK" -name "*.app" -type d | while read app; do
-        if [ -f "$app/Contents/MacOS/"* ]; then
-            executable=$(find "$app/Contents/MacOS" -type f -perm +111 | head -1)
-            if [ -n "$executable" ]; then
-                sign_binary "$executable" "$MAIN_ENTITLEMENTS" "Sparkle app executable"
-            fi
-        fi
-        sign_app_bundle "$app" "$MAIN_ENTITLEMENTS" "Sparkle app bundle"
-    done
-    
-    # Sign the main Sparkle framework binary
-    if [ -f "$SPARKLE_FRAMEWORK/Sparkle" ]; then
-        sign_binary "$SPARKLE_FRAMEWORK/Sparkle" "$MAIN_ENTITLEMENTS" "Sparkle framework binary"
-    fi
-    
-    # Sign the framework bundle
-    log "Signing Sparkle framework bundle..."
-    keychain_opts=""
-    if [ -n "${KEYCHAIN_NAME:-}" ]; then
-        keychain_opts="--keychain $KEYCHAIN_NAME"
-    fi
-    
-    codesign \
-        --force \
-        --sign "$SIGN_IDENTITY" \
-        --options runtime \
-        --timestamp \
-        $keychain_opts \
-        "$SPARKLE_FRAMEWORK"
+# Sign XPC services (directories, not files)
+if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
+    codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+    log "Signed Installer.xpc"
 fi
+if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
+    # For Sparkle versions >= 2.6, preserve entitlements
+    codesign -f -s "$SIGN_IDENTITY" -o runtime --preserve-metadata=entitlements $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+    log "Signed Downloader.xpc"
+fi
+
+# Sign other Sparkle components
+if [ -f "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" ]; then
+    codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+    log "Signed Autoupdate"
+fi
+if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" ]; then
+    codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+    log "Signed Updater.app"
+fi
+
+# Finally sign the framework itself
+codesign -f -s "$SIGN_IDENTITY" -o runtime $keychain_opts "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+log "Signed Sparkle.framework"
+
+# 2. Sparkle framework is already signed above per documentation
 
 # 3. Sign other frameworks
 log "Signing other frameworks..."

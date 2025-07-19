@@ -12,13 +12,13 @@
 	<string>https://r2.pluk.sh/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
 	<key>UIApplicationSceneManifest</key>
 	<false/>
 	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>3600</integer>
 </dict>
 </plist>

@@ -99,39 +99,24 @@ else
     echo "Using Xcode's default derived data path (preserves Swift packages)"
 fi
 
-# Prepare code signing arguments
-CODE_SIGN_ARGS=""
-if [[ "${CI:-false}" == "true" ]] || [[ "$SIGN_APP" == false ]]; then
-    # In CI or when not signing, disable code signing entirely
-    CODE_SIGN_ARGS="CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO CODE_SIGN_ENTITLEMENTS=\"\" ENABLE_HARDENED_RUNTIME=NO PROVISIONING_PROFILE_SPECIFIER=\"\" DEVELOPMENT_TEAM=\"\""
-fi
-
 # Check if xcbeautify is available
 if command -v xcbeautify &> /dev/null; then
-    echo "🔨 Building ARM64-only binary with xcbeautify..."
+    echo "🔨 Building with xcbeautify..."
     xcodebuild \
         -project Pluk.xcodeproj \
         -scheme Collection \
         -configuration "$CONFIGURATION" \
-        $DERIVED_DATA_ARG \
-        -destination "platform=macOS,arch=arm64" \
-        $XCCONFIG_ARG \
-        ARCHS="arm64" \
-        ONLY_ACTIVE_ARCH=NO \
-        $CODE_SIGN_ARGS \
+        -derivedDataPath "$BUILD_DIR" \
+        -destination "platform=macOS" \
         build | xcbeautify
 else
-    echo "🔨 Building ARM64-only binary (install xcbeautify for cleaner output)..."
+    echo "🔨 Building (install xcbeautify for cleaner output)..."
     xcodebuild \
         -project Pluk.xcodeproj \
         -scheme Collection \
         -configuration "$CONFIGURATION" \
-        $DERIVED_DATA_ARG \
-        -destination "platform=macOS,arch=arm64" \
-        $XCCONFIG_ARG \
-        ARCHS="arm64" \
-        ONLY_ACTIVE_ARCH=NO \
-        $CODE_SIGN_ARGS \
+        -derivedDataPath "$BUILD_DIR" \
+        -destination "platform=macOS" \
         build
 fi
 
@@ -160,12 +145,6 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 echo "Found app at: $APP_PATH"
-
-# Clean up unwanted files from the bundle
-echo "Cleaning up unwanted files from bundle..."
-rm -f "$APP_PATH/Contents/Resources/Local.xcconfig"
-rm -rf "$APP_PATH/Contents/Resources/web/public/tests"
-echo "✓ Removed development files from bundle"
 
 # Sign the app if requested
 if [[ "$SIGN_APP" == true ]]; then
