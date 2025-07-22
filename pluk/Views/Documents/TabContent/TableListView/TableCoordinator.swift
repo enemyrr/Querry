@@ -48,6 +48,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         static let checkbox = NSUserInterfaceItemIdentifier("CheckboxCell")
         static let textCell = NSUserInterfaceItemIdentifier("TextCell")
         static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
+        static let forignKeyCell = NSUserInterfaceItemIdentifier("ForeignKeyCell")
     }
     
     // Store modification tracker reference
@@ -884,10 +885,15 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             cellView?.prepareForReuse()
         }
         
+        // Get foreign key constraint info from schema if available
+        let foreignKeyConstraint = schema?.column(named: columnName)?.primaryForeignKeyConstraint
+        
         cellView?.configure(queryRowInfo: queryRowInfo,
                             columnInfo: columnInfo,
                             rowIndex: row,
-                            modificationTracker: modificationTracker)
+                            modificationTracker: modificationTracker,
+                            constraintInfo: foreignKeyConstraint,
+                            tableName: tableName)
         
         return cellView
     }

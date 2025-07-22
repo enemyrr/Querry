@@ -931,6 +931,111 @@ class PostgreSQLDriver: DatabaseDriver {
         let connection = try await ensureConnected()
         
         do {
+            // Get constraint information for this table
+            var constraintMap: [String: [ConstraintInfo]] = [:]
+            
+                let constraintQuery = PostgresQuery("""
+                    SELECT
+                        pg_constraint.oid::bigint as pg_constraint,
+                        conname,
+                        contype,
+                        conkey,
+                        nspname AS fschema,
+                        relname AS ftable,
+                        confkey AS fkeys,
+                        pg_get_expr(conbin, conrelid, true),
+                        pg_get_constraintdef(pg_constraint.oid, true),
+                        confupdtype,
+                        confdeltype,
+                        obj_description(pg_constraint.oid, 'pg_constraint'),
+                        condeferrable,
+                        condeferred,
+                        connoinherit,
+                        pg_extension.extname,
+                        relkind AS ftablekind
+                    FROM pg_constraint
+                    LEFT JOIN pg_class ON pg_class.oid = confrelid
+                    LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+                    LEFT JOIN pg_depend ON pg_depend.refclassid = 'pg_catalog.pg_extension'::regclass
+                        AND pg_depend.classid = 'pg_catalog.pg_class'::regclass
+                        AND pg_depend.objid = pg_class.oid
+                    LEFT JOIN pg_extension ON pg_depend.refobjid = pg_extension.oid
+                    WHERE conrelid = '"\(unescaped: schemaName)"."\(unescaped: tableName)"'::regclass
+                """)
+                
+                let constraintResults = try await connection.query(constraintQuery, logger: Logger(label: "postgres"))
+                
+            for try await (constraintOid, conname, contype, conkey, fschema, ftable, fkeys, conbin, constraintdef, confupdtype, confdeltype, description, condeferrable, condeferred, connoinherit, extname, ftablekind) in constraintResults.decode((Int64, String, String, [Int16], String?, String?, [Int16]?, String?, String?, String?, String?, String?, Bool?, Bool?, Bool?, String?, String?).self) {
+                
+                // Get column names for the constraint
+                var columnNames: [String] = []
+                
+                // Get all column names for this constraint
+//                for keyIndex in conkey {
+//                    let columnQuery = PostgresQuery("""
+//                        SELECT attname FROM pg_attribute 
+//                        WHERE attrelid = '\(tableOid)' AND attnum = '\(keyIndex)'
+//                    """)
+//                    
+//                    let columnResults = try await connection.query(columnQuery, logger: Logger(label: "postgres"))
+//                    
+//                    for try await (attname) in columnResults.decode((String).self) {
+//                        columnNames.append(attname)
+//                        break
+//                    }
+//                }
+                
+                // Get referenced column names for foreign keys
+//                var referencedColumns: [String]? = nil
+//                if contype == "f", let fkeys = fkeys {
+//                    referencedColumns = []
+//                    for fkeyIndex in fkeys {
+//                        if let parentTableOid = try? await getTableOid(schema: fschema ?? "public", table: ftable ?? "") {
+//                            let parentColumnQuery = PostgresQuery("""
+//                                SELECT attname FROM pg_attribute 
+//                                WHERE attrelid = '\(parentTableOid)' AND attnum = '\(fkeyIndex)'
+//                            """)
+//                            
+//                            let parentColumnResults = try await connection.query(parentColumnQuery, logger: Logger(label: "postgres"))
+//                            
+//                            for try await (attname) in parentColumnResults.decode((String).self) {
+//                                referencedColumns?.append(attname)
+//                                break
+//                            }
+//                        }
+//                    }
+//                }
+                
+                // Create constraint info
+                guard let constraintType = ConstraintType(rawValue: contype) else { continue }
+                
+                let constraintInfo = ConstraintInfo(
+                    oid: constraintOid,
+                    name: conname,
+                    type: constraintType,
+                    columns: columnNames,
+                    isDeferrable: condeferrable ?? false,
+                    isDeferred: condeferred ?? false,
+                    definition: constraintdef,
+                    description: description,
+                    referencedSchema: fschema,
+                    referencedTable: ftable,
+//                    referencedColumns: referencedColumns,
+                    onUpdate: mapConstraintAction(confupdtype),
+                    onDelete: mapConstraintAction(confdeltype),
+                    extensionName: extname
+                )
+                
+                // Add constraint to each column it affects
+                for columnName in columnNames {
+                    if constraintMap[columnName] == nil {
+                        constraintMap[columnName] = []
+                    }
+                    constraintMap[columnName]?.append(constraintInfo)
+                }
+            }
+            
+            // Get column schema information
             let schemaQuery = PostgresQuery("""
                 SELECT
                     c.ordinal_position,
@@ -954,7 +1059,6 @@ class PostgreSQLDriver: DatabaseDriver {
                     '' AS check_col,
                     '' AS check_constraint,
                     COALESCE(c.column_default, '') AS column_default,
-                    '' AS foreign_key,
                     '' AS comment
                 FROM
                     information_schema.columns c
@@ -971,6 +1075,13 @@ class PostgreSQLDriver: DatabaseDriver {
             for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, foreignKey, comment) in results.decode((
                             Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
                 let format = PostgresDataType(UInt32(pgTypeOid))
+                
+                // Get constraints for this column
+                let columnConstraints = constraintMap[columnName] ?? []
+                let foreignKeyConstraint = columnConstraints.first { $0.type == .foreignKey }
+                let foreignKeyString = foreignKeyConstraint != nil ? 
+                    "\(foreignKeyConstraint!.referencedTable ?? "").\(foreignKeyConstraint!.referencedColumns?.first ?? "")" : ""
+                
                 let schemaInfo = DatabaseSchemaInfo(
                     ordinalPosition: ordinalPosition,
                     columnName: columnName,
@@ -985,7 +1096,8 @@ class PostgreSQLDriver: DatabaseDriver {
                     check: check,
                     checkConstraint: checkConstraint,
                     columnDefault: columnDefault,
-                    foreignKey: foreignKey,
+                    foreignKey: foreignKeyString,
+                    constraints: columnConstraints,
                     comment: comment
                 )
                 
@@ -1325,6 +1437,38 @@ class PostgreSQLDriver: DatabaseDriver {
         return nil
     }
     
+    // MARK: - Helper methods for foreign keys
+    private func getTableOid(schema: String, table: String) async throws -> Int64? {
+        let connection = try await ensureConnected()
+        
+        let query = PostgresQuery("""
+            SELECT oid FROM pg_class 
+            WHERE relname = '\(unescaped: table)' 
+            AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '\(unescaped: schema)')
+        """)
+        
+        let results = try await connection.query(query, logger: Logger(label: "postgres"))
+        
+        for try await (oid) in results.decode((Int64).self) {
+            return oid
+        }
+        
+        return nil
+    }
+    
+    private func mapConstraintAction(_ action: String?) -> String {
+        guard let action = action else { return "no action" }
+        
+        switch action {
+        case "r": return "restrict"
+        case "c": return "cascade"
+        case "n": return "set null"
+        case "d": return "set default"
+        case "a": return "no action"
+        default: return "no action"
+        }
+    }
+
     // MARK: - Helper method to get primary key column
        private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
            let connection = try await ensureConnected()

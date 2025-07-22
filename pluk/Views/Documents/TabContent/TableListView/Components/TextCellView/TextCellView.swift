@@ -99,6 +99,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     private var textField: EditableTextField!
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
+    private var foreignKeyIconView: NSImageView?
     
     // Static reference to track which cell is currently editing
     private static weak var currentEditingCell: TextCellView?
@@ -121,6 +122,8 @@ class TextCellView: NSView, NSTextFieldDelegate {
     private var rowIndex: Int = -1
     private var columnName: String = ""
     private var dataType: String = ""
+    private var tableName: String = ""
+    private var constraintInfo: ConstraintInfo?
     
     // Weak reference to modification tracker to avoid retain cycles
     weak var modificationTracker: TableModificationTracker?
@@ -133,6 +136,11 @@ class TextCellView: NSView, NSTextFieldDelegate {
         }
     }
     var isMarkedForDeletion: Bool = false
+    
+    // Foreign key styling properties
+    private var isForeignKey: Bool {
+        return constraintInfo?.isForeignKey ?? false
+    }
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -340,6 +348,67 @@ class TextCellView: NSView, NSTextFieldDelegate {
             // Reset background color when not modified
             layer?.backgroundColor = NSColor.clear.cgColor
         }
+        
+        // Update foreign key icon visibility
+        updateForeignKeyIcon()
+    }
+    
+    private func updateForeignKeyIcon() {
+        if isForeignKey {
+            createForeignKeyIconIfNeeded()
+            foreignKeyIconView?.isHidden = false
+        } else {
+            foreignKeyIconView?.isHidden = true
+        }
+    }
+    
+    private func createForeignKeyIconIfNeeded() {
+        guard foreignKeyIconView == nil else { return }
+        
+        // Create the foreign key icon
+        foreignKeyIconView = NSImageView()
+        foreignKeyIconView?.image = NSImage(systemSymbolName: "arrow.right.circle", accessibilityDescription: "Foreign Key")
+        foreignKeyIconView?.contentTintColor = NSColor.secondaryLabelColor
+        foreignKeyIconView?.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Add click gesture recognizer
+        let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(foreignKeyIconClicked))
+        foreignKeyIconView?.addGestureRecognizer(clickGesture)
+        
+        addSubview(foreignKeyIconView!)
+        
+        // Position the icon at the right edge of the cell
+        NSLayoutConstraint.activate([
+            foreignKeyIconView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            foreignKeyIconView!.centerYAnchor.constraint(equalTo: centerYAnchor),
+            foreignKeyIconView!.widthAnchor.constraint(equalToConstant: 16),
+            foreignKeyIconView!.heightAnchor.constraint(equalToConstant: 16)
+        ])
+        
+        // Adjust text field constraints to make room for the icon
+        if let textFieldConstraints = textField.superview?.constraints.filter({ $0.firstItem === textField || $0.secondItem === textField }) {
+            for constraint in textFieldConstraints {
+                if constraint.firstAttribute == .trailing {
+                    constraint.constant = -24 // Make room for the icon
+                }
+            }
+        }
+    }
+    
+    @objc private func foreignKeyIconClicked() {
+        guard let constraintInfo = constraintInfo, constraintInfo.isForeignKey else { return }
+        
+        // Post notification for foreign key navigation
+        NotificationCenter.default.post(
+            name: NSNotification.Name("ForeignKeyNavigationRequested"),
+            object: self,
+            userInfo: [
+                "constraintInfo": constraintInfo,
+                "currentValue": textField.stringValue,
+                "sourceTable": tableName,
+                "sourceColumn": columnName
+            ]
+        )
     }
     
     private func handleEditingCompleted() {
@@ -480,12 +549,14 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     // New method that includes tracking information
-    func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?) {
+    func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?, constraintInfo: ConstraintInfo? = nil, tableName: String = "") {
         // Store tracking information
         self.rowIndex = rowIndex
         self.columnName = columnInfo.name
         self.dataType = columnInfo.dataType
         self.modificationTracker = modificationTracker
+        self.constraintInfo = constraintInfo
+        self.tableName = tableName
         
         if let modification = modificationTracker?.getRowModification(for: rowIndex), modification.type == .delete {
             self.isMarkedForDeletion = true
