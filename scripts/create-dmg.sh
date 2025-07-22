@@ -4,7 +4,7 @@
 # Pluk DMG Creation Script
 # =============================================================================
 #
-# This script creates a DMG disk image for Pluk distribution using create-dmg.
+# This script creates a DMG disk image for Pluk distribution.
 #
 # USAGE:
 #   ./scripts/create-dmg.sh <app_path> [output_path]
@@ -15,9 +15,6 @@
 #
 # ENVIRONMENT VARIABLES:
 #   DMG_VOLUME_NAME   Name for the DMG volume (optional, defaults to app name)
-#
-# REQUIREMENTS:
-#   create-dmg must be installed (brew install create-dmg)
 #
 # =============================================================================
 
@@ -43,12 +40,6 @@ if [[ ! -d "$APP_PATH" ]]; then
     exit 1
 fi
 
-# Check if create-dmg is available
-if ! command -v create-dmg &> /dev/null; then
-    echo "Error: create-dmg not found. Install with: brew install create-dmg"
-    exit 1
-fi
-
 # Get app name and version info
 APP_NAME=$(/usr/libexec/PlistBuddy -c "Print CFBundleName" "$APP_PATH/Contents/Info.plist" 2>/dev/null || echo "Pluk")
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP_PATH/Contents/Info.plist")
@@ -64,7 +55,7 @@ fi
 
 echo "Creating DMG: $DMG_NAME"
 
-# Clean up any stuck volumes before starting
+# Clean up any stuck Pluk volumes before starting
 echo "Checking for stuck DMG volumes..."
 for volume in /Volumes/Pluk* "/Volumes/$DMG_VOLUME_NAME"*; do
     if [ -d "$volume" ]; then
@@ -89,58 +80,219 @@ mkdir -p "$DMG_TEMP"
 # Copy app to temporary directory
 cp -R "$APP_PATH" "$DMG_TEMP/"
 
-# Remove existing DMG if it exists
-[ -f "$DMG_PATH" ] && rm -f "$DMG_PATH"
+# Create symbolic link to Applications folder
+ln -s /Applications "$DMG_TEMP/Applications"
 
-echo "Creating DMG with create-dmg..."
-
-# Create DMG using create-dmg with same styling as original script
-create-dmg \
-    --volname "$DMG_VOLUME_NAME" \
-    --window-size 500 400 \
-    --window-pos 400 100 \
-    --icon-size 128 \
-    --text-size 12 \
-    --icon "$APP_NAME.app" 125 160 \
-    --app-drop-link 375 160 \
-    --format ULMO \
-    --hdiutil-quiet \
-    "$DMG_PATH" \
-    "$DMG_TEMP"
+# Create initial DMG as read-write
+DMG_RW_PATH="${DMG_PATH%.dmg}-rw.dmg"
+hdiutil create \
+    -volname "$DMG_VOLUME_NAME" \
+    -srcfolder "$DMG_TEMP" \
+    -ov \
+    -format UDRW \
+    -size 200m \
+    "$DMG_RW_PATH"
 
 # Clean up temp folder
 rm -rf "$DMG_TEMP"
 
-# === SIGNING AND VERIFICATION ===
+echo "Applying custom styling to DMG..."
+
+# Mount the DMG
+MOUNT_POINT="/Volumes/$DMG_VOLUME_NAME"
+# Ensure the mount point doesn't exist before mounting
+if [ -d "$MOUNT_POINT" ]; then
+    echo "Mount point already exists, attempting to unmount..."
+    hdiutil detach "$MOUNT_POINT" -force 2>/dev/null || true
+    sleep 2
+fi
+hdiutil attach "$DMG_RW_PATH" -mountpoint "$MOUNT_POINT" -nobrowse
+
+# Apply window styling with AppleScript
+osascript <<EOF
+tell application "Finder"
+    tell disk "$DMG_VOLUME_NAME"
+        open
+        
+        -- Get the window
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        
+        -- Set window bounds (centered, 500x320)
+        set the bounds of container window to {400, 100, 900, 420}
+        
+        -- Configure icon view options
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 128
+        
+        -- Set background
+        set background picture of viewOptions to file ".background:background.png"
+        
+        -- Set text color to white
+        set text size of viewOptions to 12
+        set label position of viewOptions to bottom
+        
+        -- Position items
+        set position of item "Pluk.app" of container window to {125, 160}
+        set position of item "Applications" of container window to {375, 160}
+        
+        -- Set extended attributes for better appearance
+        set shows item info of viewOptions to false
+        set shows icon preview of viewOptions to true
+        
+        
+        -- Update without registering applications
+        update without registering applications
+        delay 2
+        
+        -- Close and reopen to ensure settings stick
+        close
+        open
+        delay 1
+    end tell
+end tell
+EOF
+
+# Give Finder time to update
+sleep 3
+
+# Force close Finder window to ensure settings are saved
+osascript -e 'tell application "Finder" to close every window'
+
+
+# Unmount with retry and force
+echo "Unmounting DMG..."
+for i in {1..5}; do
+    if hdiutil detach "$MOUNT_POINT" -quiet 2>/dev/null; then
+        break
+    fi
+    echo "  Retry $i/5..."
+    if [ $i -eq 3 ]; then
+        echo "  Attempting force unmount..."
+        hdiutil detach "$MOUNT_POINT" -force 2>/dev/null || true
+    fi
+    sleep 2
+done
+
+# Final check - if still mounted, force unmount
+if [ -d "$MOUNT_POINT" ]; then
+    echo "  Volume still mounted, force unmounting..."
+    hdiutil detach "$MOUNT_POINT" -force 2>/dev/null || true
+    sleep 1
+fi
+
+# Convert to compressed read-only DMG
+echo "Converting to final DMG format..."
+hdiutil convert "$DMG_RW_PATH" -format ULMO -o "$DMG_PATH" -ov
+
+# Clean up
+rm -f "$DMG_RW_PATH"
+
+# === EXTENSIVE ENVIRONMENT DEBUGGING ===
+echo "=== Environment Debug Information ==="
+echo "Current working directory: $(pwd)"
+echo "User: $(whoami)"
+echo "Date: $(date)"
+echo "Environment variables related to signing:"
+echo "  KEYCHAIN_NAME=${KEYCHAIN_NAME:-<not set>}"
+echo "  SIGN_IDENTITY=${SIGN_IDENTITY:-<not set>}"
+echo "  RUNNER_TEMP=${RUNNER_TEMP:-<not set>}"
+echo "  GITHUB_ACTIONS=${GITHUB_ACTIONS:-<not set>}"
+echo "  CI=${CI:-<not set>}"
+
+# Check if secrets are available (without exposing their values)
+echo "GitHub Secrets Status:"
+echo "  APP_STORE_CONNECT_API_KEY_P8: ${APP_STORE_CONNECT_API_KEY_P8:+SET}" 
+echo "  APP_STORE_CONNECT_ISSUER_ID: ${APP_STORE_CONNECT_ISSUER_ID:+SET}"
+echo "  APP_STORE_CONNECT_KEY_ID: ${APP_STORE_CONNECT_KEY_ID:+SET}"
+echo "  MACOS_SIGNING_CERTIFICATE_P12_BASE64: ${MACOS_SIGNING_CERTIFICATE_P12_BASE64:+SET}"
+echo "  MACOS_SIGNING_CERTIFICATE_PASSWORD: ${MACOS_SIGNING_CERTIFICATE_PASSWORD:+SET}"
+
+# List all keychains
+echo "=== Keychain Information ==="
+echo "Available keychains:"
+security list-keychains -d user || echo "Failed to list user keychains"
+security list-keychains -d system || echo "Failed to list system keychains"
+
+echo ""
+echo "Default keychain:"
+security default-keychain -d user || echo "Failed to get default user keychain"
+
+# Check if specific keychain exists
+if [ -n "${KEYCHAIN_NAME:-}" ]; then
+    echo ""
+    echo "Checking for specified keychain: $KEYCHAIN_NAME"
+    if security list-keychains -d user | grep -q "$KEYCHAIN_NAME"; then
+        echo "✅ Keychain $KEYCHAIN_NAME found in user domain"
+    else
+        echo "❌ Keychain $KEYCHAIN_NAME NOT found in user domain"
+    fi
+    
+    # Try to unlock the keychain if it exists
+    if [ -f "$KEYCHAIN_NAME" ]; then
+        echo "Keychain file exists at: $KEYCHAIN_NAME"
+        echo "Checking keychain lock status..."
+        security show-keychain-info "$KEYCHAIN_NAME" 2>&1 || echo "Cannot get keychain info"
+    else
+        echo "Keychain file does not exist at: $KEYCHAIN_NAME"
+    fi
+fi
+
+# === SIGNING IDENTITY ANALYSIS ===
+echo ""
+echo "=== Signing Identity Analysis ==="
 
 # Sign the DMG if signing credentials are available
 if command -v codesign &> /dev/null; then
-    echo "Checking for code signing identity..."
+    echo "✅ codesign command is available"
     
     # Use the same signing identity as the app signing process
     SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application}"
+    echo "Target signing identity: '$SIGN_IDENTITY'"
     
     # Check if we're in CI and have a specific keychain
     KEYCHAIN_OPTS=""
     if [ -n "${KEYCHAIN_NAME:-}" ]; then
+        echo "Using keychain: $KEYCHAIN_NAME"
         KEYCHAIN_OPTS="--keychain $KEYCHAIN_NAME"
+    else
+        echo "No specific keychain specified, using default"
     fi
     
     # Try to find a valid signing identity
     IDENTITY_CHECK_CMD="security find-identity -v -p codesigning"
     if [ -n "${KEYCHAIN_NAME:-}" ]; then
         IDENTITY_CHECK_CMD="$IDENTITY_CHECK_CMD $KEYCHAIN_NAME"
+        echo "Full identity check command: $IDENTITY_CHECK_CMD"
     fi
     
+    echo ""
+    echo "=== Full Identity Check Output ==="
+    echo "Running: $IDENTITY_CHECK_CMD"
     IDENTITY_OUTPUT=$($IDENTITY_CHECK_CMD 2>&1) || true
+    echo "Raw output:"
+    echo "$IDENTITY_OUTPUT"
+    echo "=== End Identity Check Output ==="
+    
+    # Count valid identities
+    VALID_COUNT=$(echo "$IDENTITY_OUTPUT" | grep -c "valid identities found" || echo "0")
+    echo "Valid identities found: $VALID_COUNT"
     
     # Check if any signing identity is available
     if echo "$IDENTITY_OUTPUT" | grep -q "valid identities found" && ! echo "$IDENTITY_OUTPUT" | grep -q "0 valid identities found"; then
-        echo "✅ Valid signing identity found"
+        echo "✅ At least one valid signing identity found"
+        
+        # Show all identities
+        echo "All available identities:"
+        echo "$IDENTITY_OUTPUT" | grep -E "^\s*[0-9]+\)"
         
         # Check if our specific identity exists
         if echo "$IDENTITY_OUTPUT" | grep -q "$SIGN_IDENTITY"; then
-            echo "Signing DMG with identity: $SIGN_IDENTITY"
+            echo "✅ Found specific identity: $SIGN_IDENTITY"
+            echo "Attempting to sign DMG with identity: $SIGN_IDENTITY"
+            echo "Command: codesign --force --sign \"$SIGN_IDENTITY\" $KEYCHAIN_OPTS \"$DMG_PATH\""
             if codesign --force --sign "$SIGN_IDENTITY" $KEYCHAIN_OPTS "$DMG_PATH"; then
                 echo "✅ DMG signing successful"
             else
@@ -148,27 +300,36 @@ if command -v codesign &> /dev/null; then
                 exit 1
             fi
         else
+            echo "❌ Specific identity '$SIGN_IDENTITY' not found"
+            
             # Try to use the first available Developer ID Application identity
+            echo "Searching for any Developer ID Application identity..."
             AVAILABLE_IDENTITY=$(echo "$IDENTITY_OUTPUT" | grep "Developer ID Application" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || echo "")
             if [ -n "$AVAILABLE_IDENTITY" ]; then
-                echo "Signing DMG with available identity: $AVAILABLE_IDENTITY"
+                echo "✅ Found alternative identity: $AVAILABLE_IDENTITY"
+                echo "Command: codesign --force --sign \"$AVAILABLE_IDENTITY\" $KEYCHAIN_OPTS \"$DMG_PATH\""
                 if codesign --force --sign "$AVAILABLE_IDENTITY" $KEYCHAIN_OPTS "$DMG_PATH"; then
-                    echo "✅ DMG signing successful"
+                    echo "✅ DMG signing successful with alternative identity"
                 else
-                    echo "❌ DMG signing failed"
+                    echo "❌ DMG signing failed with alternative identity"
                     exit 1
                 fi
             else
-                echo "⚠️ No Developer ID Application identity found - DMG will not be signed"
+                echo "❌ No Developer ID Application identity found"
+                echo "⚠️ DMG will not be signed"
             fi
         fi
     else
-        echo "⚠️ No valid signing identities available - DMG will not be signed"
+        echo "❌ No valid signing identities available"
+        echo "⚠️ DMG will not be signed"
         echo "This is expected for PR builds where certificates are not imported"
     fi
 else
-    echo "⚠️ codesign command not available - DMG will not be signed"
+    echo "❌ codesign command not available"
+    echo "⚠️ DMG will not be signed"
 fi
+
+echo "=== End Environment Debug Information ==="
 
 # Verify DMG
 echo "Verifying DMG..."
