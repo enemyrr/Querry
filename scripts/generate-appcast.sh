@@ -8,12 +8,6 @@
 
 set -euo pipefail
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
 # Add Sparkle tools to PATH
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -25,39 +19,15 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # Configuration
-# Try to extract from git remote if not set
-if [[ -z "${GITHUB_USERNAME:-}" ]] || [[ -z "${GITHUB_REPO:-}" ]]; then
-    GIT_REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-    if [[ "$GIT_REMOTE_URL" =~ github\.com[:/]([^/]+)/([^/]+?)(\.git)?$ ]]; then
-        GITHUB_USERNAME="${GITHUB_USERNAME:-${BASH_REMATCH[1]}}"
-        GITHUB_REPO="${GITHUB_REPO:-${BASH_REMATCH[2]%.git}}"
-    else
-        GITHUB_USERNAME="${GITHUB_USERNAME:-pluk-sh}"
-        GITHUB_REPO="${GITHUB_REPO:-app-pluk}"
-    fi
-fi
+GITHUB_USERNAME="${GITHUB_USERNAME:-pluk-sh}"
+GITHUB_REPO="${GITHUB_USERNAME}/${GITHUB_REPO:-app-pluk}"
+SPARKLE_PRIVATE_KEY_PATH="private/sparkle_private_key"
 
-# Set the Sparkle account if provided via environment
-SPARKLE_ACCOUNT="${SPARKLE_ACCOUNT:-}"
-
-GITHUB_REPO_FULL="${GITHUB_USERNAME}/${GITHUB_REPO}"
-# Use the clean key file without comments for sign_update
-SPARKLE_PRIVATE_KEY_PATH="${SPARKLE_PRIVATE_KEY_PATH:-private/sparkle_ed_private_key}"
-# Try fallback locations if primary doesn't exist
-if [[ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]]; then
-    if [[ -f "private/sparkle_private_key" ]]; then
-        # Extract just the key from the commented file
-        KEY_LINE=$(grep -E '^[A-Za-z0-9+/]+=*$' "private/sparkle_private_key" | head -1)
-        if [ -n "$KEY_LINE" ]; then
-            echo "$KEY_LINE" > "private/sparkle_ed_private_key"
-            SPARKLE_PRIVATE_KEY_PATH="private/sparkle_ed_private_key"
-        else
-            SPARKLE_PRIVATE_KEY_PATH="private/sparkle_private_key"
-        fi
-    elif [[ -f "sparkle-private-ed-key.pem" ]]; then
-        SPARKLE_PRIVATE_KEY_PATH="sparkle-private-ed-key.pem"
-    fi
-fi
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
 # Function to print colored output
 print_info() {
@@ -71,20 +41,6 @@ print_warning() {
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1" >&2
 }
-
-# Verify private key exists
-if [ ! -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
-    echo -e "${RED}❌ Error: Sparkle private key not found at $SPARKLE_PRIVATE_KEY_PATH${NC}"
-    echo "This file is required to sign updates for Sparkle."
-    echo "Please ensure the private key is available before running this script."
-    exit 1
-fi
-
-# CRITICAL: Verify we're using the correct private key
-print_warning "⚠️  IMPORTANT: This script uses the file-based private key at: $SPARKLE_PRIVATE_KEY_PATH"
-print_warning "⚠️  DO NOT use sign_update without the -f flag!"
-print_warning "⚠️  The keychain may contain a different key that produces incompatible signatures!"
-echo -e "${YELLOW}[WARNING]${NC} Expected public key in Info.plist: gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=" >&2
 
 # Function to get file size from URL
 get_file_size() {
@@ -127,45 +83,44 @@ generate_signature() {
         echo "$cached_sig"
         return 0
     fi
-    
-    # Find sign_update binary
-    local sign_update_bin=""
+
     if command -v sign_update >/dev/null 2>&1; then
-        sign_update_bin="sign_update"
-    elif [ -f ".build/artifacts/sparkle/Sparkle/bin/sign_update" ]; then
-        sign_update_bin=".build/artifacts/sparkle/Sparkle/bin/sign_update"
-    elif [ -f "build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update" ]; then
-        sign_update_bin="build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
-    else
-        echo -e "${RED}❌ Error: Could not find sign_update binary${NC}" >&2
-        echo "Please ensure Sparkle is built or sign_update is in PATH" >&2
-        exit 1
+        print_info "Using cached signature for $filename"
     fi
     
-    # CRITICAL: Always use the -f flag with the private key file
-    # DO NOT remove the -f flag or this will use the wrong key from keychain!
-    local sign_cmd="$sign_update_bin \"$file_path\" -f \"$SPARKLE_PRIVATE_KEY_PATH\" -p"
-    if [ -n "$SPARKLE_ACCOUNT" ]; then
-        sign_cmd="$sign_cmd --account \"$SPARKLE_ACCOUNT\""
-        echo "Using Sparkle account: $SPARKLE_ACCOUNT" >&2
+    # Try to use sign_update from Keychain first (preferred method)
+    if command -v sign_update >/dev/null 2>&1; then
+        print_info "Using sign_update from Keychain"
+        # First try without -f flag to use Keychain
+        print_info "file_path: $file_path"
+        local signature=$(sign_update "$file_path" -p 2>/dev/null)
+        if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+            echo "$signature"
+            return 0
+        fi
+        
+        # If Keychain didn't work and we have a private key file, try that
+        if [ -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
+            signature=$(sign_update "$file_path" -f "$SPARKLE_PRIVATE_KEY_PATH" -p 2>/dev/null)
+            if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+                echo "$signature"
+                return 0
+            fi
+        fi
     fi
     
-    print_info "Signing with command: sign_update [file] -f $SPARKLE_PRIVATE_KEY_PATH -p"
-    
-    local signature=$(eval $sign_cmd 2>/dev/null)
-    if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
-        echo "$signature"
-        return 0
+    # Try using the bundled tool from Sparkle framework
+    local sign_tool="/Applications/Sparkle Test App.app/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/sign_update"
+    if [ -f "$sign_tool" ]; then
+        local signature=$("$sign_tool" "$file_path" -p 2>/dev/null)
+        if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+            echo "$signature"
+            return 0
+        fi
     fi
     
-    echo -e "${RED}❌ Error: Failed to generate signature for $filename${NC}" >&2
-    echo "Please ensure the private key at $SPARKLE_PRIVATE_KEY_PATH is valid" >&2
-    if [ -n "$SPARKLE_ACCOUNT" ]; then
-        echo "Also check that the account '$SPARKLE_ACCOUNT' is correct" >&2
-    else
-        echo "You may need to specify SPARKLE_ACCOUNT environment variable" >&2
-    fi
-    exit 1
+    print_warning "Could not generate signature for $filename"
+    echo ""
 }
 
 # Function to format date for appcast
@@ -186,7 +141,7 @@ parse_version() {
     # Remove 'v' prefix if present
     tag=${tag#v}
     
-    # For pre-releases like "0.1-beta.1", extract base version
+    # For pre-releases like "1.0-beta.1", extract base version
     if [[ $tag =~ ^([0-9]+\.[0-9]+)(-.*)?$ ]]; then
         version=$tag
     else
@@ -205,6 +160,7 @@ create_appcast_item() {
     # Extract fields with proper fallbacks
     local tag=$(echo "$release_json" | jq -r '.tag_name // "unknown"')
     local title=$(echo "$release_json" | jq -r '.name // .tag_name // "Release"')
+    local body=$(echo "$release_json" | jq -r '.body // "Release notes not available"')
     local published_at=$(echo "$release_json" | jq -r '.published_at // ""')
     
     # Validate critical fields
@@ -281,7 +237,7 @@ create_appcast_item() {
             *-beta.4) build_number="103" ;;
             *-rc.1) build_number="110" ;;
             *-rc.2) build_number="111" ;;
-            0.1) build_number="100" ;;
+            1.0) build_number="200" ;;
             *) build_number="1" ;;
         esac
     fi
@@ -295,47 +251,36 @@ create_appcast_item() {
         description+="<p><strong>Pre-release version</strong></p>"
     fi
     
-    # Try to get changelog from root CHANGELOG.md using changelog-to-html.sh
+    # Try to get changelog from local CHANGELOG.md using changelog-to-html.sh
     local changelog_html=""
-    local changelog_script="$SCRIPT_DIR/changelog-to-html.sh"
+    local changelog_script="$(dirname "$SCRIPT_DIR")/scripts/changelog-to-html.sh"
+    local changelog_file="$(dirname "$SCRIPT_DIR")/CHANGELOG.md"
     
-    if [ -x "$changelog_script" ]; then
+    if [ -x "$changelog_script" ] && [ -f "$changelog_file" ]; then
         # Extract version number from tag (remove 'v' prefix)
         local version_for_changelog="${version_string}"
-        
-        # Try multiple version formats
-        # First try as-is (e.g., "1.0-beta.2")
-        # The changelog-to-html.sh script will find CHANGELOG.md automatically
-        changelog_html=$("$changelog_script" "$version_for_changelog" 2>/dev/null || echo "")
-        
-        # If that fails and it's a pre-release, try with .0 added (e.g., "1.0.0-beta.2")
-        if [ -z "$changelog_html" ] || [[ "$changelog_html" == *"Latest version of Pluk"* ]]; then
-            if [[ "$version_for_changelog" =~ ^([0-9]+\.[0-9]+)(-.*)?$ ]]; then
-                local expanded_version="${BASH_REMATCH[1]}.0${BASH_REMATCH[2]}"
-                local temp_html=$("$changelog_script" "$expanded_version" 2>/dev/null || echo "")
-                if [ -n "$temp_html" ] && [[ "$temp_html" != *"Latest version of Pluk"* ]]; then
-                    changelog_html="$temp_html"
-                fi
-            fi
-        fi
+        changelog_html=$("$changelog_script" "$version_for_changelog" "$changelog_file" 2>/dev/null || echo "")
         
         # If that fails, try with the base version for pre-releases
-        if [ -z "$changelog_html" ] || [[ "$changelog_html" == *"Latest version of Pluk"* ]]; then
-            if [[ "$version_for_changelog" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-                local base_version="${BASH_REMATCH[1]}"
-                changelog_html=$("$changelog_script" "$base_version" 2>/dev/null || echo "")
-            fi
+        if [ -z "$changelog_html" ] && [[ "$version_for_changelog" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            local base_version="${BASH_REMATCH[1]}"
+            changelog_html=$("$changelog_script" "$base_version" "$changelog_file" 2>/dev/null || echo "")
         fi
     fi
     
-    # Always use local changelog - it's the source of truth
-    if [ -n "$changelog_html" ] && [[ "$changelog_html" != *"Latest version of Pluk"* ]]; then
+    # Use changelog if available, otherwise fall back to GitHub release body
+    if [ -n "$changelog_html" ]; then
         description+="<div>$changelog_html</div>"
     else
-        # Version not found in CHANGELOG.md
-        print_warning "Version $version_for_changelog not found in CHANGELOG.md"
-        description+="<div><p>⚠️ Release notes not found in CHANGELOG.md for version $version_for_changelog</p>"
-        description+="<p>Please update CHANGELOG.md with release notes for this version.</p></div>"
+        # Fall back to GitHub release body (escaped for XML safety)
+        local clean_body
+        clean_body=$(echo "$body" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g')
+        if [ -n "$clean_body" ] && [ "$clean_body" != "Release notes not available" ]; then
+            local formatted_body=$(echo "$clean_body" | head -5 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; /^$/d' | sed 's/^/<p>/; s/$/<\/p>/')
+            description+="<div>$formatted_body</div>"
+        else
+            description+="<p>Release notes not available</p>"
+        fi
     fi
     
     # Generate the item XML
@@ -362,43 +307,22 @@ EOF
 
 # Main function
 main() {
-    print_info "Generating appcast files for $GITHUB_REPO_FULL"
-    
-    # Check if we need to detect the Sparkle account
-    if [ -z "$SPARKLE_ACCOUNT" ] && command -v security >/dev/null 2>&1; then
-        print_info "Attempting to detect Sparkle account from Keychain..."
-        # Try to find EdDSA keys in the Keychain
-        DETECTED_ACCOUNT=$(security find-generic-password -s "https://sparkle-project.org" 2>/dev/null | grep "acct" | sed 's/.*acct"<blob>="\(.*\)"/\1/' || echo "")
-        if [ -n "$DETECTED_ACCOUNT" ]; then
-            SPARKLE_ACCOUNT="$DETECTED_ACCOUNT"
-            print_info "Detected Sparkle account: $SPARKLE_ACCOUNT"
-        else
-            print_warning "Could not detect Sparkle account. Using default signing."
-        fi
-    fi
+    print_info "Generating appcast files for $GITHUB_REPO"
     
     # Create temporary directory
     local temp_dir=$(mktemp -d)
     trap "rm -rf $temp_dir" EXIT
     
     # Fetch all releases from GitHub with error handling
-    print_info "Fetching releases from GitHub repository: $GITHUB_REPO_FULL"
+    print_info "Fetching releases from GitHub..."
     local releases
-    local gh_error
-    if ! releases=$(gh api "repos/$GITHUB_REPO_FULL/releases" --paginate 2>&1); then
-        gh_error=$?
-        print_error "Failed to fetch releases from GitHub (exit code: $gh_error)"
-        print_error "Repository: $GITHUB_REPO_FULL"
-        print_error "Error output: $releases"
-        print_info "Checking GitHub CLI status..."
-        gh auth status 2>&1 | while IFS= read -r line; do
-            print_info "  $line"
-        done
+    if ! releases=$(gh api "repos/$GITHUB_REPO/releases" --paginate 2>/dev/null); then
+        print_error "Failed to fetch releases from GitHub. Please check your GitHub CLI authentication and network connection."
         exit 1
     fi
     
     if [ -z "$releases" ] || [ "$releases" = "[]" ]; then
-        print_warning "No releases found for repository $GITHUB_REPO_FULL"
+        print_warning "No releases found for repository $GITHUB_REPO"
         exit 0
     fi
     
@@ -422,27 +346,20 @@ EOF
     while IFS= read -r release; do
         [ -z "$release" ] && continue
         
-        local tag_name=$(echo "$release" | jq -r '.tag_name')
+        # Find DMG asset using base64 encoding for robustness
+        local dmg_asset_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64' | head -1)
         
-        # Find the DMG asset (there should be only one universal DMG)
-        local dmg_assets_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64')
-        
-        if [ -n "$dmg_assets_b64" ] && [ "$dmg_assets_b64" != "null" ]; then
-            local first_dmg_b64=$(echo "$dmg_assets_b64" | head -1)
-            local dmg_name=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.name')
-            local dmg_url="https://r2.pluk.sh/releases/$dmg_name"
-            
-            print_info "Using DMG: $dmg_name for $tag_name"
-            
+        if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
+            local dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
             if [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ]; then
                 if create_appcast_item "$release" "$dmg_url" "false" >> appcast.xml; then
-                    print_info "Added stable release: $tag_name"
+                    print_info "Added stable release: $(echo "$release" | jq -r '.tag_name')"
                 else
-                    print_warning "Failed to create item for stable release: $tag_name"
+                    print_warning "Failed to create item for stable release: $(echo "$release" | jq -r '.tag_name')"
                 fi
             fi
         else
-            print_warning "No DMG asset found for stable release: $tag_name"
+            print_warning "No DMG asset found for stable release: $(echo "$release" | jq -r '.tag_name // "unknown"')"
         fi
     done <<< "$stable_releases"
     
@@ -465,27 +382,20 @@ EOF
     while IFS= read -r release; do
         [ -z "$release" ] && continue
         
-        local tag_name=$(echo "$release" | jq -r '.tag_name')
+        # Find DMG asset using base64 encoding for robustness
+        local dmg_asset_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64' | head -1)
         
-        # Find the DMG asset (there should be only one universal DMG)
-        local dmg_assets_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64')
-        
-        if [ -n "$dmg_assets_b64" ] && [ "$dmg_assets_b64" != "null" ]; then
-            local first_dmg_b64=$(echo "$dmg_assets_b64" | head -1)
-            local dmg_name=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.name')
-            local dmg_url="https://r2.pluk.sh/releases/$dmg_name"
-            
-            print_info "Using DMG: $dmg_name for $tag_name (pre-release)"
-            
+        if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
+            local dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
             if [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ]; then
                 if create_appcast_item "$release" "$dmg_url" "true" >> appcast-prerelease.xml; then
-                    print_info "Added pre-release: $tag_name"
+                    print_info "Added pre-release: $(echo "$release" | jq -r '.tag_name')"
                 else
-                    print_warning "Failed to create item for pre-release: $tag_name"
+                    print_warning "Failed to create item for pre-release: $(echo "$release" | jq -r '.tag_name')"
                 fi
             fi
         else
-            print_warning "No DMG asset found for pre-release: $tag_name"
+            print_warning "No DMG asset found for pre-release: $(echo "$release" | jq -r '.tag_name // "unknown"')"
         fi
     done <<< "$pre_releases"
     
@@ -493,27 +403,20 @@ EOF
     while IFS= read -r release; do
         [ -z "$release" ] && continue
         
-        local tag_name=$(echo "$release" | jq -r '.tag_name')
+        # Find DMG asset using base64 encoding for robustness
+        local dmg_asset_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64' | head -1)
         
-        # Find the DMG asset (there should be only one universal DMG)
-        local dmg_assets_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64')
-        
-        if [ -n "$dmg_assets_b64" ] && [ "$dmg_assets_b64" != "null" ]; then
-            local first_dmg_b64=$(echo "$dmg_assets_b64" | head -1)
-            local dmg_name=$(echo "$first_dmg_b64" | base64 --decode | jq -r '.name')
-            local dmg_url="https://r2.pluk.sh/releases/$dmg_name"
-            
-            print_info "Using DMG: $dmg_name for $tag_name (stable in pre-release feed)"
-            
+        if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
+            local dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
             if [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ]; then
                 if create_appcast_item "$release" "$dmg_url" "false" >> appcast-prerelease.xml; then
-                    print_info "Added stable release to pre-release feed: $tag_name"
+                    print_info "Added stable release to pre-release feed: $(echo "$release" | jq -r '.tag_name')"
                 else
-                    print_warning "Failed to create item for stable release in pre-release feed: $tag_name"
+                    print_warning "Failed to create item for stable release in pre-release feed: $(echo "$release" | jq -r '.tag_name')"
                 fi
             fi
         else
-            print_warning "No DMG asset found for stable release in pre-release feed: $tag_name"
+            print_warning "No DMG asset found for stable release in pre-release feed: $(echo "$release" | jq -r '.tag_name // "unknown"')"
         fi
     done <<< "$stable_releases"
     
@@ -534,4 +437,3 @@ EOF
 
 # Run main function
 main "$@"
-
