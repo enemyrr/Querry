@@ -169,8 +169,9 @@ create_appcast_item() {
     
     local version_string=$(parse_version "$tag")
     
-    # Get DMG asset info using base64 encoding for robustness
-    local dmg_asset_b64=$(echo "$release_json" | jq -r ".assets[] | select(.browser_download_url == \"$dmg_url\") | {size: .size, name: .name} | @base64" | head -1)
+    # Get DMG asset info using filename match since we now use R2 URLs
+    local dmg_filename=$(basename "$dmg_url")
+    local dmg_asset_b64=$(echo "$release_json" | jq -r ".assets[] | select(.name == \"$dmg_filename\") | {size: .size, name: .name} | @base64" | head -1)
     local dmg_size=""
     
     if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
@@ -204,13 +205,12 @@ create_appcast_item() {
     # Download DMG if not already present (for both signature and build number)
     if [ ! -f "$temp_dmg" ]; then
         print_info "Downloading DMG for analysis..."
-        # Extract tag and filename from URL for gh download
-        local tag=$(echo "$dmg_url" | sed -n 's|.*/download/\([^/]*\)/.*|\1|p')
-        local filename=$(basename "$dmg_url")
+        # Extract tag from release_json since we're using R2 URLs now
+        local tag=$(echo "$release_json" | jq -r '.tag_name')
         
-        # Use gh release download for proper authentication
-        if ! gh release download "$tag" --repo "$GITHUB_REPO" --pattern "$filename" --dir "$(dirname "$temp_dmg")" --clobber 2>/dev/null; then
-            print_warning "Failed to download with gh, trying curl..."
+        # Use gh release download for proper authentication  
+        if ! gh release download "$tag" --repo "$GITHUB_REPO" --pattern "$dmg_filename" --dir "$(dirname "$temp_dmg")" --clobber 2>/dev/null; then
+            print_warning "Failed to download with gh, trying curl with R2 URL..."
             curl -sL "$dmg_url" -o "$temp_dmg" 2>/dev/null
         fi
     fi
@@ -356,8 +356,11 @@ EOF
         local dmg_asset_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64' | head -1)
         
         if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
-            local dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
-            if [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ]; then
+            local github_dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
+            if [ -n "$github_dmg_url" ] && [ "$github_dmg_url" != "null" ]; then
+                # Convert GitHub URL to R2 URL
+                local dmg_filename=$(basename "$github_dmg_url")
+                local dmg_url="https://r2.pluk.sh/releases/$dmg_filename"
                 if create_appcast_item "$release" "$dmg_url" "false" >> appcast.xml; then
                     print_info "Added stable release: $(echo "$release" | jq -r '.tag_name')"
                 else
@@ -392,8 +395,11 @@ EOF
         local dmg_asset_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64' | head -1)
         
         if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
-            local dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
-            if [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ]; then
+            local github_dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
+            if [ -n "$github_dmg_url" ] && [ "$github_dmg_url" != "null" ]; then
+                # Convert GitHub URL to R2 URL
+                local dmg_filename=$(basename "$github_dmg_url")
+                local dmg_url="https://r2.pluk.sh/releases/$dmg_filename"
                 if create_appcast_item "$release" "$dmg_url" "true" >> appcast-prerelease.xml; then
                     print_info "Added pre-release: $(echo "$release" | jq -r '.tag_name')"
                 else
@@ -413,8 +419,11 @@ EOF
         local dmg_asset_b64=$(echo "$release" | jq -r '.assets[] | select(.name | endswith(".dmg")) | {url: .browser_download_url, name: .name} | @base64' | head -1)
         
         if [ -n "$dmg_asset_b64" ] && [ "$dmg_asset_b64" != "null" ]; then
-            local dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
-            if [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ]; then
+            local github_dmg_url=$(echo "$dmg_asset_b64" | base64 --decode | jq -r '.url')
+            if [ -n "$github_dmg_url" ] && [ "$github_dmg_url" != "null" ]; then
+                # Convert GitHub URL to R2 URL
+                local dmg_filename=$(basename "$github_dmg_url")
+                local dmg_url="https://r2.pluk.sh/releases/$dmg_filename"
                 if create_appcast_item "$release" "$dmg_url" "false" >> appcast-prerelease.xml; then
                     print_info "Added stable release to pre-release feed: $(echo "$release" | jq -r '.tag_name')"
                 else
