@@ -86,7 +86,7 @@ ln -s /Applications "$DMG_TEMP/Applications"
 # Create initial DMG as read-write
 DMG_RW_PATH="${DMG_PATH%.dmg}-rw.dmg"
 hdiutil create \
-    -volname "Pluk" \
+    -volname "$DMG_VOLUME_NAME" \
     -srcfolder "$DMG_TEMP" \
     -ov \
     -format UDRW \
