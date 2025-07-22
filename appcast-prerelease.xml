@@ -44,10 +44,10 @@
 <li>Enhanced connection state management for better reliability</li>
 </ul></div>
             ]]></description>
-            <pubDate>Tue, 22 Jul 2025 12:22:43 +0000</pubDate>
+            <pubDate>Tue, 22 Jul 2025 13:38:02 +0000</pubDate>
             <enclosure 
                 url="https://github.com/pluk-sh/app-pluk/releases/download/v0.0.1-beta.15/Pluk-0.0.1-beta.15.dmg"
-                length="16697616"
+                length="16692903"
                 type="application/octet-stream"
                 sparkle:edSignature="/wOzQVbY4gPPHIi0aKANCk9N6DB51seqbGiMmwxXtQCYCmZPQgQlAtGURc3f3mytp8t3lGj/TVhllRx955qiBg=="
             />
