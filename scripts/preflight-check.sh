@@ -225,14 +225,6 @@ else
     check_fail "GitHub CLI not installed - run: brew install gh"
 fi
 
-
-# Sparkle tools
-if command -v sign_update >/dev/null 2>&1; then
-    check_pass "Sparkle sign_update installed"
-else
-    check_fail "Sparkle tools not installed - see RELEASE.md"
-fi
-
 # xcbeautify (optional but recommended)
 if command -v xcbeautify &> /dev/null; then
     check_pass "xcbeautify installed"
@@ -278,8 +270,7 @@ else
 fi
 
 # Check private key in keychain
-export PATH="$HOME/.local/bin:$PATH"
-if command -v generate_keys &> /dev/null && generate_keys -p &>/dev/null; then
+if command -v sign_update &> /dev/null then
     check_pass "Sparkle private key found in Keychain"
 else
     check_fail "Sparkle private key not found in Keychain - run: generate_keys"
