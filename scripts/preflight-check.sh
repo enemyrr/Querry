@@ -227,7 +227,7 @@ fi
 
 
 # Sparkle tools
-  if command -v sign_update >/dev/null 2>&1; then
+if command -v sign_update >/dev/null 2>&1; then
     check_pass "Sparkle sign_update installed"
 else
     check_fail "Sparkle tools not installed - see RELEASE.md"
