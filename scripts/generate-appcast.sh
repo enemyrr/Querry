@@ -84,7 +84,7 @@ fi
 print_warning "⚠️  IMPORTANT: This script uses the file-based private key at: $SPARKLE_PRIVATE_KEY_PATH"
 print_warning "⚠️  DO NOT use sign_update without the -f flag!"
 print_warning "⚠️  The keychain may contain a different key that produces incompatible signatures!"
-echo -e "${YELLOW}[WARNING]${NC} Expected public key in Info.plist: AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=" >&2
+echo -e "${YELLOW}[WARNING]${NC} Expected public key in Info.plist: gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=" >&2
 
 # Function to get file size from URL
 get_file_size() {
