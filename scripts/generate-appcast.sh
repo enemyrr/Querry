@@ -90,9 +90,7 @@ generate_signature() {
     
     # Try to use sign_update from Keychain first (preferred method)
     if command -v sign_update >/dev/null 2>&1; then
-        print_info "Using sign_update from Keychain"
         # First try without -f flag to use Keychain
-        print_info "file_path: $file_path"
         local signature=$(sign_update "$file_path" -p 2>/dev/null)
         if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
             echo "$signature"
@@ -206,7 +204,15 @@ create_appcast_item() {
     # Download DMG if not already present (for both signature and build number)
     if [ ! -f "$temp_dmg" ]; then
         print_info "Downloading DMG for analysis..."
-        curl -sL "$dmg_url" -o "$temp_dmg" 2>/dev/null
+        # Extract tag and filename from URL for gh download
+        local tag=$(echo "$dmg_url" | sed -n 's|.*/download/\([^/]*\)/.*|\1|p')
+        local filename=$(basename "$dmg_url")
+        
+        # Use gh release download for proper authentication
+        if ! gh release download "$tag" --repo "$GITHUB_REPO" --pattern "$filename" --dir "$(dirname "$temp_dmg")" --clobber 2>/dev/null; then
+            print_warning "Failed to download with gh, trying curl..."
+            curl -sL "$dmg_url" -o "$temp_dmg" 2>/dev/null
+        fi
     fi
     
     # Generate signature if we haven't already
