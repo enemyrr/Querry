@@ -85,6 +85,7 @@ ln -s /Applications "$DMG_TEMP/Applications"
 
 # Create initial DMG as read-write
 DMG_RW_PATH="${DMG_PATH%.dmg}-rw.dmg"
+
 hdiutil create \
     -volname "$DMG_VOLUME_NAME" \
     -srcfolder "$DMG_TEMP" \
@@ -332,4 +333,3 @@ echo "Verifying DMG..."
 hdiutil verify "$DMG_PATH"
 
 echo "DMG created successfully: $DMG_PATH"
-
