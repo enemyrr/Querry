@@ -86,7 +86,6 @@ ln -s /Applications "$DMG_TEMP/Applications"
 # Create initial DMG as read-write
 DMG_RW_PATH="${DMG_PATH%.dmg}-rw.dmg"
 hdiutil create \
-    -volname "$DMG_VOLUME_NAME" \
     -srcfolder "$DMG_TEMP" \
     -ov \
     -format UDRW \
@@ -120,15 +119,12 @@ tell application "Finder"
         set statusbar visible of container window to false
         
         -- Set window bounds (centered, 500x320)
-        set the bounds of container window to {400, 100, 900, 420}
+        set the bounds of container window to {400, 100, 900, 500}
         
         -- Configure icon view options
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 128
-        
-        -- Set background
-        set background picture of viewOptions to file ".background:background.png"
         
         -- Set text color to white
         set text size of viewOptions to 12
@@ -141,7 +137,6 @@ tell application "Finder"
         -- Set extended attributes for better appearance
         set shows item info of viewOptions to false
         set shows icon preview of viewOptions to true
-        
         
         -- Update without registering applications
         update without registering applications
