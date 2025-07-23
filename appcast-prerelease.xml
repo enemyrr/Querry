@@ -6,54 +6,6 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
-            <title>Pluk 0.0.1 Beta 15</title>
-            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg</link>
-            <sparkle:version>265</sparkle:version>
-            <sparkle:shortVersionString>0.0.1-beta.15</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 15</h2><p><strong>Pre-release version</strong></p><div><h3>✨ New Features</h3>
-<h4><strong>Enhanced Table Interaction</strong></h4>
-<ul>
-<li><strong>Right-click Context Menu</strong> - Table rows now support right-click actions for quick access to row-specific operations</li>
-<li><strong>Multi-row Selection</strong> - Select multiple rows simultaneously for batch operations and improved workflow efficiency</li>
-</ul>
-<h4><strong>Smart Connection Management</strong></h4>
-<ul>
-<li><strong>Intelligent Tab Handling</strong> - When opening a connection, Pluk now asks whether to create a new tab or use an existing connection tab, preventing accidental duplicate connections</li>
-</ul>
-<h3>🎨 UI Improvements</h3>
-<h4><strong>Visual Polish</strong></h4>
-<ul>
-<li><strong>Enhanced Light Theme</strong> - Improved light mode with better contrast, readability, and visual consistency across all interface elements</li>
-<li><strong>Smoother Cell Selection</strong> - More responsive and fluid cell selection animations for a polished user experience</li>
-</ul>
-<h3>🛠️ Bug Fixes & Improvements</h3>
-<h4><strong>Database Operations</strong></h4>
-<ul>
-<li><strong>FIXED</strong>: Insert operations now work correctly even when tables contain no existing records</li>
-<li><strong>FIXED</strong>: Neon database connections no longer fail due to TLS configuration errors, ensuring reliable PostgreSQL connectivity</li>
-</ul>
-<h4><strong>Connection Reliability</strong></h4>
-<ul>
-<li><strong>FIXED</strong>: Automatic reconnection system now properly restores connections when network interruptions occur</li>
-<li><strong>FIXED</strong>: Tab bar display no longer gets cut off on the last tab, ensuring all tabs remain fully visible and accessible</li>
-</ul>
-<h3>🔧 Under the Hood</h3>
-<ul>
-<li>Improved error handling for database connection edge cases</li>
-<li>Enhanced connection state management for better reliability</li>
-</ul></div>
-            ]]></description>
-            <pubDate>Tue, 22 Jul 2025 18:27:50 +0000</pubDate>
-            <enclosure 
-                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg"
-                length="16696035"
-                type="application/octet-stream"
-                sparkle:edSignature="Q7nn04KzNBqW3ht/YC2rT34qn2yqFcolwMZel2X5JqOeKUODlfaqbacP3Brcr+32+GfOjVVo/0fn+310gKYDDw=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
-        <item>
             <title>Pluk 0.0.1 Beta 14</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg</link>
             <sparkle:version>264</sparkle:version>
