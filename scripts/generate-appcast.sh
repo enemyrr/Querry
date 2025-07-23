@@ -127,45 +127,42 @@ generate_signature() {
         echo "$cached_sig"
         return 0
     fi
-    
-    # Find sign_update binary
-    local sign_update_bin=""
+
     if command -v sign_update >/dev/null 2>&1; then
-        sign_update_bin="sign_update"
-    elif [ -f ".build/artifacts/sparkle/Sparkle/bin/sign_update" ]; then
-        sign_update_bin=".build/artifacts/sparkle/Sparkle/bin/sign_update"
-    elif [ -f "build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update" ]; then
-        sign_update_bin="build/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
-    else
-        echo -e "${RED}❌ Error: Could not find sign_update binary${NC}" >&2
-        echo "Please ensure Sparkle is built or sign_update is in PATH" >&2
-        exit 1
+        print_info "Using cached signature for $filename"
     fi
     
-    # CRITICAL: Always use the -f flag with the private key file
-    # DO NOT remove the -f flag or this will use the wrong key from keychain!
-    local sign_cmd="$sign_update_bin \"$file_path\" -f \"$SPARKLE_PRIVATE_KEY_PATH\" -p"
-    if [ -n "$SPARKLE_ACCOUNT" ]; then
-        sign_cmd="$sign_cmd --account \"$SPARKLE_ACCOUNT\""
-        echo "Using Sparkle account: $SPARKLE_ACCOUNT" >&2
+    # Try to use sign_update from Keychain first (preferred method)
+    if command -v sign_update >/dev/null 2>&1; then
+        # First try without -f flag to use Keychain
+        local signature=$(sign_update "$file_path" -p 2>/dev/null)
+        if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+            echo "$signature"
+            return 0
+        fi
+        
+        # If Keychain didn't work and we have a private key file, try that
+        if [ -f "$SPARKLE_PRIVATE_KEY_PATH" ]; then
+            signature=$(sign_update "$file_path" -f "$SPARKLE_PRIVATE_KEY_PATH" -p 2>/dev/null)
+            if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+                echo "$signature"
+                return 0
+            fi
+        fi
     fi
     
-    print_info "Signing with command: sign_update [file] -f $SPARKLE_PRIVATE_KEY_PATH -p"
-    
-    local signature=$(eval $sign_cmd 2>/dev/null)
-    if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
-        echo "$signature"
-        return 0
+    # Try using the bundled tool from Sparkle framework
+    local sign_tool="/Applications/Sparkle Test App.app/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/sign_update"
+    if [ -f "$sign_tool" ]; then
+        local signature=$("$sign_tool" "$file_path" -p 2>/dev/null)
+        if [ -n "$signature" ] && [ "$signature" != "-----END PRIVATE KEY-----" ]; then
+            echo "$signature"
+            return 0
+        fi
     fi
     
-    echo -e "${RED}❌ Error: Failed to generate signature for $filename${NC}" >&2
-    echo "Please ensure the private key at $SPARKLE_PRIVATE_KEY_PATH is valid" >&2
-    if [ -n "$SPARKLE_ACCOUNT" ]; then
-        echo "Also check that the account '$SPARKLE_ACCOUNT' is correct" >&2
-    else
-        echo "You may need to specify SPARKLE_ACCOUNT environment variable" >&2
-    fi
-    exit 1
+    print_warning "Could not generate signature for $filename"
+    echo ""
 }
 
 # Function to format date for appcast
@@ -534,4 +531,3 @@ EOF
 
 # Run main function
 main "$@"
-

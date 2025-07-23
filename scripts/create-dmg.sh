@@ -332,4 +332,3 @@ echo "Verifying DMG..."
 hdiutil verify "$DMG_PATH"
 
 echo "DMG created successfully: $DMG_PATH"
-
