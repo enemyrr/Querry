@@ -35,14 +35,22 @@ struct TableListView: View {
     @State private var showingViewStateError = false
     @State private var viewStateErrorMessage: String = ""
     
+    // Filter conditions state
+    @State private var filterConditions: [FilterCondition] = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
+    
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                FilterBuilderView(columns: cachedSchema?.columns ?? [], tableName: selectedTab.name) { filter in
-                    Task {
-                        await loadDocuments(forceFetch: true, filter: filter)
-                    }
-                }
+                FilterBuilderView(
+                    columns: cachedSchema?.columns ?? [], 
+                    tableName: selectedTab.name,
+                    onApplyFilter: { filter in
+                        Task {
+                            await loadDocuments(forceFetch: true, filter: filter)
+                        }
+                    },
+                    conditions: $filterConditions
+                )
                 
                 if cachedSchema != nil || currentQueryResult != nil {
                     TableListViewController(
@@ -62,8 +70,13 @@ struct TableListView: View {
                         onDeleteNewRow: { index in
                             deleteNewlyAddedRecord(atIndex: index)
                             needsToSelectLastRow = false
+                        },
+                        onForeignKeyNavigation: { tableName, columnName, value in
+                            instance.createNewTab(name: tableName, filterColumn: columnName, filterValue: value)
                         }
                     )
+                } else {
+                    Spacer()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -107,6 +120,8 @@ struct TableListView: View {
             }
         }
         .task(id: selectedTab.name) {
+            // Update filter conditions when tab changes
+            updateFilterConditions()
             await loadDocumentsIfNeeded()
         }
         .onChange(of: instance.id) { _, _ in
@@ -350,16 +365,49 @@ struct TableListView: View {
     private func loadDocumentsIfNeeded() async {
         let shouldFetch = cachedTabName != selectedTab.name ||
         cachedSchema == nil ||
-        cachedDocuments == nil
+        cachedDocuments == nil || selectedTab.forceFetch
         
         if shouldFetch {
-            await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
+            // Apply initial filter if tab has filter information
+            let initialFilter = generateInitialFilter()
+            await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: initialFilter)
+            selectedTab.forceFetch = false
         } else {
-            // Use cached data
             if let cachedDocuments = cachedDocuments,
                let cachedSchema = cachedSchema {
                 viewState = .loaded(cachedDocuments, cachedSchema)
             }
+        }
+    }
+    
+    private func generateInitialFilter() -> String? {
+        guard let conditions = createInitialFilterConditions(),
+              let databaseService = instance.databaseService else {
+            return nil
+        }
+        
+        return databaseService.generateFilterQuery(from: conditions, tableName: selectedTab.name)
+    }
+    
+    private func createInitialFilterConditions() -> [FilterCondition]? {
+        guard let filterColumn = selectedTab.filterColumn,
+              let filterValue = selectedTab.filterValue else {
+            return nil
+        }
+        
+        return [FilterCondition(
+            conjunction: .whereClause,
+            field: filterColumn,
+            filterOperator: .equals,
+            value: filterValue
+        )]
+    }
+    
+    private func updateFilterConditions() {
+        if let initialConditions = createInitialFilterConditions(), !initialConditions.isEmpty {
+            filterConditions = initialConditions
+        } else {
+            filterConditions = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
         }
     }
     

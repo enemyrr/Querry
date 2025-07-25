@@ -157,6 +157,26 @@ class CustomTableView: NSTableView {
         
         debugLog("🖱️ Mouse down at: (\(clickedRow), \(clickedColumn))")
         
+        // Check for foreign key click before handling normal selection
+        if clickedRow >= 0 && clickedColumn >= 0 {
+            if let cellView = view(atColumn: clickedColumn, row: clickedRow, makeIfNecessary: false) as? TextCellView {
+                let cellBounds = cellView.bounds
+                let cellClickPoint = convert(clickPoint, to: cellView)
+                
+                // Check if click is in foreign key icon area (right side of cell)
+                let iconArea = NSRect(x: cellBounds.width - 24, y: 0, width: 24, height: cellBounds.height)
+                
+                if iconArea.contains(cellClickPoint) {
+                    // Check if this cell has foreign key constraint
+                    if cellView.isForeignKey {
+                        debugLog("🔗 Foreign key icon clicked at (\(clickedRow), \(clickedColumn))")
+                        handleForeignKeyClick(cellView: cellView, row: clickedRow, column: clickedColumn)
+//                        return // Don't process normal click
+                    }
+                }
+            }
+        }
+        
         // Check if clicking the same row
         let isSameRow = (clickedRow == selectedRow && clickedRow >= 0)
         
@@ -168,6 +188,32 @@ class CustomTableView: NSTableView {
         }
         
         super.mouseDown(with: event)
+    }
+    
+    private func handleForeignKeyClick(cellView: TextCellView, row: Int, column: Int) {
+        guard let constraintInfo = cellView.constraintInfo,
+              constraintInfo.isForeignKey,
+              let referencedTable = constraintInfo.referencedTable else {
+            debugLog("❌ Invalid foreign key constraint info")
+            return
+        }
+        
+        let currentValue = cellView.textField.stringValue
+        
+        debugLog("🔗 Navigating to foreign table: \(referencedTable) with value: \(currentValue)")
+        
+        // Post notification for foreign key navigation
+        NotificationCenter.default.post(
+            name: .foreignKeyNavigationRequested,
+            object: self,
+            userInfo: [
+                "constraintInfo": constraintInfo,
+                "currentValue": currentValue,
+                "sourceTable": cellView.tableName,
+                "sourceColumn": cellView.columnName,
+                "referencedTable": referencedTable
+            ]
+        )
     }
     
     override func rightMouseDown(with event: NSEvent) {

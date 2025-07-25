@@ -24,7 +24,8 @@ enum FilterOperator: String, CaseIterable {
     case isNotNull = "is not null"
 }
 
-struct FilterCondition {
+struct FilterCondition: Equatable {
+    let id = UUID()
     var conjunction: FilterConjunction
     var field: String
     var filterOperator: FilterOperator

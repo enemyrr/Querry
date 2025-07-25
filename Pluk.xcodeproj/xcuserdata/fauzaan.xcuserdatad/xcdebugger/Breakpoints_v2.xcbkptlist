@@ -7,31 +7,15 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "65BE41DA-911F-4305-BD84-056F6F156134"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "404"
-            endingLineNumber = "404"
-            landmarkName = "findDocuments(in:filter:skip:limit:sortBy:ascending:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "5E39AE30-6E3B-474D-B1A7-2EFC95DE4D8A"
+            uuid = "09C8F86A-E597-4EB9-A86C-0CA7FFE57C74"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "932"
-            endingLineNumber = "932"
+            startingLineNumber = "931"
+            endingLineNumber = "931"
             landmarkName = "getSchema(for:in:forceFetch:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -39,297 +23,17 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "F1A8EC58-3D9D-48D1-839C-523571BD36BB"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1070"
-            endingLineNumber = "1070"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "F1A8EC58-3D9D-48D1-839C-523571BD36BB - 5a6d72474fe4d1ed"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(9) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1072"
-                  endingLineNumber = "1072">
-               </Location>
-               <Location
-                  uuid = "F1A8EC58-3D9D-48D1-839C-523571BD36BB - 1f9c72769e2aa958"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(19) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1072"
-                  endingLineNumber = "1072">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "8D8EEF34-D6F3-49E8-8A87-B9BBCF95F8D5"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1072"
-            endingLineNumber = "1072"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "8D8EEF34-D6F3-49E8-8A87-B9BBCF95F8D5 - 5a6d72474fe4d1ed"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(9) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1072"
-                  endingLineNumber = "1072">
-               </Location>
-               <Location
-                  uuid = "8D8EEF34-D6F3-49E8-8A87-B9BBCF95F8D5 - 1f9c72769e2aa958"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(19) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1072"
-                  endingLineNumber = "1072">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "1BF44391-E55F-472D-810C-7F24C37B0FA6"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "972"
-            endingLineNumber = "972"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "58C783C8-2B48-45C5-A422-F0B966EE428A"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "991"
-            endingLineNumber = "991"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "DDB14B53-25BB-492C-8A4E-3D2C6D02B263"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1029"
-            endingLineNumber = "1029"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "DDB14B53-25BB-492C-8A4E-3D2C6D02B263 - 5a6d72474fe4dc47"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(9) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1030"
-                  endingLineNumber = "1030">
-               </Location>
-               <Location
-                  uuid = "DDB14B53-25BB-492C-8A4E-3D2C6D02B263 - 5a6d72474fe4dc47"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(9) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1030"
-                  endingLineNumber = "1030">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "9E361991-3350-4856-8C08-C633899EA6F5"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "971"
-            endingLineNumber = "971"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "EEEE904A-086F-4B54-A01F-E8C96E2F971B"
+            uuid = "F0706057-626B-4427-BBDC-9A19AD68C721"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
+            filePath = "pluk/Views/Documents/TabContent/TableListView/FilterBuilderView/FilterBuilderView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "990"
-            endingLineNumber = "990"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "6EE5BE82-ACAC-4F7B-B64F-723D08EB000A"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "971"
-            endingLineNumber = "971"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "A0B51A64-82F4-44EC-BAC7-52F41873AE69"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "977"
-            endingLineNumber = "977"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "B954F42E-C9A2-4BE5-8EC8-FD9CCF6F888F"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1100"
-            endingLineNumber = "1100"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "43BEC91A-A2F3-4430-9B39-FDE8B65929DF"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1113"
-            endingLineNumber = "1113"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "43BEC91A-A2F3-4430-9B39-FDE8B65929DF - f5e5493bbde39ddf"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(13) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1115"
-                  endingLineNumber = "1115">
-               </Location>
-               <Location
-                  uuid = "43BEC91A-A2F3-4430-9B39-FDE8B65929DF - f1122b81d8397ede"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(14) suspend resume partial function for Pluk.PostgreSQLDriver.getSchema(for: Swift.String, in: Swift.String, forceFetch: Swift.Bool) async throws -&gt; Pluk.DatabaseSchemaResult"
-                  moduleName = "Pluk.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/fauzaan/Desktop/Pluk/app-pluk/pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1115"
-                  endingLineNumber = "1115">
-               </Location>
-            </Locations>
+            startingLineNumber = "18"
+            endingLineNumber = "18"
+            landmarkName = "FilterBuilderView"
+            landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

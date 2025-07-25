@@ -96,7 +96,7 @@ class EditableTextField: NSTextField {
 
 // MARK: - TextCellView
 class TextCellView: NSView, NSTextFieldDelegate {
-    private var textField: EditableTextField!
+    var textField: EditableTextField!
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
     private var foreignKeyIconView: NSImageView?
@@ -120,10 +120,10 @@ class TextCellView: NSView, NSTextFieldDelegate {
         }
     }
     private var rowIndex: Int = -1
-    private var columnName: String = ""
+    var columnName: String = ""
     private var dataType: String = ""
-    private var tableName: String = ""
-    private var constraintInfo: ConstraintInfo?
+    var tableName: String = ""
+    var constraintInfo: ConstraintInfo?
     
     // Weak reference to modification tracker to avoid retain cycles
     weak var modificationTracker: TableModificationTracker?
@@ -138,7 +138,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     var isMarkedForDeletion: Bool = false
     
     // Foreign key styling properties
-    private var isForeignKey: Bool {
+    var isForeignKey: Bool {
         return constraintInfo?.isForeignKey ?? false
     }
     
@@ -370,11 +370,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
         foreignKeyIconView?.image = NSImage(systemSymbolName: "arrow.right.circle", accessibilityDescription: "Foreign Key")
         foreignKeyIconView?.contentTintColor = NSColor.secondaryLabelColor
         foreignKeyIconView?.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Add click gesture recognizer
-        let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(foreignKeyIconClicked))
-        foreignKeyIconView?.addGestureRecognizer(clickGesture)
-        
         addSubview(foreignKeyIconView!)
         
         // Position the icon at the right edge of the cell
@@ -393,22 +388,6 @@ class TextCellView: NSView, NSTextFieldDelegate {
                 }
             }
         }
-    }
-    
-    @objc private func foreignKeyIconClicked() {
-        guard let constraintInfo = constraintInfo, constraintInfo.isForeignKey else { return }
-        
-        // Post notification for foreign key navigation
-        NotificationCenter.default.post(
-            name: NSNotification.Name("ForeignKeyNavigationRequested"),
-            object: self,
-            userInfo: [
-                "constraintInfo": constraintInfo,
-                "currentValue": textField.stringValue,
-                "sourceTable": tableName,
-                "sourceColumn": columnName
-            ]
-        )
     }
     
     private func handleEditingCompleted() {

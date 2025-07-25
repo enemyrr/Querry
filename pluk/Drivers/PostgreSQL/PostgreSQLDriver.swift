@@ -61,11 +61,11 @@ struct PostgreSQLQueryResult {
         return columns.first { $0.name == name }
     }
     
-//    // Get value for specific row and column
-//    func value(row: Int, column: String) -> Any? {
-//        guard row < rows.count else { return nil }
-//        return rows[row].data[column]
-//    }
+    //    // Get value for specific row and column
+    //    func value(row: Int, column: String) -> Any? {
+    //        guard row < rows.count else { return nil }
+    //        return rows[row].data[column]
+    //    }
     
     // Get column info by index
     func column(at index: Int) -> PostgreSQLColumnInfo? {
@@ -74,41 +74,41 @@ struct PostgreSQLQueryResult {
     }
     
     // Get raw cell for lazy decoding - NOW RETURNS PostgresCell
-       func rawCell(row: Int, column: String) -> PostgresCell? {
-           guard row < rawRows.count else { return nil }
-           let randomAccessRow = rawRows[row]
-           
-           // Check if column exists first
-           guard randomAccessRow.contains(column) else { return nil }
-           
-           return randomAccessRow[column] // This returns PostgresCell
-       }
-       
-       // For compatibility - decode on demand
-       func value(row: Int, column: String) -> Any? {
-           guard let cell = rawCell(row: row, column: column) else { return nil }
-           return try? decodeValue(from: cell)
-       }
-       
-       private func decodeValue(from cell: PostgresCell) throws -> Any? {
-           guard cell.bytes != nil else { return nil }
-           
-           switch cell.dataType {
-           case .bool: return try cell.decode(Bool.self)
-           case .int2: return try cell.decode(Int16.self)
-           case .int4: return try cell.decode(Int32.self)
-           case .int8: return try cell.decode(Int64.self)
-           case .float4: return try cell.decode(Float.self)
-           case .float8: return try cell.decode(Double.self)
-           case .text, .varchar, .char: return try cell.decode(String.self)
-           case .timestamp, .timestamptz, .date: return try cell.decode(Date.self)
-           case .uuid: return try cell.decode(UUID.self)
-           case .json, .jsonb: return try cell.decode(String.self)
-           case .bytea: return try cell.decode(Data.self)
-           case .numeric: return try cell.decode(String.self)
-           default: return try cell.decode(String.self)
-           }
-       }
+    func rawCell(row: Int, column: String) -> PostgresCell? {
+        guard row < rawRows.count else { return nil }
+        let randomAccessRow = rawRows[row]
+        
+        // Check if column exists first
+        guard randomAccessRow.contains(column) else { return nil }
+        
+        return randomAccessRow[column] // This returns PostgresCell
+    }
+    
+    // For compatibility - decode on demand
+    func value(row: Int, column: String) -> Any? {
+        guard let cell = rawCell(row: row, column: column) else { return nil }
+        return try? decodeValue(from: cell)
+    }
+    
+    private func decodeValue(from cell: PostgresCell) throws -> Any? {
+        guard cell.bytes != nil else { return nil }
+        
+        switch cell.dataType {
+        case .bool: return try cell.decode(Bool.self)
+        case .int2: return try cell.decode(Int16.self)
+        case .int4: return try cell.decode(Int32.self)
+        case .int8: return try cell.decode(Int64.self)
+        case .float4: return try cell.decode(Float.self)
+        case .float8: return try cell.decode(Double.self)
+        case .text, .varchar, .char: return try cell.decode(String.self)
+        case .timestamp, .timestamptz, .date: return try cell.decode(Date.self)
+        case .uuid: return try cell.decode(UUID.self)
+        case .json, .jsonb: return try cell.decode(String.self)
+        case .bytea: return try cell.decode(Data.self)
+        case .numeric: return try cell.decode(String.self)
+        default: return try cell.decode(String.self)
+        }
+    }
 }
 
 
@@ -157,7 +157,7 @@ class PostgreSQLDriver: DatabaseDriver {
         let config = try parseConnectionString(connectionUri)
         return try await establishConnection(with: config)
     }
-
+    
     private func establishConnection(with config: PostgresConnection.Configuration) async throws -> PostgreSQLDatabaseWrapper {
         self.configuration = config
         
@@ -311,7 +311,7 @@ class PostgreSQLDriver: DatabaseDriver {
                                (p.relkind = 'r' OR p.relkind = 'v' OR p.relkind = 'p')
                                AND n.nspname = 'public'
                            """,
-                           logger: Logger(label: "postgres")
+                                                  logger: Logger(label: "postgres")
             )
             
             var collections: [PostgreSQLCollectionWrapper] = []
@@ -340,7 +340,7 @@ class PostgreSQLDriver: DatabaseDriver {
         return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-
+    
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
@@ -445,7 +445,7 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
-
+    
     func createDocument(in collectionName: String, document: [String: Any]) async throws {
         let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
@@ -521,8 +521,8 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to create document: \(error.localizedDescription)")
         }
     }
-
-
+    
+    
     func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
         let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
@@ -537,7 +537,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         do {
             let (setClause, values) = try await buildParameterizedSetClause(dataToUpdate: data, for: collectionName)
-           
+            
             // Build the UPDATE query with parameter binding
             let queryString = """
                 UPDATE \(sanitizedCollectionName)
@@ -564,7 +564,7 @@ class PostgreSQLDriver: DatabaseDriver {
             )
             
             bindings.append(postgresData)
-
+            
             // Execute the update query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
             try await connection.query(query, logger: Logger(label: "postgres"))
@@ -646,56 +646,56 @@ class PostgreSQLDriver: DatabaseDriver {
         
         return """
         You are a PostgreSQL query assistant. Your primary task is to convert natural language user queries into valid PostgreSQL SQL queries.
-
+        
         Core Responsibilities: 
         - Convert the user query into a PostgreSQL SQL query.
         - Return ONLY the SQL query without explanation.
         - Optimize the query for best performance.
         - Support all PostgreSQL operators and query features.
-
+        
         # Database Schema
         The current table schema is:
         \(schema)
-
+        
         # Output Format
         Return ONLY the PostgreSQL SQL query.
         Do not include any explanation, preamble, or commentary.
         Format the query for readability with proper indentation.
         One-line queries are acceptable for simple filters.
-
+        
         # Examples
-
+        
         **Example 1:**
         **Input:** Find all users where age is greater than 30
         **Output:**
         SELECT * FROM users WHERE age > 30;
-
+        
         **Example 2:**
         **Input:** Get records where status is active and created date is in the last week
         **Output:**
         SELECT * FROM records 
         WHERE status = 'active' 
         AND created_at > CURRENT_DATE - INTERVAL '7 days';
-
+        
         **Example 3:**
         **Input:** Show me customers from New York or California with at least 5 orders
         **Output:**
         SELECT * FROM customers 
         WHERE (state = 'New York' OR state = 'California') 
         AND order_count >= 5;
-
+        
         **Example 4:**
         **Input:** Get user with id 12345
         **Output:**
         SELECT * FROM users WHERE id = 12345;
-
+        
         **Example 5:**
         **Input:** Find products containing 'laptop' in name, ordered by price descending
         **Output:**
         SELECT * FROM products 
         WHERE name ILIKE '%laptop%' 
         ORDER BY price DESC;
-
+        
         # Notes
         - NEVER provide explanations or ask clarifying questions.
         - NEVER describe what the query does.
@@ -708,7 +708,7 @@ class PostgreSQLDriver: DatabaseDriver {
         - Include proper semicolon termination.
         - Return the SQL query as plain text only. Do NOT use code blocks, backticks, or any markdown formatting.
         - Only generate SELECT queries. Do not create UPDATE, DELETE, INSERT, or any data-modifying queries.
-
+        
         Current Date: \(currentDate)
         """
     }
@@ -735,9 +735,9 @@ class PostgreSQLDriver: DatabaseDriver {
             return "No schema found for \(collectionName)\n"
         }
     }
-
-
-   
+    
+    
+    
     // MARK: - Schema Cache
     
     /// Efficient composite key for schema caching
@@ -920,119 +920,127 @@ class PostgreSQLDriver: DatabaseDriver {
     
     // Cache for database schemas with performance optimizations
     private let databaseSchema = SchemaCache()
-
+    
     func getSchema(for tableName: String, in schemaName: String = "public", forceFetch: Bool = false) async throws -> DatabaseSchemaResult {
         let cacheKey = SchemaKey(schemaName, tableName)
         
         if !forceFetch, let cachedSchema = await databaseSchema.get(cacheKey) {
-               return cachedSchema
-           }
+            return cachedSchema
+        }
         
         let connection = try await ensureConnected()
         
         do {
             // Get constraint information for this table
-            var constraintMap: [String: [ConstraintInfo]] = [:]
+            var constraintMap: [String: ConstraintInfo] = [:]
             
-                let constraintQuery = PostgresQuery("""
+            let constraintQuery = PostgresQuery("""
+            SELECT
+                c.conname AS constraint_name,
+                (
                     SELECT
-                        pg_constraint.oid::bigint as pg_constraint,
-                        conname,
-                        contype,
-                        conkey,
-                        nspname AS fschema,
-                        relname AS ftable,
-                        confkey AS fkeys,
-                        pg_get_expr(conbin, conrelid, true),
-                        pg_get_constraintdef(pg_constraint.oid, true),
-                        confupdtype,
-                        confdeltype,
-                        obj_description(pg_constraint.oid, 'pg_constraint'),
-                        condeferrable,
-                        condeferred,
-                        connoinherit,
-                        pg_extension.extname,
-                        relkind AS ftablekind
-                    FROM pg_constraint
-                    LEFT JOIN pg_class ON pg_class.oid = confrelid
-                    LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-                    LEFT JOIN pg_depend ON pg_depend.refclassid = 'pg_catalog.pg_extension'::regclass
-                        AND pg_depend.classid = 'pg_catalog.pg_class'::regclass
-                        AND pg_depend.objid = pg_class.oid
-                    LEFT JOIN pg_extension ON pg_depend.refobjid = pg_extension.oid
-                    WHERE conrelid = '"\(unescaped: schemaName)"."\(unescaped: tableName)"'::regclass
-                """)
+                        STRING_AGG(
+                            QUOTE_IDENT(a.attname),
+                            ',' ORDER BY t.seq
+                        )
+                    FROM (
+                        SELECT
+                            ROW_NUMBER() OVER (ROWS UNBOUNDED PRECEDING) AS seq,
+                            attnum
+                        FROM
+                            UNNEST(c.conkey) AS t(attnum)
+                    ) AS t
+                    INNER JOIN pg_attribute AS a
+                        ON a.attrelid = c.conrelid
+                        AND a.attnum = t.attnum
+                ) AS child_column,
+                tt.schema AS parent_schema,
+                tt.name AS parent_name,
+                (
+                    SELECT
+                        STRING_AGG(
+                            QUOTE_IDENT(a.attname),
+                            ',' ORDER BY t.seq
+                        )
+                    FROM (
+                        SELECT
+                            ROW_NUMBER() OVER (ROWS UNBOUNDED PRECEDING) AS seq,
+                            attnum
+                        FROM
+                            UNNEST(c.confkey) AS t(attnum)
+                    ) AS t
+                    INNER JOIN pg_attribute AS a
+                        ON a.attrelid = c.confrelid
+                        AND a.attnum = t.attnum
+                ) AS parent_column,
+                CASE c.confupdtype
+                    WHEN 'r' THEN 'restrict'
+                    WHEN 'c' THEN 'cascade'
+                    WHEN 'n' THEN 'set null'
+                    WHEN 'd' THEN 'set default'
+                    WHEN 'a' THEN 'no action'
+                    ELSE NULL
+                END AS on_update,
+                CASE c.confdeltype
+                    WHEN 'r' THEN 'restrict'
+                    WHEN 'c' THEN 'cascade'
+                    WHEN 'n' THEN 'set null'
+                    WHEN 'd' THEN 'set default'
+                    WHEN 'a' THEN 'no action'
+                    ELSE NULL
+                END AS on_delete
+            FROM
+                pg_catalog.pg_constraint AS c
+                INNER JOIN (
+                    SELECT
+                        pg_class.oid,
+                        QUOTE_IDENT(pg_namespace.nspname) AS schema,
+                        QUOTE_IDENT(pg_class.relname) AS name
+                    FROM
+                        pg_class
+                        INNER JOIN pg_namespace
+                            ON pg_class.relnamespace = pg_namespace.oid
+                ) AS tf ON tf.oid = c.conrelid
+                INNER JOIN (
+                    SELECT
+                        pg_class.oid,
+                        QUOTE_IDENT(pg_namespace.nspname) AS schema,
+                        QUOTE_IDENT(pg_class.relname) AS name
+                    FROM
+                        pg_class
+                        INNER JOIN pg_namespace
+                            ON pg_class.relnamespace = pg_namespace.oid
+                ) AS tt ON tt.oid = c.confrelid
+            WHERE
+                tf.name = '\(unescaped: tableName)'
+                AND tf.schema = '\(unescaped: schemaName)'
+                AND c.contype = 'f';
+            """)
+            
+            let constraintResults = try await connection.query(constraintQuery, logger: Logger(label: "postgres"))
+            for try await (constraintName, childColumn, parentSchema, parentName, parentColumn, onUpdate, onDelete) in constraintResults.decode((String, String, String, String, String, String, String).self) {
                 
-                let constraintResults = try await connection.query(constraintQuery, logger: Logger(label: "postgres"))
-                
-            for try await (constraintOid, conname, contype, conkey, fschema, ftable, fkeys, conbin, constraintdef, confupdtype, confdeltype, description, condeferrable, condeferred, connoinherit, extname, ftablekind) in constraintResults.decode((Int64, String, String, [Int16], String?, String?, [Int16]?, String?, String?, String?, String?, String?, Bool?, Bool?, Bool?, String?, String?).self) {
-                
-                // Get column names for the constraint
-                var columnNames: [String] = []
-                
-                // Get all column names for this constraint
-//                for keyIndex in conkey {
-//                    let columnQuery = PostgresQuery("""
-//                        SELECT attname FROM pg_attribute 
-//                        WHERE attrelid = '\(tableOid)' AND attnum = '\(keyIndex)'
-//                    """)
-//                    
-//                    let columnResults = try await connection.query(columnQuery, logger: Logger(label: "postgres"))
-//                    
-//                    for try await (attname) in columnResults.decode((String).self) {
-//                        columnNames.append(attname)
-//                        break
-//                    }
-//                }
-                
-                // Get referenced column names for foreign keys
-//                var referencedColumns: [String]? = nil
-//                if contype == "f", let fkeys = fkeys {
-//                    referencedColumns = []
-//                    for fkeyIndex in fkeys {
-//                        if let parentTableOid = try? await getTableOid(schema: fschema ?? "public", table: ftable ?? "") {
-//                            let parentColumnQuery = PostgresQuery("""
-//                                SELECT attname FROM pg_attribute 
-//                                WHERE attrelid = '\(parentTableOid)' AND attnum = '\(fkeyIndex)'
-//                            """)
-//                            
-//                            let parentColumnResults = try await connection.query(parentColumnQuery, logger: Logger(label: "postgres"))
-//                            
-//                            for try await (attname) in parentColumnResults.decode((String).self) {
-//                                referencedColumns?.append(attname)
-//                                break
-//                            }
-//                        }
-//                    }
-//                }
+                let constraintType = ConstraintType.foreignKey
                 
                 // Create constraint info
-                guard let constraintType = ConstraintType(rawValue: contype) else { continue }
-                
                 let constraintInfo = ConstraintInfo(
-                    oid: constraintOid,
-                    name: conname,
+                    oid: 0, // Not available in this query
+                    name: constraintName,
                     type: constraintType,
-                    columns: columnNames,
-                    isDeferrable: condeferrable ?? false,
-                    isDeferred: condeferred ?? false,
-                    definition: constraintdef,
-                    description: description,
-                    referencedSchema: fschema,
-                    referencedTable: ftable,
-//                    referencedColumns: referencedColumns,
-                    onUpdate: mapConstraintAction(confupdtype),
-                    onDelete: mapConstraintAction(confdeltype),
-                    extensionName: extname
+                    columns: [childColumn],
+                    isDeferrable: false, // Not available in this query
+                    isDeferred: false, // Not available in this query
+                    definition: nil, // Not available in this query
+                    description: nil, // Not available in this query
+                    referencedSchema: parentSchema,
+                    referencedTable: parentName,
+                    referencedColumns: [parentColumn],
+                    onUpdate: onUpdate,
+                    onDelete: onDelete,
+                    extensionName: nil // Not available in this query
                 )
                 
-                // Add constraint to each column it affects
-                for columnName in columnNames {
-                    if constraintMap[columnName] == nil {
-                        constraintMap[columnName] = []
-                    }
-                    constraintMap[columnName]?.append(constraintInfo)
-                }
+                constraintMap[constraintName] = constraintInfo
             }
             
             // Get column schema information
@@ -1059,6 +1067,7 @@ class PostgreSQLDriver: DatabaseDriver {
                     '' AS check_col,
                     '' AS check_constraint,
                     COALESCE(c.column_default, '') AS column_default,
+                    '' AS foreign_key,
                     '' AS comment
                 FROM
                     information_schema.columns c
@@ -1069,19 +1078,28 @@ class PostgreSQLDriver: DatabaseDriver {
                 ORDER BY c.ordinal_position;
             """)
             
+            
             let results = try await connection.query(schemaQuery, logger: Logger(label: "postgres"))
             var databaseSchemaInfo: [DatabaseSchemaInfo] = []
             
-            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, foreignKey, comment) in results.decode((
-                            Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
+            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, _foreignKey, comment) in results.decode((
+                Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
+                
+                // Find constraints for this column
+                var foreignKey = ""
+                var columnConstraints: [ConstraintInfo] = []
+                
+                // Check if column name matches any constraint's columns
+                for constraint in constraintMap.values {
+                    if constraint.columns.contains(columnName) {
+                        columnConstraints.append(constraint)
+                        if constraint.type == .foreignKey {
+                            foreignKey = constraint.name
+                        }
+                    }
+                }
+                
                 let format = PostgresDataType(UInt32(pgTypeOid))
-                
-                // Get constraints for this column
-                let columnConstraints = constraintMap[columnName] ?? []
-                let foreignKeyConstraint = columnConstraints.first { $0.type == .foreignKey }
-                let foreignKeyString = foreignKeyConstraint != nil ? 
-                    "\(foreignKeyConstraint!.referencedTable ?? "").\(foreignKeyConstraint!.referencedColumns?.first ?? "")" : ""
-                
                 let schemaInfo = DatabaseSchemaInfo(
                     ordinalPosition: ordinalPosition,
                     columnName: columnName,
@@ -1096,7 +1114,7 @@ class PostgreSQLDriver: DatabaseDriver {
                     check: check,
                     checkConstraint: checkConstraint,
                     columnDefault: columnDefault,
-                    foreignKey: foreignKeyString,
+                    foreignKey: foreignKey,
                     constraints: columnConstraints,
                     comment: comment
                 )
@@ -1111,11 +1129,10 @@ class PostgreSQLDriver: DatabaseDriver {
                 totalCount: databaseSchemaInfo.count
             )
             
-//             Cache the result for future use
+            // Cache the result for future use
             await databaseSchema.set(cacheKey, value: schemaResult)
             
             return schemaResult
-            
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
@@ -1339,7 +1356,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         return (setClauses.joined(separator: ", "), values)
     }
-
+    
     
     
     private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
@@ -1468,13 +1485,13 @@ class PostgreSQLDriver: DatabaseDriver {
         default: return "no action"
         }
     }
-
+    
     // MARK: - Helper method to get primary key column
-       private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
-           let connection = try await ensureConnected()
-           
-           do {
-               let query = PostgresQuery("""
+    private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
+        let connection = try await ensureConnected()
+        
+        do {
+            let query = PostgresQuery("""
                    SELECT a.attname
                    FROM pg_index i
                    JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
@@ -1483,21 +1500,21 @@ class PostgreSQLDriver: DatabaseDriver {
                    ORDER BY a.attnum
                    LIMIT 1
                """)
-               
-               let results = try await connection.query(query, logger: Logger(label: "postgres"))
-               
-               for try await (columnName) in results.decode((String).self) {
-                   return "\"\(columnName)\""  // Return quoted column name
-               }
-               
-               // If no primary key is found, return nil
-               return nil
-               
-           } catch {
-               // If the query fails for any reason (e.g., table not found, permissions), return nil
-               return nil
-           }
-       }
+            
+            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            
+            for try await (columnName) in results.decode((String).self) {
+                return "\"\(columnName)\""  // Return quoted column name
+            }
+            
+            // If no primary key is found, return nil
+            return nil
+            
+        } catch {
+            // If the query fails for any reason (e.g., table not found, permissions), return nil
+            return nil
+        }
+    }
 }
 
 // MARK: - Utility Extensions
@@ -1535,7 +1552,7 @@ enum DatabaseError: Error, LocalizedError {
     case configurationError(String)
     case databaseNotFound(String)
     case databaseNotSelected
-
+    
     var errorDescription: String? {
         switch self {
         case .notImplemented(let message):

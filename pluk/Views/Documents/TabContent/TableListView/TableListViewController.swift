@@ -16,8 +16,9 @@ struct TableListViewController: NSViewRepresentable {
     let modificationTracker: TableModificationTracker?
     let needsToSelectLastRow: Bool
     let onDeleteNewRow: ((Int) -> Void)? // Callback for deleting new rows
+    let onForeignKeyNavigation: ((String, String, String) -> Void)? // Callback for foreign key navigation (tableName, columnName, value)
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, needsToSelectLastRow: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, needsToSelectLastRow: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
@@ -25,10 +26,11 @@ struct TableListViewController: NSViewRepresentable {
         self.modificationTracker = modificationTracker
         self.needsToSelectLastRow = needsToSelectLastRow
         self.onDeleteNewRow = onDeleteNewRow
+        self.onForeignKeyNavigation = onForeignKeyNavigation
     }
     
     func makeCoordinator() -> TableCoordinator {
-        return TableCoordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker, onDeleteNewRow: onDeleteNewRow)
+        return TableCoordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker, onDeleteNewRow: onDeleteNewRow, onForeignKeyNavigation: onForeignKeyNavigation)
     }
     
     func makeNSView(context: Context) -> NSView {
