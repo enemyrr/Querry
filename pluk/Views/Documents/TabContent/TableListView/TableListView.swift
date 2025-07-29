@@ -404,8 +404,14 @@ struct TableListView: View {
     }
     
     private func updateFilterConditions() {
-        if let initialConditions = createInitialFilterConditions(), !initialConditions.isEmpty {
-            filterConditions = initialConditions
+        if let filterColumn = selectedTab.filterColumn,
+           let filterValue = selectedTab.filterValue {
+            filterConditions = [FilterCondition(
+                conjunction: .whereClause,
+                field: filterColumn,
+                filterOperator: .equals,
+                value: filterValue
+            )]
         } else {
             filterConditions = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
         }
