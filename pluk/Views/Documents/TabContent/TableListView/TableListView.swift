@@ -37,6 +37,8 @@ struct TableListView: View {
     
     // Filter conditions state
     @State private var filterConditions: [FilterCondition] = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
+    @State private var lastTabFilterColumn: String?
+    @State private var lastTabFilterValue: String?
     
     var body: some View {
         ZStack {
@@ -404,17 +406,38 @@ struct TableListView: View {
     }
     
     private func updateFilterConditions() {
+        // Check if tab filter properties have changed (indicates foreign key navigation)
+        let tabFilterChanged = lastTabFilterColumn != selectedTab.filterColumn || 
+                             lastTabFilterValue != selectedTab.filterValue
+        
         if let filterColumn = selectedTab.filterColumn,
            let filterValue = selectedTab.filterValue {
-            filterConditions = [FilterCondition(
-                conjunction: .whereClause,
-                field: filterColumn,
-                filterOperator: .equals,
-                value: filterValue
-            )]
+            // Always update if tab filter has changed (foreign key navigation)
+            // Otherwise, only update if we don't have manually added filters
+            let hasManualFilters = filterConditions.count > 1 || 
+                                 (filterConditions.count == 1 && !filterConditions[0].value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            
+            if tabFilterChanged || !hasManualFilters {
+                filterConditions = [FilterCondition(
+                    conjunction: .whereClause,
+                    field: filterColumn,
+                    filterOperator: .equals,
+                    value: filterValue
+                )]
+            }
         } else {
-            filterConditions = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
+            // Only reset to default if we don't have manually added filters
+            let hasManualFilters = filterConditions.count > 1 || 
+                                 (filterConditions.count == 1 && !filterConditions[0].value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            
+            if !hasManualFilters {
+                filterConditions = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
+            }
         }
+        
+        // Update tracking variables
+        lastTabFilterColumn = selectedTab.filterColumn
+        lastTabFilterValue = selectedTab.filterValue
     }
     
     /// Load documents with options to force fetch and control schema fetching

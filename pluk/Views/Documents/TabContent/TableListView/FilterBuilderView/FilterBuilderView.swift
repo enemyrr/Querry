@@ -155,8 +155,8 @@ struct FilterBuilderView: View {
     
     private func setupKeyboardShortcuts() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Check for Cmd+Enter
-            if event.modifierFlags.contains(.command) && event.keyCode == 36 { // 36 is Enter key
+            // Check for Enter or Cmd+Enter
+            if event.keyCode == 36 { // 36 is Enter key
                 if hasValidCondition {
                     let sqlFilter = generateSQLFilter()
                     onApplyFilter(sqlFilter)
