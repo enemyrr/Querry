@@ -100,6 +100,79 @@ struct BuildInfo {
     let databaseType: DatabaseType
 }
 
+// MARK: - Database Constraint Information Structure
+enum ConstraintType: String, Equatable {
+    case foreignKey = "f"
+    case primaryKey = "p"
+    case unique = "u"
+    case check = "c"
+    case exclusion = "x"
+    case trigger = "t"
+}
+
+struct ConstraintInfo: Equatable {
+    let oid: Int64
+    let name: String
+    let type: ConstraintType
+    let columns: [String]
+    let isDeferrable: Bool
+    let isDeferred: Bool
+    let definition: String?
+    let description: String?
+    
+    // Foreign key specific properties
+    let referencedSchema: String?
+    let referencedTable: String?
+    let referencedColumns: [String]?
+    let onUpdate: String?
+    let onDelete: String?
+    
+    // Extension info
+    let extensionName: String?
+    
+    init(
+        oid: Int64 = 0,
+        name: String,
+        type: ConstraintType,
+        columns: [String] = [],
+        isDeferrable: Bool = false,
+        isDeferred: Bool = false,
+        definition: String? = nil,
+        description: String? = nil,
+        referencedSchema: String? = nil,
+        referencedTable: String? = nil,
+        referencedColumns: [String]? = nil,
+        onUpdate: String? = nil,
+        onDelete: String? = nil,
+        extensionName: String? = nil
+    ) {
+        self.oid = oid
+        self.name = name
+        self.type = type
+        self.columns = columns
+        self.isDeferrable = isDeferrable
+        self.isDeferred = isDeferred
+        self.definition = definition
+        self.description = description
+        self.referencedSchema = referencedSchema
+        self.referencedTable = referencedTable
+        self.referencedColumns = referencedColumns
+        self.onUpdate = onUpdate
+        self.onDelete = onDelete
+        self.extensionName = extensionName
+    }
+    
+    // Convenience property for foreign key navigation
+    var isForeignKey: Bool {
+        return type == .foreignKey
+    }
+    
+    // Convenience property for primary key identification
+    var isPrimaryKey: Bool {
+        return type == .primaryKey
+    }
+}
+
 // MARK: - Schema Information Structures
 struct DatabaseSchemaInfo: Equatable {
     let ordinalPosition: Int?
@@ -116,6 +189,7 @@ struct DatabaseSchemaInfo: Equatable {
     let checkConstraint: String
     let columnDefault: String?
     let foreignKey: String
+    let constraints: [ConstraintInfo]
     let comment: String?
     
     init(
@@ -133,6 +207,7 @@ struct DatabaseSchemaInfo: Equatable {
         checkConstraint: String = "",
         columnDefault: String? = nil,
         foreignKey: String = "",
+        constraints: [ConstraintInfo] = [],
         comment: String? = nil
     ) {
         self.ordinalPosition = ordinalPosition
@@ -148,8 +223,46 @@ struct DatabaseSchemaInfo: Equatable {
         self.checkConstraint = checkConstraint
         self.columnDefault = columnDefault
         self.foreignKey = foreignKey
+        self.constraints = constraints
         self.comment = comment
         self.typeOid = typeOid
+    }
+    
+    // MARK: - Constraint convenience methods
+    
+    /// Get all foreign key constraints for this column
+    var foreignKeyConstraints: [ConstraintInfo] {
+        return constraints.filter { $0.type == .foreignKey }
+    }
+    
+    /// Get the primary foreign key constraint (first one if multiple exist)
+    var primaryForeignKeyConstraint: ConstraintInfo? {
+        return foreignKeyConstraints.first
+    }
+    
+    /// Get all primary key constraints for this column
+    var primaryKeyConstraints: [ConstraintInfo] {
+        return constraints.filter { $0.type == .primaryKey }
+    }
+    
+    /// Check if this column has any foreign key constraints
+    var hasForeignKey: Bool {
+        return !foreignKeyConstraints.isEmpty
+    }
+    
+    /// Check if this column is part of a primary key
+    var isPrimaryKey: Bool {
+        return !primaryKeyConstraints.isEmpty
+    }
+    
+    /// Get all unique constraints for this column
+    var uniqueConstraints: [ConstraintInfo] {
+        return constraints.filter { $0.type == .unique }
+    }
+    
+    /// Get all check constraints for this column
+    var checkConstraints: [ConstraintInfo] {
+        return constraints.filter { $0.type == .check }
     }
 }
 

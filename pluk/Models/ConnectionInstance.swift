@@ -273,13 +273,19 @@ import AIProxy
     }
     
     // MARK: - Tab Management
-    func createNewTab(name: String) {
+    func createNewTab(name: String, filterColumn: String? = nil, filterValue: String? = nil) {
+        // Check for existing tab with same table name
         if let existingTab = tabs.first(where: { $0.name == name }) {
+            // Update the existing tab's filter - this will now trigger SwiftUI updates
+            existingTab.filterColumn = filterColumn
+            existingTab.filterValue = filterValue
+            existingTab.forceFetch = true
             selectedTab = existingTab
             return
         }
         
-        let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle)
+        // Create new tab if none exists for this table
+        let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle, filterColumn: filterColumn, filterValue: filterValue)
         tabs.append(newTab)
         
         selectedTab = newTab

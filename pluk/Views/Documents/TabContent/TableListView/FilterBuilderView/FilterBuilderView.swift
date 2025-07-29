@@ -12,12 +12,10 @@ struct FilterBuilderView: View {
     var columns: [DatabaseSchemaInfo]
     var tableName: String
     var onApplyFilter: (String) -> Void
+    @Binding var conditions: [FilterCondition]
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var showFilterBuilder: Bool = false
-    @State private var conditions: [FilterCondition] = [
-        FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")
-    ]
     @FocusState private var focusedField: Int?
     @State private var keyMonitor: Any?
     
@@ -32,9 +30,17 @@ struct FilterBuilderView: View {
         return databaseService.generateFilterQuery(from: conditions, tableName: tableName)
     }
     
+    private var shouldShowFilterBuilder: Bool {
+        return conditions.contains { !$0.field.isEmpty && !$0.value.isEmpty }
+    }
+    
+    private var effectiveShowFilterBuilder: Bool {
+        return showFilterBuilder || shouldShowFilterBuilder
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
-            if showFilterBuilder {
+            if effectiveShowFilterBuilder {
                 HStack(alignment: .top, spacing: 28) {
                     // Filter rows with overlay divider
                     VStack(alignment: .leading, spacing: 8) {
@@ -149,8 +155,8 @@ struct FilterBuilderView: View {
     
     private func setupKeyboardShortcuts() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Check for Cmd+Enter
-            if event.modifierFlags.contains(.command) && event.keyCode == 36 { // 36 is Enter key
+            // Check for Enter or Cmd+Enter
+            if event.keyCode == 36 { // 36 is Enter key
                 if hasValidCondition {
                     let sqlFilter = generateSQLFilter()
                     onApplyFilter(sqlFilter)

@@ -39,6 +39,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     // Callback for refreshing table data
     var onRefresh: (() -> Void)?
     
+    // Callback for foreign key navigation
+    var onForeignKeyNavigation: ((String, String, String) -> Void)? // (tableName, columnName, value)
+    
     // Persistent storage
     public var tableName: String = ""
     private var currentSchemaSignature: String = ""
@@ -48,6 +51,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         static let checkbox = NSUserInterfaceItemIdentifier("CheckboxCell")
         static let textCell = NSUserInterfaceItemIdentifier("TextCell")
         static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
+        static let forignKeyCell = NSUserInterfaceItemIdentifier("ForeignKeyCell")
     }
     
     // Store modification tracker reference
@@ -59,7 +63,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private weak var addRowMenuItem: NSMenuItem?
     private weak var refreshMenuItem: NSMenuItem?
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
@@ -67,6 +71,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         self.modificationTracker = modificationTracker
         self.onDeleteNewRow = onDeleteNewRow
         self.onRefresh = onRefresh
+        self.onForeignKeyNavigation = onForeignKeyNavigation
         
         if let queryResult = queryResult {
             self.rows = queryResult.rawRows
@@ -81,8 +86,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         // Set up undo delegate
         self.modificationTracker?.undoDelegate = self
         
-        // Add observer for delete key press
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
     }
     
     @objc private func handleDeleteKey(notification: Notification) {
@@ -116,6 +121,26 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         // Also reload the rows to ensure proper state
         tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
     }
+    
+    @objc private func handleForeignKeyNavigation(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let constraintInfo = userInfo["constraintInfo"] as? ConstraintInfo,
+              let currentValue = userInfo["currentValue"] as? String,
+              let referencedTable = userInfo["referencedTable"] as? String else {
+            debugLog("❌ Invalid foreign key navigation notification data")
+            return
+        }
+        
+        debugLog("🔗 Handling foreign key navigation to table: \(referencedTable) with value: \(currentValue)")
+        
+        guard let referencedColumn = constraintInfo.referencedColumns?.first else {
+            return
+        }
+        
+        // Call the foreign key navigation callback with table name, referenced column, and current value
+        onForeignKeyNavigation?(referencedTable, referencedColumn, currentValue)
+    }
+
     
     deinit {
         NotificationCenter.default.removeObserver(self)
@@ -884,10 +909,15 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             cellView?.prepareForReuse()
         }
         
+        // Get foreign key constraint info from schema if available
+        let foreignKeyConstraint = schema?.column(named: columnName)?.constraints.first { $0.type == .foreignKey }
+        
         cellView?.configure(queryRowInfo: queryRowInfo,
                             columnInfo: columnInfo,
                             rowIndex: row,
-                            modificationTracker: modificationTracker)
+                            modificationTracker: modificationTracker,
+                            constraintInfo: foreignKeyConstraint,
+                            tableName: tableName)
         
         return cellView
     }

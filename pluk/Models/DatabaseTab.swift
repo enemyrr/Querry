@@ -9,20 +9,31 @@ import Foundation
 import SwiftUI
 import MongoKitten
 
-struct DatabaseTab: Identifiable, Equatable, Transferable, Codable {
+@Observable
+class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     let id: UUID
     var name: String
     var type: TabType
     var queryState: QueryState
     var documents: [Document] = []
     var hasSchemaDeviation: Bool = false
+    var filterColumn: String?
+    var filterValue: String?
+    var forceFetch: Bool = false
     
-    init(name: String, type: TabType, queryState: QueryState) {
-           self.id = UUID()
-           self.name = name
-           self.type = type
-           self.queryState = queryState
-           self.hasSchemaDeviation = false
+    init(name: String, type: TabType, queryState: QueryState, filterColumn: String? = nil, filterValue: String? = nil, forceFetch: Bool = false) {
+        self.id = UUID()
+        self.name = name
+        self.type = type
+        self.queryState = queryState
+        self.hasSchemaDeviation = false
+        self.filterColumn = filterColumn
+        self.filterValue = filterValue
+        self.forceFetch = forceFetch
+    }
+    
+    static func == (lhs: DatabaseTab, rhs: DatabaseTab) -> Bool {
+        lhs.id == rhs.id
     }
     
     enum TabType: Equatable, Codable {
