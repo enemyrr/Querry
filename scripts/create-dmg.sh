@@ -73,7 +73,7 @@ if pgrep -f "Pluk.*\.dmg" > /dev/null; then
 fi
 
 # Create temporary directory for DMG contents
-DMG_TEMP="$BUILD_DIR/dmg-temp"
+DMG_TEMP="$BUILD_DIR/Pluk"
 rm -rf "$DMG_TEMP"
 mkdir -p "$DMG_TEMP"
 
