@@ -11,7 +11,7 @@
             <sparkle:version>266</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.16</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 16</h2><p><strong>Pre-release version</strong></p><div><h3>✨ New Features</h3>
+                <h2>Pluk 0.0.1 Beta 16</h2><div><h3>✨ New Features</h3>
 <h4><strong>Foreign Key Navigation</strong></h4>
 <ul>
 <li><strong>Quick Foreign Key Filtering</strong> - Click any record to instantly navigate to related tables with foreign key filters automatically applied, streamlining relational data exploration</li>
