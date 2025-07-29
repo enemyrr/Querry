@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.1-beta.16] - 2025-07-29
+
+### ✨ New Features
+
+#### **Foreign Key Navigation**
+
+- **Quick Foreign Key Filtering** - Click any record to instantly navigate to related tables with foreign key filters automatically applied, streamlining relational data exploration
+
 ## [0.0.1-beta.15] - 2025-01-17
 
 ### ✨ New Features

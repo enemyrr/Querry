@@ -274,8 +274,14 @@ import AIProxy
     
     // MARK: - Tab Management
     func createNewTab(name: String, filterColumn: String? = nil, filterValue: String? = nil) {
+        // Remove quotes from name if present for consistent tab naming
+        var cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanName.hasPrefix("\"") && cleanName.hasSuffix("\"") && cleanName.count > 1 {
+            cleanName = String(cleanName.dropFirst().dropLast())
+        }
+        
         // Check for existing tab with same table name
-        if let existingTab = tabs.first(where: { $0.name == name }) {
+        if let existingTab = tabs.first(where: { $0.name == cleanName }) {
             // Update the existing tab's filter - this will now trigger SwiftUI updates
             existingTab.filterColumn = filterColumn
             existingTab.filterValue = filterValue
@@ -285,7 +291,7 @@ import AIProxy
         }
         
         // Create new tab if none exists for this table
-        let newTab = DatabaseTab(name: name, type: .browse, queryState: .idle, filterColumn: filterColumn, filterValue: filterValue)
+        let newTab = DatabaseTab(name: cleanName, type: .browse, queryState: .idle, filterColumn: filterColumn, filterValue: filterValue)
         tabs.append(newTab)
         
         selectedTab = newTab
