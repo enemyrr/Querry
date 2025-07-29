@@ -8,7 +8,7 @@
         <item>
             <title>Pluk 0.0.1 Beta 16</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.16.dmg</link>
-            <sparkle:version>1</sparkle:version>
+            <sparkle:version>266</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.16</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 16</h2><p><strong>Pre-release version</strong></p><div><h3>✨ New Features</h3>
@@ -20,9 +20,9 @@
             <pubDate>Tue, 29 Jul 2025 14:26:56 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.16.dmg"
-                length=""
+                length="16678139"
                 type="application/octet-stream"
-                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+                sparkle:edSignature="koiqv3YgNkj4G8d0mE9eB1xWgoT0FEiYz7pMjg9GRscaJFPl8UUc+uNkD3NGaQpY7XU1S4ftCnLbKwZaOJ7JAA=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
