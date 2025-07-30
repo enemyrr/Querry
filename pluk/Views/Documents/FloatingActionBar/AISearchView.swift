@@ -173,9 +173,6 @@ struct AISearchView: View {
     
     /// Submits a natural language query to AI service and processes the result
     private func processNaturalLanguageQuery(search: String) async {
-        guard let databaseService = instance.databaseService else {
-            fatalError("Database driver not set yet")
-        }
         guard !search.isEmpty else { return }
         
         await MainActor.run {
@@ -183,7 +180,7 @@ struct AISearchView: View {
         }
 
         do {
-            filter = try await performAIQuery(databaseService: databaseService, search: search)
+            filter = try await performAIQuery(databaseService: instance.databaseService, search: search)
             
             await processQueryResult(filter)
         } catch {
@@ -192,11 +189,11 @@ struct AISearchView: View {
     }
     
     private func performAIQuery(databaseService: DatabaseService, search: String) async throws -> String {
-        guard let databaseService = instance.databaseService, let selectedTab = instance.selectedTab?.name else {
+        guard let selectedTab = instance.selectedTab?.name else {
             fatalError("Database driver not set yet")
         }
         
-        let prompt = try await databaseService.buildSystemPrompt(for: selectedTab)
+        let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab)
         
         let openAIService = AIProxy.openAIService(
             partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",

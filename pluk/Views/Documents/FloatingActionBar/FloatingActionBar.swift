@@ -23,7 +23,7 @@ struct FloatingActionBar: View {
     
     @Environment(ConnectionInstance.self) private var instance
     
-    @State private var containerWidth: CGFloat = 200
+    @State private var containerWidth: CGFloat = 326.4655172413793
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -139,7 +139,6 @@ struct FloatingActionBar: View {
                 default:
                     mainView
                 }
-                
             }
             .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
             .overlay(
@@ -163,9 +162,6 @@ struct FloatingActionBar: View {
             .background(
                 GeometryReader { geometry in
                     Color.clear
-                        .onAppear {
-                            containerWidth = geometry.size.width
-                        }
                         .onChange(of: geometry.size.width) { oldWidth, newWidth in
                             containerWidth = newWidth
                         }

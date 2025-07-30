@@ -26,8 +26,7 @@ struct FilterBuilderView: View {
     }
     
     private func generateSQLFilter() -> String {
-        guard let databaseService = instance.databaseService else { return "" }
-        return databaseService.generateFilterQuery(from: conditions, tableName: tableName)
+        return instance.databaseService.generateFilterQuery(from: conditions, tableName: tableName)
     }
     
     private var shouldShowFilterBuilder: Bool {

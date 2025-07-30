@@ -931,127 +931,15 @@ class PostgreSQLDriver: DatabaseDriver {
         let connection = try await ensureConnected()
         
         do {
-            // Get constraint information for this table
-            var constraintMap: [String: ConstraintInfo] = [:]
-            
-            let constraintQuery = PostgresQuery("""
-            SELECT
-                c.conname AS constraint_name,
-                (
-                    SELECT
-                        STRING_AGG(
-                            QUOTE_IDENT(a.attname),
-                            ',' ORDER BY t.seq
-                        )
-                    FROM (
-                        SELECT
-                            ROW_NUMBER() OVER (ROWS UNBOUNDED PRECEDING) AS seq,
-                            attnum
-                        FROM
-                            UNNEST(c.conkey) AS t(attnum)
-                    ) AS t
-                    INNER JOIN pg_attribute AS a
-                        ON a.attrelid = c.conrelid
-                        AND a.attnum = t.attnum
-                ) AS child_column,
-                tt.schema AS parent_schema,
-                tt.name AS parent_name,
-                (
-                    SELECT
-                        STRING_AGG(
-                            QUOTE_IDENT(a.attname),
-                            ',' ORDER BY t.seq
-                        )
-                    FROM (
-                        SELECT
-                            ROW_NUMBER() OVER (ROWS UNBOUNDED PRECEDING) AS seq,
-                            attnum
-                        FROM
-                            UNNEST(c.confkey) AS t(attnum)
-                    ) AS t
-                    INNER JOIN pg_attribute AS a
-                        ON a.attrelid = c.confrelid
-                        AND a.attnum = t.attnum
-                ) AS parent_column,
-                CASE c.confupdtype
-                    WHEN 'r' THEN 'restrict'
-                    WHEN 'c' THEN 'cascade'
-                    WHEN 'n' THEN 'set null'
-                    WHEN 'd' THEN 'set default'
-                    WHEN 'a' THEN 'no action'
-                    ELSE NULL
-                END AS on_update,
-                CASE c.confdeltype
-                    WHEN 'r' THEN 'restrict'
-                    WHEN 'c' THEN 'cascade'
-                    WHEN 'n' THEN 'set null'
-                    WHEN 'd' THEN 'set default'
-                    WHEN 'a' THEN 'no action'
-                    ELSE NULL
-                END AS on_delete
-            FROM
-                pg_catalog.pg_constraint AS c
-                INNER JOIN (
-                    SELECT
-                        pg_class.oid,
-                        QUOTE_IDENT(pg_namespace.nspname) AS schema,
-                        QUOTE_IDENT(pg_class.relname) AS name
-                    FROM
-                        pg_class
-                        INNER JOIN pg_namespace
-                            ON pg_class.relnamespace = pg_namespace.oid
-                ) AS tf ON tf.oid = c.conrelid
-                INNER JOIN (
-                    SELECT
-                        pg_class.oid,
-                        QUOTE_IDENT(pg_namespace.nspname) AS schema,
-                        QUOTE_IDENT(pg_class.relname) AS name
-                    FROM
-                        pg_class
-                        INNER JOIN pg_namespace
-                            ON pg_class.relnamespace = pg_namespace.oid
-                ) AS tt ON tt.oid = c.confrelid
-            WHERE
-                tf.name = '\(unescaped: tableName)'
-                AND tf.schema = '\(unescaped: schemaName)'
-                AND c.contype = 'f';
-            """)
-            
-            let constraintResults = try await connection.query(constraintQuery, logger: Logger(label: "postgres"))
-            for try await (constraintName, childColumn, parentSchema, parentName, parentColumn, onUpdate, onDelete) in constraintResults.decode((String, String, String, String, String, String, String).self) {
-                
-                let constraintType = ConstraintType.foreignKey
-                
-                // Create constraint info
-                let constraintInfo = ConstraintInfo(
-                    oid: 0, // Not available in this query
-                    name: constraintName,
-                    type: constraintType,
-                    columns: [childColumn],
-                    isDeferrable: false, // Not available in this query
-                    isDeferred: false, // Not available in this query
-                    definition: nil, // Not available in this query
-                    description: nil, // Not available in this query
-                    referencedSchema: parentSchema,
-                    referencedTable: parentName,
-                    referencedColumns: [parentColumn],
-                    onUpdate: onUpdate,
-                    onDelete: onDelete,
-                    extensionName: nil // Not available in this query
-                )
-                
-                constraintMap[constraintName] = constraintInfo
-            }
-            
-            // Get column schema information
-            let schemaQuery = PostgresQuery("""
+            // Combined query to get both column schema and constraint information in one query
+            let combinedQuery = PostgresQuery("""
                 SELECT
                     c.ordinal_position,
                     c.column_name,
                     c.udt_name AS data_type,
                     COALESCE(t.oid, 0)::bigint AS pg_type_oid,
                     t.typname AS pg_type_name,
-                    t.typtype,  -- 'e' for enum, 'b' for base type, 'c' for composite, etc.
+                    t.typtype,
                     CASE 
                         WHEN t.typtype = 'e' THEN 'enum'
                         WHEN t.typtype = 'c' THEN 'composite'
@@ -1067,36 +955,91 @@ class PostgreSQLDriver: DatabaseDriver {
                     '' AS check_col,
                     '' AS check_constraint,
                     COALESCE(c.column_default, '') AS column_default,
-                    '' AS foreign_key,
-                    '' AS comment
+                    '' AS comment,
+                    -- Foreign key constraint information
+                    fk.constraint_name,
+                    fk.parent_schema,
+                    fk.parent_table,
+                    fk.parent_column,
+                    fk.on_update,
+                    fk.on_delete
                 FROM
                     information_schema.columns c
                 LEFT JOIN pg_type t ON t.typname = c.udt_name
+                LEFT JOIN (
+                    SELECT DISTINCT
+                        con.conname AS constraint_name,
+                        att.attname AS child_column,
+                        ref_ns.nspname AS parent_schema,
+                        ref_cl.relname AS parent_table,
+                        ref_att.attname AS parent_column,
+                        CASE con.confupdtype
+                            WHEN 'r' THEN 'restrict'
+                            WHEN 'c' THEN 'cascade'
+                            WHEN 'n' THEN 'set null'
+                            WHEN 'd' THEN 'set default'
+                            WHEN 'a' THEN 'no action'
+                            ELSE NULL
+                        END AS on_update,
+                        CASE con.confdeltype
+                            WHEN 'r' THEN 'restrict'
+                            WHEN 'c' THEN 'cascade'
+                            WHEN 'n' THEN 'set null'
+                            WHEN 'd' THEN 'set default'
+                            WHEN 'a' THEN 'no action'
+                            ELSE NULL
+                        END AS on_delete
+                    FROM pg_constraint con
+                    JOIN pg_class cl ON cl.oid = con.conrelid
+                    JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+                    JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+                    JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
+                    JOIN pg_namespace ref_ns ON ref_ns.oid = ref_cl.relnamespace
+                    JOIN pg_attribute ref_att ON ref_att.attrelid = con.confrelid AND ref_att.attnum = ANY(con.confkey)
+                    WHERE con.contype = 'f'
+                        AND cl.relname = '\(unescaped: tableName)'
+                        AND ns.nspname = '\(unescaped: schemaName)'
+                ) fk ON fk.child_column = c.column_name
                 WHERE
                     c.table_name = '\(unescaped: tableName)'
                     AND c.table_schema = '\(unescaped: schemaName)'
                 ORDER BY c.ordinal_position;
             """)
             
-            
-            let results = try await connection.query(schemaQuery, logger: Logger(label: "postgres"))
+            let results = try await connection.query(combinedQuery, logger: Logger(label: "postgres"))
             var databaseSchemaInfo: [DatabaseSchemaInfo] = []
             
-            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, _foreignKey, comment) in results.decode((
-                Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String).self) {
+            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, comment, constraintName, parentSchema, parentTable, parentColumn, onUpdate, onDelete) in results.decode((
+                Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String?, String?, String?, String?, String?, String?).self) {
                 
-                // Find constraints for this column
-                var foreignKey = ""
+                // Build constraint info if foreign key data exists
                 var columnConstraints: [ConstraintInfo] = []
+                var foreignKey = ""
                 
-                // Check if column name matches any constraint's columns
-                for constraint in constraintMap.values {
-                    if constraint.columns.contains(columnName) {
-                        columnConstraints.append(constraint)
-                        if constraint.type == .foreignKey {
-                            foreignKey = constraint.name
-                        }
-                    }
+                if let constraintName = constraintName,
+                   let parentSchema = parentSchema,
+                   let parentTable = parentTable,
+                   let parentColumn = parentColumn {
+                    
+                    let constraintInfo = ConstraintInfo(
+                        oid: 0,
+                        name: constraintName,
+                        type: .foreignKey,
+                        columns: [columnName],
+                        isDeferrable: false,
+                        isDeferred: false,
+                        definition: nil,
+                        description: nil,
+                        referencedSchema: parentSchema,
+                        referencedTable: parentTable,
+                        referencedColumns: [parentColumn],
+                        onUpdate: onUpdate ?? "no action",
+                        onDelete: onDelete ?? "no action",
+                        extensionName: nil
+                    )
+                    
+                    columnConstraints.append(constraintInfo)
+                    foreignKey = constraintName
                 }
                 
                 let format = PostgresDataType(UInt32(pgTypeOid))

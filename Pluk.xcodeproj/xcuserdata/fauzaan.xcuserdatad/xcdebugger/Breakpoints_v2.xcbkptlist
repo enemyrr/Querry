@@ -7,22 +7,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "09C8F86A-E597-4EB9-A86C-0CA7FFE57C74"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Drivers/PostgreSQL/PostgreSQLDriver.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "931"
-            endingLineNumber = "931"
-            landmarkName = "getSchema(for:in:forceFetch:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "F0706057-626B-4427-BBDC-9A19AD68C721"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -39,22 +23,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "645C4052-6F6D-47AC-AA1F-E8A4D3FDD62F"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Views/Documents/TabContent/TableListView/TableListView.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "413"
-            endingLineNumber = "413"
-            landmarkName = "updateFilterConditions()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "BBB90DF1-F352-402A-B5C7-564743DC2E74"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
@@ -64,23 +32,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "1260"
             endingLineNumber = "1260"
-            landmarkName = "validateAndSanitizeIdentifier(_:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "31E1905E-FEF6-4590-9727-3C40CF8A1C5A"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "pluk/Models/ConnectionInstance.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "278"
-            endingLineNumber = "278"
-            landmarkName = "createNewTab(name:filterColumn:filterValue:)"
+            landmarkName = "buildOrderByClause(sortBy:ascending:primaryKey:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

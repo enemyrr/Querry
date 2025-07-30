@@ -17,15 +17,11 @@ import AIProxy
     //    var connectedDatabase: (any DatabaseWrapper)?
     
     private var _databaseDriver: (any DatabaseDriver)?
-    private var _databaseService = DatabaseService()
+    var databaseService = DatabaseService()
     
     // Public getter for database driver (needed by ConnectionService)
     var databaseDriver: (any DatabaseDriver)? {
         return _databaseDriver
-    }
-    
-    var databaseService: DatabaseService? {
-        return _databaseService
     }
     
     var connectedDatabase: (any DatabaseWrapper)? {
@@ -139,13 +135,6 @@ import AIProxy
             lastError = error
             debugLog("Failed to load databases and collections: \(error)")
         }
-    }
-    
-    @discardableResult
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
-        let schemaResult = try await _databaseService.getSchema(for: collectionName)
-        self.schema[collectionName] = schemaResult
-        return schemaResult
     }
     
     func loadCollectionsForCurrentDatabase() async throws {
