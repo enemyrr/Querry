@@ -377,7 +377,6 @@ struct FloatingActionBar: View {
         .background(
             Group {
                 if !filter.isEmpty || processingStage != .idle {
-                    // Subtle glow when showing active filter
                     RoundedCorners(tl: 10, tr: 10, bl: 0, br: 0)
                         .fill(
                             RadialGradient(
