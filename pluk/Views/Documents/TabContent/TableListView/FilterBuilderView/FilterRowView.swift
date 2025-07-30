@@ -62,7 +62,7 @@ struct FilterRowView: View {
             TextField("Enter a value", text: $condition.value)
                 .textFieldStyle(FilterTextFieldStyle())
                 .focused(focusedField ?? FocusState<Int?>().projectedValue, equals: fieldIndex)
-                .frame(width: 160)
+                .frame(width: 240)
         }
     }
 }
