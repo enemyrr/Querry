@@ -370,6 +370,7 @@ struct TableListView: View {
         if shouldFetch {
             // Apply initial filter if tab has filter information
             let initialFilter = generateInitialFilter()
+            currentActiveFilter = initialFilter
             await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: initialFilter)
             selectedTab.forceFetch = false
         } else {
