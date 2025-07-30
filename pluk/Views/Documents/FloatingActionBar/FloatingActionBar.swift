@@ -23,7 +23,7 @@ struct FloatingActionBar: View {
     
     @Environment(ConnectionInstance.self) private var instance
     
-    @State private var containerWidth: CGFloat = 326.4655172413793
+    @State private var containerWidth: CGFloat = 372.4655172413793
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -541,27 +541,6 @@ struct FloatingActionBar: View {
 
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
-                    action = ActionBar.search
-                }
-            }) {
-                Image("sparkle")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(height: 16)  // 16pt matches 14pt text line height well
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
-                modifiers: [.command],
-                key: "L"
-            ), spacing: 10)
-            
-            Divider()
-                .frame(height: 22)
-                .padding(.vertical, 6)
-
-            Button(action: {
-                withAnimation(.spring(response: 0.3)) {
                     action = .commandPalette
                 }
             }) {
@@ -573,6 +552,29 @@ struct FloatingActionBar: View {
             .customHelp("Command Palette", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "P"
+            ), spacing: 10)
+            
+            Divider()
+                .frame(height: 22)
+                .padding(.vertical, 6)
+
+            Button(action: {
+                withAnimation(.spring(response: 0.3)) {
+                    action = ActionBar.search
+                }
+            }) {
+                Image("sparkle")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 15)  // 16pt matches 14pt text line height well
+                    .contentShape(Rectangle())
+                
+                Text("Ask AI")
+            }
+            .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+            .customHelp("Ask AI", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "L"
             ), spacing: 10)
             
             // TODO: More options button
@@ -599,7 +601,7 @@ struct FloatingActionBar: View {
                 BadgedFilterIcon()
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-            .customHelp("AI Search", position: .top, shortcut: KeyboardShortcut(
+            .customHelp("Ask AI", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "p"
             ), spacing: 10)
