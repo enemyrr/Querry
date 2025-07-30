@@ -84,7 +84,7 @@ struct DatabaseList: View {
         }
         .sheet(isPresented: $showDatabaseSelector) {
             DatabaseSelectorModal(
-                databaseService: instance.databaseService!,
+                databaseService: instance.databaseService,
                 onSelection: { database in
                     Task {
                         await updateConnection(with: database)
@@ -159,12 +159,8 @@ struct DatabaseList: View {
     }
     
     func updateConnection(with database: any DatabaseWrapper) async {
-        guard let databaseService = instance.databaseService else {
-            return
-        }
-        
         do {
-            try await databaseService.switchActiveDatabase(to: database)
+            try await instance.databaseService.switchActiveDatabase(to: database)
             try await instance.loadCollectionsForCurrentDatabase()
         } catch {
             debugLog("Failed to update connection: \(error)")

@@ -56,11 +56,6 @@ struct DocumentList: View {
     
     /// Load documents with options to force fetch and control schema fetching
     private func loadDocuments(forceFetch: Bool = false, page: Int = 1, limit: Int = 300) async {
-        guard let driver = instance.databaseService else {
-            viewState = .error("Driver not set")
-            return
-        }
-        
         if !forceFetch &&
             cachedTabName == selectedTab.name,
            let queryResult = cachedQueryResult {
@@ -71,7 +66,7 @@ struct DocumentList: View {
         do {
             viewState = .loading
             
-            let queryResult = try await driver.findDocuments(
+            let queryResult = try await instance.databaseService.findDocuments(
                 in: selectedTab.name,
                 filter: searchFilter,
                 skip: (page - 1) * limit,

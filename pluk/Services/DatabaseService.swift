@@ -8,7 +8,6 @@
 import Foundation
 import SwiftUI
 
-@Observable
 class DatabaseService {
     // MARK: - Current Connection State
     private var activeConnection: Connection?
@@ -17,7 +16,6 @@ class DatabaseService {
     
     // MARK: - Results Cache
     private var queryCache: [String: QueryResult] = [:]
-    private var schemaCache: [String: DatabaseSchemaResult] = [:]
     
     // MARK: - Connection Management
     func setActiveConnection(_ connection: Connection) async throws {
@@ -137,15 +135,7 @@ class DatabaseService {
     
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
         guard let driver = activeDriver else { return nil }
-        
-        // Check cache first
-        if let cached = schemaCache[collectionName] {
-            return cached
-        }
-        
-        let schema = try await driver.getSchema(for: collectionName)
-        schemaCache[collectionName] = schema
-        return schema
+        return try await driver.getSchema(for: collectionName)
     }
     
     func getDocumentCount(for collectionName: String, filter: [String: Any] = [:]) async throws -> Int {
@@ -192,8 +182,7 @@ class DatabaseService {
     }
     
     func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
-        guard let driver = activeDriver,
-              let database = connectedDatabase else {
+        guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
@@ -222,7 +211,6 @@ class DatabaseService {
     // MARK: - Cache Management
     private func clearCache() {
         queryCache.removeAll()
-        schemaCache.removeAll()
     }
     
     private func clearDocumentCache(for collectionName: String) {

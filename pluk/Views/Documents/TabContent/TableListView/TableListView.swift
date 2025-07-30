@@ -39,6 +39,7 @@ struct TableListView: View {
     @State private var filterConditions: [FilterCondition] = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
     @State private var lastTabFilterColumn: String?
     @State private var lastTabFilterValue: String?
+    @State private var currentActiveFilter: String? = nil
     
     var body: some View {
         ZStack {
@@ -47,6 +48,7 @@ struct TableListView: View {
                     columns: cachedSchema?.columns ?? [], 
                     tableName: selectedTab.name,
                     onApplyFilter: { filter in
+                        currentActiveFilter = filter.isEmpty ? nil : filter
                         Task {
                             await loadDocuments(forceFetch: true, filter: filter)
                         }
@@ -99,7 +101,8 @@ struct TableListView: View {
                                 forceFetch: true,
                                 fetchSchema: fetchSchema,
                                 page: currentPage,
-                                limit: itemsPerPage
+                                limit: itemsPerPage,
+                                filter: currentActiveFilter
                             )
                         }
                     },
@@ -169,11 +172,6 @@ struct TableListView: View {
     
     // MARK: - Save Modifications
     private func commitModifications() async {
-        guard let driver = instance.databaseService else {
-            debugLog("❌ No database driver available")
-            return
-        }
-        
         NSApp.keyWindow?.makeFirstResponder(nil)
         
         let modifications = modificationTracker.allModifications
@@ -193,7 +191,7 @@ struct TableListView: View {
                     for (columnName, cellMod) in rowModification.cellModifications {
                         newDocument[columnName] = cellMod.newValue
                     }
-                    try await driver.createDocument(in: selectedTab.name, document: newDocument)
+                    try await instance.databaseService.createDocument(in: selectedTab.name, document: newDocument)
                     debugLog("✅ Inserted new row at index \(rowModification.rowIndex)")
                     
                 case .update:
@@ -228,7 +226,7 @@ struct TableListView: View {
                     }
                     
                     // Use the database driver to update the row
-                    try await driver.updateDocument(
+                    try await instance.databaseService.updateDocument(
                         in: selectedTab.name,
                         id: id,
                         data: updateData
@@ -258,7 +256,7 @@ struct TableListView: View {
                         continue
                     }
                     
-                    try await driver.deleteDocument(in: selectedTab.name, id: id)
+                    try await instance.databaseService.deleteDocument(in: selectedTab.name, id: id)
                     debugLog("✅ Deleted row at index \(rowModification.rowIndex)")
                 }
             } catch {
@@ -383,12 +381,11 @@ struct TableListView: View {
     }
     
     private func generateInitialFilter() -> String? {
-        guard let conditions = createInitialFilterConditions(),
-              let databaseService = instance.databaseService else {
+        guard let conditions = createInitialFilterConditions() else {
             return nil
         }
         
-        return databaseService.generateFilterQuery(from: conditions, tableName: selectedTab.name)
+        return instance.databaseService.generateFilterQuery(from: conditions, tableName: selectedTab.name)
     }
     
     private func createInitialFilterConditions() -> [FilterCondition]? {
@@ -442,11 +439,6 @@ struct TableListView: View {
     
     /// Load documents with options to force fetch and control schema fetching
     private func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
-        guard let driver = instance.databaseService else {
-            viewState = .error("Driver not set")
-            return
-        }
-        
         // Check if task was cancelled before proceeding
         if Task.isCancelled { return }
         
@@ -460,7 +452,9 @@ struct TableListView: View {
         }
         
         do {
-            viewState = .loading
+            await MainActor.run {
+                viewState = .loading
+            }
             
             // Check if task was cancelled after setting loading state
             if Task.isCancelled { return }
@@ -471,8 +465,8 @@ struct TableListView: View {
             
             if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
                 // Fetch both schema and documents
-                async let schemaTask = instance.getSchema(for: selectedTab.name)
-                async let documentsTask = driver.findDocuments(
+                async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name)
+                async let documentsTask = instance.databaseService.findDocuments(
                     in: selectedTab.name,
                     filter: filter ?? "",
                     skip: (page - 1) * limit,
@@ -503,7 +497,7 @@ struct TableListView: View {
                     return
                 }
                 
-                let documents = try await driver.findDocuments(
+                let documents = try await instance.databaseService.findDocuments(
                     in: selectedTab.name,
                     filter: filter ?? "",
                     skip: (page - 1) * limit,
