@@ -49,6 +49,14 @@ class DatabaseService {
         clearCache()
     }
     
+    func reconnect() async throws {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database driver")
+        }
+        
+        try await driver.reconnect()
+    }
+    
     // MARK: - Database Operations
     func getBuildInfo() async throws -> BuildInfo? {
         guard let driver = activeDriver else { return nil }

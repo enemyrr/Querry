@@ -699,6 +699,63 @@ struct FilterClearButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Compact Button Styles
+private struct CompactMenuButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .font(.system(size: 12, weight: .medium))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.separator, lineWidth: 1)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.2)
+                    : Color.clear
+                )
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+private struct CompactPrimaryButtonStyle: ButtonStyle {
+    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .opacity(isHovering ? 0.8 : 1.0)
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovered in
+                isHovering = isHovered
+            }
+    }
+}
+
 extension Button {
     func primaryStyle() -> some View {
         self.buttonStyle(PrimaryButtonStyle())
@@ -710,6 +767,14 @@ extension Button {
     
     func customMenuButtonStyle() -> some View {
         self.buttonStyle(CustomMenuButtonStyle())
+    }
+    
+    func compactMenuButtonStyle() -> some View {
+        self.buttonStyle(CompactMenuButtonStyle())
+    }
+    
+    func compactPrimaryStyle() -> some View {
+        self.buttonStyle(CompactPrimaryButtonStyle())
     }
 }
 

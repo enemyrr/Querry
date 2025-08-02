@@ -14,9 +14,18 @@ struct ConnectionHeader: View {
     let version: String?
     let databaseType: DatabaseType
     let environment: ConnectionEnvironment
+    let connection: Connection?
+    let connectedDatabase: String?
+    let onDisconnect: () async -> Void
+    let onReconnect: () async -> Void
     
     @State private var isHovered = false
     @State private var bubbleOffset = CGSize.zero
+    @State private var showConnectionDetails = false
+    @State private var showEditSheet = false
+    @State private var showEditConfirmation = false
+    
+    @Environment(SidebarViewModel.self) private var sidebarViewModel
     
     // Get color based on connection status
     private var statusColor: Color {
@@ -126,6 +135,54 @@ struct ConnectionHeader: View {
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
             isHovered = hover
+        }
+        .onTapGesture {
+            showConnectionDetails = true
+        }
+        .popover(isPresented: $showConnectionDetails, arrowEdge: .trailing) {
+            ConnectionDetailsPopover(
+                connection: connection,
+                databaseType: databaseType,
+                environment: environment,
+                version: version,
+                connectedDatabase: connectedDatabase,
+                onDisconnect: {
+                    showConnectionDetails = false
+                    await onDisconnect()
+                },
+                onReconnect: {
+                    showConnectionDetails = false
+                    await onReconnect()
+                },
+                onEdit: {
+                    showConnectionDetails = false
+                    if status == .connected {
+                        showEditConfirmation = true
+                    } else {
+                        showEditSheet = true
+                    }
+                }
+            )
+        }
+        .sheet(isPresented: $showEditSheet) {
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+                
+                CreateConnectionForm(
+                    connection: connection,
+                    onDisconnect: onDisconnect
+                )
+                .frame(width: 560)
+            }
+        }
+        .alert("Edit Connection", isPresented: $showEditConfirmation) {
+            Button("Continue") {
+                showEditSheet = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to edit this active connection?")
         }
         .padding(.bottom, 6)
     }

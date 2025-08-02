@@ -107,9 +107,13 @@ struct CreateConnectionForm: View {
     @FocusState private var nameFieldIsFocused: Bool
     
     private let connection: Connection?
+    private let onDisconnect: (() async -> Void)?
     
-    init(connection: Connection? = nil) {
+    @Environment(SidebarViewModel.self) private var sidebarViewModel
+    
+    init(connection: Connection? = nil, onDisconnect: (() async -> Void)? = nil) {
         self.connection = connection
+        self.onDisconnect = onDisconnect
         _color = State(initialValue: .blue)
     }
     
@@ -516,6 +520,12 @@ struct CreateConnectionForm: View {
     }
     
     private func saveConnection() {
+        Task {
+            await saveConnectionAsync()
+        }
+    }
+    
+    private func saveConnectionAsync() async {
         guard let databaseType = selectedDatabaseType else { return }
         guard let databaseTypeEnum = DatabaseType(rawValue: databaseType.rawValue) else { return }
         
@@ -527,6 +537,13 @@ struct CreateConnectionForm: View {
             sanitizedURI = uri
         }
         
+        // If editing an existing connection, disconnect it first
+        let isEditingExistingConnection = connection != nil
+        if isEditingExistingConnection {
+            await onDisconnect?()
+        }
+        
+        let savedConnection: Connection
         if let id = connection?.persistentModelID,
            let existing = try? modelContext.fetch(
             FetchDescriptor<Connection>(
@@ -539,16 +556,24 @@ struct CreateConnectionForm: View {
             existing.environment = selectedEnvironment
             existing.defaultDatabase = defaultDatabase
             try? modelContext.save()
+            savedConnection = existing
         } else {
-            let connection = Connection(
+            let newConnection = Connection(
                 databaseType: databaseTypeEnum,
-                url: uri,
+                url: sanitizedURI,
                 name: name,
                 color: color.unsafelyUnwrapped,
                 environment: selectedEnvironment,
                 defaultDatabase: defaultDatabase
             )
-            modelContext.insert(connection)
+            modelContext.insert(newConnection)
+            savedConnection = newConnection
+        }
+        
+        // If we edited an existing connection, create a new instance and connect
+        if isEditingExistingConnection {
+            let instanceId = sidebarViewModel.createNewConnectionInstance(for: savedConnection)
+            sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
         }
         
         dismiss()

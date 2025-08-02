@@ -226,6 +226,13 @@ class PostgreSQLDriver: DatabaseDriver {
         return connection
     }
     
+    func reconnect() async throws {
+        await disconnect()
+        if let config = self.configuration {
+            _ = try await establishConnection(with: config)
+        }
+    }
+    
     func switchDatabase(to databaseName: String) async throws {
         guard var config = self.configuration else {
             throw DatabaseError.configurationError("No active connection configuration")

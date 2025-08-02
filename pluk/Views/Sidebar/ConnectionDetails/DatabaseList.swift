@@ -52,7 +52,14 @@ struct DatabaseList: View {
 
     private var connectionContent: some View {
         VStack(spacing: 0) {
-            if instance.connectionStatus == .connected {
+            if instance.connectionStatus == .error {
+                // Show error state
+                ContentUnavailableView(
+                    "Connection Failed",
+                    systemImage: "wifi.exclamationmark",
+                    description: Text("Unable to connect to the database.")
+                )
+            } else {
                 if let filteredCollections = filteredCollections {
                     CollectionsSection(
                         instance: instance,
@@ -71,13 +78,6 @@ struct DatabaseList: View {
                         )
                     }
                 }
-            } else if instance.connectionStatus == .error {
-                // Show error state
-                ContentUnavailableView(
-                    "Connection Failed",
-                    systemImage: "wifi.exclamationmark",
-                    description: Text("Unable to connect to the database.")
-                )
             }
 
             Spacer()

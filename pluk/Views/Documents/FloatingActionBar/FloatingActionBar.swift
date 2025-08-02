@@ -566,7 +566,7 @@ struct FloatingActionBar: View {
                 Image("sparkle")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(height: 15)  // 16pt matches 14pt text line height well
+                    .frame(height: 15)
                     .contentShape(Rectangle())
                 
                 Text("Ask AI")
@@ -576,17 +576,6 @@ struct FloatingActionBar: View {
                 modifiers: [.command],
                 key: "L"
             ), spacing: 10)
-            
-            // TODO: More options button
-//                        Button(action: {
-//                            // TODO:
-//                            // Add an action
-//                        }) {
-//                            Image(systemName: "ellipsis")
-//                                .font(.system(size: 14))
-//                                .contentShape(Rectangle())
-//                        }
-//                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8)))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
