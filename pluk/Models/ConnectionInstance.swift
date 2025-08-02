@@ -25,7 +25,7 @@ import AIProxy
     }
     
     var connectedDatabase: (any DatabaseWrapper)? {
-        _databaseService.connectedDatabase
+        databaseService.connectedDatabase
     }
     
     var databaseType: DatabaseType? {
@@ -89,12 +89,12 @@ import AIProxy
         connectionStatus = .connecting
         
         do {
-            try await _databaseService.setActiveConnection(
+            try await databaseService.setActiveConnection(
                 connection
             )
             connectionStatus = .connected
             
-            let buildInfo = try await _databaseService.getBuildInfo()
+            let buildInfo = try await databaseService.getBuildInfo()
             connectionVersion = buildInfo?.version
             
             await loadDatabases()
@@ -106,9 +106,25 @@ import AIProxy
         }
     }
     
+    func reconnect() async throws {
+        connectionStatus = .connecting
+        
+        do {
+            try await databaseService.reconnect()
+            
+            try await Task.sleep(for: .milliseconds(500))
+            connectionStatus = .connected
+            lastError = nil
+        } catch {
+            lastError = error
+            connectionStatus = .error
+            throw error
+        }
+    }
+    
     func loadDatabases() async {
         do {
-            let databaseList = try await _databaseService.listDatabases()
+            let databaseList = try await databaseService.listDatabases()
             self.databases = databaseList
         } catch {
             lastError = error
@@ -149,7 +165,7 @@ import AIProxy
         let databaseName = database.name
         
         do {
-            let collectionResult = try await _databaseService.listCollections()
+            let collectionResult = try await databaseService.listCollections()
             
             await MainActor.run {
                 self.collections[databaseName] = collectionResult

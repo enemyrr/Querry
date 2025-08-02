@@ -47,6 +47,10 @@ class MySQLDriver: DatabaseDriver {
         // TODO: Implement disconnect
     }
     
+    func reconnect() async throws {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     func getBuildInfo() async throws -> BuildInfo {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }

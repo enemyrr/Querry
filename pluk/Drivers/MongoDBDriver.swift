@@ -93,6 +93,10 @@ class MongoDBDriver: DatabaseDriver {
         connectedDatabase = nil
     }
     
+    func reconnect() async throws {
+        throw DatabaseError.notImplemented("MongoDB driver reconnect not yet implemented")
+    }
+    
     func getBuildInfo() async throws -> BuildInfo {
         guard let database = connectedDatabase else {
             throw MongoError.databaseNotInitialized

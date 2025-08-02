@@ -14,9 +14,14 @@ struct ConnectionHeader: View {
     let version: String?
     let databaseType: DatabaseType
     let environment: ConnectionEnvironment
+    let connection: Connection?
+    let connectedDatabase: String?
+    let onDisconnect: () async -> Void
+    let onReconnect: () async -> Void
     
     @State private var isHovered = false
     @State private var bubbleOffset = CGSize.zero
+    @State private var showConnectionDetails = false
     
     // Get color based on connection status
     private var statusColor: Color {
@@ -126,6 +131,26 @@ struct ConnectionHeader: View {
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
             isHovered = hover
+        }
+        .onTapGesture {
+            showConnectionDetails = true
+        }
+        .popover(isPresented: $showConnectionDetails, arrowEdge: .trailing) {
+            ConnectionDetailsPopover(
+                connection: connection,
+                databaseType: databaseType,
+                environment: environment,
+                version: version,
+                connectedDatabase: connectedDatabase,
+                onDisconnect: {
+                    showConnectionDetails = false
+                    await onDisconnect()
+                },
+                onReconnect: {
+                    showConnectionDetails = false
+                    await onReconnect()
+                }
+            )
         }
         .padding(.bottom, 6)
     }

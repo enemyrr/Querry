@@ -43,7 +43,7 @@ class ConnectionService {
         activeConnectionInstanceId = newInstance.id
         
         // Create new tab for the new connection instance
-        TabManager.shared.createConnectionTab(for: newInstance)
+        _ = TabManager.shared.createConnectionTab(for: newInstance)
         
         return newInstance.id
     }
@@ -51,8 +51,7 @@ class ConnectionService {
     func removeConnectionInstance(_ instanceId: UUID) async {
         // First perform any cleanup needed on the instance
         if let instanceToDisconnect = getInstance(instanceId) {
-            // Properly disconnect
-            _ = await disconnectDBInstance(instanceToDisconnect)
+            await disconnectDBInstance(instanceToDisconnect)
             
             // Close the tab
             TabManager.shared.closeTab(instanceId)
@@ -62,6 +61,7 @@ class ConnectionService {
         }
     }
     
+    @discardableResult
     func disconnectDBInstance(_ instance: ConnectionInstance) async -> ConnectionStatus {
         guard instance.connectionStatus == .connected else { return .error }
         
@@ -95,6 +95,14 @@ class ConnectionService {
             try await instance.connect()
         } catch {
             debugLog("Connection failed: \(error)")
+        }
+    }
+    
+    func reconnect(to instance: ConnectionInstance) async {
+        do {
+            try await instance.reconnect()
+        } catch {
+            debugLog("Reconnection failed: \(error)")
         }
     }
     

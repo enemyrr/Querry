@@ -21,11 +21,22 @@ struct ConnectionDetailsSidebar: View {
                     status: instance.connectionStatus,
                     version: instance.connectionVersion,
                     databaseType: instance.connection.databaseType,
-                    environment: instance.connection.environment)
+                    environment: instance.connection.environment,
+                    connection: instance.connection,
+                    connectedDatabase: instance.connectedDatabase?.name,
+                    onDisconnect: {
+                        await viewModel.disconnectConnectionInstance(instance.id)
+                    },
+                    onReconnect: {
+                        Task {
+                            try await instance.reconnect()
+                        }
+                    })
                 
                 VStack(spacing: 4) {
                     DatabaseHeader(
-                        viewModel: viewModel,
+                        connectedDatabase: instance.connectedDatabase?.name,
+                        viewModel: viewModel
                     )
                     
                     SoftSeparator()

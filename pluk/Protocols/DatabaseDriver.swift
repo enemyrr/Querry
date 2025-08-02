@@ -67,6 +67,7 @@ protocol DatabaseDriver {
     // Connection management
     func connect(to connectionUri: String) async throws -> Database
     func disconnect() async
+    func reconnect() async throws
     func getBuildInfo() async throws -> BuildInfo
     func switchDatabase(to databaseName: String) async throws
     

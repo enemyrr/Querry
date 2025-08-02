@@ -43,5 +43,6 @@ struct EnvironmentTag: View {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(environment.color.opacity(0.3), lineWidth: 1)
             )
+            .cornerRadius(6)
     }
 }
