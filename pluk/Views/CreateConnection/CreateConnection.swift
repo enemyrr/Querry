@@ -106,6 +106,18 @@ struct CreateConnectionForm: View {
     @FocusState private var uriFieldIsFocused: Bool
     @FocusState private var nameFieldIsFocused: Bool
     
+    // Field-based connection parameters
+    @State private var useFieldBasedInput = true
+    @State private var hostname = ""
+    @State private var port = ""
+    @State private var username = ""
+    @State private var password = ""
+    @State private var sslMode = "prefer"
+    
+    // URI import
+    @State private var showURIImportSheet = false
+    @State private var uriToImport = ""
+    
     private let connection: Connection?
     private let onDisconnect: (() async -> Void)?
     
@@ -122,6 +134,13 @@ struct CreateConnectionForm: View {
         
         if databaseType.category == .cloud {
             return !name.isEmpty
+        }
+        
+        if useFieldBasedInput && (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) {
+            return !name.isEmpty &&
+                   !hostname.isEmpty &&
+                   !port.isEmpty &&
+                   !username.isEmpty
         }
         
         return !uri.isEmpty &&
@@ -264,6 +283,14 @@ struct CreateConnectionForm: View {
             if connection == nil && oldValue != nil && newValue != oldValue {
                 resetForm()
                 
+                // Set defaults for PostgreSQL
+                if newValue == .postgres || newValue == .supabase || newValue == .neon {
+                    hostname = "localhost"
+                    port = "5432"
+                    username = "postgres"
+                    defaultDatabase = "postgres"
+                }
+                
                 // Focus on first field after switching database types
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     nameFieldIsFocused = true
@@ -347,9 +374,9 @@ struct CreateConnectionForm: View {
     
     private var connectionFormView: some View {
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 20) {
                 // Header with database type info
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     HStack {
                         if connection == nil {
                             Button(action: {
@@ -371,9 +398,8 @@ struct CreateConnectionForm: View {
                             .buttonStyle(PlainButtonStyle())
                             
                             Spacer()
-                            
                         }
-                    }
+                    }.padding(.top, 12)
                     
                     // Database type header with icon
                     HStack(spacing: 16) {
@@ -381,7 +407,7 @@ struct CreateConnectionForm: View {
                             Image(databaseType.icon)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 48, height: 48)
+                                .frame(width: 32, height: 32)
                                 .foregroundStyle(databaseType.accentColor)
                         }
                         
@@ -399,18 +425,32 @@ struct CreateConnectionForm: View {
                     }
                 }
                 .padding(.horizontal, 32)
-                .padding(.top, 24)
+                .padding(.top, 16)
                 
                 // Connection Form
-                VStack(spacing: 24) {
-                    FormSection(title: "Connection Details") {
-                        VStack(spacing: 20) {
-                            FormField(label: "Name") {
-                                TextField("e.g first connection", text: $name)
-                                    .textFieldStyle(CustomTextFieldStyle())
-                                    .focused($nameFieldIsFocused)
-                            }
-                            
+                VStack(spacing: 18) {
+                    FormSection(title: "Basic Information") {
+                        FormField(label: "Name") {
+                            TextField("e.g first connection", text: $name)
+                                .textFieldStyle(CustomTextFieldStyle())
+                                .focused($nameFieldIsFocused)
+                        }
+                    }
+                    
+                    if selectedDatabaseType == .postgres || selectedDatabaseType == .supabase || selectedDatabaseType == .neon {
+                        // PostgreSQL field-based input
+                        PostgreSQLFieldsView(
+                            hostname: $hostname,
+                            port: $port,
+                            username: $username,
+                            password: $password,
+                            defaultDatabase: $defaultDatabase,
+                            sslMode: $sslMode,
+                            showURIImportSheet: $showURIImportSheet
+                        )
+                    } else {
+                        // Non-PostgreSQL databases use URI
+                        FormSection(title: "Connection Details") {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text("URI")
@@ -453,7 +493,7 @@ struct CreateConnectionForm: View {
                         }
                     }
                     
-                    FormSection(title: "Configuration") {
+                    FormSection(title: "Display Settings") {
                         HStack(spacing: 20) {
                             EnvironmentPicker(selectedEnvironment: $selectedEnvironment)
                             ConnectionColorPicker(selectedColor: $color)
@@ -463,7 +503,7 @@ struct CreateConnectionForm: View {
                 .padding(.horizontal, 32)
                 
                 // Action buttons
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -479,8 +519,22 @@ struct CreateConnectionForm: View {
                     .frame(width: 200)
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 20)
             }
+        }
+        .sheet(isPresented: $showURIImportSheet) {
+            URIImportSheet(
+                uriInput: $uriToImport,
+                onImport: { uri in
+                    parsePostgresURI(uri)
+                    showURIImportSheet = false
+                    uriToImport = ""
+                },
+                onCancel: {
+                    showURIImportSheet = false
+                    uriToImport = ""
+                }
+            )
         }
     }
     
@@ -501,6 +555,14 @@ struct CreateConnectionForm: View {
         showDatabaseField = false
         selectedEnvironment = .local
         color = .blue
+        
+        // Reset field-based inputs
+        hostname = ""
+        port = ""
+        username = ""
+        password = ""
+        sslMode = "prefer"
+        useFieldBasedInput = true
     }
     
     private func mapExistingConnectionData() {
@@ -512,11 +574,66 @@ struct CreateConnectionForm: View {
             selectedDatabaseType = DatabaseType(rawValue: connection.databaseType.rawValue)
             defaultDatabase = connection.defaultDatabase ?? ""
             
+            // Parse URI for PostgreSQL field-based inputs
+            if let databaseType = selectedDatabaseType,
+               (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) {
+                parsePostgresURI(connection.url)
+            }
+            
             // Validate the URI to properly set showDatabaseField
             if let databaseType = selectedDatabaseType {
                 validateConnectionString(uri, for: databaseType)
             }
         }
+    }
+    
+    private func parsePostgresURI(_ uriString: String) {
+        guard let url = URL(string: uriString) else { return }
+        
+        hostname = url.host ?? ""
+        port = url.port?.description ?? ""
+        username = url.user ?? ""
+        password = url.password ?? ""
+        
+        // Parse database from path
+        let path = url.path
+        if !path.isEmpty && path != "/" {
+            defaultDatabase = String(path.dropFirst()) // Remove leading "/"
+        }
+        
+        // Parse SSL mode from query parameters
+        if let query = url.query {
+            let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
+            for item in queryItems {
+                if item.name.lowercased() == "sslmode" {
+                    sslMode = item.value ?? "prefer"
+                    break
+                }
+            }
+        }
+        
+        // Set default values if empty
+        if hostname.isEmpty { hostname = "localhost" }
+        if port.isEmpty { port = "5432" }
+        if username.isEmpty { username = "postgres" }
+        if defaultDatabase.isEmpty { defaultDatabase = "postgres" }
+    }
+    
+    private func constructPostgresURI() -> String {
+        var components = URLComponents()
+        components.scheme = "postgresql"
+        components.host = hostname.isEmpty ? "localhost" : hostname
+        components.port = Int(port) ?? 5432
+        components.user = username.isEmpty ? "postgres" : username
+        components.password = password.isEmpty ? nil : password
+        components.path = defaultDatabase.isEmpty ? "/postgres" : "/\(defaultDatabase)"
+        
+        // Add SSL mode as query parameter
+        if sslMode != "prefer" {
+            components.queryItems = [URLQueryItem(name: "sslmode", value: sslMode)]
+        }
+        
+        return components.url?.absoluteString ?? ""
     }
     
     private func saveConnection() {
@@ -529,9 +646,12 @@ struct CreateConnectionForm: View {
         guard let databaseType = selectedDatabaseType else { return }
         guard let databaseTypeEnum = DatabaseType(rawValue: databaseType.rawValue) else { return }
         
-        // Sanitize URI for PostgreSQL connections
+        // Construct or sanitize URI
         let sanitizedURI: String
-        if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+            // Construct URI from fields
+            sanitizedURI = constructPostgresURI()
+        } else if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
             sanitizedURI = sanitizePostgresURI(uri)
         } else {
             sanitizedURI = uri
@@ -591,15 +711,15 @@ struct FormSection<Content: View>: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
                 .tracking(0.5)
             
             content
-                .padding(24)
+                .padding(16)
                 .background(Color(.controlColor).opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
