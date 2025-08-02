@@ -257,6 +257,71 @@ final class Connection {
         return hostname != nil && port != nil && username != nil
     }
     
+    // Display-friendly URL without password for home screen
+    var displayUrl: String {
+        // If we have individual fields, construct display URL from them
+        if let hostname = hostname, !hostname.isEmpty,
+           let port = port, !port.isEmpty,
+           let username = username, !username.isEmpty {
+            return constructDisplayURLFromFields()
+        }
+        
+        // Fallback to sanitizing existing URL (backward compatibility)
+        if let url = url, !url.isEmpty {
+            return sanitizeURLForDisplay(url)
+        }
+        
+        return "No URL available"
+    }
+    
+    private func constructDisplayURLFromFields() -> String {
+        guard let hostname = hostname, let port = port, let username = username else {
+            return "Invalid connection"
+        }
+        
+        var components = URLComponents()
+        
+        switch databaseType {
+        case .postgres, .supabase, .neon:
+            components.scheme = "postgresql"
+        case .mysql, .mariadb:
+            components.scheme = "mysql"
+        case .mongodb:
+            components.scheme = "mongodb"
+        }
+        
+        components.host = hostname
+        components.port = Int(port)
+        components.user = username
+        
+        // Show asterisks if password exists
+        if let password = password, !password.isEmpty {
+            components.password = "****"
+        }
+        
+        // Add database path
+        if let database = defaultDatabase, !database.isEmpty {
+            components.path = "/\(database)"
+        }
+        
+        return components.url?.absoluteString ?? "\(hostname):\(port)"
+    }
+    
+    private func sanitizeURLForDisplay(_ url: String) -> String {
+        guard let urlComponents = URLComponents(string: url) else {
+            return url // Return original if parsing fails
+        }
+        
+        var sanitizedComponents = urlComponents
+        
+        // Replace password with asterisks if it exists
+        if urlComponents.password != nil {
+            sanitizedComponents.password = "****"
+        }
+        
+        return sanitizedComponents.url?.absoluteString ?? url
+    }
+    
     // Helper method to populate fields from existing URL (for migration)
     func populateFieldsFromURL() {
         guard let urlComponents = URLComponents(string: url ?? "") else { return }
