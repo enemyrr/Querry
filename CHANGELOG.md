@@ -1,5 +1,45 @@
 # Changelog
 
+# Pluk Release Notes
+
+## [0.0.1-beta.17] - 2025-08-02
+
+### 🛡️ Privacy & Security
+
+#### **Enhanced Password Protection**
+- **Keychain Integration** - Database passwords are now securely stored in the system keychain instead of local storage
+- **Privacy Protection** - Passwords are completely hidden from the home screen to prevent accidental exposure and shoulder surfing
+
+### ✨ New Features
+
+#### **Connection Management**
+- **Improved Connection Creation** - Improved connection creation experience that replaces complex URI strings like postgresql://user:pass@host:port/db with a simple, intuitive form
+- **Right-Click Context Menus** - Added right-click support on connection status headers for quick access to connection actions
+
+#### **User Interface Enhancements**
+- **Updated Floating Action Bar** - AI Search bar is now more visually prominent than other buttons, making it easier to discover and use
+
+### 🚀 Performance & Developer Experience
+
+#### **Database Performance**
+- **Faster Table Loading** - Significantly improved performance when tables are initially loaded
+- **Optimized Data Refresh** - Enhanced refresh mechanisms that properly respect active filters and user preferences
+
+### 🛠️ Bug Fixes & Improvements
+
+#### **Connection Reliability**
+- **FIXED**: Connected databases now display correctly even when no default database is configured
+- **FIXED**: Data refresh operations now properly respect applied filters, ensuring consistent view state
+- Improved connection state management and database discovery
+
+### 🔧 Under the Hood
+
+- Enhanced connection state handling for better reliability
+- Improved error handling in database connection workflows
+- Better separation of connection configuration logic
+- Optimized data loading patterns for improved user experience
+- Minor UI improvement to align with the design system
+
 ## [0.0.1-beta.16] - 2025-07-29
 
 ### ✨ New Features
