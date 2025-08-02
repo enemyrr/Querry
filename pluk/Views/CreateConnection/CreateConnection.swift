@@ -106,6 +106,18 @@ struct CreateConnectionForm: View {
     @FocusState private var uriFieldIsFocused: Bool
     @FocusState private var nameFieldIsFocused: Bool
     
+    // Field-based connection parameters
+    @State private var useFieldBasedInput = true
+    @State private var hostname = ""
+    @State private var port = ""
+    @State private var username = ""
+    @State private var password = ""
+    @State private var sslMode = "prefer"
+    
+    // URI import
+    @State private var showURIImportSheet = false
+    @State private var uriToImport = ""
+    
     private let connection: Connection?
     private let onDisconnect: (() async -> Void)?
     
@@ -124,9 +136,15 @@ struct CreateConnectionForm: View {
             return !name.isEmpty
         }
         
+        // For PostgreSQL databases using field-based input
+        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+            return !name.isEmpty
+        }
+        
+        // For other databases or URI-based input
         return !uri.isEmpty &&
-        !name.isEmpty &&
-        uriError == nil
+               !name.isEmpty &&
+               uriError == nil
     }
     
     private func validateConnectionString(_ uri: String, for databaseType: DatabaseType) {
@@ -347,9 +365,9 @@ struct CreateConnectionForm: View {
     
     private var connectionFormView: some View {
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 20) {
                 // Header with database type info
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     HStack {
                         if connection == nil {
                             Button(action: {
@@ -371,9 +389,8 @@ struct CreateConnectionForm: View {
                             .buttonStyle(PlainButtonStyle())
                             
                             Spacer()
-                            
                         }
-                    }
+                    }.padding(.top, 12)
                     
                     // Database type header with icon
                     HStack(spacing: 16) {
@@ -381,7 +398,7 @@ struct CreateConnectionForm: View {
                             Image(databaseType.icon)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 48, height: 48)
+                                .frame(width: 32, height: 32)
                                 .foregroundStyle(databaseType.accentColor)
                         }
                         
@@ -399,18 +416,32 @@ struct CreateConnectionForm: View {
                     }
                 }
                 .padding(.horizontal, 32)
-                .padding(.top, 24)
+                .padding(.top, 16)
                 
                 // Connection Form
-                VStack(spacing: 24) {
-                    FormSection(title: "Connection Details") {
-                        VStack(spacing: 20) {
-                            FormField(label: "Name") {
-                                TextField("e.g first connection", text: $name)
-                                    .textFieldStyle(CustomTextFieldStyle())
-                                    .focused($nameFieldIsFocused)
-                            }
-                            
+                VStack(spacing: 18) {
+                    FormSection(title: "Basic Information") {
+                        FormField(label: "Name") {
+                            TextField("e.g first connection", text: $name)
+                                .textFieldStyle(CustomTextFieldStyle())
+                                .focused($nameFieldIsFocused)
+                        }
+                    }
+                    
+                    if selectedDatabaseType == .postgres || selectedDatabaseType == .supabase || selectedDatabaseType == .neon {
+                        // PostgreSQL field-based input
+                        PostgreSQLFieldsView(
+                            hostname: $hostname,
+                            port: $port,
+                            username: $username,
+                            password: $password,
+                            defaultDatabase: $defaultDatabase,
+                            sslMode: $sslMode,
+                            showURIImportSheet: $showURIImportSheet
+                        )
+                    } else {
+                        // Non-PostgreSQL databases use URI
+                        FormSection(title: "Connection Details") {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text("URI")
@@ -453,7 +484,7 @@ struct CreateConnectionForm: View {
                         }
                     }
                     
-                    FormSection(title: "Configuration") {
+                    FormSection(title: "Display Settings") {
                         HStack(spacing: 20) {
                             EnvironmentPicker(selectedEnvironment: $selectedEnvironment)
                             ConnectionColorPicker(selectedColor: $color)
@@ -463,7 +494,7 @@ struct CreateConnectionForm: View {
                 .padding(.horizontal, 32)
                 
                 // Action buttons
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Button("Cancel") {
                         dismiss()
                     }
@@ -479,8 +510,22 @@ struct CreateConnectionForm: View {
                     .frame(width: 200)
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 20)
             }
+        }
+        .sheet(isPresented: $showURIImportSheet) {
+            URIImportSheet(
+                uriInput: $uriToImport,
+                onImport: { uri in
+                    parsePostgresURI(uri)
+                    showURIImportSheet = false
+                    uriToImport = ""
+                },
+                onCancel: {
+                    showURIImportSheet = false
+                    uriToImport = ""
+                }
+            )
         }
     }
     
@@ -501,41 +546,131 @@ struct CreateConnectionForm: View {
         showDatabaseField = false
         selectedEnvironment = .local
         color = .blue
+        
+        // Reset field-based inputs
+        hostname = ""
+        port = ""
+        username = ""
+        password = ""
+        sslMode = "prefer"
+        useFieldBasedInput = true
     }
     
     private func mapExistingConnectionData() {
         if let connection = connection {
-            uri = connection.url
+            uri = connection.url ?? ""
             name = connection.name
             color = connection.color
             selectedEnvironment = connection.environment
             selectedDatabaseType = DatabaseType(rawValue: connection.databaseType.rawValue)
             defaultDatabase = connection.defaultDatabase ?? ""
             
+            // Check if connection uses new field-based approach
+            if connection.usesFieldBasedConnection {
+                // Use stored individual fields
+                hostname = connection.hostname ?? ""
+                port = connection.port ?? ""
+                username = connection.username ?? ""
+                password = connection.password ?? ""
+                sslMode = connection.sslMode ?? "prefer"
+            } else {
+                // Legacy connection - parse URI for PostgreSQL field-based inputs
+                if let databaseType = selectedDatabaseType,
+                   (databaseType == .postgres || databaseType == .supabase || databaseType == .neon),
+                   let connectionUrl = connection.url {
+                    parsePostgresURI(connectionUrl)
+                }
+            }
+            
             // Validate the URI to properly set showDatabaseField
-            if let databaseType = selectedDatabaseType {
+            if let databaseType = selectedDatabaseType, !uri.isEmpty {
                 validateConnectionString(uri, for: databaseType)
             }
         }
     }
     
+    private func parsePostgresURI(_ uriString: String) {
+        guard let url = URL(string: uriString) else { return }
+        
+        hostname = url.host ?? ""
+        port = url.port?.description ?? ""
+        username = url.user ?? ""
+        password = url.password ?? ""
+        
+        // Parse database from path
+        let path = url.path
+        if !path.isEmpty && path != "/" {
+            defaultDatabase = String(path.dropFirst()) // Remove leading "/"
+        }
+        
+        // Parse SSL mode from query parameters
+        if let query = url.query {
+            let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
+            for item in queryItems {
+                if item.name.lowercased() == "sslmode" {
+                    sslMode = item.value ?? "prefer"
+                    break
+                }
+            }
+        }
+        
+        // Set default values if empty
+        if hostname.isEmpty { hostname = "localhost" }
+        if port.isEmpty { port = "5432" }
+        if username.isEmpty { username = "postgres" }
+        if defaultDatabase.isEmpty { defaultDatabase = "postgres" }
+    }
+    
+    private func constructPostgresURI() -> String {
+        var components = URLComponents()
+        components.scheme = "postgresql"
+        components.host = hostname.isEmpty ? "localhost" : hostname
+        components.port = Int(port) ?? 5432
+        components.user = username.isEmpty ? "postgres" : username
+        components.password = password.isEmpty ? nil : password
+        components.path = defaultDatabase.isEmpty ? "/postgres" : "/\(defaultDatabase)"
+        
+        // Add SSL mode as query parameter
+        if sslMode != "prefer" {
+            components.queryItems = [URLQueryItem(name: "sslmode", value: sslMode)]
+        }
+        
+        return components.url?.absoluteString ?? ""
+    }
+    
     private func saveConnection() {
+        // Fill in missing default values before saving
+        fillMissingDefaults()
+        
         Task {
             await saveConnectionAsync()
+        }
+    }
+    
+    private func fillMissingDefaults() {
+        guard let databaseType = selectedDatabaseType else { return }
+        
+        // Fill defaults for PostgreSQL databases using field-based input
+        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+            if hostname.isEmpty {
+                hostname = "localhost"
+            }
+            if port.isEmpty {
+                port = "5432"
+            }
+            if username.isEmpty {
+                username = "postgres"
+            }
+
+            if sslMode.isEmpty {
+                sslMode = "prefer"
+            }
         }
     }
     
     private func saveConnectionAsync() async {
         guard let databaseType = selectedDatabaseType else { return }
         guard let databaseTypeEnum = DatabaseType(rawValue: databaseType.rawValue) else { return }
-        
-        // Sanitize URI for PostgreSQL connections
-        let sanitizedURI: String
-        if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
-            sanitizedURI = sanitizePostgresURI(uri)
-        } else {
-            sanitizedURI = uri
-        }
         
         // If editing an existing connection, disconnect it first
         let isEditingExistingConnection = connection != nil
@@ -550,30 +685,90 @@ struct CreateConnectionForm: View {
                 predicate: #Predicate { $0.persistentModelID == id }
             )
            ).first {
-            existing.url = sanitizedURI
+            
+            // Update existing connection
             existing.name = name
             existing.color = color.unsafelyUnwrapped
             existing.environment = selectedEnvironment
             existing.defaultDatabase = defaultDatabase
+            
+            // For PostgreSQL databases using field-based input, update individual fields
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+                existing.hostname = hostname
+                existing.port = port
+                existing.username = username
+                existing.password = password
+                existing.sslMode = sslMode
+                // Set URL to nil since we're using field-based storage
+                existing.url = nil
+            } else {
+                // For non-PostgreSQL or URI-based input, use the URI approach
+                let sanitizedURI: String
+                if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+                    sanitizedURI = sanitizePostgresURI(uri)
+                } else {
+                    sanitizedURI = uri
+                }
+                existing.url = sanitizedURI
+                // Clear field-based data for URI-based connections
+                existing.hostname = nil
+                existing.port = nil
+                existing.username = nil
+                existing.password = nil
+                existing.sslMode = nil
+            }
+            
             try? modelContext.save()
             savedConnection = existing
         } else {
-            let newConnection = Connection(
-                databaseType: databaseTypeEnum,
-                url: sanitizedURI,
-                name: name,
-                color: color.unsafelyUnwrapped,
-                environment: selectedEnvironment,
-                defaultDatabase: defaultDatabase
-            )
+            // Create new connection
+            let newConnection: Connection
+            
+            // For PostgreSQL databases using field-based input, use the new initializer
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+                newConnection = Connection(
+                    databaseType: databaseTypeEnum,
+                    name: name,
+                    color: color.unsafelyUnwrapped,
+                    environment: selectedEnvironment,
+                    hostname: hostname,
+                    port: port,
+                    username: username,
+                    password: password.isEmpty ? nil : password,
+                    database: defaultDatabase,
+                    sslMode: sslMode
+                )
+            } else {
+                // For non-PostgreSQL or URI-based input, use the legacy initializer
+                let sanitizedURI: String
+                if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+                    sanitizedURI = sanitizePostgresURI(uri)
+                } else {
+                    sanitizedURI = uri
+                }
+                
+                newConnection = Connection(
+                    databaseType: databaseTypeEnum,
+                    url: sanitizedURI,
+                    name: name,
+                    color: color.unsafelyUnwrapped,
+                    environment: selectedEnvironment,
+                    defaultDatabase: defaultDatabase
+                )
+            }
+            
             modelContext.insert(newConnection)
             savedConnection = newConnection
         }
         
-        // If we edited an existing connection, create a new instance and connect
+        // If we edited an existing connection that was disconnected, reconnect to it
         if isEditingExistingConnection {
-            let instanceId = sidebarViewModel.createNewConnectionInstance(for: savedConnection)
-            sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
+            // Only reconnect if the connection was previously connected
+            // The onDisconnect callback indicates it was connected when editing started
+            if onDisconnect != nil {
+                let instanceId = sidebarViewModel.createNewConnectionInstance(for: savedConnection)
+                sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
+            }
         }
         
         dismiss()
@@ -591,15 +786,15 @@ struct FormSection<Content: View>: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
                 .tracking(0.5)
             
             content
-                .padding(24)
+                .padding(16)
                 .background(Color(.controlColor).opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)

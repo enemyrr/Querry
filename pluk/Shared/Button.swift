@@ -309,8 +309,8 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)      // Vertical padding for height
-            .font(.system(size: 14, weight: .semibold))
+            .padding(.vertical, 12)      // Vertical padding for height
+            .font(.system(size: 13, weight: .semibold))
             .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)     // White text color
             .background(
                 // Use system accent color for native feel, or specify custom blue
@@ -436,7 +436,7 @@ struct CustomMenuButtonStyle: ButtonStyle {
         HStack {
             configuration.label
         }
-        .padding(14)
+        .padding(12)
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
