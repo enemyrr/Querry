@@ -14,6 +14,7 @@ import SwiftData
 import Foundation
 import MongoCore
 import WebKit
+import PostHog
 
 struct CreateConnection: View {
     @Binding var showSheet: Bool
@@ -770,6 +771,11 @@ struct CreateConnectionForm: View {
             }
             
             savedConnection = newConnection
+            
+            // Track connection creation event
+            PostHogSDK.shared.capture("connection_created", properties: [
+                "database_type": databaseTypeEnum.rawValue
+            ])
         }
         
         // If we edited an existing connection that was disconnected, reconnect to it
