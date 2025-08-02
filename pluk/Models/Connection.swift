@@ -11,8 +11,9 @@ import SwiftData
 enum DatabaseType: String, Codable, CaseIterable {
     var id: String { rawValue }
     
+    case convex = "convex"
     case supabase = "supabase"
-    case neon = "neon"
+    // case neon = "neon"
     case postgres = "postgres"
     case mongodb = "MongoDB"
     case mysql = "mysql"
@@ -20,8 +21,9 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
+        case .convex: return "Convex"
         case .supabase: return "Supabase"
-        case .neon: return "Neon"
+        // case .neon: return "Neon"
         case .postgres: return "PostgreSQL"
         case .mongodb: return "MongoDB"
         case .mysql: return "MySQL"
@@ -31,8 +33,9 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var accentColor: Color {
         switch self {
+        case .convex: return Color(hex: "#8D2676")
         case .supabase: return Color(hex: "#3ECF8E")
-        case .neon: return Color(hex: "#00E599")
+        // case .neon: return Color(hex: "#00E599")
         case .postgres: return Color(hex: "#336791")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#00ED64")
@@ -42,8 +45,9 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var backgroundColor: Color {
         switch self {
+        case .convex: return Color(hex: "#8D2676")
         case .supabase: return Color(hex: "#3ECF8E")
-        case .neon: return Color(hex: "#00E599")
+        // case .neon: return Color(hex: "#00E599")
         case .postgres: return Color(hex: "#346791")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#021E2C")
@@ -53,8 +57,9 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var icon: String {
         switch self {
+        case .convex: return "convex"
         case .supabase: return "supabase"
-        case .neon: return "neon"
+        // case .neon: return "neon"
         case .postgres: return "postgres.pdf"
         case .mongodb: return "database.mongodb"
         case .mysql: return "mysql"
@@ -64,8 +69,9 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var foregroundColor: Color {
         switch self {
+        case .convex: return Color(hex: "#8D2676")
         case .supabase: return Color(hex: "#3ECF8E")
-        case .neon: return Color(hex: "#00E599")
+        // case .neon: return Color(hex: "#00E599")
         case .postgres: return Color(hex: "#FFFFFF")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#00ED64")
@@ -75,9 +81,11 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var status: DatabaseStatus {
         switch self {
+        case .convex:
+            return .comingSoon
         case .mongodb:
             return .beta
-        case .neon, .supabase, .mysql, .mariadb:
+        case .supabase, .mysql, .mariadb:
             return .comingSoon
         default:
             return .available
@@ -86,10 +94,12 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var placeholderURI: String {
         switch self {
+        case .convex:
+            return "postgresql://username:password@host:5432/database"
         case .supabase:
             return "postgresql://username:password@host:5432/database"
-        case .neon:
-            return "postgresql://username:password@host:5432/database"
+        // case .neon:
+        //     return "postgresql://username:password@host:5432/database"
         case .postgres:
             return "postgresql://username:password@localhost:5432/database"
         case .mysql:
@@ -103,7 +113,7 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var category: DatabaseCategory {
         switch self {
-        case .supabase, .neon:
+        case .convex, .supabase:
             return .cloud
         case .postgres, .mysql, .mongodb, .mariadb:
             return .database
@@ -114,7 +124,7 @@ enum DatabaseType: String, Codable, CaseIterable {
             switch self {
             case .mongodb:
                 return .noSQL
-            case .supabase, .neon, .postgres, .mysql, .mariadb:
+            case .convex, .supabase, .postgres, .mysql, .mariadb:
                 return .sql
             }
         }
@@ -248,7 +258,7 @@ final class Connection {
         var components = URLComponents()
         
         switch databaseType {
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase, .convex:
             components.scheme = "postgresql"
         case .mysql, .mariadb:
             components.scheme = "mysql"
@@ -267,7 +277,7 @@ final class Connection {
         }
         
         // Add SSL mode for PostgreSQL databases
-        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon),
+        if (databaseType == .postgres || databaseType == .supabase || databaseType == .convex),
            let sslMode = sslMode, sslMode != "prefer" {
             components.queryItems = [URLQueryItem(name: "sslmode", value: sslMode)]
         }
@@ -310,7 +320,7 @@ final class Connection {
         var components = URLComponents()
         
         switch databaseType {
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase, .convex:
             components.scheme = "postgresql"
         case .mysql, .mariadb:
             components.scheme = "mysql"
@@ -371,7 +381,7 @@ final class Connection {
         }
         
         // Parse SSL mode from query parameters (for PostgreSQL)
-        if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+        if databaseType == .postgres || databaseType == .supabase || databaseType == .convex {
             if let queryItems = urlComponents.queryItems {
                 for item in queryItems {
                     if item.name.lowercased() == "sslmode" {

@@ -66,8 +66,8 @@ struct CloudDatabaseWebView: NSViewRepresentable {
         switch databaseType {
         case .supabase:
             return URL(string: "https://supabase.com/dashboard")
-        case .neon:
-            return URL(string: "https://console.neon.tech")
+//        case .neon:
+//            return URL(string: "https://console.neon.tech")
         default:
             return nil
         }
@@ -138,7 +138,7 @@ struct CreateConnectionForm: View {
         }
         
         // For PostgreSQL databases using field-based input
-        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+        if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
             return !name.isEmpty
         }
         
@@ -157,7 +157,7 @@ struct CreateConnectionForm: View {
         switch databaseType {
         case .mongodb:
             validateMongoUri(uri)
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase:
             validatePostgresUri(uri)
         case .mysql:
             validateMySQLUri(uri)
@@ -429,7 +429,7 @@ struct CreateConnectionForm: View {
                         }
                     }
                     
-                    if selectedDatabaseType == .postgres || selectedDatabaseType == .supabase || selectedDatabaseType == .neon {
+                    if selectedDatabaseType == .postgres || selectedDatabaseType == .supabase {
                         // PostgreSQL field-based input
                         PostgreSQLFieldsView(
                             hostname: $hostname,
@@ -577,7 +577,7 @@ struct CreateConnectionForm: View {
             } else {
                 // Legacy connection - parse URI for PostgreSQL field-based inputs
                 if let databaseType = selectedDatabaseType,
-                   (databaseType == .postgres || databaseType == .supabase || databaseType == .neon),
+                   (databaseType == .postgres || databaseType == .supabase),
                    let connectionUrl = connection.url {
                     parsePostgresURI(connectionUrl)
                 }
@@ -652,7 +652,7 @@ struct CreateConnectionForm: View {
         guard let databaseType = selectedDatabaseType else { return }
         
         // Fill defaults for PostgreSQL databases using field-based input
-        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+        if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
             if hostname.isEmpty {
                 hostname = "localhost"
             }
@@ -694,7 +694,7 @@ struct CreateConnectionForm: View {
             existing.defaultDatabase = defaultDatabase
             
             // For PostgreSQL databases using field-based input, update individual fields
-            if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+            if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
                 existing.hostname = hostname
                 existing.port = port
                 existing.username = username
@@ -705,7 +705,7 @@ struct CreateConnectionForm: View {
             } else {
                 // For non-PostgreSQL or URI-based input, use the URI approach
                 let sanitizedURI: String
-                if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+                if databaseType == .postgres || databaseType == .supabase {
                     sanitizedURI = sanitizePostgresURI(uri)
                 } else {
                     sanitizedURI = uri
@@ -726,7 +726,7 @@ struct CreateConnectionForm: View {
             let newConnection: Connection
             
             // For PostgreSQL databases using field-based input, use the new initializer
-            if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+            if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
                 newConnection = Connection(
                     databaseType: databaseTypeEnum,
                     name: name,
@@ -742,7 +742,7 @@ struct CreateConnectionForm: View {
             } else {
                 // For non-PostgreSQL or URI-based input, use the legacy initializer
                 let sanitizedURI: String
-                if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+                if databaseType == .postgres || databaseType == .supabase {
                     sanitizedURI = sanitizePostgresURI(uri)
                 } else {
                     sanitizedURI = uri
@@ -764,7 +764,7 @@ struct CreateConnectionForm: View {
             try? modelContext.save()
             
             // For field-based connections, store password in keychain after getting persistentModelID
-            if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+            if (databaseType == .postgres || databaseType == .supabase ) && useFieldBasedInput {
                 if !password.isEmpty {
                     newConnection.password = password
                 }

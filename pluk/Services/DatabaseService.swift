@@ -93,7 +93,7 @@ import SwiftUI
         let result: QueryResult
         
         switch connection.databaseType {
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase, .convex:
             result = try await driver.findDocuments(
                 in: collectionName,
                 filter: ["rawQuery": filter],
@@ -126,7 +126,7 @@ import SwiftUI
         }
         
         switch connection.databaseType {
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase, .convex:
             if let postgresDriver = driver as? PostgreSQLDriver {
                 return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName)
             }

@@ -332,7 +332,7 @@ class DatabaseDriverFactory {
         switch databaseType {
         case .mongodb:
             return MongoDBDriver()
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase, .convex:
             return PostgreSQLDriver()
         case .mysql:
             return MySQLDriver()

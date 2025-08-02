@@ -33,7 +33,7 @@ struct ConnectionDetailsPopover: View {
         }
         // Default ports based on database type
         switch databaseType {
-        case .postgres, .supabase, .neon:
+        case .postgres, .supabase, .convex:
             return "5432"
         case .mysql, .mariadb:
             return "3306"
