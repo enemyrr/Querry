@@ -215,7 +215,7 @@ struct ConnectionListItem: View {
                             EnvironmentTag(environment: connection.environment)
                         }
                         
-                        Text(connection.connectionUri)
+                        Text(connection.displayUrl)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
