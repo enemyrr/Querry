@@ -172,16 +172,19 @@ final class Connection {
     var username: String?
     var sslMode: String?
     
+    // Stable identifier for keychain storage (persists across app restarts)
+    var keychainId: String = UUID().uuidString
+    
     // Password is stored in keychain, not in database
     var password: String? {
         get {
-            return KeychainHelper.shared.retrieve(for: persistentModelID.hashValue.description)
+            return KeychainHelper.shared.retrieve(for: keychainId)
         }
         set {
             if let newPassword = newValue, !newPassword.isEmpty {
-                KeychainHelper.shared.store(password: newPassword, for: persistentModelID.hashValue.description)
+                KeychainHelper.shared.store(password: newPassword, for: keychainId)
             } else {
-                KeychainHelper.shared.delete(for: persistentModelID.hashValue.description)
+                KeychainHelper.shared.delete(for: keychainId)
             }
         }
     }
@@ -279,7 +282,7 @@ final class Connection {
     
     // Helper method to check if password exists in keychain
     var hasPassword: Bool {
-        return KeychainHelper.shared.passwordExists(for: persistentModelID.hashValue.description)
+        return KeychainHelper.shared.passwordExists(for: keychainId)
     }
     
     // Display-friendly URL without password for home screen
@@ -349,7 +352,7 @@ final class Connection {
     
     // Clean up keychain when connection is deleted
     func cleanupKeychain() {
-        KeychainHelper.shared.delete(for: persistentModelID.hashValue.description)
+        KeychainHelper.shared.delete(for: keychainId)
     }
     
     // Helper method to populate fields from existing URL (for migration)
