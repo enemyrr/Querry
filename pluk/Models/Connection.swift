@@ -160,11 +160,18 @@ final class Connection {
     var databaseType: DatabaseType
     var color: ConnectionColor
     var environment: ConnectionEnvironment
-    var url: String
+    var url: String?
     var defaultDatabase: String?
     var createdAt: Date = Date()
     var lastOpenedAt: Date = Date()
     var updatedAt: Date = Date()
+    
+    // New individual connection fields (optional for backward compatibility)
+    var hostname: String?
+    var port: String?
+    var username: String?
+    var password: String?
+    var sslMode: String?
     
     init(databaseType: DatabaseType, url: String, name: String, color: ConnectionColor, environment: ConnectionEnvironment, defaultDatabase: String? = nil) {
         self.name = name
@@ -175,11 +182,109 @@ final class Connection {
         self.defaultDatabase = defaultDatabase
     }
     
+    // New initializer for field-based connections
+    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment, hostname: String, port: String, username: String, password: String? = nil, database: String? = nil, sslMode: String? = "prefer") {
+        self.name = name
+        self.databaseType = databaseType
+        self.color = color
+        self.environment = environment
+        self.defaultDatabase = database
+        
+        // Store individual fields
+        self.hostname = hostname
+        self.port = port
+        self.username = username
+        self.password = password
+        self.sslMode = sslMode
+        
+        // Set URL to nil for field-based connections (moving away from URL storage)
+        self.url = nil
+    }
+    
     var connectionUri: String {
+        // If we have individual fields, construct URI from them (new approach)
+        if let hostname = hostname, !hostname.isEmpty,
+           let port = port, !port.isEmpty,
+           let username = username, !username.isEmpty {
+            return constructURIFromFields()
+        }
+        
+        // Fallback to legacy URI construction (backward compatibility)
         if let database = defaultDatabase, !database.isEmpty {
-            return "\(url)/\(database)"
+            return "\(String(describing: url))/\(database)"
         } else {
-            return url
+            return url ?? ""
+        }
+    }
+    
+    private func constructURIFromFields() -> String {
+        guard let hostname = hostname, let port = port, let username = username else {
+            return url ?? ""
+        }
+        
+        var components = URLComponents()
+        
+        switch databaseType {
+        case .postgres, .supabase, .neon:
+            components.scheme = "postgresql"
+        case .mysql, .mariadb:
+            components.scheme = "mysql"
+        case .mongodb:
+            components.scheme = "mongodb"
+        }
+        
+        components.host = hostname.isEmpty ? "localhost" : hostname
+        components.port = Int(port) ?? (databaseType == .mysql || databaseType == .mariadb ? 3306 : 5432)
+        components.user = username.isEmpty ? nil : username
+        components.password = password?.isEmpty == true ? nil : password
+        
+        // Add database path
+        if let database = defaultDatabase, !database.isEmpty {
+            components.path = "/\(database)"
+        }
+        
+        // Add SSL mode for PostgreSQL databases
+        if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon),
+           let sslMode = sslMode, sslMode != "prefer" {
+            components.queryItems = [URLQueryItem(name: "sslmode", value: sslMode)]
+        }
+        
+        return components.url?.absoluteString ?? url ?? ""
+    }
+    
+    // Helper method to check if connection uses new field-based approach
+    var usesFieldBasedConnection: Bool {
+        return hostname != nil && port != nil && username != nil
+    }
+    
+    // Helper method to populate fields from existing URL (for migration)
+    func populateFieldsFromURL() {
+        guard let urlComponents = URLComponents(string: url ?? "") else { return }
+        
+        self.hostname = urlComponents.host
+        self.port = urlComponents.port?.description
+        self.username = urlComponents.user
+        self.password = urlComponents.password
+        
+        // Parse database from path
+        let path = urlComponents.path
+        if !path.isEmpty && path != "/" {
+            self.defaultDatabase = String(path.dropFirst()) // Remove leading "/"
+        }
+        
+        // Parse SSL mode from query parameters (for PostgreSQL)
+        if databaseType == .postgres || databaseType == .supabase || databaseType == .neon {
+            if let queryItems = urlComponents.queryItems {
+                for item in queryItems {
+                    if item.name.lowercased() == "sslmode" {
+                        self.sslMode = item.value ?? "prefer"
+                        break
+                    }
+                }
+            }
+            if sslMode == nil {
+                sslMode = "prefer" // Default value
+            }
         }
     }
 }
