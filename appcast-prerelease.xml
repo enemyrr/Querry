@@ -8,17 +8,53 @@
         <item>
             <title>Pluk 0.0.1 Beta 17</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.17.dmg</link>
-            <sparkle:version>1</sparkle:version>
+            <sparkle:version>267</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.17</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 17</h2><p><strong>Pre-release version</strong></p><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.17</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+                <h2>Pluk 0.0.1 Beta 17</h2><p><strong>Pre-release version</strong></p><div><h3>🛡️ Privacy & Security</h3>
+<h4><strong>Enhanced Password Protection</strong></h4>
+<ul>
+<li><strong>Keychain Integration</strong> - Database passwords are now securely stored in the system keychain instead of local storage</li>
+<li><strong>Privacy Protection</strong> - Passwords are completely hidden from the home screen to prevent accidental exposure and shoulder surfing</li>
+</ul>
+<h3>✨ New Features</h3>
+<h4><strong>Connection Management</strong></h4>
+<ul>
+<li><strong>Improved Connection Creation</strong> - Improved connection creation experience that replaces complex URI strings like postgresql://user:pass@host:port/db with a simple, intuitive form</li>
+<li><strong>Right-Click Context Menus</strong> - Added right-click support on connection status headers for quick access to connection actions</li>
+</ul>
+<h4><strong>User Interface Enhancements</strong></h4>
+<ul>
+<li><strong>Updated Floating Action Bar</strong> - AI Search bar is now more visually prominent than other buttons, making it easier to discover and use</li>
+</ul>
+<h3>🚀 Performance & Developer Experience</h3>
+<h4><strong>Database Performance</strong></h4>
+<ul>
+<li><strong>Faster Table Loading</strong> - Significantly improved performance when tables are initially loaded</li>
+<li><strong>Optimized Data Refresh</strong> - Enhanced refresh mechanisms that properly respect active filters and user preferences</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Connection Reliability</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Connected databases now display correctly even when no default database is configured</li>
+<li><strong>FIXED</strong>: Data refresh operations now properly respect applied filters, ensuring consistent view state</li>
+<li>Improved connection state management and database discovery</li>
+</ul>
+<h3>🔧 Under the Hood</h3>
+<ul>
+<li>Enhanced connection state handling for better reliability</li>
+<li>Improved error handling in database connection workflows</li>
+<li>Better separation of connection configuration logic</li>
+<li>Optimized data loading patterns for improved user experience</li>
+<li>Minor UI improvement to align with the design system</li>
+</ul></div>
             ]]></description>
             <pubDate>Sat, 02 Aug 2025 08:08:32 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.17.dmg"
-                length=""
+                length="16816104"
                 type="application/octet-stream"
-                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+                sparkle:edSignature="mbTdxc3x1O125a9JY2JAMVXrIlVLgIQEXTOgb1up3Ly+scfyp7Dn5vf5ftIRZ9D2An9WR01uofQLhK0No9z4CA=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
