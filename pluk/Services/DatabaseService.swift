@@ -8,7 +8,7 @@
 import Foundation
 import SwiftUI
 
-class DatabaseService {
+@Observable class DatabaseService {
     // MARK: - Current Connection State
     private var activeConnection: Connection?
     private var activeDriver: (any DatabaseDriver)?

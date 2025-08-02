@@ -9,13 +9,7 @@ import SwiftUI
 // MARK: - Connection Header
 struct ConnectionHeader: View {
     @Environment(\.colorScheme) var colorScheme
-    let name: String
-    let status: ConnectionStatus
-    let version: String?
-    let databaseType: DatabaseType
-    let environment: ConnectionEnvironment
-    let connection: Connection?
-    let connectedDatabase: String?
+    @Environment(ConnectionInstance.self) private var instance
     let onDisconnect: () async -> Void
     let onReconnect: () async -> Void
     
@@ -29,7 +23,7 @@ struct ConnectionHeader: View {
     
     // Get color based on connection status
     private var statusColor: Color {
-        switch status {
+        switch instance.connectionStatus {
         case .connected:
             return .green
         case .connecting:
@@ -47,17 +41,17 @@ struct ConnectionHeader: View {
             HStack(alignment: .center) {
                 // Left side
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(name)
+                    Text(instance.connection.name)
                         .font(.system(size: 12))
                         .lineLimit(1)
                     
                     HStack() {
-                        ConnectionStatusBadge(status: status, onRetry: {})
+                        ConnectionStatusBadge(status: instance.connectionStatus, onRetry: {})
                         
-                        if let version = version {
+                        if let version = instance.connectionVersion {
                             Divider().frame(height: 10)
                             ViewThatFits(in: .horizontal) {
-                                Text("\(databaseType.displayName) \(version)")
+                                Text("\(instance.connection.databaseType.displayName) \(version)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 
@@ -73,7 +67,7 @@ struct ConnectionHeader: View {
                 Spacer(minLength: 8)
                 
                 // Right side
-                EnvironmentTag(environment: environment)
+                EnvironmentTag(environment: instance.connection.environment)
                     .opacity(isHovered ? 1 : 0.8)
             }
         }
@@ -131,7 +125,7 @@ struct ConnectionHeader: View {
                 .blendMode(colorScheme == .dark ? .plusLighter : .normal)
         )
         .cornerRadius(12)
-        .animation(.easeInOut(duration: 0.3), value: status)
+        .animation(.easeInOut(duration: 0.3), value: instance.connectionStatus)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in
             isHovered = hover
@@ -141,11 +135,11 @@ struct ConnectionHeader: View {
         }
         .popover(isPresented: $showConnectionDetails, arrowEdge: .trailing) {
             ConnectionDetailsPopover(
-                connection: connection,
-                databaseType: databaseType,
-                environment: environment,
-                version: version,
-                connectedDatabase: connectedDatabase,
+                connection: instance.connection,
+                databaseType: instance.connection.databaseType,
+                environment: instance.connection.environment,
+                version: instance.connectionVersion,
+                connectedDatabase: instance.connectedDatabase?.name,
                 onDisconnect: {
                     showConnectionDetails = false
                     await onDisconnect()
@@ -156,7 +150,7 @@ struct ConnectionHeader: View {
                 },
                 onEdit: {
                     showConnectionDetails = false
-                    if status == .connected {
+                    if instance.connectionStatus == .connected {
                         showEditConfirmation = true
                     } else {
                         showEditSheet = true
@@ -170,7 +164,7 @@ struct ConnectionHeader: View {
                     .ignoresSafeArea()
                 
                 CreateConnectionForm(
-                    connection: connection,
+                    connection: instance.connection,
                     onDisconnect: onDisconnect
                 )
                 .frame(width: 560)

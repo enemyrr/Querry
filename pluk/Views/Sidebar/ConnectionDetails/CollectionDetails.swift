@@ -17,13 +17,6 @@ struct ConnectionDetailsSidebar: View {
         VStack(spacing: 0) {
             if let instance = viewModel.activeConnection {
                 ConnectionHeader(
-                    name: instance.connection.name,
-                    status: instance.connectionStatus,
-                    version: instance.connectionVersion,
-                    databaseType: instance.connection.databaseType,
-                    environment: instance.connection.environment,
-                    connection: instance.connection,
-                    connectedDatabase: instance.connectedDatabase?.name,
                     onDisconnect: {
                         await viewModel.disconnectConnectionInstance(instance.id)
                     },
@@ -34,10 +27,7 @@ struct ConnectionDetailsSidebar: View {
                     })
                 
                 VStack(spacing: 4) {
-                    DatabaseHeader(
-                        connectedDatabase: instance.connectedDatabase?.name,
-                        viewModel: viewModel
-                    )
+                    DatabaseHeader(viewModel: viewModel)
                     
                     SoftSeparator()
                         .opacity(isScrolled ? 1 : 0)

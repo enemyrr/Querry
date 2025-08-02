@@ -65,7 +65,6 @@ class KeychainHelper {
         ]
         
         let status = SecItemDelete(query as CFDictionary)
-        print(status)
         return status == errSecSuccess || status == errSecItemNotFound
     }
     

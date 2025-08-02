@@ -128,40 +128,9 @@ struct DatabaseSelectorModal: View {
                         .padding(.vertical, 20)
                     }
                 }
-                
-                // Action Buttons
-                HStack(spacing: 16) {
-//                    Button("Cancel") {
-//                        dismiss()
-//                    }
-//                    .customMenuButtonStyle()
-//                    
-//                    Spacer()
-//                    
-//                    Button("Create New Database") {
-//                        onCreateNew()
-//                    }
-//                    .primaryStyle()
-//                    .disabled(isLoading)
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
-                .padding(.top, 16)
             }
-            
-            // Close Button
-//            Button(action: {
-//                dismiss()
-//            }) {
-//                Image(systemName: "xmark")
-//                    .font(.system(size: 12, weight: .medium))
-//                    .foregroundColor(.secondary)
-//            }
-//            .buttonStyle(XMarkButtonStyle())
-//            .padding(.top, 16)
-//            .padding(.trailing, 16)
         }
-        .frame(width: 560, height: 650)
+        .frame(width: 500, height: 650)
         .background(
             VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                 .ignoresSafeArea()
