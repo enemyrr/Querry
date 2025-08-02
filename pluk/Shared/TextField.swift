@@ -9,13 +9,17 @@ import SwiftUI
 
 struct CustomTextFieldStyle: TextFieldStyle {
     @FocusState private var isFocused: Bool
+    @Environment(\.colorScheme) var colorScheme
     
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .textFieldStyle(.plain)
             .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .background(Color(.controlBackgroundColor).opacity(isFocused ? 0.2 : 0))
+            .padding(.vertical, 12)
+            .background(
+                       (colorScheme == .dark ? Color.black : Color.white)
+                           .opacity(isFocused ? 0.2 : 0.0)
+                   )
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)

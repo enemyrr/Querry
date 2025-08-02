@@ -20,7 +20,7 @@ struct PostgreSQLFieldsView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Database Connection")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.5)

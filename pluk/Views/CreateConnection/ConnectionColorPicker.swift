@@ -14,7 +14,7 @@ struct ConnectionColorPicker: View {
     @FocusState private var isFocused: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Color")
                 .foregroundColor(.secondary)
                 .font(.system(size: 13))
@@ -43,7 +43,7 @@ struct ConnectionColorPicker: View {
                     Image(systemName: "chevron.compact.down")
                         .scaleEffect(CGSize(width: 0.7, height: 1.5))
                 }
-                .padding(14)
+                .padding(12)
                 .cornerRadius(10)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
