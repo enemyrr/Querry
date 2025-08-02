@@ -23,6 +23,7 @@ struct ConnectionHeader: View {
     @State private var bubbleOffset = CGSize.zero
     @State private var showConnectionDetails = false
     @State private var showEditSheet = false
+    @State private var showEditConfirmation = false
     
     @Environment(SidebarViewModel.self) private var sidebarViewModel
     
@@ -155,7 +156,11 @@ struct ConnectionHeader: View {
                 },
                 onEdit: {
                     showConnectionDetails = false
-                    showEditSheet = true
+                    if status == .connected {
+                        showEditConfirmation = true
+                    } else {
+                        showEditSheet = true
+                    }
                 }
             )
         }
@@ -170,6 +175,14 @@ struct ConnectionHeader: View {
                 )
                 .frame(width: 560)
             }
+        }
+        .alert("Edit Connection", isPresented: $showEditConfirmation) {
+            Button("Continue") {
+                showEditSheet = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to edit this active connection?")
         }
         .padding(.bottom, 6)
     }
