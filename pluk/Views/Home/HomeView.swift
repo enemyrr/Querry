@@ -317,6 +317,8 @@ struct ConnectionListItem: View {
         ) {
             Button("Delete", role: .destructive) {
                 if let connection = connectionToDelete {
+                    // Clean up keychain before deleting the connection
+                    connection.cleanupKeychain()
                     modelContext.delete(connection)
                     connectionToDelete = nil
                 }

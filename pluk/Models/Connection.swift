@@ -170,8 +170,21 @@ final class Connection {
     var hostname: String?
     var port: String?
     var username: String?
-    var password: String?
     var sslMode: String?
+    
+    // Password is stored in keychain, not in database
+    var password: String? {
+        get {
+            return KeychainHelper.shared.retrieve(for: persistentModelID.hashValue.description)
+        }
+        set {
+            if let newPassword = newValue, !newPassword.isEmpty {
+                KeychainHelper.shared.store(password: newPassword, for: persistentModelID.hashValue.description)
+            } else {
+                KeychainHelper.shared.delete(for: persistentModelID.hashValue.description)
+            }
+        }
+    }
     
     init(databaseType: DatabaseType, url: String, name: String, color: ConnectionColor, environment: ConnectionEnvironment, defaultDatabase: String? = nil) {
         self.name = name
@@ -194,11 +207,18 @@ final class Connection {
         self.hostname = hostname
         self.port = port
         self.username = username
-        self.password = password
         self.sslMode = sslMode
         
         // Set URL to nil for field-based connections (moving away from URL storage)
         self.url = nil
+        
+        // Note: Password will be stored in keychain after model is saved and persistentModelID is available
+        if let password = password, !password.isEmpty {
+            // Store password temporarily to be moved to keychain after save
+            DispatchQueue.main.async {
+                self.password = password
+            }
+        }
     }
     
     var connectionUri: String {
@@ -257,6 +277,11 @@ final class Connection {
         return hostname != nil && port != nil && username != nil
     }
     
+    // Helper method to check if password exists in keychain
+    var hasPassword: Bool {
+        return KeychainHelper.shared.passwordExists(for: persistentModelID.hashValue.description)
+    }
+    
     // Display-friendly URL without password for home screen
     var displayUrl: String {
         // If we have individual fields, construct display URL from them
@@ -294,8 +319,8 @@ final class Connection {
         components.port = Int(port)
         components.user = username
         
-        // Show asterisks if password exists
-        if let password = password, !password.isEmpty {
+        // Show asterisks if password exists in keychain
+        if hasPassword {
             components.password = "****"
         }
         
@@ -320,6 +345,11 @@ final class Connection {
         }
         
         return sanitizedComponents.url?.absoluteString ?? url
+    }
+    
+    // Clean up keychain when connection is deleted
+    func cleanupKeychain() {
+        KeychainHelper.shared.delete(for: persistentModelID.hashValue.description)
     }
     
     // Helper method to populate fields from existing URL (for migration)

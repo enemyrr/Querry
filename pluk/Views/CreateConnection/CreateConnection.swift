@@ -758,6 +758,17 @@ struct CreateConnectionForm: View {
             }
             
             modelContext.insert(newConnection)
+            
+            // Save to get persistentModelID, then store password in keychain
+            try? modelContext.save()
+            
+            // For field-based connections, store password in keychain after getting persistentModelID
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .neon) && useFieldBasedInput {
+                if !password.isEmpty {
+                    newConnection.password = password
+                }
+            }
+            
             savedConnection = newConnection
         }
         
