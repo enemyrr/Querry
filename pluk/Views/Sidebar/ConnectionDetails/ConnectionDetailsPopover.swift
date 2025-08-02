@@ -15,6 +15,7 @@ struct ConnectionDetailsPopover: View {
     let connectedDatabase: String?
     let onDisconnect: () async -> Void
     let onReconnect: () async -> Void
+    let onEdit: () -> Void
     
     private var connectionURL: String {
         connection?.url ?? ""
@@ -145,7 +146,7 @@ struct ConnectionDetailsPopover: View {
                     .compactPrimaryStyle()
                     
                     Button("Edit") {
-                        // TODO: Implement edit logic
+                        onEdit()
                     }
                     .compactMenuButtonStyle()
                 }

@@ -22,6 +22,9 @@ struct ConnectionHeader: View {
     @State private var isHovered = false
     @State private var bubbleOffset = CGSize.zero
     @State private var showConnectionDetails = false
+    @State private var showEditSheet = false
+    
+    @Environment(SidebarViewModel.self) private var sidebarViewModel
     
     // Get color based on connection status
     private var statusColor: Color {
@@ -149,8 +152,24 @@ struct ConnectionHeader: View {
                 onReconnect: {
                     showConnectionDetails = false
                     await onReconnect()
+                },
+                onEdit: {
+                    showConnectionDetails = false
+                    showEditSheet = true
                 }
             )
+        }
+        .sheet(isPresented: $showEditSheet) {
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+                
+                CreateConnectionForm(
+                    connection: connection,
+                    onDisconnect: onDisconnect
+                )
+                .frame(width: 560)
+            }
         }
         .padding(.bottom, 6)
     }
