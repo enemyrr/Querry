@@ -11,7 +11,7 @@
             <sparkle:version>267</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.17</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 17</h2><p><strong>Pre-release version</strong></p><div><h3>🛡️ Privacy & Security</h3>
+                <h2>Pluk 0.0.1 Beta 17</h2><div><h3>🛡️ Privacy & Security</h3>
 <h4><strong>Enhanced Password Protection</strong></h4>
 <ul>
 <li><strong>Keychain Integration</strong> - Database passwords are now securely stored in the system keychain instead of local storage</li>
