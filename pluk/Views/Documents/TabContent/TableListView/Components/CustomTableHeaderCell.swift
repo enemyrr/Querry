@@ -16,10 +16,6 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     private var isActiveSortColumn = false
     private var sortAscending = true
     
-    // Key indicators
-    private var isPrimaryKey = false
-    private var isForeignKey = false
-    
     override init(textCell string: String) {
         super.init(textCell: string)
     }
@@ -28,11 +24,9 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         super.init(coder: coder)
     }
     
-    func configure(title: String, fieldType: String? = nil, isPrimaryKey: Bool = false, isForeignKey: Bool = false) {
+    func configure(title: String, fieldType: String? = nil) {
         titleLabel?.stringValue = title
         self.fieldType = fieldType
-        self.isPrimaryKey = isPrimaryKey
-        self.isForeignKey = isForeignKey
     }
     
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -59,20 +53,6 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         }
         
         return nil
-    }
-    
-    
-    private func getKeyIndicatorIcon() -> NSImage? {
-        guard isPrimaryKey || isForeignKey else { return nil }
-        
-        let symbolName = isPrimaryKey ? "key.horizontal" : "link"
-        let color = isPrimaryKey ? NSColor.systemBlue : NSColor.systemPurple
-        
-        let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .medium)
-            .applying(.init(hierarchicalColor: color))
-        
-        return NSImage(systemSymbolName: symbolName, accessibilityDescription: isPrimaryKey ? "Primary Key" : "Foreign Key")?
-            .withSymbolConfiguration(config)
     }
     
     private func getDataTypeIcon() -> (icon: NSImage, size: CGFloat)? {

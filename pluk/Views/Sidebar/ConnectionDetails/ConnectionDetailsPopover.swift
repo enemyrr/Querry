@@ -18,7 +18,7 @@ struct ConnectionDetailsPopover: View {
     let onEdit: () -> Void
     
     private var connectionURL: String {
-        connection?.url ?? ""
+        connection?.displayUrl ?? ""
     }
     
     private var hostname: String {

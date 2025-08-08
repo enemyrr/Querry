@@ -140,17 +140,17 @@ struct FloatingActionBar: View {
                     mainView
                 }
             }
-            .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .overlay(
+            .background(
                 TwoPhaseLoader(
                     containerWidth: containerWidth,
                     isLoading: isLoading,
                     cornerRadius: action == .main ? 12 : 20
                 )
+            )
+            .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
+                    .stroke(.separator, lineWidth: 1)
             )
             .background(alignment: .center) {
                 if case .error = viewState {

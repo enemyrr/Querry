@@ -84,7 +84,6 @@ fileprivate struct FloatingPanelModifier<PanelContent: View>: ViewModifier {
                 anchorFrame = frame
             }
             .onAppear {
-                print(contentRect)
                 panel = FloatingPanel(view: view, contentRect: contentRect, isPresented: $isPresented)
                 if isPresented {
                     present()

@@ -74,6 +74,9 @@ struct ConnectionHeader: View {
         .padding(12)
         .frame(maxWidth: .infinity)
         .modifier(GlassBackgroundStyle())
+                .onTapGesture {
+            showConnectionDetails = true
+        }
         .background(
             ZStack {
                 // Base background
@@ -130,10 +133,7 @@ struct ConnectionHeader: View {
         .onHover { hover in
             isHovered = hover
         }
-        .onTapGesture {
-            showConnectionDetails = true
-        }
-        .popover(isPresented: $showConnectionDetails, arrowEdge: .trailing) {
+       .popover(isPresented: $showConnectionDetails, arrowEdge: .trailing) {
             ConnectionDetailsPopover(
                 connection: instance.connection,
                 databaseType: instance.connection.databaseType,

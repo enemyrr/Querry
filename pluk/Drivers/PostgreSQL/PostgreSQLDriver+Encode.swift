@@ -53,15 +53,12 @@ extension PostgreSQLDriver {
             throw DatabaseError.operationFailed("Expected string value for column \(columnName)")
         }
         
-        let cleanedValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard !cleanedValue.isEmpty else {
-            return nil
-        }
-        
         switch columnType {
         case .bool:
-            let lowercased = cleanedValue.lowercased()
+            if stringValue.isEmpty {
+                return nil
+            }
+            let lowercased = stringValue.lowercased()
             if ["true", "1", "yes", "on"].contains(lowercased) {
                 return true
             } else if ["false", "0", "no", "off"].contains(lowercased) {
@@ -71,51 +68,79 @@ extension PostgreSQLDriver {
             }
             
         case .int2:
-            guard let intValue = Int16(cleanedValue) else {
+            if stringValue.isEmpty {
+                return nil
+            }
+            
+            guard let intValue = Int16(stringValue) else {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to Int16 for column \(columnName)")
             }
             return intValue
             
         case .int4:
-            guard let intValue = Int32(cleanedValue) else {
+            if stringValue.isEmpty {
+                return nil
+            }
+            guard let intValue = Int32(stringValue) else {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to Int32 for column \(columnName)")
             }
             return intValue
             
         case .int8:
-            guard let intValue = Int64(cleanedValue) else {
+            if stringValue.isEmpty {
+                return nil
+            }
+            guard let intValue = Int64(stringValue) else {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to Int64 for column \(columnName)")
             }
             return intValue
             
         case .float4:
-            guard let floatValue = Float(cleanedValue) else {
+            if stringValue.isEmpty {
+                return nil
+            }
+            guard let floatValue = Float(stringValue) else {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to Float for column \(columnName)")
             }
             return floatValue
             
         case .float8, .numeric:
-            guard let doubleValue = Double(cleanedValue) else {
+            if stringValue.isEmpty {
+                return nil
+            }
+            guard let doubleValue = Double(stringValue) else {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to Double for column \(columnName)")
             }
             return doubleValue
             
         case .uuid:
-            guard let uuidValue = UUID(uuidString: cleanedValue) else {
+            if stringValue.isEmpty {
+                return nil
+            }
+            guard let uuidValue = UUID(uuidString: stringValue) else {
                 throw DatabaseError.operationFailed("Cannot convert '\(stringValue)' to UUID for column \(columnName)")
             }
             return uuidValue
     
         case .date:
-            let date = try cleanedValue.toDate()
+            if stringValue.isEmpty {
+                return nil
+            }
+            let date = try stringValue.toDate()
             return date
             
         case .timestamptz:
-            let normalizedDateString = try cleanedValue.toPostgreSQLTimestampTZ()
+            if stringValue.isEmpty {
+                return nil
+            }
+            let normalizedDateString = try stringValue.toPostgreSQLTimestampTZ()
             return normalizedDateString.date
         case .jsonb:
+            if stringValue.isEmpty {
+                return nil
+            }
             // Your existing JSONB cleaning logic
-            var cleanedString = cleanedValue
+            var cleanedString = stringValue
             
             while let firstChar = cleanedString.first, firstChar.asciiValue != nil && firstChar.asciiValue! < 32 {
                 cleanedString = String(cleanedString.dropFirst())
@@ -135,13 +160,12 @@ extension PostgreSQLDriver {
             
             return cleanedString
         
-        case .anyenum:
-            return cleanedValue
-        case .json:
-            return cleanedValue
-            
         case .money:
-            var cleanValue = cleanedValue
+            if stringValue.isEmpty {
+                return nil
+            }
+
+            var cleanValue = stringValue
             cleanValue = cleanValue.replacingOccurrences(of: "$", with: "")
             cleanValue = cleanValue.replacingOccurrences(of: ",", with: "")
             cleanValue = cleanValue.replacingOccurrences(of: "€", with: "")
@@ -154,10 +178,18 @@ extension PostgreSQLDriver {
             return String(format: "%.2f", doubleValue)
             
         case .text, .varchar, .bpchar:
-            return cleanedValue
+            if stringValue.isEmpty {
+                return ""
+            } else {
+                return stringValue
+            }
             
         default:
-            return cleanedValue
+            if stringValue.isEmpty {
+                return nil
+            }
+            
+            return stringValue
         }
     }
 }

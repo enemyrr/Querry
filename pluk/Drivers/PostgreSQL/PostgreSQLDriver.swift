@@ -448,7 +448,6 @@ class PostgreSQLDriver: DatabaseDriver {
             debugLog(String(reflecting: error))
             throw mapPSQLError(error)
         } catch {
-            print(error)
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
@@ -555,10 +554,11 @@ class PostgreSQLDriver: DatabaseDriver {
             var bindings = PostgresBindings(capacity: values.count + 1)
             
             for value in values {
-                if let value = value {
-                    try bindings.append(value)
-                } else {
+                switch value {
+                case .none:
                     bindings.appendNull()
+                case let .some(value):
+                    try bindings.append(value)
                 }
             }
             

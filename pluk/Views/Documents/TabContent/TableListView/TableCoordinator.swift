@@ -22,7 +22,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private var columnWidthCache: [String: CGFloat] = [:]
     private var userModifiedWidths: [String: CGFloat] = [:]
     private var autoCalculatedColumns: Set<String> = []
-    private var lastDataHash: Int = 0
+//    private var lastDataHash: Int = 0
     private var knownColumns: Set<String> = []
     public var needsToSelectLastRow = false
     
@@ -220,13 +220,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         debugLog("oldRowCount: \(oldRowCount), oldColumnCount: \(oldColumnCount)")
         
         // Check if data has significantly changed for cache invalidation
-        let oldDataHash = self.lastDataHash
-        let newDataHash = calculateDataHash(queryResult: newQueryResult, schema: newSchema)
+//        let oldDataHash = self.lastDataHash
+//        let newDataHash = calculateDataHash(queryResult: newQueryResult, schema: newSchema)
         
         // Update ALL references
         self.queryResult = newQueryResult
         self.schema = newSchema
-        self.lastDataHash = newDataHash
+//        self.lastDataHash = newDataHash
         
         if let newQueryResult = newQueryResult {
             self.rows = newQueryResult.rawRows
@@ -274,7 +274,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             }
             
             // Recalculate column widths if data changed significantly
-            if oldDataHash != newDataHash, let queryResult = self.queryResult {
+            if let queryResult = self.queryResult {
                 self.recalculateColumnWidthsIfNeeded(queryResult: queryResult)
             }
         }
@@ -394,11 +394,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         //             Add custom header
         let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-        // TODO: Once the schema includes isPrimaryKey and isForeignKey information, pass them here
-        // For now, we can do a simple check based on column name as a placeholder
-        let isPrimaryKey = identifier.lowercased() == "id" || identifier.lowercased().hasSuffix("_id") && identifier.lowercased().count == 2
-        let isForeignKey = identifier.lowercased().hasSuffix("_id") && identifier.lowercased().count > 2
-        customHeaderCell.configure(title: title, fieldType: dataType, isPrimaryKey: isPrimaryKey, isForeignKey: isForeignKey)
+        customHeaderCell.configure(title: title, fieldType: dataType)
         column.headerCell = customHeaderCell
         
         let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
@@ -886,15 +882,16 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard let tableColumn = tableColumn,
               let queryResult = queryResult else {
-            return NSTextField(labelWithString: "No data")
+            return nil
         }
         
         let columnName = tableColumn.identifier.rawValue
-        let queryRowInfo = queryResult.value(row: row, column: columnName)
-        let columnInfo = queryResult.column(named: columnName)
-        
-        guard let columnInfo = columnInfo else {
-            return NSTextField(labelWithString: "Invalid column")
+        guard let queryRowInfo = queryResult.value(row: row, column: columnName) else {
+            return nil
+        }
+
+        guard let columnInfo = queryResult.column(named: columnName) else {
+            return nil
         }
         
         // Determine cell type based on data type
