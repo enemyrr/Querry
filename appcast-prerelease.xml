@@ -8,17 +8,52 @@
         <item>
             <title>Pluk 0.0.1 Beta 18</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg</link>
-            <sparkle:version>1</sparkle:version>
+            <sparkle:version>268</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.18</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 18</h2><p><strong>Pre-release version</strong></p><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.18</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+                <h2>Pluk 0.0.1 Beta 18</h2><p><strong>Pre-release version</strong></p><div><h3>🚀 Major Release  </h3>
+<h4><strong>SQLite Support is Here</strong> 🆕  </h4>
+Pluk now speaks <strong>SQLite</strong>!  
+<ul>
+<li>Connect to any <strong>SQLite file</strong> (<code>.sqlite</code>, <code>.db</code>, <code>.sqlite3</code>)  </li>
+<li>Run queries, edit data, and browse schemas with <strong>full read/write access</strong>  </li>
+<li>Works seamlessly across all SQLite file formats  </li>
+</ul>
+This makes Pluk a powerful local-first companion for developers who rely on SQLite for prototyping, embedded apps, and production systems.  
+<ul>
+---
+</ul>
+<h3>🛠️ Fixes & Improvements  </h3>
+<h4><strong>Interface Stability</strong>  </h4>
+<ul>
+<li>✅ Fixed homescreen selection issues when disconnecting popovers  </li>
+<li>✅ Resolved startup loading glitches  </li>
+<li>✅ Corrected layout width calculation bugs  </li>
+<li>✅ Loading indicators now render in the right place  </li>
+</ul>
+<h4><strong>Data Handling</strong>  </h4>
+<ul>
+<li>✅ Updates handle <code>NULL</code> values without errors  </li>
+<li>✅ Removed flickering invalid columns during state changes  </li>
+<li>✅ Popover connection data now stays accurate  </li>
+</ul>
+<h4><strong>User Experience</strong>  </h4>
+<ul>
+<li>Smoother, more reliable popover interactions  </li>
+<li>Cleaner data transitions  </li>
+<li>Improved error handling for tricky cases  </li>
+</ul>
+<ul>
+---
+</ul>
+👉 With this release, <strong>SQLite becomes a first-class citizen in Pluk</strong>, making it easier than ever to query and explore your data.  </div>
             ]]></description>
             <pubDate>Sat, 16 Aug 2025 15:01:28 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg"
-                length=""
+                length="18648184"
                 type="application/octet-stream"
-                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+                sparkle:edSignature="9XuM5ZG6MjM4RxOA78stLk8rPOAerl10TlN43xzvSCKAtbHyDoc74lA/r/HxQgX7aDoE3xoWvkfppDtCvn//DQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
