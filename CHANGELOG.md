@@ -2,6 +2,43 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.18] – 2025-01-16  
+
+### 🚀 Major Release  
+
+#### **SQLite Support is Here** 🆕  
+Pluk now speaks **SQLite**!  
+- Connect to any **SQLite file** (`.sqlite`, `.db`, `.sqlite3`)  
+- Run queries, edit data, and browse schemas with **full read/write access**  
+- Works seamlessly across all SQLite file formats  
+
+This makes Pluk a powerful local-first companion for developers who rely on SQLite for prototyping, embedded apps, and production systems.  
+
+---
+
+### 🛠️ Fixes & Improvements  
+
+#### **Interface Stability**  
+- ✅ Fixed homescreen selection issues when disconnecting popovers  
+- ✅ Resolved startup loading glitches  
+- ✅ Corrected layout width calculation bugs  
+- ✅ Loading indicators now render in the right place  
+
+#### **Data Handling**  
+- ✅ Updates handle `NULL` values without errors  
+- ✅ Removed flickering invalid columns during state changes  
+- ✅ Popover connection data now stays accurate  
+
+#### **User Experience**  
+- Smoother, more reliable popover interactions  
+- Cleaner data transitions  
+- Improved error handling for tricky cases  
+
+---
+
+👉 With this release, **SQLite becomes a first-class citizen in Pluk**, making it easier than ever to query and explore your data.  
+
+
 ## [0.0.1-beta.17] - 2025-08-02
 
 ### 🛡️ Privacy & Security
