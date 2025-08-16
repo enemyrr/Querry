@@ -140,7 +140,7 @@ struct TableListView: View {
         .onDisappear {
             loadingTask?.cancel()
         }.alert(
-            "Update Failed",
+            "Operation Failed",
             isPresented: $showingErrorAlert,
             presenting: currentError
         ) { error in

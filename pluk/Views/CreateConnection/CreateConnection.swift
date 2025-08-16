@@ -115,6 +115,7 @@ struct CreateConnectionForm: View {
     @State private var password = ""
     @State private var sslMode = "prefer"
     
+    
     // URI import
     @State private var showURIImportSheet = false
     @State private var uriToImport = ""
@@ -142,6 +143,11 @@ struct CreateConnectionForm: View {
             return !name.isEmpty
         }
         
+        // For SQLite databases using file path in URI field
+        if databaseType == .sqlite {
+            return !name.isEmpty && !uri.isEmpty
+        }
+        
         // For other databases or URI-based input
         return !uri.isEmpty &&
                !name.isEmpty &&
@@ -161,6 +167,8 @@ struct CreateConnectionForm: View {
             validatePostgresUri(uri)
         case .mysql:
             validateMySQLUri(uri)
+        case .sqlite:
+            validateSQLiteUri(uri)
         default:
             uriError = nil
         }
@@ -192,6 +200,14 @@ struct CreateConnectionForm: View {
             uriError = nil
         } else {
             uriError = "MySQL URI should start with mysql://"
+        }
+    }
+    
+    private func validateSQLiteUri(_ uri: String) {
+        if uri.hasPrefix("sqlite://") || uri.hasPrefix("file:") || uri.hasPrefix("/") || uri == ":memory:" {
+            uriError = nil
+        } else {
+            uriError = "SQLite path should be a file path, start with sqlite://, file:, or use :memory:"
         }
     }
     
@@ -440,6 +456,8 @@ struct CreateConnectionForm: View {
                             sslMode: $sslMode,
                             showURIImportSheet: $showURIImportSheet
                         )
+                    } else if selectedDatabaseType == .sqlite {
+                        SQLiteFieldsView(filePath: $uri)
                     } else {
                         // Non-PostgreSQL databases use URI
                         FormSection(title: "Connection Details") {

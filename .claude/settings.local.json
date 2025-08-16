@@ -23,6 +23,7 @@
       "Bash(rg -n \"FilterCondition\\|FilterOperator\" --type swift -A 3 -B 3)",
       "Bash(xcodebuild -project Pluk.xcodeproj -scheme Pluk -destination 'platform=macOS' build)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

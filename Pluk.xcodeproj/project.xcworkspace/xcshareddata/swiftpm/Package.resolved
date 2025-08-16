@@ -1,5 +1,5 @@
 {
-  "originHash" : "e7c712fa0730ccdea5e5700a046e854fd5d39211f3f6d033cab85002fc09da3f",
+  "originHash" : "d27df21081b591d46a94c2f04ccd6214f45683c712605553cb7328300ee3ce3e",
   "pins" : [
     {
       "identity" : "aiproxyswift",
@@ -89,6 +89,24 @@
       "state" : {
         "revision" : "df074165274afaa39539c05d57b0832620775b11",
         "version" : "2.7.1"
+      }
+    },
+    {
+      "identity" : "sqlite-nio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor/sqlite-nio.git",
+      "state" : {
+        "revision" : "62d6935d970f6ebfc1f2469e7e813a148147c84d",
+        "version" : "1.11.8"
+      }
+    },
+    {
+      "identity" : "sqlite.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stephencelis/SQLite.swift",
+      "state" : {
+        "revision" : "392dd6058624d9f6c5b4c769d165ddd8c7293394",
+        "version" : "0.15.4"
       }
     },
     {
@@ -215,6 +233,15 @@
       "state" : {
         "revision" : "61e4ca4b81b9e09e2ec863b00c340eb13497dac6",
         "version" : "1.5.0"
+      }
+    },
+    {
+      "identity" : "swift-toolchain-sqlite",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-toolchain-sqlite",
+      "state" : {
+        "revision" : "b626d3002773b1a1304166643e7f118f724b2132",
+        "version" : "1.0.4"
       }
     },
     {

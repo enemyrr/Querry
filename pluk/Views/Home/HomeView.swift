@@ -59,7 +59,8 @@ struct HomeView: View {
                 
                 Spacer()
             }
-            .padding(20)
+            .padding(.top, 20)
+            .padding(.horizontal, 20)
             .frame(
                 maxWidth: .infinity,
                 maxHeight: .infinity,
@@ -167,6 +168,7 @@ struct ConnectionList: View {
                         ConnectionListItem(connection: connection, isSelected: connection.persistentModelID == selectedConnectionId, onSelect: self.onSelect, onOpen: self.onOpen)
                     }
                 }
+                .padding(.bottom, 0)
             }
         }
     }

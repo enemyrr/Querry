@@ -1,8 +1,8 @@
 //
-//  ImportFromURI.swift
+//  PostgreSQLFieldsView.swift
 //  Pluk
 //
-//  Created by Fauzaan on 8/2/25.
+//  Created by Fauzaan on 8/16/25.
 //
 
 import SwiftUI
@@ -100,7 +100,6 @@ struct PostgreSQLFieldsView: View {
     }
 }
 
-// MARK: - URI Import Sheet
 struct URIImportSheet: View {
     @Binding var uriInput: String
     let onImport: (String) -> Void

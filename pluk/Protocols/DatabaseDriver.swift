@@ -336,8 +336,8 @@ class DatabaseDriverFactory {
             return PostgreSQLDriver()
         case .mysql:
             return MySQLDriver()
-        case .mariadb:
-            return MariaDBDriver()
+        case .sqlite:
+            return SQLiteDriver()
         }
     }
 } 

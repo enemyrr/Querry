@@ -1514,7 +1514,7 @@ enum DatabaseError: Error, LocalizedError {
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
         case .configurationError(let message):
-            return "Configuration error: \(message)"
+            return message
         case .databaseNotFound(let message):
             return "Database: \(message)"
         case .databaseNotSelected:

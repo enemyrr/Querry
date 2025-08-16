@@ -62,7 +62,7 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         let customSize: CGFloat
         
         switch fieldType.lowercased() {
-        case let type where type.hasPrefix("text") || type.hasPrefix("character") || type.hasPrefix("varchar"):
+        case let type where type.hasPrefix("text") || type.hasPrefix("character") || type.contains("varchar"):
             symbolName = "textformat.alt"
             customSize = 10
         case let type where type.contains("int"):

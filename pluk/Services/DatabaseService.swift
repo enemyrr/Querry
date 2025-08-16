@@ -93,7 +93,7 @@ import SwiftUI
         let result: QueryResult
         
         switch connection.databaseType {
-        case .postgres, .supabase, .convex:
+        case .postgres, .supabase, .convex, .sqlite:
             result = try await driver.findDocuments(
                 in: collectionName,
                 filter: ["rawQuery": filter],
@@ -111,7 +111,7 @@ import SwiftUI
                 limit: limit
             )
             
-        case .mysql, .mariadb:
+        case .mysql:
             throw DatabaseError.notImplemented("MySQL/MariaDB not yet implemented")
         }
         
@@ -126,14 +126,14 @@ import SwiftUI
         }
         
         switch connection.databaseType {
-        case .postgres, .supabase, .convex:
+        case .postgres, .supabase, .convex, .sqlite:
             if let postgresDriver = driver as? PostgreSQLDriver {
                 return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName)
             }
         case .mongodb:
             // TODO: Implement MongoDB filter generation
             return ""
-        case .mysql, .mariadb:
+        case .mysql:
             // TODO: Implement MySQL filter generation
             return ""
         }

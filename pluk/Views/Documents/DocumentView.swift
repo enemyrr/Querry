@@ -140,8 +140,8 @@ class TabContentView: NSView {
         layer?.cornerRadius = 16.0
         
         switch databaseType {
-        case .postgres:
-            setupPostgresView()
+        case .postgres, .sqlite:
+            setupTableView()
             
         case .mongodb:
             setupMongoDBView()
@@ -151,7 +151,7 @@ class TabContentView: NSView {
         }
     }
     
-    private func setupPostgresView() {
+    private func setupTableView() {
         if let selectedTab = selectedTab {
             let tableListView = TableListView(
                 selectedTab: selectedTab

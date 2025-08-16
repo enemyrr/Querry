@@ -22,8 +22,8 @@ struct ConnectionDetailsPopover: View {
     }
     
     private var hostname: String {
-        guard let url = URL(string: connectionURL) else { return "Unknown" }
-        return url.host ?? "Unknown"
+        guard let url = URL(string: connectionURL) else { return connectionURL }
+        return url.host ?? connectionURL
     }
     
     private var port: String {
@@ -33,9 +33,9 @@ struct ConnectionDetailsPopover: View {
         }
         // Default ports based on database type
         switch databaseType {
-        case .postgres, .supabase, .convex:
+        case .postgres, .supabase, .convex, .sqlite:
             return "5432"
-        case .mysql, .mariadb:
+        case .mysql:
             return "3306"
         case .mongodb:
             return "27017"
@@ -93,7 +93,11 @@ struct ConnectionDetailsPopover: View {
                     VStack(spacing: 8) {
 //                        CompactDetailRow(label: "Server", value: hostname)
                         CompactDetailRow(label: "Host", value: hostname)
-                        CompactDetailRow(label: "Port", value: port)
+                        
+                        // Only show port for network-based databases
+                        if databaseType != .sqlite {
+                            CompactDetailRow(label: "Port", value: port)
+                        }
                     }
                     .padding(16)
                     .background(Color(.controlColor).opacity(0.1))
@@ -115,7 +119,12 @@ struct ConnectionDetailsPopover: View {
                     VStack(spacing: 8) {
                         CompactDetailRow(label: "Driver", value: driverWithVersion)
                         CompactDetailRow(label: "Database", value: databaseName)
-                        CompactDetailRow(label: "Username", value: username)
+                        
+                        // Only show username for network-based databases
+                        if databaseType != .sqlite {
+                            CompactDetailRow(label: "Username", value: username)
+                        }
+                        
                         CompactDetailRow(label: "Environment", value: environment.rawValue)
                     }
                     .padding(16)
@@ -152,7 +161,7 @@ struct ConnectionDetailsPopover: View {
                 }
             }
             .padding(20)
-            .frame(minWidth: 350)
+            .frame(minWidth: 350, maxWidth: 400)
             .textSelection(.enabled)
     }
 }

@@ -16,8 +16,8 @@ enum DatabaseType: String, Codable, CaseIterable {
     // case neon = "neon"
     case postgres = "postgres"
     case mongodb = "MongoDB"
+    case sqlite = "sqlite"
     case mysql = "mysql"
-    case mariadb = "mariadb"
     
     var displayName: String {
         switch self {
@@ -27,7 +27,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .postgres: return "PostgreSQL"
         case .mongodb: return "MongoDB"
         case .mysql: return "MySQL"
-        case .mariadb: return "MariaDB"
+        case .sqlite: return "SQLite"
         }
     }
     
@@ -39,7 +39,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .postgres: return Color(hex: "#336791")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#00ED64")
-        case .mariadb: return Color(hex: "#C39A6C")
+        case .sqlite: return Color(hex: "#003B57")
         }
     }
     
@@ -51,7 +51,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .postgres: return Color(hex: "#346791")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#021E2C")
-        case .mariadb: return Color(hex: "#C39A6C")
+        case .sqlite: return Color(hex: "#FFFFFF")
         }
     }
     
@@ -63,7 +63,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .postgres: return "postgres.pdf"
         case .mongodb: return "database.mongodb"
         case .mysql: return "mysql"
-        case .mariadb: return "mariadb"
+        case .sqlite: return "sqlite"
         }
     }
     
@@ -75,7 +75,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .postgres: return Color(hex: "#FFFFFF")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#00ED64")
-        case .mariadb: return Color(hex: "#C39A6C")
+        case .sqlite: return Color(hex: "#FFFFFF")
         }
     }
     
@@ -83,9 +83,9 @@ enum DatabaseType: String, Codable, CaseIterable {
         switch self {
         case .convex:
             return .comingSoon
-        case .mongodb:
+        case .mongodb, .sqlite:
             return .beta
-        case .supabase, .mysql, .mariadb:
+        case .supabase, .mysql:
             return .comingSoon
         default:
             return .available
@@ -106,8 +106,8 @@ enum DatabaseType: String, Codable, CaseIterable {
             return "mysql://username:password@localhost:3306/database"
         case .mongodb:
             return "mongodb+srv://user:password@cluster.mongodb.net"
-        case .mariadb:
-            return "mariadb://username:password@localhost:3306/database"
+        case .sqlite:
+            return "sqlite:///path/to/database.db"
         }
     }
     
@@ -115,7 +115,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         switch self {
         case .convex, .supabase:
             return .cloud
-        case .postgres, .mysql, .mongodb, .mariadb:
+        case .postgres, .mysql, .mongodb, .sqlite:
             return .database
         }
     }
@@ -124,7 +124,7 @@ enum DatabaseType: String, Codable, CaseIterable {
             switch self {
             case .mongodb:
                 return .noSQL
-            case .convex, .supabase, .postgres, .mysql, .mariadb:
+            case .convex, .supabase, .postgres, .mysql, .sqlite:
                 return .sql
             }
         }
@@ -258,16 +258,16 @@ final class Connection {
         var components = URLComponents()
         
         switch databaseType {
-        case .postgres, .supabase, .convex:
+        case .postgres, .supabase, .convex, .sqlite:
             components.scheme = "postgresql"
-        case .mysql, .mariadb:
+        case .mysql:
             components.scheme = "mysql"
         case .mongodb:
             components.scheme = "mongodb"
         }
         
         components.host = hostname.isEmpty ? "localhost" : hostname
-        components.port = Int(port) ?? (databaseType == .mysql || databaseType == .mariadb ? 3306 : 5432)
+        components.port = Int(port) ?? (databaseType == .mysql ? 3306 : 5432)
         components.user = username.isEmpty ? nil : username
         components.password = password?.isEmpty == true ? nil : password
         
@@ -304,6 +304,11 @@ final class Connection {
             return constructDisplayURLFromFields()
         }
         
+        // Special handling for SQLite bookmark URLs
+        if databaseType == .sqlite, let url = url, !url.isEmpty {
+            return extractSQLiteFilePath(from: url)
+        }
+        
         // Fallback to sanitizing existing URL (backward compatibility)
         if let url = url, !url.isEmpty {
             return sanitizeURLForDisplay(url)
@@ -322,8 +327,10 @@ final class Connection {
         switch databaseType {
         case .postgres, .supabase, .convex:
             components.scheme = "postgresql"
-        case .mysql, .mariadb:
+        case .mysql:
             components.scheme = "mysql"
+        case .sqlite:
+            components.scheme = "sqlLite"
         case .mongodb:
             components.scheme = "mongodb"
         }
@@ -343,6 +350,50 @@ final class Connection {
         }
         
         return components.url?.absoluteString ?? "\(hostname):\(port)"
+    }
+    
+    private func extractSQLiteFilePath(from url: String) -> String {
+        // Check if this is a security-scoped bookmark URL
+        if url.hasPrefix("bookmark:") {
+            // Try to decode the bookmark to get the original file path
+            let bookmarkString = String(url.dropFirst(9)) // Remove "bookmark:"
+            let components = bookmarkString.components(separatedBy: "|")
+            
+            if components.count >= 2 {
+                let encryptedPath = components[1]
+                // Decrypt the path (matching BookmarkManager logic)
+                if let decryptedPath = decryptPath(encryptedPath) {
+                    return decryptedPath
+                }
+            }
+        }
+        
+        // Handle other SQLite URL formats
+        if url.hasPrefix("sqlite://") {
+            let path = String(url.dropFirst(9)) // Remove "sqlite://"
+            return path.isEmpty ? ":memory:" : path
+        } else if url.hasPrefix("file:") {
+            return String(url.dropFirst(5)) // Remove "file:"
+        }
+        
+        // Return the original URL if we can't parse it
+        return url
+    }
+    
+    private func decryptPath(_ encryptedPath: String) -> String? {
+        guard let data = Data(base64Encoded: encryptedPath),
+              let saltedPath = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        
+        let salt = "PlukSecureBookmark2025"
+        if saltedPath.hasPrefix(salt) && saltedPath.hasSuffix(salt) {
+            let startIndex = saltedPath.index(saltedPath.startIndex, offsetBy: salt.count)
+            let endIndex = saltedPath.index(saltedPath.endIndex, offsetBy: -salt.count)
+            return String(saltedPath[startIndex..<endIndex])
+        }
+        
+        return nil
     }
     
     private func sanitizeURLForDisplay(_ url: String) -> String {

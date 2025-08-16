@@ -498,7 +498,13 @@ struct FloatingActionBar: View {
             
             Group {
                 if modificationTracker.hasPendingDeletions {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Divider()
+                            .frame(height: 22)
+                            .padding(.vertical, 6)
+                            .padding(.trailing, 4)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        
                         DeleteActionButton(
                             deleteCount: modificationTracker.pendingDeletionCount,
                             isProcessingBatch: isProcessingUpdates,
@@ -512,7 +518,7 @@ struct FloatingActionBar: View {
                         }) {
                             Text("Discard")
                         }
-                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)))
+                        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
                         .customHelp("Discard deletions", position: .top)
                     }
                     
@@ -521,10 +527,11 @@ struct FloatingActionBar: View {
             
             // Batch update button - only show when there are documents marked for update
             if modificationTracker.hasModifications {
-//                Divider()
-//                    .frame(height: 22)
-//                    .padding(.vertical, 6)
-//                    .transition(.opacity.combined(with: .move(edge: .top)))
+                Divider()
+                    .frame(height: 22)
+                    .padding(.vertical, 6)
+                    .padding(.trailing, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 
                 UpdateActionButton(
                     updateCount: modificationTracker.modifiedRowCount,
@@ -532,7 +539,7 @@ struct FloatingActionBar: View {
                     onUpdate: {
                         onCommitModifications()
                     }
-                )
+                ).padding(.trailing, 4)
             }
             
             Divider()

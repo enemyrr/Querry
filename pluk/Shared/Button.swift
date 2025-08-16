@@ -756,6 +756,71 @@ private struct CompactPrimaryButtonStyle: ButtonStyle {
     }
 }
 
+struct FileSelectionButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        isHovering
+                        ? (colorScheme == .dark ? Color(.black) : Color(.white))
+                            .opacity(0.2)
+                        : Color.clear
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.separator.opacity(isHovering ? 0.8 : 0.5), lineWidth: 1)
+            )
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.2), value: isHovering)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isHovering = hovering
+                }
+            }
+    }
+}
+
+struct FileChangeButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        isHovering
+                        ? (colorScheme == .dark ? Color(.black) : Color(.white))
+                            .opacity(0.2)
+                        : Color.clear
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(.separator.opacity(isHovering ? 1.0 : 0.5), lineWidth: 1)
+            )
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.15), value: isHovering)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovering = hovering
+                }
+            }
+    }
+}
+
 extension Button {
     func primaryStyle() -> some View {
         self.buttonStyle(PrimaryButtonStyle())
@@ -775,6 +840,14 @@ extension Button {
     
     func compactPrimaryStyle() -> some View {
         self.buttonStyle(CompactPrimaryButtonStyle())
+    }
+    
+    func fileSelectionStyle() -> some View {
+        self.buttonStyle(FileSelectionButtonStyle())
+    }
+    
+    func fileChangeStyle() -> some View {
+        self.buttonStyle(FileChangeButtonStyle())
     }
 }
 
