@@ -6,12 +6,29 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 18</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg</link>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.18</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 18</h2><p><strong>Pre-release version</strong></p><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.18</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+            ]]></description>
+            <pubDate>Sat, 16 Aug 2025 15:01:28 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg"
+                length=""
+                type="application/octet-stream"
+                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 17</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.17.dmg</link>
             <sparkle:version>267</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.17</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 17</h2><div><h3>🛡️ Privacy & Security</h3>
+                <h2>Pluk 0.0.1 Beta 17</h2><p><strong>Pre-release version</strong></p><div><h3>🛡️ Privacy & Security</h3>
 <h4><strong>Enhanced Password Protection</strong></h4>
 <ul>
 <li><strong>Keychain Integration</strong> - Database passwords are now securely stored in the system keychain instead of local storage</li>
