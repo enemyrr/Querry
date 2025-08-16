@@ -458,7 +458,7 @@ struct CreateConnectionForm: View {
                         )
                     } else if selectedDatabaseType == .sqlite {
                         SQLiteFieldsView(filePath: $uri)
-                    } else {
+                    } else if selectedDatabaseType == .mongodb {
                         // Non-PostgreSQL databases use URI
                         FormSection(title: "Connection Details") {
                             VStack(alignment: .leading, spacing: 4) {
@@ -501,6 +501,44 @@ struct CreateConnectionForm: View {
                                 }
                             }
                         }
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+                            
+                            VStack(spacing: 12) {
+                                FormField(label: "") {
+                                    HStack(spacing: 12) {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "externaldrive.fill")
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(.secondary)
+                                            
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 10)
+                                        .background(Color(.controlColor).opacity(0.05))
+                                        .cornerRadius(8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(.separator.opacity(0.5), lineWidth: 1)
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(16)
+                            .background(Color(.controlColor).opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(.separator, lineWidth: 1)
+                            )
+                            .cornerRadius(16)
+                        }
+
                     }
                     
                     FormSection(title: "Display Settings") {

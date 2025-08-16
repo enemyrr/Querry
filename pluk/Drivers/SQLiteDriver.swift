@@ -60,6 +60,7 @@ class SQLiteDriver: DatabaseDriver {
     }
     
     func connect(to connectionUri: String) async throws -> SQLiteDatabaseWrapper {
+        self.databasePath = connectionUri
         let path = try parseConnectionString(connectionUri)
         return try await establishConnection(to: path)
     }
@@ -73,11 +74,6 @@ class SQLiteDriver: DatabaseDriver {
         
         // Restore the security-scoped URL after cleanup
         self.securityScopedURL = preservedSecurityScopedURL
-        
-        self.databasePath = path
-        
-        // Check if this path was resolved from a security-scoped bookmark
-        let hasSecurityScopedAccess = self.securityScopedURL != nil
         
         do {
             // Create event loop group with proper lifecycle management
@@ -139,40 +135,31 @@ class SQLiteDriver: DatabaseDriver {
                 }
                 
                 // The SQLite library will handle access through the security-scoped URL
-                if !hasSecurityScopedAccess {
-                    if !fileManager.isReadableFile(atPath: absolutePath) {
-                        throw DatabaseError.configurationError("SQLite file is not accessible: \(absolutePath)\n\nFor security reasons, please:\n1. Use the folder button (📁) to select your SQLite file\n2. Or move your database to a user-accessible location like Documents folder")
+                // Test if we can actually read the file with security-scoped access
+                do {
+                    let _ = try Data(contentsOf: fileURL)
+                    // Try opening a file descriptor which might work better with SQLite NIO
+                    let fileDescriptor = open(absolutePath, O_RDWR)
+                    if fileDescriptor != -1 {
+                        close(fileDescriptor)
                     }
-                    if !fileManager.isWritableFile(atPath: absolutePath) {
-                        throw DatabaseError.configurationError("SQLite file is not writable: \(absolutePath)")
-                    }
-                } else {
-                        // Test if we can actually read the file with security-scoped access
-                        do {
-                            let _ = try Data(contentsOf: fileURL)
-                            // Try opening a file descriptor which might work better with SQLite NIO
-                            let fileDescriptor = open(absolutePath, O_RDWR)
-                            if fileDescriptor != -1 {
-                                close(fileDescriptor)
+                } catch {
+                    // Try a different approach - test if the security-scoped access is actually working
+                    if let securityScopedURL = self.securityScopedURL {
+                        // Try stopping and restarting access
+                        securityScopedURL.stopAccessingSecurityScopedResource()
+                        if securityScopedURL.startAccessingSecurityScopedResource() {
+                            // Try reading again
+                            do {
+                                let _ = try Data(contentsOf: securityScopedURL)
+                            } catch {
+                                throw DatabaseError.configurationError("Cannot access the SQLite file. Please try selecting the file again using the folder button (📁).")
                             }
-                        } catch {
-                            // Try a different approach - test if the security-scoped access is actually working
-                            if let securityScopedURL = self.securityScopedURL {
-                                // Try stopping and restarting access
-                                securityScopedURL.stopAccessingSecurityScopedResource()
-                                if securityScopedURL.startAccessingSecurityScopedResource() {
-                                    // Try reading again
-                                    do {
-                                        let _ = try Data(contentsOf: securityScopedURL)
-                                    } catch {
-                                        throw DatabaseError.configurationError("Cannot access the SQLite file. Please try selecting the file again using the folder button (📁).")
-                                    }
-                                } else {
-                                    throw DatabaseError.configurationError("Lost access to the SQLite file. Please select the file again using the folder button (📁).")
-                                }
-                            }
+                        } else {
+                            throw DatabaseError.configurationError("Lost access to the SQLite file. Please select the file again using the folder button (📁).")
                         }
                     }
+                }
                 
                 storage = .file(path: absolutePath)
             }
@@ -265,7 +252,8 @@ class SQLiteDriver: DatabaseDriver {
     
     func reconnect() async throws {
         await disconnect()
-        if let path = self.databasePath {
+        if let databasePath = self.databasePath {
+            let path = try parseConnectionString(databasePath)
             _ = try await establishConnection(to: path)
         }
     }

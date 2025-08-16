@@ -143,7 +143,7 @@ struct ConnectionHeader: View {
                 onDisconnect: {
                     showConnectionDetails = false
                     // Add delay to allow popover to close smoothly
-                    try? await Task.sleep(for: .milliseconds(30))
+                    try? await Task.sleep(for: .milliseconds(50))
                     await onDisconnect()
                 },
                 onReconnect: {
