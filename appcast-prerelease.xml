@@ -16,7 +16,7 @@
 Pluk now speaks <strong>SQLite</strong>!  
 <ul>
 <li>Connect to any <strong>SQLite file</strong> (<code>.sqlite</code>, <code>.db</code>, <code>.sqlite3</code>)  </li>
-<li>Run queries, edit data, and browse schemas with <strong>full read/write access</strong>  </li>
+<li>Run queries, edit data with <strong>full read/write access</strong>  </li>
 <li>Works seamlessly across all SQLite file formats  </li>
 </ul>
 This makes Pluk a powerful local-first companion for developers who rely on SQLite for prototyping, embedded apps, and production systems.  
