@@ -55,6 +55,9 @@ struct FilterRowView: View {
             .buttonStyle(FilterDropdownStyle())
             .frame(width: 160)
             
+            /// Operator
+            OperatorDropdown(selectedOperator: $condition.filterOperator)
+            
             // Value input
             TextField("Enter a value", text: $condition.value)
                 .textFieldStyle(FilterTextFieldStyle())
