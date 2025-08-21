@@ -10,6 +10,13 @@ struct CreateCollection: View {
     @State private var showSheet = false
     var viewModel: SidebarViewModel
     
+    private var helpText: String {
+        guard let databaseType = viewModel.activeConnection?.databaseType else {
+            return "New collection"
+        }
+        return databaseType.dataModelType == .sql ? "New table" : "New collection"
+    }
+    
     var body: some View {
         Button(action: {
             showSheet.toggle()
@@ -25,7 +32,7 @@ struct CreateCollection: View {
         }
         .buttonStyle(ActionButtonStyle())
         .keyboardShortcut("N", modifiers: [.command, .shift])
-        .customHelp("New collection", position: .top, shortcut: KeyboardShortcut(
+        .customHelp(helpText, position: .top, shortcut: KeyboardShortcut(
             modifiers: [.command, .shift],
             key: "N"
         ))
@@ -36,6 +43,20 @@ struct CreateCollectionForm: View {
     var viewModel: SidebarViewModel
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
+    
+    private var titleText: String {
+        guard let databaseType = viewModel.activeConnection?.databaseType else {
+            return "Create collection"
+        }
+        return databaseType.dataModelType == .sql ? "Create table" : "Create collection"
+    }
+    
+    private var placeholderText: String {
+        guard let databaseType = viewModel.activeConnection?.databaseType else {
+            return "e.g new-collection"
+        }
+        return databaseType.dataModelType == .sql ? "e.g users" : "e.g new-collection"
+    }
     
     // Form state
     @State private var name = ""
@@ -51,42 +72,45 @@ struct CreateCollectionForm: View {
     }
     
     private func validateCollectionName(_ name: String) -> String? {
+        let entityName = viewModel.activeConnection?.databaseType?.dataModelType == .sql ? "Table" : "Collection"
+        let entityNameLower = entityName.lowercased()
+        
         // Check if empty
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Collection name cannot be empty"
+            return "\(entityName) name cannot be empty"
         }
         
         // Check length (MongoDB has a maximum name length)
         if name.count > 64 {
-            return "Collection name cannot exceed 64 characters"
+            return "\(entityName) name cannot exceed 64 characters"
         }
         
         // Check if name starts with 'system.' (reserved prefix)
         if name.hasPrefix("system.") {
-            return "Collection names cannot start with 'system.'"
+            return "\(entityName) names cannot start with 'system.'"
         }
         
         // Check for illegal characters
         // MongoDB doesn't allow $ in collection names or empty strings
         if name.contains("$") {
-            return "Collection name cannot contain the '$' character"
+            return "\(entityName) name cannot contain the '$' character"
         }
         
         // Check for null character
         if name.contains("\0") {
-            return "Collection name cannot contain null characters"
+            return "\(entityName) name cannot contain null characters"
         }
         
         // Check for valid first character (cannot start with a period)
         if name.hasPrefix(".") {
-            return "Collection name cannot start with a period"
+            return "\(entityName) name cannot start with a period"
         }
         
         // Check for reserved characters in file systems
         let reservedChars = ["\\", "/", ":", "*", "\"", "<", ">", "|", "?"]
         for char in reservedChars {
             if name.contains(char) {
-                return "Collection name cannot contain '\(char)'"
+                return "\(entityName) name cannot contain '\(char)'"
             }
         }
         
@@ -121,17 +145,18 @@ struct CreateCollectionForm: View {
                 await MainActor.run {
                     isSubmitting = false
                     // Provide more specific error messages based on error code/domain
+                    let entityNameLower = viewModel.activeConnection?.databaseType?.dataModelType == .sql ? "table" : "collection"
                     if error.domain == "MongoKitten" && error.code == 48 {
-                        errorMessage = "Collection '\(name)' already exists"
+                        errorMessage = "\(entityNameLower.capitalized) '\(name)' already exists"
                     } else {
-                        errorMessage = "Failed to create collection: \(error.localizedDescription)"
+                        errorMessage = error.localizedDescription
                     }
                     showErrorAlert = true
                 }
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    errorMessage = "Failed to create collection: \(error.localizedDescription)"
+                    errorMessage = error.localizedDescription
                     showErrorAlert = true
                 }
             }
@@ -141,7 +166,7 @@ struct CreateCollectionForm: View {
     var body: some View {
         VStack(spacing: 15) {
             HStack {
-                Text("Create collection")
+                Text(titleText)
                     .font(.title3)
                 
                 Spacer()
@@ -151,7 +176,7 @@ struct CreateCollectionForm: View {
             
             VStack(alignment: .leading, spacing: 16) {
                 FormField(label: "Name") {
-                    TextField("e.g new-collection", text: $name)
+                    TextField(placeholderText, text: $name)
                         .textFieldStyle(CustomTextFieldStyle())
                         .disabled(isSubmitting)
                         .onChange(of: name) { _, newValue in

@@ -66,7 +66,7 @@ import SwiftUI
             return
         }
         
-        try await activeConnection.createCollection(withName: withName)
+        try await activeConnection.databaseService.createCollection(named: withName)
     }
     
     func loadActiveConnection() async {

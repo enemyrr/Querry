@@ -15,6 +15,10 @@ struct MariaDBCollectionWrapper: CollectionWrapper {
 
 // MARK: - MariaDB Driver (Placeholder)
 class MariaDBDriver: DatabaseDriver {
+    func deleteCollection(named collectionName: String) async throws {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
     func getDatabaseMetadata() async throws -> [MariaDBDatabaseWrapper] {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }

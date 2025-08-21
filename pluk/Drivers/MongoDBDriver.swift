@@ -53,6 +53,10 @@ struct MongoCollectionWrapper: CollectionWrapper {
 
 // MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
+    func deleteCollection(named collectionName: String) async throws {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     func getDatabaseMetadata() async throws -> [MongoDBWrapper] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }

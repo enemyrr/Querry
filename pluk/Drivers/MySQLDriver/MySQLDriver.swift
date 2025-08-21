@@ -379,23 +379,32 @@ class MySQLDriver: DatabaseDriver {
     // MARK: - Collection Management
     
     func createCollection(named collectionName: String) async throws {
-        let connection = try await ensureConnected()
-        
-        let query = """
-            CREATE TABLE `\(collectionName)` (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """
-        
-        _ = try await connection.simpleQuery(query).get()
+        throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
+//        let connection = try await ensureConnected()
+//        
+//        let query = """
+//            CREATE TABLE `\(collectionName)` (
+//                id INT AUTO_INCREMENT PRIMARY KEY,
+//                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+//                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+//            )
+//        """
+//        
+//        _ = try await connection.simpleQuery(query).get()
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
         let connection = try await ensureConnected()
         
         let query = "RENAME TABLE `\(oldName)` TO `\(newName)`"
+        
+        _ = try await connection.simpleQuery(query).get()
+    }
+    
+    func deleteCollection(named collectionName: String) async throws {
+        let connection = try await ensureConnected()
+        
+        let query = "DROP TABLE `\(collectionName)`"
         
         _ = try await connection.simpleQuery(query).get()
     }

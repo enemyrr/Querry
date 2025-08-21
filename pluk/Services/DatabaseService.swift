@@ -180,6 +180,15 @@ import SwiftUI
         clearCache() // Clear cache after structural changes
     }
     
+    func deleteCollection(named collectionName: String) async throws {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        try await driver.deleteCollection(named: collectionName)
+        clearCache() // Clear cache after structural changes
+    }
+    
     // MARK: - Document Modification
     func createDocument(in collectionName: String, document: [String: Any]) async throws {
         guard let driver = activeDriver else {

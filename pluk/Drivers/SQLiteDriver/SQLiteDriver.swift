@@ -575,11 +575,50 @@ class SQLiteDriver: DatabaseDriver {
     }
     
     func createCollection(named collectionName: String) async throws {
-        throw DatabaseError.notImplemented("SQLite create collection not yet implemented")
+        throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
+//        let connection = try await ensureConnected()
+//        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+//        
+//        let query = """
+//            CREATE TABLE \(sanitizedTableName) (
+//                id INTEGER PRIMARY KEY AUTOINCREMENT,
+//                created_at TEXT DEFAULT (datetime('now')),
+//                updated_at TEXT DEFAULT (datetime('now'))
+//            )
+//        """
+//        
+//        do {
+//            _ = try await connection.query(query)
+//        } catch {
+//            throw DatabaseError.operationFailed("Failed to create table: \(error.localizedDescription)")
+//        }
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
-        throw DatabaseError.notImplemented("SQLite rename collection not yet implemented")
+        let connection = try await ensureConnected()
+        let sanitizedOldName = try validateAndSanitizeIdentifier(oldName)
+        let sanitizedNewName = try validateAndSanitizeIdentifier(newName)
+        
+        let query = "ALTER TABLE \(sanitizedOldName) RENAME TO \(sanitizedNewName)"
+        
+        do {
+            _ = try await connection.query(query)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to rename table: \(error.localizedDescription)")
+        }
+    }
+    
+    func deleteCollection(named collectionName: String) async throws {
+        let connection = try await ensureConnected()
+        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+        
+        let query = "DROP TABLE \(sanitizedTableName)"
+        
+        do {
+            _ = try await connection.query(query)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to delete table: \(error.localizedDescription)")
+        }
     }
     
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {

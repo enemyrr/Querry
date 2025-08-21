@@ -62,7 +62,6 @@ struct DatabaseList: View {
             } else {
                 if let filteredCollections = filteredCollections {
                     CollectionsSection(
-                        instance: instance,
                         collections: filteredCollections
                     )
 
@@ -206,11 +205,15 @@ struct DatabasesSection: View {
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
-    var instance: ConnectionInstance
+    @Environment(ConnectionInstance.self) private var instance
     let collections: [any CollectionWrapper]
 
     @State private var showDeleteConfirmation = false
     @State private var collectionToDelete: (any CollectionWrapper)?
+    @State private var renameError: Error?
+    @State private var showRenameError = false
+    @State private var deleteError: Error?
+    @State private var showDeleteError = false
 
     private var hasTextChanged: Bool {
         guard let renamingCollectionName = renamingCollection else {
@@ -218,6 +221,24 @@ struct CollectionsSection: View {
         }
         return renameText.trimmingCharacters(in: .whitespacesAndNewlines)
             != renamingCollectionName
+    }
+    
+    private var deleteConfirmationTitle: String {
+        switch instance.connection.databaseType {
+        case .mongodb:
+            return "Delete Collection"
+        default:
+            return "Delete Table"
+        }
+    }
+    
+    private var deleteConfirmationMessage: String {
+        switch instance.connection.databaseType {
+        case .mongodb:
+            return "Are you sure you want to delete this collection? This action cannot be undone."
+        default:
+            return "Are you sure you want to delete this table? This action cannot be undone."
+        }
     }
 
     var body: some View {
@@ -259,14 +280,15 @@ struct CollectionsSection: View {
             contextMenuContent(for: collection, isActive: isActive)
         }
         .confirmationDialog(
-            "Delete Connection",
+            deleteConfirmationTitle,
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                if let connection = collectionToDelete {
-                    //                    modelContext.delete(connection)
-                    //                    collectionToDelete = nil
+                if let collection = collectionToDelete {
+                    Task {
+                        await performDelete(collection: collection)
+                    }
                 }
             }
 
@@ -274,11 +296,27 @@ struct CollectionsSection: View {
                 collectionToDelete = nil
             }
         } message: {
-            Text(
-                "Are you sure you want to delete this collection? This action cannot be undone."
-            )
+            Text(deleteConfirmationMessage)
         }
         .dialogSeverity(.critical)
+        .alert(
+            "Rename Error",
+            isPresented: $showRenameError,
+            presenting: renameError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+        .alert(
+            "Delete Error",
+            isPresented: $showDeleteError,
+            presenting: deleteError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
     }
 
     private func databaseIcon(for collection: any CollectionWrapper) -> some View {
@@ -364,7 +402,7 @@ struct CollectionsSection: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.controlBackgroundColor).opacity(0.1))
+                .fill(Color(.controlColor).opacity(0.3))
         )
         .onKeyPress(.escape) {
             cancelRename()
@@ -398,9 +436,19 @@ struct CollectionsSection: View {
             return
         }
 
-        // Validate MongoDB collection name
-        if validateCollectionName(trimmedName) != nil {
-            NSSound.beep()
+        // Validate collection name based on database type
+        let validationError: String?
+        switch instance.connection.databaseType {
+        case .mongodb:
+            validationError = validateMongoDBCollectionName(trimmedName)
+        default:
+            validationError = validateSQLTableName(trimmedName)
+        }
+        
+        if let error = validationError {
+            // Store error and show alert
+            renameError = DatabaseError.configurationError(error)
+            showRenameError = true
             return
         }
 
@@ -426,8 +474,8 @@ struct CollectionsSection: View {
     @MainActor
     private func performRename(from oldName: String, to newName: String) async {
         do {
-            try await instance.renameCollection(from: oldName, to: newName)
-            //            await instance.loadCollectionsForCurrentDatabase()
+            try await instance.databaseService.renameCollection(from: oldName, to: newName)
+            try await instance.loadCollectionsForCurrentDatabase()
 
             withAnimation(.easeInOut(duration: 0.2)) {
                 renamingCollection = nil
@@ -440,16 +488,35 @@ struct CollectionsSection: View {
             }
 
         } catch {
-            // Handle error - could show error state
-            NSSound.beep()
+            // Handle error - show popup alert
             isRenaming = false
-
-            // Optionally show error in UI
+            renameError = error
+            showRenameError = true
+            
             debugLog("Rename failed: \(error.localizedDescription)")
         }
     }
 
-    private func validateCollectionName(_ name: String) -> String? {
+    @MainActor
+    private func performDelete(collection: any CollectionWrapper) async {
+        do {
+            try await instance.databaseService.deleteCollection(named: collection.name)
+            try await instance.loadCollectionsForCurrentDatabase()
+            
+            // Clear the collection to delete
+            collectionToDelete = nil
+            
+        } catch {
+            // Handle error - show popup alert
+            deleteError = error
+            showDeleteError = true
+            collectionToDelete = nil
+            
+            debugLog("Delete failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func validateMongoDBCollectionName(_ name: String) -> String? {
         if name.isEmpty {
             return "Collection name cannot be empty"
         }
@@ -465,6 +532,43 @@ struct CollectionsSection: View {
         let invalidCharacters = CharacterSet(charactersIn: "/\\. \"*<>:|?$")
         if name.rangeOfCharacter(from: invalidCharacters) != nil {
             return "Collection name contains invalid characters"
+        }
+
+        return nil
+    }
+    
+    private func validateSQLTableName(_ name: String) -> String? {
+        if name.isEmpty {
+            return "Table name cannot be empty"
+        }
+
+        if name.count > 63 {
+            return "Table name must be less than 64 characters"
+        }
+
+        // Check if starts with a digit (not allowed in most SQL databases)
+        if let firstChar = name.first, firstChar.isNumber {
+            return "Table name cannot start with a number"
+        }
+
+        // SQL identifiers should only contain letters, digits, and underscores
+        let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+        for char in name.unicodeScalars {
+            if !validCharacters.contains(char) {
+                return "Table name can only contain letters, numbers, and underscores"
+            }
+        }
+
+        // Check for SQL reserved keywords (common ones)
+        let reservedKeywords = [
+            "select", "insert", "update", "delete", "create", "drop", "alter",
+            "table", "index", "view", "database", "schema", "user", "group",
+            "order", "by", "where", "from", "join", "inner", "outer", "left",
+            "right", "on", "as", "and", "or", "not", "null", "true", "false"
+        ]
+        
+        if reservedKeywords.contains(name.lowercased()) {
+            return "Table name cannot be a SQL reserved keyword"
         }
 
         return nil

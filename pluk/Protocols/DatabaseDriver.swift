@@ -90,6 +90,7 @@ protocol DatabaseDriver {
     // Collection management
     func createCollection(named collectionName: String) async throws
     func renameCollection(from oldName: String, to newName: String) async throws
+    func deleteCollection(named collectionName: String) async throws
     
     // AI Functions
     func buildSystemPrompt(for collectionName: String) async throws -> String

@@ -633,11 +633,63 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func createCollection(named collectionName: String) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
+//        let connection = try await ensureConnected()
+//        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+//        
+//        let query = PostgresQuery("""
+//            CREATE TABLE \(sanitizedTableName) (
+//                id SERIAL PRIMARY KEY,
+//                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+//                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+//            )
+//        """)
+//        
+//        do {
+//            try await connection.query(query, logger: Logger(label: "postgres"))
+//            // Clear schema cache since we created a new table
+//            await clearSchemaCache(for: collectionName)
+//        } catch let error as PSQLError {
+//            throw mapPSQLError(error)
+//        } catch {
+//            throw DatabaseError.operationFailed("Failed to create table: \(error.localizedDescription)")
+//        }
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        let connection = try await ensureConnected()
+        let sanitizedOldName = try validateAndSanitizeIdentifier(oldName)
+        let sanitizedNewName = try validateAndSanitizeIdentifier(newName)
+        
+        let query = PostgresQuery("ALTER TABLE \(unescaped: sanitizedOldName) RENAME TO \(unescaped: sanitizedNewName)")
+        
+        do {
+            try await connection.query(query, logger: Logger(label: "postgres"))
+            // Clear schema cache for both old and new names
+            await clearSchemaCache(for: oldName)
+            await clearSchemaCache(for: newName)
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed(error.localizedDescription)
+        }
+    }
+    
+    func deleteCollection(named collectionName: String) async throws {
+        let connection = try await ensureConnected()
+        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+        
+        let query = PostgresQuery("DROP TABLE \(unescaped: sanitizedTableName)")
+        
+        do {
+            try await connection.query(query, logger: Logger(label: "postgres"))
+            // Clear schema cache since we deleted the table
+            await clearSchemaCache(for: collectionName)
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed(error.localizedDescription)
+        }
     }
     
     func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
@@ -1508,7 +1560,7 @@ enum DatabaseError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notImplemented(let message):
-            return "Not implemented: \(message)"
+            return message
         case .connectionFailed(let message):
             return message
         case .operationFailed(let message):
