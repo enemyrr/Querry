@@ -139,7 +139,7 @@ struct CreateConnectionForm: View {
         }
         
         // For PostgreSQL databases using field-based input
-        if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
+        if (databaseType == .postgres || databaseType == .mysql || databaseType == .supabase) && useFieldBasedInput {
             return !name.isEmpty
         }
         
@@ -458,6 +458,16 @@ struct CreateConnectionForm: View {
                         )
                     } else if selectedDatabaseType == .sqlite {
                         SQLiteFieldsView(filePath: $uri)
+                    } else if selectedDatabaseType == .mysql {
+                        MySQLFieldsView(
+                            hostname: $hostname,
+                            port: $port,
+                            username: $username,
+                            password: $password,
+                            defaultDatabase: $defaultDatabase,
+                            sslMode: $sslMode,
+                            showURIImportSheet: $showURIImportSheet
+                        )
                     } else if selectedDatabaseType == .mongodb {
                         // Non-PostgreSQL databases use URI
                         FormSection(title: "Connection Details") {
@@ -699,6 +709,8 @@ struct CreateConnectionForm: View {
         // Fill in missing default values before saving
         fillMissingDefaults()
         
+        print(hostname, port, username)
+        
         Task {
             await saveConnectionAsync()
         }
@@ -708,15 +720,29 @@ struct CreateConnectionForm: View {
         guard let databaseType = selectedDatabaseType else { return }
         
         // Fill defaults for PostgreSQL databases using field-based input
-        if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
+        if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql) && useFieldBasedInput {
             if hostname.isEmpty {
-                hostname = "localhost"
+                if databaseType == .mysql {
+                    hostname = "127.0.0.1"
+                } else {
+                    hostname = "localhost"
+                }
             }
+        
             if port.isEmpty {
-                port = "5432"
+                if databaseType == .mysql {
+                    port = "3306"
+                } else {
+                    port = "5432"
+                }
             }
+            
             if username.isEmpty {
-                username = "postgres"
+                if databaseType == .mysql {
+                    username = "root"
+                } else {
+                    username = "postgres"
+                }
             }
 
             if sslMode.isEmpty {
@@ -750,7 +776,7 @@ struct CreateConnectionForm: View {
             existing.defaultDatabase = defaultDatabase
             
             // For PostgreSQL databases using field-based input, update individual fields
-            if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
+            if (databaseType == .postgres || databaseType == .mysql) && useFieldBasedInput {
                 existing.hostname = hostname
                 existing.port = port
                 existing.username = username
@@ -782,7 +808,7 @@ struct CreateConnectionForm: View {
             let newConnection: Connection
             
             // For PostgreSQL databases using field-based input, use the new initializer
-            if (databaseType == .postgres || databaseType == .supabase) && useFieldBasedInput {
+            if (databaseType == .postgres || databaseType == .mysql) && useFieldBasedInput {
                 newConnection = Connection(
                     databaseType: databaseTypeEnum,
                     name: name,

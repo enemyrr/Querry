@@ -153,7 +153,6 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
-        // Parse connection URI
         let config = try parseConnectionString(connectionUri)
         return try await establishConnection(with: config)
     }
@@ -1502,6 +1501,9 @@ enum DatabaseError: Error, LocalizedError {
     case configurationError(String)
     case databaseNotFound(String)
     case databaseNotSelected
+    case notConnected(String)
+    case invalidConnectionString(String)
+    case noDatabaseSelected(String)
     
     var errorDescription: String? {
         switch self {
@@ -1519,6 +1521,12 @@ enum DatabaseError: Error, LocalizedError {
             return "Database: \(message)"
         case .databaseNotSelected:
             return "Database not selected"
+        case .notConnected(let message):
+            return "Not connected: \(message)"
+        case .invalidConnectionString(let message):
+            return "Invalid connection string: \(message)"
+        case .noDatabaseSelected(let message):
+            return "No database selected: \(message)"
         }
     }
 }

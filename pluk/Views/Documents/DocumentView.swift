@@ -140,7 +140,7 @@ class TabContentView: NSView {
         layer?.cornerRadius = 16.0
         
         switch databaseType {
-        case .postgres, .sqlite:
+        case .postgres, .sqlite, .mysql:
             setupTableView()
             
         case .mongodb:

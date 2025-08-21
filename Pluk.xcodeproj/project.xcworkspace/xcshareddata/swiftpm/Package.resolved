@@ -1,5 +1,5 @@
 {
-  "originHash" : "e43eb9df350e9bc0f0e2e298b84f8b24b395a04cc210e33d1ca562cf1139c061",
+  "originHash" : "2bbdc5e91692851c49c844de61ec17a70a30718e04c06cb0fefe30ea9334e955",
   "pins" : [
     {
       "identity" : "aiproxyswift",
@@ -35,6 +35,15 @@
       "state" : {
         "revision" : "e403140d7b59c8ba0c2b00f552933d28470d3a6e",
         "version" : "7.9.9"
+      }
+    },
+    {
+      "identity" : "mysql-nio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor/mysql-nio",
+      "state" : {
+        "revision" : "d60444dc7b1525000eb443baa08bf79f059202ad",
+        "version" : "1.7.2"
       }
     },
     {

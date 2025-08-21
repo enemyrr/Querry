@@ -11,6 +11,7 @@
 		9A2923052DBBA5830032F301 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 9A2923042DBBA5830032F301 /* PostHog */; };
 		9A2981EF2E4F4D7200713088 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 9A2981EE2E4F4D7200713088 /* SQLite */; };
 		9A44A0BE2D2E91F900E04DC8 /* UInt128 in Frameworks */ = {isa = PBXBuildFile; productRef = 9A44A0BD2D2E91F900E04DC8 /* UInt128 */; };
+		9A5DDF232E53465500812D2A /* MySQLNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 9A5DDF222E53465500812D2A /* MySQLNIO */; };
 		9A623D9B2E2C0A4600B9CFCB /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 9A623D9A2E2C0A4600B9CFCB /* Sparkle */; };
 		9A8CF55C2D83EC61007307E3 /* AIProxy in Frameworks */ = {isa = PBXBuildFile; productRef = 9A8CF55B2D83EC61007307E3 /* AIProxy */; };
 		9A9882FE2E05800B00F74AC3 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 9A9882FD2E05800B00F74AC3 /* Sentry */; };
@@ -86,6 +87,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A5DDF232E53465500812D2A /* MySQLNIO in Frameworks */,
 				9A623D9B2E2C0A4600B9CFCB /* Sparkle in Frameworks */,
 				9AA8038E2E46601200B6F1B4 /* SQLiteNIO in Frameworks */,
 				9AC676C52DEAD6DB009B6D2A /* PostgresNIO in Frameworks */,
@@ -180,6 +182,7 @@
 				9A623D9A2E2C0A4600B9CFCB /* Sparkle */,
 				9AA8038D2E46601200B6F1B4 /* SQLiteNIO */,
 				9A2981EE2E4F4D7200713088 /* SQLite */,
+				9A5DDF222E53465500812D2A /* MySQLNIO */,
 			);
 			productName = collection;
 			productReference = 9A529E7B2D23CFC700618009 /* Pluk.app */;
@@ -278,6 +281,7 @@
 				9A623D992E2C0A4600B9CFCB /* XCRemoteSwiftPackageReference "Sparkle" */,
 				9AA8038C2E46601200B6F1B4 /* XCRemoteSwiftPackageReference "sqlite-nio" */,
 				9A2981ED2E4F4D7200713088 /* XCRemoteSwiftPackageReference "SQLite" */,
+				9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -698,6 +702,14 @@
 				minimumVersion = 3.2.0;
 			};
 		};
+		9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/vapor/mysql-nio";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.2;
+			};
+		};
 		9A623D992E2C0A4600B9CFCB /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -791,6 +803,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */;
 			productName = UInt128;
+		};
+		9A5DDF222E53465500812D2A /* MySQLNIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */;
+			productName = MySQLNIO;
 		};
 		9A623D9A2E2C0A4600B9CFCB /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

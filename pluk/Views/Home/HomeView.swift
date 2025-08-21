@@ -183,7 +183,7 @@ struct DatabaseTypeIcon: View {
                 .fill(databaseType.backgroundColor)
                 .frame(width: 28, height: 28)
                 .overlay(
-                    Image(databaseType.icon)
+                    Image(databaseType.homeIcon)
                         .resizable()
                         .frame(width: 18, height: 18)
                         .aspectRatio(contentMode: .fit)

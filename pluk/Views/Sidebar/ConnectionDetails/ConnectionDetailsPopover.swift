@@ -63,7 +63,7 @@ struct ConnectionDetailsPopover: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Header with database type info
                 HStack(spacing: 12) {
-                    Image(databaseType.icon)
+                    Image(databaseType.homeIcon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 24, height: 24)

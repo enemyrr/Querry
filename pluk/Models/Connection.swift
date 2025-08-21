@@ -60,32 +60,33 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .convex: return "convex"
         case .supabase: return "supabase"
         // case .neon: return "neon"
-        case .postgres: return "postgres.pdf"
+        case .postgres: return "postgres"
         case .mongodb: return "database.mongodb"
         case .mysql: return "mysql"
         case .sqlite: return "sqlite"
         }
     }
     
-    var foregroundColor: Color {
+    var homeIcon: String {
         switch self {
-        case .convex: return Color(hex: "#8D2676")
-        case .supabase: return Color(hex: "#3ECF8E")
-        // case .neon: return Color(hex: "#00E599")
-        case .postgres: return Color(hex: "#FFFFFF")
-        case .mysql: return Color(hex: "#00546B")
-        case .mongodb: return Color(hex: "#00ED64")
-        case .sqlite: return Color(hex: "#FFFFFF")
+        case .convex: return "convex"
+        case .supabase: return "supabase"
+        // case .neon: return "neon"
+        case .postgres: return "postgres"
+        case .mongodb: return "database.mongodb"
+        case .mysql: return "mysql.white"
+        case .sqlite: return "sqlite"
         }
     }
+    
     
     var status: DatabaseStatus {
         switch self {
         case .convex:
             return .comingSoon
-        case .mongodb, .sqlite:
+        case .mongodb, .sqlite, .mysql:
             return .beta
-        case .supabase, .mysql:
+        case .supabase:
             return .comingSoon
         default:
             return .available
