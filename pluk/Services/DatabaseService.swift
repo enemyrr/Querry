@@ -123,9 +123,13 @@ import SwiftUI
         }
         
         switch connection.databaseType {
-        case .postgres, .supabase, .convex, .sqlite:
+        case .postgres, .supabase, .convex:
             if let postgresDriver = driver as? PostgreSQLDriver {
                 return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName)
+            }
+        case .sqlite:
+            if let sqliteDriver = driver as? SQLiteDriver {
+                return sqliteDriver.generateFilterQuery(from: conditions, tableName: tableName)
             }
         case .mysql:
             if let mysqlDriver = driver as? MySQLDriver {

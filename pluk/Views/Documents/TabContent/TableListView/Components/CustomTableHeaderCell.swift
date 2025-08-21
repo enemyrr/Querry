@@ -62,14 +62,20 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         let customSize: CGFloat
         
         switch fieldType.lowercased() {
-        case let type where type.hasPrefix("text") || type.hasPrefix("character") || type.contains("varchar"):
+        case let type where type.contains("text") || type.hasPrefix("char") || type.contains("varchar"):
             symbolName = "textformat.alt"
             customSize = 10
         case let type where type.contains("int"):
             symbolName = "number"
             customSize = 12
-        case "numeric", "decimal", "real", "double precision", "float", "money":
+        case let type where type.contains("numeric"):
             symbolName = "dollarsign"
+            customSize = 13
+        case "numeric", "decimal", "real", "double precision", "float", "money", "double":
+            symbolName = "dollarsign"
+            customSize = 13
+        case "enum":
+            symbolName = "list.bullet"
             customSize = 13
         case let type where type.hasPrefix("unknown"):
             symbolName = "tag"
@@ -80,10 +86,10 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         case "xml":
             symbolName = "ellipsis.curlybraces"
             customSize = 13
-        case let type where type.hasPrefix("timestamp") || type.hasPrefix("date"):
+        case let type where type.hasPrefix("timestamp") || type.hasPrefix("date") || type.equals("year"):
             symbolName = "calendar"
             customSize = 13
-        case "time", "time with time zone", "time without time zone", "timez":
+        case let type where type.contains("time"):
             symbolName = "clock"
             customSize = 14
         case "uuid":
