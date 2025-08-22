@@ -78,7 +78,7 @@ validate_appcast() {
         if [[ -z "${URLS[$i]:-}" ]]; then
             echo -e "${RED}      ❌ Missing download URL${NC}"
             ((ISSUES++))
-        elif [[ "${URLS[$i]}" =~ ^https://github.com/pluk-sh/app-pluk/releases/download/ ]]; then
+        elif [[ "${URLS[$i]}" =~ ^https://github.com/pluk-inc/app-pluk/releases/download/ ]]; then
             echo -e "${GREEN}      ✅ Valid GitHub release URL${NC}"
             
             # Check if release exists on GitHub

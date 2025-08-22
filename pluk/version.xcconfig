@@ -6,7 +6,7 @@ CURRENT_PROJECT_VERSION = 269
 
 // Domain and GitHub configuration
 APP_DOMAIN = pluk.sh
-GITHUB_URL = https://github.com/pluk-sh/app-pluk
+GITHUB_URL = https://github.com/pluk-inc/app-pluk
 
 // Bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = doc.pluk

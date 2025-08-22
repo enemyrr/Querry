@@ -153,6 +153,14 @@ aws s3 cp "$DMG_PATH" "s3://$R2_BUCKET_NAME/releases/$DMG_FILENAME" \
 
 echo -e "${GREEN}✅ DMG uploaded: releases/$DMG_FILENAME${NC}"
 
+# Also upload as Pluk.dmg in root for website download button
+echo -e "${BLUE}📦 Uploading DMG as Pluk.dmg in root...${NC}"
+aws s3 cp "$DMG_PATH" "s3://$R2_BUCKET_NAME/Pluk.dmg" \
+    --endpoint-url="$R2_ENDPOINT_URL" \
+    --content-type="application/x-apple-diskimage"
+
+echo -e "${GREEN}✅ DMG uploaded as root: Pluk.dmg${NC}"
+
 # Upload ZIP file
 echo -e "${BLUE}📦 Uploading ZIP file...${NC}"
 ZIP_FILENAME=$(basename "$ZIP_PATH")
@@ -200,6 +208,7 @@ echo "==================="
 echo ""
 echo "Uploaded files:"
 echo "  - releases/$DMG_FILENAME"
+echo "  - Pluk.dmg (root download)"
 echo "  - releases/$ZIP_FILENAME"
 echo "  - appcast.xml (from appcast-prerelease.xml)"
 echo "  - appcast-prerelease.xml"

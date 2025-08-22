@@ -2,7 +2,42 @@
 
 # Pluk Release Notes
 
-## [0.0.1-beta.18] – 2025-01-16  
+## [0.0.1-beta.19] – 2025-08-22  
+
+### 🎯 Major Features
+
+#### **MySQL Support is Here** 🆕  
+Pluk now speaks **MySQL**!  
+- Connect to any **MySQL database** with full driver support  
+- Run queries, edit data with **complete CRUD operations**  
+- **Query with AI** - Ask questions about your MySQL data in natural language  
+- **Rename and delete tables** directly from the interface  
+- Works seamlessly with existing MySQL installations and cloud instances  
+
+This makes Pluk a powerful companion for developers working with MySQL in development, staging, and production environments. From local development databases to cloud-hosted MySQL instances, Pluk now handles it all with full AI integration.
+
+*Note: Table creation functionality is coming in a future release.*
+
+### ✨ New Features
+
+#### **Enhanced Database Management**
+- **Table Operations** - Delete and rename tables across MySQL, SQLite, and PostgreSQL databases
+- **SQLite Filter Support** - Advanced filtering capabilities now available for SQLite databases, bringing parity with other database drivers
+
+### 🛠️ Bug Fixes & Improvements
+
+#### **Filter Operations**
+- **FIXED**: Restored filter operators that were previously removed, improving data exploration capabilities across all database types
+- Enhanced filter consistency between different database drivers
+
+#### **User Experience**
+- Better error handling for database operations
+
+---
+👉 With this release, **MySQL becomes a first-class citizen in Pluk**, joining SQLite as a fully supported database driver. Whether you're prototyping with SQLite or running production workloads on MySQL, Pluk now provides a unified interface for all your database exploration needs.
+
+
+## [0.0.1-beta.18] – 2025-08-16  
 
 ### 🚀 Major Release  
 
