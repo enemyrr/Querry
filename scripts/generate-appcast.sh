@@ -288,9 +288,9 @@ create_appcast_item() {
     
     # Generate description using local changelog
     local description="<h2>$title</h2>"
-    if [ "$is_prerelease" = "true" ]; then
-        description+="<p><strong>Pre-release version</strong></p>"
-    fi
+    # if [ "$is_prerelease" = "true" ]; then
+    #     description+="<p><strong>Pre-release version</strong></p>"
+    # fi
     
     # Try to get changelog from root CHANGELOG.md using changelog-to-html.sh
     local changelog_html=""
