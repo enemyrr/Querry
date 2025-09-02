@@ -98,6 +98,7 @@ class SQLiteDriver: DatabaseDriver {
             
             // Check if it's a directory and handle accordingly
             let finalPath: String
+            let isWALMode: Bool
             var isDirectory: ObjCBool = false
             FileManager.default.fileExists(atPath: securityScopedURL.path, isDirectory: &isDirectory)
             
@@ -107,10 +108,14 @@ class SQLiteDriver: DatabaseDriver {
                     throw DatabaseError.configurationError("No SQLite database files found in the selected folder.\n\n→ Go to Edit Connection → Click \"Change\" → Select a folder containing .db, .sqlite, or .sqlite3 files, or select a specific database file")
                 }
                 finalPath = sqliteFile
+                // Directory selection can handle WAL mode properly, so always allow it
+                isWALMode = false
                 debugLog("📁 Found SQLite file in directory: \(URL(fileURLWithPath: sqliteFile).lastPathComponent)")
             } else {
-                // Use the file directly
+                // Use the file directly and check its WAL mode
                 finalPath = securityScopedURL.path
+                isWALMode = SQLiteWALDetector.isInWALMode(at: securityScopedURL)
+                debugLog("📄 Using selected file: \(URL(fileURLWithPath: finalPath).lastPathComponent) (WAL: \(isWALMode))")
             }
             
             let storage = SQLiteConnection.Storage.file(path: finalPath)
@@ -125,7 +130,14 @@ class SQLiteDriver: DatabaseDriver {
             self.connection = connection
             
             do {
-                let _ = try await connection.query("PRAGMA journal_mode = MEMORY")
+                // Only set journal mode to MEMORY for non-WAL databases
+                if !isWALMode {
+                    let _ = try await connection.query("PRAGMA journal_mode = MEMORY")
+                    debugLog("✅ Set journal mode to MEMORY for non-WAL database")
+                } else {
+                    debugLog("ℹ️ Keeping WAL mode for WAL database")
+                }
+                
                 self.isConnected = true
                 
                 // Extract database name from final path
