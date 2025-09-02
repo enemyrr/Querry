@@ -51,7 +51,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .postgres: return Color(hex: "#346791")
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#021E2C")
-        case .sqlite: return Color(hex: "#FFFFFF")
+        case .sqlite: return Color(hex: "#E6F0FA")
         }
     }
     

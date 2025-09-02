@@ -85,84 +85,35 @@ class SQLiteDriver: DatabaseDriver {
             threadPool.start()
             self.threadPool = threadPool
             
-            // Determine storage type based on path
-            let storage: SQLiteConnection.Storage
-            if path == ":memory:" {
-                storage = .memory
-            } else {
-                // Use the security-scoped URL if available, otherwise fall back to regular path
-                let fileURL: URL
-                let absolutePath: String
-                
-                if let securityScopedURL = self.securityScopedURL {
-                    // Use the security-scoped URL directly - this is the SAME URL object that has active access
-                    fileURL = securityScopedURL
-                    absolutePath = securityScopedURL.path
-                } else {
-                    // Fall back to regular path handling
-                    absolutePath = path.hasPrefix("/") ? path : FileManager.default.currentDirectoryPath + "/" + path
-                    fileURL = URL(fileURLWithPath: absolutePath)
-                }
-                
-                // Test if we can access the file and validate it's a potential SQLite file
-                let fileManager = FileManager.default
-                
-                // Basic file validation
-                if fileManager.fileExists(atPath: absolutePath) {
-                    // Check if it's a directory (common mistake)
-                    var isDirectory: ObjCBool = false
-                    fileManager.fileExists(atPath: absolutePath, isDirectory: &isDirectory)
-                    if isDirectory.boolValue {
-                        throw DatabaseError.configurationError("Selected path is a directory, not a SQLite database file.\n\n→ Go to Edit Connection → Click \"Change\" → Select a .db, .sqlite, or .sqlite3 file")
-                    }
-                    
-                    // Check file size (zip files and other archives are usually much larger)
-                    if let attributes = try? fileManager.attributesOfItem(atPath: absolutePath),
-                       let fileSize = attributes[.size] as? Int64 {
-                        // If file is over 1GB, it's probably not a typical SQLite file
-                        if fileSize > 1_000_000_000 {
-                            throw DatabaseError.configurationError("Selected file is unusually large (\(ByteCountFormatter().string(fromByteCount: fileSize))).\n\nThis might not be a SQLite database file.\n\n→ Go to Edit Connection → Click \"Change\" → Select a .db, .sqlite, or .sqlite3 file")
-                        }
-                    }
-                    
-                    // Check file extension as a hint
-                    let fileExtension = URL(fileURLWithPath: absolutePath).pathExtension.lowercased()
-                    let validExtensions = ["db", "sqlite", "sqlite3", ""]
-                    if !validExtensions.contains(fileExtension) {
-                        // Allow but warn about unusual extensions
-                        print("⚠️ Warning: File extension '.\(fileExtension)' is not typical for SQLite databases")
-                    }
-                }
-                
-                // The SQLite library will handle access through the security-scoped URL
-                // Test if we can actually read the file with security-scoped access
-                do {
-                    let _ = try Data(contentsOf: fileURL)
-                    // Try opening a file descriptor which might work better with SQLite NIO
-                    let fileDescriptor = open(absolutePath, O_RDWR)
-                    if fileDescriptor != -1 {
-                        close(fileDescriptor)
-                    }
-                } catch {
-                    // Try a different approach - test if the security-scoped access is actually working
-                    if let securityScopedURL = self.securityScopedURL {
-                        // Try stopping and restarting access
-                        securityScopedURL.stopAccessingSecurityScopedResource()
-                        if securityScopedURL.startAccessingSecurityScopedResource() {
-                            // Try reading again
-                            do {
-                                let _ = try Data(contentsOf: securityScopedURL)
-                            } catch {
-                                throw DatabaseError.configurationError("Cannot access the SQLite file. Please try selecting the file again using the folder button (📁).")
-                            }
-                        } else {
-                            throw DatabaseError.configurationError("Lost access to the SQLite file. Please select the file again using the folder button (📁).")
-                        }
-                    }
-                }
-                
-                storage = .file(path: absolutePath)
+            // Always require security-scoped URL for file access
+            guard let securityScopedURL = self.securityScopedURL else {
+                throw DatabaseError.configurationError("Security-scoped URL is required. Please select the file again using the folder button (📁).")
             }
+            
+            // Establish security-scoped resource access
+            securityScopedURL.stopAccessingSecurityScopedResource()
+            guard securityScopedURL.startAccessingSecurityScopedResource() else {
+                throw DatabaseError.configurationError("Lost access to the selected path. Please select the file again using the folder button (📁).")
+            }
+            
+            // Check if it's a directory and handle accordingly
+            let finalPath: String
+            var isDirectory: ObjCBool = false
+            FileManager.default.fileExists(atPath: securityScopedURL.path, isDirectory: &isDirectory)
+            
+            if isDirectory.boolValue {
+                // Search for SQLite files in the directory
+                guard let sqliteFile = try findFirstSQLiteFile(securityScopedURL: securityScopedURL) else {
+                    throw DatabaseError.configurationError("No SQLite database files found in the selected folder.\n\n→ Go to Edit Connection → Click \"Change\" → Select a folder containing .db, .sqlite, or .sqlite3 files, or select a specific database file")
+                }
+                finalPath = sqliteFile
+                debugLog("📁 Found SQLite file in directory: \(URL(fileURLWithPath: sqliteFile).lastPathComponent)")
+            } else {
+                // Use the file directly
+                finalPath = securityScopedURL.path
+            }
+            
+            let storage = SQLiteConnection.Storage.file(path: finalPath)
             
             let connection = try await SQLiteConnection.open(
                 storage: storage,
@@ -177,13 +128,8 @@ class SQLiteDriver: DatabaseDriver {
                 let _ = try await connection.query("PRAGMA journal_mode = MEMORY")
                 self.isConnected = true
                 
-                // Extract database name from path
-                let databaseName: String
-                if path == ":memory:" {
-                    databaseName = "In-Memory Database"
-                } else {
-                    databaseName = URL(fileURLWithPath: path).lastPathComponent
-                }
+                // Extract database name from final path
+                let databaseName = URL(fileURLWithPath: finalPath).lastPathComponent
                 
                 return SQLiteDatabaseWrapper(name: databaseName, size: nil, tableCount: nil)
             } catch {
@@ -209,6 +155,12 @@ class SQLiteDriver: DatabaseDriver {
     }
     
     private func cleanup() async {
+        do {
+            let _ = try await connection?.query("PRAGMA wal_checkpoint;")
+        } catch {
+            debugLog("Safely ignored error: \(error)")
+        }
+        
         if let connection = self.connection {
             try? await connection.close()
             self.connection = nil
@@ -576,22 +528,22 @@ class SQLiteDriver: DatabaseDriver {
     
     func createCollection(named collectionName: String) async throws {
         throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
-//        let connection = try await ensureConnected()
-//        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
-//        
-//        let query = """
-//            CREATE TABLE \(sanitizedTableName) (
-//                id INTEGER PRIMARY KEY AUTOINCREMENT,
-//                created_at TEXT DEFAULT (datetime('now')),
-//                updated_at TEXT DEFAULT (datetime('now'))
-//            )
-//        """
-//        
-//        do {
-//            _ = try await connection.query(query)
-//        } catch {
-//            throw DatabaseError.operationFailed("Failed to create table: \(error.localizedDescription)")
-//        }
+        //        let connection = try await ensureConnected()
+        //        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+        //
+        //        let query = """
+        //            CREATE TABLE \(sanitizedTableName) (
+        //                id INTEGER PRIMARY KEY AUTOINCREMENT,
+        //                created_at TEXT DEFAULT (datetime('now')),
+        //                updated_at TEXT DEFAULT (datetime('now'))
+        //            )
+        //        """
+        //
+        //        do {
+        //            _ = try await connection.query(query)
+        //        } catch {
+        //            throw DatabaseError.operationFailed("Failed to create table: \(error.localizedDescription)")
+        //        }
     }
     
     func renameCollection(from oldName: String, to newName: String) async throws {
@@ -926,5 +878,69 @@ class SQLiteDriver: DatabaseDriver {
         } else {
             return .text(String(describing: value))
         }
+    }
+    
+    private func findFirstSQLiteFile(securityScopedURL: URL?) throws -> String? {
+        let fileManager = FileManager.default
+        
+        // Always require security-scoped URL for proper access
+        guard let securityScopedURL = securityScopedURL else {
+            throw DatabaseError.configurationError("Security-scoped URL is required to access the selected folder. Please select the folder again using the folder button (📁).")
+        }
+        
+        guard let contents = try? fileManager.contentsOfDirectory(at: securityScopedURL, includingPropertiesForKeys: [.isDirectoryKey], options: []) else {
+            throw DatabaseError.configurationError("Cannot access the contents of the selected folder. Please ensure you have permission to access this location.")
+        }
+        
+        // Define SQLite file extensions to look for
+        let sqliteExtensions = ["db", "sqlite", "sqlite3"]
+        
+        // First, look for files with standard SQLite extensions
+        for fileURL in contents {
+            let fileExtension = fileURL.pathExtension.lowercased()
+            if sqliteExtensions.contains(fileExtension) {
+                // Check if it's a file (not a directory)
+                if let resourceValues = try? fileURL.resourceValues(forKeys: [.isDirectoryKey]),
+                   let isDirectory = resourceValues.isDirectory, !isDirectory {
+                    // Basic SQLite file validation - check if file starts with "SQLite format 3"
+                    if isSQLiteFile(at: fileURL.path) {
+                        return fileURL.path
+                    }
+                }
+            }
+        }
+        
+        // If no files with standard extensions found, look for files without extensions that might be SQLite
+        for fileURL in contents {
+            let fileExtension = fileURL.pathExtension
+            if fileExtension.isEmpty {
+                // Check if it's a file (not a directory)
+                if let resourceValues = try? fileURL.resourceValues(forKeys: [.isDirectoryKey]),
+                   let isDirectory = resourceValues.isDirectory, !isDirectory {
+                    // Check if it's a SQLite file by examining its header
+                    if isSQLiteFile(at: fileURL.path) {
+                        return fileURL.path
+                    }
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    private func isSQLiteFile(at path: String) -> Bool {
+        guard let fileData = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return false
+        }
+        
+        // SQLite files start with "SQLite format 3\0" (16 bytes)
+        let sqliteHeader = "SQLite format 3\0".data(using: .utf8)!
+        
+        if fileData.count >= sqliteHeader.count {
+            let headerData = fileData.prefix(sqliteHeader.count)
+            return headerData == sqliteHeader
+        }
+        
+        return false
     }
 }
