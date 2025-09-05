@@ -39,6 +39,25 @@ struct SQLEditorView: View {
                 sqlEditor
                 editorToolbar
             }
+            .overlay(alignment: .top) {
+                if showAIErrorSuggestion {
+                    VStack {
+                        Spacer()
+                        
+                        AIErrorSuggestionPopup(
+                            isPresented: $showAIErrorSuggestion,
+                            suggestion: $aiErrorSuggestion,
+                            isLoading: isLoadingAISuggestion,
+                            onAcceptAndRun: acceptAISuggestion,
+                            onAcceptOnly: acceptAISuggestionOnly,
+                            onReject: rejectAISuggestion
+                        )
+                        .padding(.bottom, 10) // offset to place below the toolbar
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.3), value: showAIErrorSuggestion)
+                }
+            }
         } right: {
             resultsContent
         }
@@ -245,26 +264,6 @@ struct SQLEditorView: View {
                 .padding(.leading, 38)
                 .transition(.move(edge: .bottom))
                 .animation(.easeInOut(duration: 0.3), value: showAICommandPrompt)
-            }
-            
-            // AI Error Suggestion Popup - positioned at center bottom
-            if showAIErrorSuggestion {
-                VStack {
-                    Spacer()
-                    
-                    AIErrorSuggestionPopup(
-                        isPresented: $showAIErrorSuggestion,
-                        suggestion: $aiErrorSuggestion,
-                        isLoading: isLoadingAISuggestion,
-                        onAcceptAndRun: acceptAISuggestion,
-                        onAcceptOnly: acceptAISuggestionOnly,
-                        onReject: rejectAISuggestion
-                    )
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.easeInOut(duration: 0.3), value: showAIErrorSuggestion)
-                .padding(.bottom, -34)
             }
         }
         .padding(.top, 10)
