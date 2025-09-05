@@ -6,6 +6,60 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 20</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg</link>
+            <sparkle:version>272</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.20</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 20</h2><div><h3>🎯 Major Features</h3>
+<h4><strong>AI-Powered SQL Editor is Here</strong> 🆕</h4>
+Pluk now comes with a <strong>dedicated SQL Editor tab</strong> that works across <strong>SQLite, MySQL, PostgreSQL, and MongoDB</strong>.
+<ul>
+<li><strong>Open in a New Tab</strong> – Write and run queries in a focused editor view</li>
+<li><strong>AI-Powered Querying</strong> – Hit <code>cmd+k</code> to generate queries from natural language or refine existing SQL</li>
+<li><strong>Smart Error Recovery</strong> – Pluk automatically detects query errors and suggests fixes, so you never get stuck</li>
+<li><strong>Schema Awareness</strong> – Browse and explore your database schema directly from the editor</li>
+</ul>
+This isn’t just another SQL editor — it’s a smarter, AI-assisted way to work with your databases.
+<ul>
+---
+</ul>
+<h3>✨ New Features</h3>
+<h4><strong>Schema Switching</strong></h4>
+<ul>
+<li>Seamlessly switch between database schemas</li>
+<li>Select and explore tables across schemas within the same connection</li>
+</ul>
+<ul>
+---
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Query & Data Handling</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Active filters now persist after row updates and deletes (#4)</li>
+<li><strong>FIXED</strong>: Query error state no longer locks the UI — you can now clear, edit, and retry queries (#6)</li>
+<li><strong>FIXED</strong>: SQLite table names with spaces (e.g., <code>user profiles</code>) are now supported (#11)</li>
+</ul>
+<h4><strong>Interface & UX</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Scroll indicator now consistently appears in the Databases list during scroll (#7)</li>
+<li>Other minor bug fixes and UI improvements for a smoother experience</li>
+</ul>
+<ul>
+---
+</ul>
+👉 With this release, Pluk becomes more than a database explorer — it’s your <strong>AI-powered SQL companion</strong>. Whether you’re working with SQLite, MySQL, Postgres, or MongoDB, Pluk now gives you a smarter way to query, debug, and explore your data.</div>
+            ]]></description>
+            <pubDate>Fri, 05 Sep 2025 12:46:39 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg"
+                length="19285426"
+                type="application/octet-stream"
+                sparkle:edSignature="D4+srDfIQdHhXLXFpSzaysDA1TRbq+BeJmrZt+dQz/yJ9QCgIAvuIc5mnSTdaS3f4S0J6K9F54d+o5phcGQvAg=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 19</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.19.dmg</link>
             <sparkle:version>271</sparkle:version>
