@@ -6,23 +6,6 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
-            <title>Pluk 0.0.1 Beta 20</title>
-            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg</link>
-            <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>0.0.1-beta.20</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 20</h2><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.20</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
-            ]]></description>
-            <pubDate>Fri, 05 Sep 2025 11:43:15 +0000</pubDate>
-            <enclosure 
-                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg"
-                length=""
-                type="application/octet-stream"
-                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
-        <item>
             <title>Pluk 0.0.1 Beta 19</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.19.dmg</link>
             <sparkle:version>271</sparkle:version>
