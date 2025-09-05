@@ -11,12 +11,50 @@
             <sparkle:version>272</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.20</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 20</h2><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.20</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+                <h2>Pluk 0.0.1 Beta 20</h2><div><h3>🚀 SQL Editor + AI-Powered Queries</h3>
+This release is a big one. We’re introducing <strong>SQL Editor with AI support</strong>, along with schema switching and a handful of important bug fixes.
+<h3>✨ New</h3>
+<ul>
+<li><strong>SQL Editor View (with New Tab integration)</strong> (#8)  </li>
+</ul>
+  A brand-new SQL Editor is here. Open it in a new tab to write and run queries, inspect results, and explore your database schema.  
+  But this isn’t just another SQL editor—it’s powered with AI:
+  - <strong>Generate or refine queries</strong> – Hit <code>cmd+k</code> in the editor to bring up an AI assistant. Start from natural language or improve an existing query.
+  - <strong>Smart error recovery</strong> – If your query fails, Pluk automatically suggests fixes so you can keep moving without getting stuck.
+<ul>
+<li><strong>Schema Switching</strong> (#1)  </li>
+</ul>
+  You can now switch between database schemas and select tables across schemas. Navigate your data more freely without leaving your current connection.
+<h3>🐞 Fixed</h3>
+<ul>
+<li><strong>Active filter not respected after update/delete</strong> (#4)  </li>
+</ul>
+  Filters now persist correctly after row updates or deletes.
+<ul>
+<li><strong>Scroll indicator not visible in Databases list</strong> (#7)  </li>
+</ul>
+  The scrollbar now reliably appears when scrolling through long database lists.
+<ul>
+<li><strong>Query error state locking the UI</strong> (#6)  </li>
+</ul>
+  Query errors no longer freeze the editor—you can clear, edit, and retry as expected.
+<ul>
+<li><strong>SQLite table names with spaces</strong> (#11)  </li>
+</ul>
+  Tables like <code>user profiles</code> now open without throwing invalid character errors.
+<ul>
+<li><strong>Other minor bug fixes and UI improvements</strong>  </li>
+</ul>
+  General polish to make the app feel smoother and more reliable.
+<ul>
+---
+</ul>
+This update makes Pluk not just a place to run queries, but a smarter, AI-assisted way to work with your database.</div>
             ]]></description>
             <pubDate>Fri, 05 Sep 2025 11:53:13 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg"
-                length="19184763"
+                length="19397742"
                 type="application/octet-stream"
                 sparkle:edSignature="D4+srDfIQdHhXLXFpSzaysDA1TRbq+BeJmrZt+dQz/yJ9QCgIAvuIc5mnSTdaS3f4S0J6K9F54d+o5phcGQvAg=="
             />
@@ -29,17 +67,17 @@
             <sparkle:shortVersionString>0.0.1-beta.19</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 19</h2><div><h3>🎯 Major Features</h3>
-<h4><strong>MySQL Support is Here</strong> 🆕  </h4>
-Pluk now speaks <strong>MySQL</strong>!  
+<h4><strong>MySQL Support is Here</strong> 🆕</h4>
+Pluk now speaks <strong>MySQL</strong>!
 <ul>
-<li>Connect to any <strong>MySQL database</strong> with full driver support  </li>
-<li>Run queries, edit data with <strong>complete CRUD operations</strong>  </li>
-<li><strong>Query with AI</strong> - Ask questions about your MySQL data in natural language  </li>
-<li><strong>Rename and delete tables</strong> directly from the interface  </li>
-<li>Works seamlessly with existing MySQL installations and cloud instances  </li>
+<li>Connect to any <strong>MySQL database</strong> with full driver support</li>
+<li>Run queries, edit data with <strong>complete CRUD operations</strong></li>
+<li><strong>Query with AI</strong> - Ask questions about your MySQL data in natural language</li>
+<li><strong>Rename and delete tables</strong> directly from the interface</li>
+<li>Works seamlessly with existing MySQL installations and cloud instances</li>
 </ul>
 This makes Pluk a powerful companion for developers working with MySQL in development, staging, and production environments. From local development databases to cloud-hosted MySQL instances, Pluk now handles it all with full AI integration.
-*Note: Table creation functionality is coming in a future release.*
+_Note: Table creation functionality is coming in a future release._
 <h3>✨ New Features</h3>
 <h4><strong>Enhanced Database Management</strong></h4>
 <ul>
@@ -76,42 +114,42 @@ This makes Pluk a powerful companion for developers working with MySQL in develo
             <sparkle:version>268</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.18</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 18</h2><div><h3>🚀 Major Release  </h3>
-<h4><strong>SQLite Support is Here</strong> 🆕  </h4>
-Pluk now speaks <strong>SQLite</strong>!  
+                <h2>Pluk 0.0.1 Beta 18</h2><div><h3>🚀 Major Release</h3>
+<h4><strong>SQLite Support is Here</strong> 🆕</h4>
+Pluk now speaks <strong>SQLite</strong>!
 <ul>
-<li>Connect to any <strong>SQLite file</strong> (<code>.sqlite</code>, <code>.db</code>, <code>.sqlite3</code>)  </li>
-<li>Run queries, edit data with <strong>full read/write access</strong>  </li>
-<li>Works seamlessly across all SQLite file formats  </li>
+<li>Connect to any <strong>SQLite file</strong> (<code>.sqlite</code>, <code>.db</code>, <code>.sqlite3</code>)</li>
+<li>Run queries, edit data with <strong>full read/write access</strong></li>
+<li>Works seamlessly across all SQLite file formats</li>
 </ul>
-This makes Pluk a powerful local-first companion for developers who rely on SQLite for prototyping, embedded apps, and production systems.  
-<ul>
----
-</ul>
-<h3>🛠️ Fixes & Improvements  </h3>
-<h4><strong>Interface Stability</strong>  </h4>
-<ul>
-<li>✅ Fixed homescreen selection issues when disconnecting popovers  </li>
-<li>✅ Resolved startup loading glitches  </li>
-<li>✅ Corrected layout width calculation bugs  </li>
-<li>✅ Loading indicators now render in the right place  </li>
-</ul>
-<h4><strong>Data Handling</strong>  </h4>
-<ul>
-<li>✅ Updates handle <code>NULL</code> values without errors  </li>
-<li>✅ Removed flickering invalid columns during state changes  </li>
-<li>✅ Popover connection data now stays accurate  </li>
-</ul>
-<h4><strong>User Experience</strong>  </h4>
-<ul>
-<li>Smoother, more reliable popover interactions  </li>
-<li>Cleaner data transitions  </li>
-<li>Improved error handling for tricky cases  </li>
-</ul>
+This makes Pluk a powerful local-first companion for developers who rely on SQLite for prototyping, embedded apps, and production systems.
 <ul>
 ---
 </ul>
-👉 With this release, <strong>SQLite becomes a first-class citizen in Pluk</strong>, making it easier than ever to query and explore your data.  </div>
+<h3>🛠️ Fixes & Improvements</h3>
+<h4><strong>Interface Stability</strong></h4>
+<ul>
+<li>✅ Fixed homescreen selection issues when disconnecting popovers</li>
+<li>✅ Resolved startup loading glitches</li>
+<li>✅ Corrected layout width calculation bugs</li>
+<li>✅ Loading indicators now render in the right place</li>
+</ul>
+<h4><strong>Data Handling</strong></h4>
+<ul>
+<li>✅ Updates handle <code>NULL</code> values without errors</li>
+<li>✅ Removed flickering invalid columns during state changes</li>
+<li>✅ Popover connection data now stays accurate</li>
+</ul>
+<h4><strong>User Experience</strong></h4>
+<ul>
+<li>Smoother, more reliable popover interactions</li>
+<li>Cleaner data transitions</li>
+<li>Improved error handling for tricky cases</li>
+</ul>
+<ul>
+---
+</ul>
+👉 With this release, <strong>SQLite becomes a first-class citizen in Pluk</strong>, making it easier than ever to query and explore your data.</div>
             ]]></description>
             <pubDate>Sat, 16 Aug 2025 15:01:28 +0000</pubDate>
             <enclosure 
