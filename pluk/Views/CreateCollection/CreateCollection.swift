@@ -21,7 +21,7 @@ struct CreateCollection: View {
         Button(action: {
             showSheet.toggle()
         }) {
-            Image(systemName: "plus.circle").font(.title3).foregroundStyle(.secondary)
+            Image(systemName: "plus.circle").font(.body).foregroundStyle(.secondary)
         }
         .sheet(isPresented: $showSheet) {
             ZStack {
@@ -32,7 +32,7 @@ struct CreateCollection: View {
         }
         .buttonStyle(ActionButtonStyle())
         .keyboardShortcut("N", modifiers: [.command, .shift])
-        .customHelp(helpText, position: .top, shortcut: KeyboardShortcut(
+        .customHelp(helpText, position: .left, shortcut: KeyboardShortcut(
             modifiers: [.command, .shift],
             key: "N"
         ))

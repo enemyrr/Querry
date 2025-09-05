@@ -13,7 +13,7 @@ struct OperatorDropdown: View {
     var body: some View {
         EnumFloatingDropdown(
             selection: $selectedOperator,
-            width: 160,
+            width: 120,
             itemSymbol: operatorSign
         )
     }

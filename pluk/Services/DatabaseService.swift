@@ -13,6 +13,7 @@ import SwiftUI
     private var activeConnection: Connection?
     private var activeDriver: (any DatabaseDriver)?
     public var connectedDatabase: (any DatabaseWrapper)?
+    public var currentSchema: String?
     
     // MARK: - Results Cache
     private var queryCache: [String: QueryResult] = [:]
@@ -30,6 +31,10 @@ import SwiftUI
         
         // Connect to database
         self.connectedDatabase = try await driver.connect(to: connection.connectionUri)
+    }
+    
+    func setCurrentSchema(_ schema: String) {
+        self.currentSchema = schema
     }
     
     func switchActiveDatabase(to database: any DatabaseWrapper) async throws {
@@ -70,15 +75,15 @@ import SwiftUI
         return try await driver.listDatabases().map { $0 as any DatabaseWrapper }
     }
     
-    func listCollections() async throws -> [any CollectionWrapper] {
+    func listCollections(schema: String?) async throws -> [any CollectionWrapper] {
         guard let driver = activeDriver else { return [] }
-        
-        return try await driver.listCollections().map { $0 as any CollectionWrapper }
+        return try await driver.listCollections(schema: schema).map { $0 as any CollectionWrapper }
     }
     
     // MARK: - Document Operations
     func findDocuments(
         in collectionName: String,
+        databaseSchema: String?,
         filter: String = "",
         skip: Int = 0,
         limit: Int = 300,
@@ -96,11 +101,12 @@ import SwiftUI
         case .postgres, .supabase, .convex, .mysql, .sqlite:
             result = try await driver.findDocuments(
                 in: collectionName,
+                databaseSchema: databaseSchema,
                 filter: ["rawQuery": filter],
                 skip: skip,
                 limit: limit,
                 sortBy: sortBy,
-                ascending: ascending
+                ascending: ascending,
             )
             
         case .mongodb:
@@ -116,7 +122,7 @@ import SwiftUI
     }
     
     /// Generates a filter query from conditions using the appropriate database driver
-    func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
+    func generateFilterQuery(from conditions: [FilterCondition], tableName: String, databaseSchema: String?) -> String {
         guard let driver = activeDriver,
               let connection = activeConnection else {
             return ""
@@ -125,7 +131,7 @@ import SwiftUI
         switch connection.databaseType {
         case .postgres, .supabase, .convex:
             if let postgresDriver = driver as? PostgreSQLDriver {
-                return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName)
+                return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
             }
         case .sqlite:
             if let sqliteDriver = driver as? SQLiteDriver {
@@ -143,9 +149,14 @@ import SwiftUI
         return ""
     }
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult? {
+    func getSchema(for collectionName: String, databaseSchema: String?) async throws -> DatabaseSchemaResult? {
         guard let driver = activeDriver else { return nil }
-        return try await driver.getSchema(for: collectionName)
+        return try await driver.getSchema(for: collectionName, schema: databaseSchema)
+    }
+    
+    func getInformationSchema() async throws -> [InformationSchema] {
+        guard let driver = activeDriver else { return [] }
+        return try await driver.getInformationSchema()
     }
     
     func getDocumentCount(for collectionName: String, filter: [String: Any] = [:]) async throws -> Int {
@@ -171,60 +182,81 @@ import SwiftUI
         clearCache() // Clear cache after structural changes
     }
     
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.renameCollection(from: oldName, to: newName)
+        try await driver.renameCollection(databaseSchema: databaseSchema, from: oldName, to: newName)
         clearCache() // Clear cache after structural changes
     }
     
-    func deleteCollection(named collectionName: String) async throws {
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.deleteCollection(named: collectionName)
+        try await driver.deleteCollection(named: collectionName, databaseSchema: databaseSchema)
         clearCache() // Clear cache after structural changes
     }
     
     // MARK: - Document Modification
-    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.createDocument(in: collectionName, document: document)
+        try await driver.createDocument(in: collectionName, databaseSchema: databaseSchema, document: document)
         
         clearDocumentCache(for: collectionName)
     }
     
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.updateDocument(in: collectionName, id: id, data: data)
+        try await driver.updateDocument(in: collectionName, databaseSchema: databaseSchema, id: id, data: data)
     }
     
-    func deleteDocument(in collectionName: String, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.deleteDocument(in: collectionName, id: id)
+        try await driver.deleteDocument(in: collectionName, databaseSchema: databaseSchema, id: id)
         
         clearDocumentCache(for: collectionName)
+    }
+    
+    // MARK: - Raw Query Execution
+    func executeRawQuery(_ query: String, databaseSchema: String? = nil) async throws -> QueryResult {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        // Use current schema if none provided
+        let schemaToUse = databaseSchema ?? currentSchema
+        
+        return try await driver.executeRawQuery(query, databaseSchema: schemaToUse)
     }
     
     // MARK: - AI Operations
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        return try await driver.buildSystemPrompt(for: collectionName)
+        return try await driver.buildSystemPrompt(for: collectionName, databaseSchema: databaseSchema)
+    }
+    
+    // MARK: - AI Operations
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+        
+        return try await driver.buildAICommandPromptSystemPrompt(message)
     }
     
     // MARK: - Cache Management

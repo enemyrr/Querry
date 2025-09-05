@@ -225,6 +225,13 @@ struct FloatingActionBar: View {
                     return nil // Consume the event
                 }
                 return event
+            case 36: // Enter key
+                NotificationCenter.default.post(name: NSNotification.Name("SubmitFilterBuilder"), object: nil)
+                return event
+                
+            case 53: // Escape key
+                NotificationCenter.default.post(name: NSNotification.Name("ResetFilterBuilder"), object: nil)
+                return event
                 
             case 15: // 'r' key
                 if event.modifierFlags.contains(.command) {

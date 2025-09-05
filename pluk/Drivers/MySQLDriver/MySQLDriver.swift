@@ -12,6 +12,8 @@ struct MySQLDatabaseWrapper: DatabaseWrapper {
 }
 
 struct MySQLCollectionWrapper: CollectionWrapper {
+    var schema: String?
+    
     var id: ObjectIdentifier
     let name: String
     let type: String = "table"
@@ -19,6 +21,10 @@ struct MySQLCollectionWrapper: CollectionWrapper {
 
 // MARK: - MySQL Driver
 class MySQLDriver: DatabaseDriver {
+    func getInformationSchema() async throws -> [InformationSchema] {
+        throw DatabaseError.notImplemented("MySql driver not yet implemented")
+    }
+    
     private var connection: MySQLConnection?
     private var currentDatabase: String?
     private var eventLoopGroup: EventLoopGroup?
@@ -192,7 +198,7 @@ class MySQLDriver: DatabaseDriver {
         return databases
     }
     
-    func listCollections() async throws -> [MySQLCollectionWrapper] {
+    func listCollections(schema: String? = nil) async throws -> [MySQLCollectionWrapper] {
         let connection = try await ensureConnected()
         
         guard let database = currentDatabase else {
@@ -249,10 +255,10 @@ class MySQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
-        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+        return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
         
         let query: String
@@ -327,7 +333,7 @@ class MySQLDriver: DatabaseDriver {
         )
     }
     
-    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         let connection = try await ensureConnected()
         
         let columns = document.keys.map { "`\($0)`" }.joined(separator: ", ")
@@ -340,7 +346,7 @@ class MySQLDriver: DatabaseDriver {
         _ = try await connection.query(query, values.map(convertToMySQLBindable)).get()
     }
     
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         let connection = try await ensureConnected()
         
         guard !data.isEmpty else {
@@ -361,7 +367,7 @@ class MySQLDriver: DatabaseDriver {
         _ = try await connection.query(query, values.map(convertToMySQLBindable)).get()
     }
     
-    func deleteDocument(in collectionName: String, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         let connection = try await ensureConnected()
         
         do {
@@ -373,6 +379,78 @@ class MySQLDriver: DatabaseDriver {
             _ = try await connection.query(query, [bindableId]).get()
         } catch {
             throw DatabaseError.operationFailed(error.localizedDescription)
+        }
+    }
+    
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+        let connection = try await ensureConnected()
+        
+        do {
+            let results = try await connection.simpleQuery(query).get()
+            
+            // Process results similar to findDocuments method
+            var queryColumns: [QueryColumnInfo] = []
+            var convertedRows: [[String: QueryRowInfo]] = []
+            var convertedRawRows: [[String: Any?]] = []
+            var columnsInitialized = false
+            
+            // Process each row and extract column info from first row
+            for row in results {
+                // Extract column information from first row
+                if !columnsInitialized {
+                    var columnIndex = 0
+                    // Get column names from the column definitions
+                    for columnDef in row.columnDefinitions {
+                        let cleanedDataType = String(describing: columnDef.columnType)
+                            .replacingOccurrences(of: "MYSQL_TYPE_", with: "")
+                            .lowercased()
+                        
+                        queryColumns.append(QueryColumnInfo(
+                            name: columnDef.name,
+                            dataType: cleanedDataType,
+                            format: nil,
+                            index: columnIndex
+                        ))
+                        columnIndex += 1
+                    }
+                    columnsInitialized = true
+                }
+                
+                var processedRowData: [String: QueryRowInfo] = [:]
+                var rawRowData: [String: Any?] = [:]
+                
+                for column in queryColumns {
+                    let columnName = column.name
+                    if let mysqlData = row.column(columnName) {
+                        // Store the raw MySQLData for compatibility with update operations
+                        rawRowData[columnName] = mysqlData
+                        
+                        // Convert to QueryRowInfo for processed row
+                        do {
+                            processedRowData[columnName] = try decode(from: mysqlData)
+                        } catch {
+                            logger.warning("Failed to decode column \(columnName): \(error)")
+                            processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                        }
+                    } else {
+                        processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                        rawRowData[columnName] = nil
+                    }
+                }
+                
+                convertedRows.append(processedRowData)
+                convertedRawRows.append(rawRowData)
+            }
+            
+            return QueryResult(
+                columns: queryColumns,
+                rows: convertedRows,
+                totalCount: convertedRows.count,
+                rawRows: convertedRawRows
+            )
+            
+        } catch {
+            throw DatabaseError.operationFailed("Failed to execute raw query: \(error.localizedDescription)")
         }
     }
     
@@ -393,7 +471,7 @@ class MySQLDriver: DatabaseDriver {
 //        _ = try await connection.simpleQuery(query).get()
     }
     
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         let connection = try await ensureConnected()
         
         let query = "RENAME TABLE `\(oldName)` TO `\(newName)`"
@@ -401,7 +479,7 @@ class MySQLDriver: DatabaseDriver {
         _ = try await connection.simpleQuery(query).get()
     }
     
-    func deleteCollection(named collectionName: String) async throws {
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         let connection = try await ensureConnected()
         
         let query = "DROP TABLE `\(collectionName)`"
@@ -409,7 +487,7 @@ class MySQLDriver: DatabaseDriver {
         _ = try await connection.simpleQuery(query).get()
     }
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         let connection = try await ensureConnected()
         
         guard let database = currentDatabase else {
@@ -532,7 +610,111 @@ class MySQLDriver: DatabaseDriver {
     
     // MARK: - AI Functions
     
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
+        let currentDate = Date().formatted(.iso8601)
+        
+        // Get all available tables/collections with error handling
+        var tablesList = ""
+        do {
+            let collections = try await listCollections(schema: nil)
+            tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
+        } catch {
+            tablesList = "No tables available (connection error)"
+        }
+        
+        return """
+        You are a MySQL query assistant designed for CMD+K quick actions. You help users generate, modify, or fix SQL queries based on their natural language requests.
+
+        ## Core Responsibilities
+        - Generate new MySQL SQL queries from natural language descriptions
+        - Modify existing queries based on user requests
+        - Fix syntax errors or logical issues in existing queries
+        - Provide clear, optimized, and readable SQL code
+
+        ## Available Tables
+        The database contains the following tables:
+        \(tablesList)
+
+        ## Context Handling
+        You will receive one of these contexts:
+        1. **New Query Request**: User asks to create a query from scratch
+        2. **Query Modification**: User provides existing query and asks for changes
+        3. **Query Fix**: User provides broken query and asks for fixes
+
+        ## Output Format Rules
+
+        ### For New Queries:
+        - Start with a comment describing what the query does
+        - Follow with the SQL query
+        - Use proper formatting and indentation
+        - Include semicolon termination
+
+        ### For Query Modifications:
+        - Return only the modified SQL query
+        - No commentary unless the change is complex
+        - Maintain original formatting style when possible
+
+        ### For Query Fixes:
+        - Return only the corrected SQL query
+        - No explanation of what was wrong
+
+        ## Examples
+
+        **Example 1 - New Query:**
+        **Input:** "Get all active users from the last month"
+        **Output:**
+        ```sql
+        -- Retrieve all active users who were created in the last 30 days
+        SELECT * FROM users 
+        WHERE status = 'active' 
+        AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
+        ```
+
+        **Example 2 - Query Modification:**
+        **Input:** "Add ordering by name to this query: SELECT * FROM products WHERE price > 100;"
+        **Output:**
+        ```sql
+        SELECT * FROM products 
+        WHERE price > 100 
+        ORDER BY name ASC;
+        ```
+
+        **Example 3 - Query Fix:**
+        **Input:** "Fix this query: SELECT * FROM user WHERE age > 30 AND"
+        **Output:**
+        ```sql
+        SELECT * FROM users WHERE age > 30;
+        ```
+
+        ## Query Guidelines
+        - Use table names from the provided list
+        - Default to SELECT * unless specific columns mentioned
+        - Use appropriate MySQL operators (=, >, <, IN, LIKE, etc.)
+        - Use LIKE for case-insensitive string matching
+        - Use proper MySQL date/time functions (CURDATE(), DATE_SUB(), INTERVAL, etc.)
+        - Optimize for readability and performance
+        - Handle ambiguous requests by making reasonable assumptions based on available tables
+
+        ## Formatting Rules
+        - Return SQL as plain text (no markdown code blocks)
+        - Use consistent indentation (2 or 4 spaces)
+        - Capitalize SQL keywords (SELECT, FROM, WHERE, etc.)
+        - Use single quotes for string literals
+        - Include proper semicolon termination
+        - For multi-line queries, break at logical points (SELECT, FROM, WHERE, ORDER BY, etc.)
+
+        ## Error Handling
+        - If a table name doesn't exist in the list, suggest the closest match
+        - If the request is unclear, make reasonable assumptions
+        - For complex requests requiring schema knowledge, use common column names (id, name, created_at, updated_at, status, etc.)
+
+        IMPORTANT: If you need detailed schema information about specific tables, use the get_table_schema tool.
+        
+        Current Date: \(currentDate)
+        """
+    }
+    
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
         
         let schema = await buildSchemaPrompt(for: collectionName)
@@ -608,7 +790,7 @@ class MySQLDriver: DatabaseDriver {
     
     private func buildSchemaPrompt(for collectionName: String) async -> String {
         do {
-            let schemaResult = try await getSchema(for: collectionName)
+            let schemaResult = try await getSchema(for: collectionName, schema: nil)
             let columnInfo = schemaResult.columns
                 .map { column in
                     let nullable = column.isNullable == "YES" ? "NULL" : "NOT NULL"

@@ -144,7 +144,7 @@ import AIProxy
             
             // Load collections for current database
             if let currentDb = connectedDatabase {
-                let collectionList = try await driver.listCollections()
+                let collectionList = try await driver.listCollections(schema: nil)
                 self.collections[currentDb.name] = collectionList
             }
         } catch {
@@ -153,7 +153,7 @@ import AIProxy
         }
     }
     
-    func loadCollectionsForCurrentDatabase() async throws {
+    func loadCollectionsForCurrentDatabase(schema: String?) async throws {
         guard let database = connectedDatabase else {
             return
         }
@@ -165,7 +165,7 @@ import AIProxy
         let databaseName = database.name
         
         do {
-            let collectionResult = try await databaseService.listCollections()
+            let collectionResult = try await databaseService.listCollections(schema: schema)
             
             await MainActor.run {
                 self.collections[databaseName] = collectionResult
@@ -198,67 +198,13 @@ import AIProxy
         return collection.find(filter)
     }
     
-    func deleteDocumentBy(fromCollection collectionName: String, withId id: ObjectId) async throws {
-        guard let driver = _databaseDriver,
-              let database = connectedDatabase else {
-            throw DatabaseError.operationFailed("No active database connection")
-        }
-        
-        do {
-            //            try await driver.deleteDocument(in: collectionName, database: database, id: id)
-        } catch {
-            lastError = error
-            throw error
-        }
-    }
-    
-    func updateDocument(fromCollection collectionName: String, withId id: ObjectId, withData: String) async throws {
-        guard let driver = _databaseDriver,
-              let database = connectedDatabase else {
-            throw DatabaseError.operationFailed("No active database connection")
-        }
-        
-        do {
-            // Parse JSON string to dictionary
-            guard let data = withData.data(using: .utf8),
-                  let documentDict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw DatabaseError.operationFailed("Invalid JSON data")
-            }
-            
-            //            try await driver.updateDocument(in: collectionName, database: database, id: id, data: documentDict)
-        } catch {
-            lastError = error
-            throw error
-        }
-    }
-    
-    func createDocument(withDocument: Document) async throws {
-        guard let collectionName = selectedTab?.name,
-              let driver = _databaseDriver,
-              let database = connectedDatabase else {
-            throw DatabaseError.operationFailed("No active database connection or collection")
-        }
-        
-        do {
-            // Convert MongoDB Document to generic dictionary
-            var documentDict: [String: Any] = [:]
-            for (key, value) in withDocument {
-                documentDict[key] = value
-            }
-            
-            //            try await driver.createDocument(in: collectionName, database: database, document: documentDict)
-        } catch {
-            throw error
-        }
-    }
-    
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         guard let driver = _databaseDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
         do {
-            try await driver.renameCollection(from: oldName, to: newName)
+            try await driver.renameCollection(databaseSchema: databaseSchema, from: oldName, to: newName)
             updateTabName(from: oldName, to: newName)
         } catch {
             throw error
@@ -278,7 +224,7 @@ import AIProxy
     }
     
     // MARK: - Tab Management
-    func createNewTab(name: String, filterColumn: String? = nil, filterValue: String? = nil) {
+    func createNewTab(name: String, filterColumn: String? = nil, filterValue: String? = nil, databaseSchema: String? = nil) {
         // Remove quotes from name if present for consistent tab naming
         var cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleanName.hasPrefix("\"") && cleanName.hasSuffix("\"") && cleanName.count > 1 {
@@ -296,7 +242,25 @@ import AIProxy
         }
         
         // Create new tab if none exists for this table
-        let newTab = DatabaseTab(name: cleanName, type: .browse, queryState: .idle, filterColumn: filterColumn, filterValue: filterValue)
+        let newTab = DatabaseTab(
+            name: cleanName,
+            type: .browse,
+            queryState: .idle,
+            filterColumn: filterColumn,
+            filterValue: filterValue,
+            databaseSchema: databaseSchema
+        )
+        tabs.append(newTab)
+        
+        selectedTab = newTab
+    }
+    
+    func createSQLEditorTab() {
+        let newTab = DatabaseTab(
+            name: "SQL Editor",
+            type: .sqlEditor,
+            queryState: .idle
+        )
         tabs.append(newTab)
         
         selectedTab = newTab

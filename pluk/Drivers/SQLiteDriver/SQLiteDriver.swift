@@ -12,13 +12,19 @@ struct SQLiteDatabaseWrapper: DatabaseWrapper {
 }
 
 struct SQLiteCollectionWrapper: CollectionWrapper {
+    var schema: String?
+    
     var id: ObjectIdentifier
     let name: String
-    let type: String = "table"
+    let type: String
 }
 
 // MARK: - SQLite Driver
 class SQLiteDriver: DatabaseDriver {
+    func getInformationSchema() async throws -> [InformationSchema] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
     typealias Database = SQLiteDatabaseWrapper
     typealias Collection = SQLiteCollectionWrapper
     
@@ -61,18 +67,33 @@ class SQLiteDriver: DatabaseDriver {
     
     func connect(to connectionUri: String) async throws -> SQLiteDatabaseWrapper {
         self.databasePath = connectionUri
+        
+        // Regular flow for other files
         let path = try parseConnectionString(connectionUri)
         return try await establishConnection(to: path)
     }
     
     private func establishConnection(to path: String) async throws -> SQLiteDatabaseWrapper {
-        // Preserve security-scoped URL before cleanup
+        // Store the current security-scoped URL before cleanup
         let preservedSecurityScopedURL = self.securityScopedURL
         
-        // Clean up any existing connection first (but preserve security-scoped URL)
-        await cleanup()
+        // Clean up any existing connection first (but don't stop security-scoped access yet)
+        if let connection = self.connection {
+            try? await connection.close()
+            self.connection = nil
+        }
         
-        // Restore the security-scoped URL after cleanup
+        if let threadPool = self.threadPool {
+            try? await threadPool.shutdownGracefully()
+            self.threadPool = nil
+        }
+        
+        if let eventLoopGroup = self.eventLoopGroup {
+            try? await eventLoopGroup.shutdownGracefully()
+            self.eventLoopGroup = nil
+        }
+        
+        // Restore the security-scoped URL after partial cleanup
         self.securityScopedURL = preservedSecurityScopedURL
         
         do {
@@ -265,7 +286,7 @@ class SQLiteDriver: DatabaseDriver {
         return try await listDatabases()
     }
     
-    func listCollections() async throws -> [SQLiteCollectionWrapper] {
+    func listCollections(schema: String?) async throws -> [SQLiteCollectionWrapper] {
         let connection = try await ensureConnected()
         
         do {
@@ -279,10 +300,11 @@ class SQLiteDriver: DatabaseDriver {
             var collections: [SQLiteCollectionWrapper] = []
             for row in rows {
                 if let name = row.column("name")?.string,
-                   let _ = row.column("type")?.string {
+                   let type = row.column("type")?.string {
                     collections.append(SQLiteCollectionWrapper(
                         id: ObjectIdentifier(NSString(string: name)),
                         name: name,
+                        type: type
                     ))
                 }
             }
@@ -325,10 +347,10 @@ class SQLiteDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
-        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+        return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -465,7 +487,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -495,7 +517,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -522,7 +544,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func deleteDocument(in collectionName: String, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -535,6 +557,90 @@ class SQLiteDriver: DatabaseDriver {
             let _ = try await connection.query(queryString, binds)
         } catch {
             throw DatabaseError.operationFailed(error.localizedDescription)
+        }
+    }
+    
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+        let connection = try await ensureConnected()
+        
+        do {
+            // Execute the raw query directly
+            let rows = try await connection.query(query)
+            
+            // Process results similar to findDocuments method
+            var queryColumns: [QueryColumnInfo] = []
+            var convertedRows: [[String: QueryRowInfo]] = []
+            var convertedRawRows: [[String: Any?]] = []
+            
+            // Get column information from the first row
+            if let firstRow = rows.first {
+                for (columnIndex, column) in firstRow.columns.enumerated() {
+                    queryColumns.append(QueryColumnInfo(
+                        name: column.name,
+                        dataType: "TEXT", // SQLite is dynamically typed, default to TEXT
+                        format: nil,
+                        index: columnIndex
+                    ))
+                }
+            }
+            
+            // Process each row
+            for row in rows {
+                var processedRowData: [String: QueryRowInfo] = [:]
+                var rawRowData: [String: Any?] = [:]
+                
+                for column in queryColumns {
+                    let columnName = column.name
+                    let sqliteColumn = row.column(columnName)
+                    
+                    // Store raw value and processed value
+                    var rawValue: Any? = nil
+                    var processedValue: Any? = nil
+                    
+                    if let sqliteColumn = sqliteColumn {
+                        // SQLite NIO provides different accessors for different types
+                        if let stringValue = sqliteColumn.string {
+                            rawValue = stringValue
+                            processedValue = stringValue
+                        } else if let intValue = sqliteColumn.integer {
+                            rawValue = intValue
+                            processedValue = Int(intValue)
+                        } else if let doubleValue = sqliteColumn.double {
+                            rawValue = doubleValue
+                            processedValue = doubleValue
+                        } else if let blobValue = sqliteColumn.blob {
+                            rawValue = blobValue
+                            processedValue = blobValue
+                        } else {
+                            // NULL value
+                            rawValue = nil
+                            processedValue = nil
+                        }
+                    }
+                    
+                    rawRowData[columnName] = rawValue
+                    
+                    // Convert to QueryRowInfo
+                    processedRowData[columnName] = QueryRowInfo(
+                        value: processedValue,
+                        dataType: column.dataType,
+                        format: nil
+                    )
+                }
+                
+                convertedRows.append(processedRowData)
+                convertedRawRows.append(rawRowData)
+            }
+            
+            return QueryResult(
+                columns: queryColumns,
+                rows: convertedRows,
+                totalCount: convertedRows.count,
+                rawRows: convertedRawRows
+            )
+            
+        } catch {
+            throw DatabaseError.operationFailed("Failed to execute raw query: \(error.localizedDescription)")
         }
     }
     
@@ -558,7 +664,7 @@ class SQLiteDriver: DatabaseDriver {
         //        }
     }
     
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         let connection = try await ensureConnected()
         let sanitizedOldName = try validateAndSanitizeIdentifier(oldName)
         let sanitizedNewName = try validateAndSanitizeIdentifier(newName)
@@ -572,7 +678,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func deleteCollection(named collectionName: String) async throws {
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -585,7 +691,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -670,7 +776,111 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
+        let currentDate = Date().formatted(.iso8601)
+        
+        // Get all available tables/collections with error handling  
+        var tablesList = ""
+        do {
+            let collections = try await listCollections(schema: nil)
+            tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
+        } catch {
+            tablesList = "No tables available (connection error)"
+        }
+        
+        return """
+        You are a SQLite query assistant designed for CMD+K quick actions. You help users generate, modify, or fix SQL queries based on their natural language requests.
+
+        ## Core Responsibilities
+        - Generate new SQLite SQL queries from natural language descriptions
+        - Modify existing queries based on user requests
+        - Fix syntax errors or logical issues in existing queries
+        - Provide clear, optimized, and readable SQL code
+
+        ## Available Tables
+        The database contains the following tables:
+        \(tablesList)
+
+        ## Context Handling
+        You will receive one of these contexts:
+        1. **New Query Request**: User asks to create a query from scratch
+        2. **Query Modification**: User provides existing query and asks for changes
+        3. **Query Fix**: User provides broken query and asks for fixes
+
+        ## Output Format Rules
+
+        ### For New Queries:
+        - Start with a comment describing what the query does
+        - Follow with the SQL query
+        - Use proper formatting and indentation
+        - Include semicolon termination
+
+        ### For Query Modifications:
+        - Return only the modified SQL query
+        - No commentary unless the change is complex
+        - Maintain original formatting style when possible
+
+        ### For Query Fixes:
+        - Return only the corrected SQL query
+        - No explanation of what was wrong
+
+        ## Examples
+
+        **Example 1 - New Query:**
+        **Input:** "Get all active users from the last month"
+        **Output:**
+        ```sql
+        -- Retrieve all active users who were created in the last 30 days
+        SELECT * FROM users 
+        WHERE status = 'active' 
+        AND created_at > datetime('now', '-30 days');
+        ```
+
+        **Example 2 - Query Modification:**
+        **Input:** "Add ordering by name to this query: SELECT * FROM products WHERE price > 100;"
+        **Output:**
+        ```sql
+        SELECT * FROM products 
+        WHERE price > 100 
+        ORDER BY name ASC;
+        ```
+
+        **Example 3 - Query Fix:**
+        **Input:** "Fix this query: SELECT * FROM user WHERE age > 30 AND"
+        **Output:**
+        ```sql
+        SELECT * FROM users WHERE age > 30;
+        ```
+
+        ## Query Guidelines
+        - Use table names from the provided list
+        - Default to SELECT * unless specific columns mentioned
+        - Use appropriate SQLite operators (=, >, <, IN, LIKE, GLOB, etc.)
+        - Use LIKE for case-insensitive string matching
+        - Use proper SQLite date/time functions (datetime(), date(), strftime(), etc.)
+        - Optimize for readability and performance
+        - Handle ambiguous requests by making reasonable assumptions based on available tables
+
+        ## Formatting Rules
+        - Return SQL as plain text (no markdown code blocks)
+        - Use consistent indentation (2 or 4 spaces)
+        - Capitalize SQL keywords (SELECT, FROM, WHERE, etc.)
+        - Use single quotes for string literals
+        - Include proper semicolon termination
+        - For multi-line queries, break at logical points (SELECT, FROM, WHERE, ORDER BY, etc.)
+
+        ## Error Handling
+        - If a table name doesn't exist in the list, suggest the closest match
+        - If the request is unclear, make reasonable assumptions
+        - For complex requests requiring schema knowledge, use common column names (id, name, created_at, updated_at, status, etc.)
+        
+        IMPORTANT: If you need detailed schema information about specific tables, use the get_table_schema tool.
+
+        Current Date: \(currentDate)
+        """
+    }
+    
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
         let schema = await buildSchemaPrompt(for: collectionName)
         
@@ -752,13 +962,14 @@ class SQLiteDriver: DatabaseDriver {
                 // Resolve the bookmark to get URL
                 let url = try BookmarkManager.shared.resolveBookmark(bookmarkData)
                 
-                // Start accessing security-scoped resource (will persist for connection duration)
-                if url.startAccessingSecurityScopedResource() {
-                    self.securityScopedURL = url // Store for cleanup later
-                    return url.path
-                } else {
-                    throw DatabaseError.configurationError("File access permission expired. Please select the file again using the folder button (📁) to grant fresh access.")
+                // Start accessing security-scoped resource immediately
+                guard url.startAccessingSecurityScopedResource() else {
+                    throw DatabaseError.configurationError("Failed to access security-scoped file. Please select the file again using the folder button (📁).")
                 }
+                
+                // Store the URL for cleanup later
+                self.securityScopedURL = url
+                return url.path
             } catch let error as BookmarkError {
                 switch error {
                 case .staleBookmark, .accessDenied:
@@ -771,14 +982,14 @@ class SQLiteDriver: DatabaseDriver {
             }
         }
         
-        // Handle other formats
+        // Handle other formats - these don't need security-scoped access
         if connectionString.hasPrefix("sqlite://") {
             let path = String(connectionString.dropFirst(9)) // Remove "sqlite://"
             return path.isEmpty ? ":memory:" : path
         } else if connectionString.hasPrefix("file:") {
             return String(connectionString.dropFirst(5)) // Remove "file:"
         } else {
-            // Assume it's a direct file path
+            // Direct file path
             return connectionString
         }
     }
@@ -788,14 +999,6 @@ class SQLiteDriver: DatabaseDriver {
         
         if trimmed.isEmpty {
             throw DatabaseError.configurationError("Identifier cannot be empty")
-        }
-        
-        // SQLite identifiers are case-insensitive and can contain letters, digits, underscores
-        let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
-        for char in trimmed.unicodeScalars {
-            if !validCharacters.contains(char) {
-                throw DatabaseError.configurationError("Identifier contains invalid characters")
-            }
         }
         
         return "\"\(trimmed)\""
@@ -827,7 +1030,7 @@ class SQLiteDriver: DatabaseDriver {
     
     private func buildSchemaPrompt(for collectionName: String) async -> String {
         do {
-            let schemaResult = try await getSchema(for: collectionName)
+            let schemaResult = try await getSchema(for: collectionName, schema: String?(nil))
             let columnInfo = schemaResult.columns
                 .map { column in
                     let nullable = column.isNullable == "YES" ? "NULL" : "NOT NULL"

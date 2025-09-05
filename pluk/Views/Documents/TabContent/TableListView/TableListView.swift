@@ -47,6 +47,7 @@ struct TableListView: View {
                 FilterBuilderView(
                     columns: cachedSchema?.columns ?? [], 
                     tableName: selectedTab.name,
+                    databaseSchema: selectedTab.databaseSchema,
                     onApplyFilter: { filter in
                         currentActiveFilter = filter.isEmpty ? nil : filter
                         Task {
@@ -76,7 +77,7 @@ struct TableListView: View {
                             needsToSelectLastRow = false
                         },
                         onForeignKeyNavigation: { tableName, columnName, value in
-                            instance.createNewTab(name: tableName, filterColumn: columnName, filterValue: value)
+                            instance.createNewTab(name: tableName, filterColumn: columnName, filterValue: value, databaseSchema: selectedTab.databaseSchema)
                         }
                     )
                 } else {
@@ -191,7 +192,7 @@ struct TableListView: View {
                     for (columnName, cellMod) in rowModification.cellModifications {
                         newDocument[columnName] = cellMod.newValue
                     }
-                    try await instance.databaseService.createDocument(in: selectedTab.name, document: newDocument)
+                    try await instance.databaseService.createDocument(in: selectedTab.name, databaseSchema: selectedTab.databaseSchema, document: newDocument)
                     debugLog("✅ Inserted new row at index \(rowModification.rowIndex)")
                     
                 case .update:
@@ -228,6 +229,7 @@ struct TableListView: View {
                     // Use the database driver to update the row
                     try await instance.databaseService.updateDocument(
                         in: selectedTab.name,
+                        databaseSchema: selectedTab.databaseSchema,
                         id: id,
                         data: updateData
                     )
@@ -256,7 +258,7 @@ struct TableListView: View {
                         continue
                     }
                     
-                    try await instance.databaseService.deleteDocument(in: selectedTab.name, id: id)
+                    try await instance.databaseService.deleteDocument(in: selectedTab.name, databaseSchema: selectedTab.databaseSchema, id: id)
                     debugLog("✅ Deleted row at index \(rowModification.rowIndex)")
                 }
             } catch {
@@ -269,7 +271,7 @@ struct TableListView: View {
         modificationTracker.resetAllModifications()
         
         // Optionally refresh the data to show the saved changes
-        await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+        await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: currentActiveFilter)
         
         debugLog("✅ All modifications saved successfully")
     }
@@ -386,7 +388,7 @@ struct TableListView: View {
             return nil
         }
         
-        return instance.databaseService.generateFilterQuery(from: conditions, tableName: selectedTab.name)
+        return instance.databaseService.generateFilterQuery(from: conditions, tableName: selectedTab.name, databaseSchema: selectedTab.databaseSchema)
     }
     
     private func createInitialFilterConditions() -> [FilterCondition]? {
@@ -463,12 +465,14 @@ struct TableListView: View {
             // Determine what to fetch
             let schemaToUse: DatabaseSchemaResult
             let documentsResult: QueryResult
+            let databaseSchema = selectedTab.databaseSchema
             
             if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
                 // Fetch both schema and documents
-                async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name)
+                async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: databaseSchema)
                 async let documentsTask = instance.databaseService.findDocuments(
                     in: selectedTab.name,
+                    databaseSchema: databaseSchema,
                     filter: filter ?? "",
                     skip: (page - 1) * limit,
                     limit: limit,
@@ -500,6 +504,7 @@ struct TableListView: View {
                 
                 let documents = try await instance.databaseService.findDocuments(
                     in: selectedTab.name,
+                    databaseSchema: databaseSchema,
                     filter: filter ?? "",
                     skip: (page - 1) * limit,
                     limit: limit,

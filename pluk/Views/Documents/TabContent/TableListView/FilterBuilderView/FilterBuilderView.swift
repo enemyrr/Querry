@@ -11,13 +11,13 @@ import SwiftUI
 struct FilterBuilderView: View {
     var columns: [DatabaseSchemaInfo]
     var tableName: String
+    var databaseSchema: String?
     var onApplyFilter: (String) -> Void
     @Binding var conditions: [FilterCondition]
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var showFilterBuilder: Bool = false
     @FocusState private var focusedField: Int?
-    @State private var keyMonitor: Any?
     
     private var hasValidCondition: Bool {
         conditions.contains { condition in
@@ -26,7 +26,7 @@ struct FilterBuilderView: View {
     }
     
     private func generateSQLFilter() -> String {
-        return instance.databaseService.generateFilterQuery(from: conditions, tableName: tableName)
+        return instance.databaseService.generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
     }
     
     private var shouldShowFilterBuilder: Bool {
@@ -118,8 +118,8 @@ struct FilterBuilderView: View {
                     
                     Spacer()
                 }
-                .padding(12)
-                .padding(.bottom, -4)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
                 .onAppear {
                     if !columns.isEmpty && conditions[0].field.isEmpty {
                         conditions[0].field = columns[0].columnName
@@ -129,12 +129,6 @@ struct FilterBuilderView: View {
                     if !columns.isEmpty && conditions[0].field.isEmpty {
                         conditions[0].field = columns[0].columnName
                     }
-                }
-                .onAppear {
-                    setupKeyboardShortcuts()
-                }
-                .onDisappear {
-                    removeKeyboardShortcuts()
                 }
             }
         }
@@ -150,26 +144,18 @@ struct FilterBuilderView: View {
                 }
             }
         }
-    }
-    
-    private func setupKeyboardShortcuts() {
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Check for Enter or Cmd+Enter
-            if event.keyCode == 36 { // 36 is Enter key
-                if hasValidCondition {
-                    let sqlFilter = generateSQLFilter()
-                    onApplyFilter(sqlFilter)
-                    return nil // Consume the event
-                }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubmitFilterBuilder"))) { _ in
+            if hasValidCondition {
+                let sqlFilter = generateSQLFilter()
+                onApplyFilter(sqlFilter)
             }
-            return event
         }
-    }
-    
-    private func removeKeyboardShortcuts() {
-        if let monitor = keyMonitor {
-            NSEvent.removeMonitor(monitor)
-            keyMonitor = nil
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetFilterBuilder"))) { _ in
+            conditions = [FilterCondition(conjunction: .whereClause, field: columns.isEmpty ? "" : columns[0].columnName, filterOperator: .equals, value: "")]
+            onApplyFilter("")
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showFilterBuilder = false
+            }
         }
     }
 }

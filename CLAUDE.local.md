@@ -1,0 +1,1 @@
+- Do not try to run xcode project for testing, I'll test manually

@@ -19,23 +19,47 @@ struct TabBar: View {
                     .padding(.leading, 8)
             }
             
-            if !instance.tabs.isEmpty {
+            HStack(alignment: .center, spacing: 0) {
                 navigationButtons
-                
                 customTabButtons
-                    .background(
-                        Button(action: {
-                            if let selectedTab = instance.selectedTab {
-                                instance.removeTab(selectedTab)
-                            }
-                        }) {
-                            EmptyView()
-                        }
-                            .keyboardShortcut("w", modifiers: [.command])
-                            .opacity(0)
-                            .accessibilityHidden(true)
-                    ).padding(.trailing, 20)
+
+                if instance.tabs.isEmpty {
+                    Spacer()
+                }
+
+                Button(action: {
+                    instance.createSQLEditorTab()
+                }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12))
+                }
+                .keyboardShortcut("t", modifiers: [.command])
+                .buttonStyle(NewTabButtonStyle())
+                .padding(.bottom, 2)
+                .customHelp(
+                    "New Tab",
+                    position: .left,
+                    shortcut: KeyboardShortcut(
+                        modifiers: [.command],
+                        key: "t"
+                    )
+                )
+                .padding(.leading, -2)
             }
+            .padding(.trailing, 12)
+            .background(
+                // Hidden keyboard shortcut for closing tabs
+                Button(action: {
+                    if let selectedTab = instance.selectedTab {
+                        instance.removeTab(selectedTab)
+                    }
+                }) {
+                    EmptyView()
+                }
+                .keyboardShortcut("w", modifiers: [.command])
+                .opacity(0)
+                .accessibilityHidden(true)
+            )
         }
         .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
         .frame(height: 36)
@@ -116,15 +140,14 @@ struct TabBar: View {
                         )
                         .padding(
                             .leading,
-                            instance.tabs.first?.id == tab.id ? 8 : 0
+                            instance.tabs.first?.id == tab.id ? 6 : 0
                         )
                         .padding(
                             .trailing,
-                            instance.tabs.last?.id == tab.id ? 8 : 0
+                            instance.tabs.last?.id == tab.id ? 6 : 0
                         )
                     }
                 }
-                .padding(.trailing, 20)
             }
             .onChange(of: instance.selectedTab) { _, newValue in
                 if let tab = newValue {
@@ -199,8 +222,9 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
                     existingItem.label = tabLabel
                     existingItem.image = NSImage(
-                        systemSymbolName: instance.connection.databaseType
-                        == .mongodb ? "document.fill" : "table",
+                        systemSymbolName: tab.type == .sqlEditor
+                        ? "terminal"
+                        : (instance.connection.databaseType == .mongodb ? "document.fill" : "table"),
                         accessibilityDescription: nil
                     )
                 } else {
@@ -209,8 +233,9 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
                     tabViewItem.label = tabLabel
                     tabViewItem.image = NSImage(
-                        systemSymbolName: instance.connection.databaseType
-                        == .mongodb ? "document.fill" : "table",
+                        systemSymbolName: tab.type == .sqlEditor
+                        ? "terminal"
+                        : (instance.connection.databaseType == .mongodb ? "document.fill" : "table"),
                         accessibilityDescription: nil
                     )
                     
@@ -295,8 +320,9 @@ struct CustomTabButton: View {
             ZStack {
                 HStack(spacing: 8) {
                     Image(
-                        systemName: databaseType == .mongodb
-                        ? "document.fill" : "table"
+                        systemName: tab.type == .sqlEditor
+                        ? "terminal"
+                        : (databaseType == .mongodb ? "document.fill" : "table")
                     )
                     .font(.system(size: 12))
                     

@@ -173,6 +173,34 @@ struct TabCloseButtonStyle: ButtonStyle {
     }
 }
 
+struct NewTabButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    var padding: EdgeInsets = EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
+    var disableScaleEffect: Bool = false
+    var isActive: Bool = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(padding)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    (isHovering || isActive)
+                    ? Color(.controlColor).opacity(0.8)
+                    : Color.clear
+                )
+        )
+        .if(!disableScaleEffect) { view in
+            view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+        }
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
 struct IconButton: View {
     let systemName: String
     let isSelected: Bool
@@ -478,6 +506,34 @@ struct FilterDropdownStyle: ButtonStyle {
                     ? (colorScheme == .dark ? Color(.controlBackgroundColor) : Color.white)
                         .opacity(0.2)
                     : Color(.controlBackgroundColor).opacity(0.2)
+                )
+        )
+        .cornerRadius(6)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct SchemaDropdownStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.separator)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(isHovering ? 0.1 : 0.2)
                 )
         )
         .cornerRadius(6)
@@ -816,6 +872,111 @@ struct FileChangeButtonStyle: ButtonStyle {
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
                     isHovering = hovering
+                }
+            }
+    }
+}
+
+struct ToolbarIconButton: View {
+    let systemName: String
+    let action: () -> Void
+    let disabled: Bool
+    let tooltip: String
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .padding(7)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            isHovering && !disabled
+                            ? Color(NSColor.controlBackgroundColor)
+                            : Color.clear
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(.separator, lineWidth: isHovering && !disabled ? 0.5 : 0)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+        .customHelp(tooltip, position: .top)
+    }
+}
+
+struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
+    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.callout)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .opacity(isHovering ? 0.8 : 1.0)
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovering = hovering
+                }
+                
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
+struct AICommandPromptSecondaryButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        isHovering && !configuration.isPressed
+                        ? Color(NSColor.controlBackgroundColor)
+                        : Color.clear
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(.separator, lineWidth: isHovering && !configuration.isPressed ? 0.5 : 0)
+                    )
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovering = hovering
+                }
+                
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
                 }
             }
     }

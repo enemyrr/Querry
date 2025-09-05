@@ -231,7 +231,7 @@ struct CommandPalette: View {
             guard activeIndex < filteredCollections.count,
                   let collection = filteredCollections[safe: activeIndex] else { return }
             
-            instance.createNewTab(name: collection.name)
+            instance.createNewTab(name: collection.name, databaseSchema: collection.schema)
             onBack()
             searchText = ""
         }

@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		9A0216502DFD9BF300F7FCF3 /* BSON in Frameworks */ = {isa = PBXBuildFile; productRef = 9A02164F2DFD9BF300F7FCF3 /* BSON */; };
 		9A2923052DBBA5830032F301 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 9A2923042DBBA5830032F301 /* PostHog */; };
-		9A2981EF2E4F4D7200713088 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 9A2981EE2E4F4D7200713088 /* SQLite */; };
 		9A44A0BE2D2E91F900E04DC8 /* UInt128 in Frameworks */ = {isa = PBXBuildFile; productRef = 9A44A0BD2D2E91F900E04DC8 /* UInt128 */; };
 		9A5DDF232E53465500812D2A /* MySQLNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 9A5DDF222E53465500812D2A /* MySQLNIO */; };
 		9A623D9B2E2C0A4600B9CFCB /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 9A623D9A2E2C0A4600B9CFCB /* Sparkle */; };
@@ -103,7 +102,6 @@
 				9A8CF55C2D83EC61007307E3 /* AIProxy in Frameworks */,
 				9AE4BF732D25281600EA996E /* MongoClient in Frameworks */,
 				9AF175BD2D895D7200351A82 /* CodeEditorView in Frameworks */,
-				9A2981EF2E4F4D7200713088 /* SQLite in Frameworks */,
 				9AE4BF752D25281600EA996E /* MongoCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -181,7 +179,6 @@
 				9A9882FD2E05800B00F74AC3 /* Sentry */,
 				9A623D9A2E2C0A4600B9CFCB /* Sparkle */,
 				9AA8038D2E46601200B6F1B4 /* SQLiteNIO */,
-				9A2981EE2E4F4D7200713088 /* SQLite */,
 				9A5DDF222E53465500812D2A /* MySQLNIO */,
 			);
 			productName = collection;
@@ -280,7 +277,6 @@
 				9A9882FC2E05800B00F74AC3 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				9A623D992E2C0A4600B9CFCB /* XCRemoteSwiftPackageReference "Sparkle" */,
 				9AA8038C2E46601200B6F1B4 /* XCRemoteSwiftPackageReference "sqlite-nio" */,
-				9A2981ED2E4F4D7200713088 /* XCRemoteSwiftPackageReference "SQLite" */,
 				9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -686,14 +682,6 @@
 				minimumVersion = 3.24.2;
 			};
 		};
-		9A2981ED2E4F4D7200713088 /* XCRemoteSwiftPackageReference "SQLite" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/stephencelis/SQLite.swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.15.4;
-			};
-		};
 		9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mgriebling/UInt128.git";
@@ -793,11 +781,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9A2923032DBBA5830032F301 /* XCRemoteSwiftPackageReference "posthog-ios" */;
 			productName = PostHog;
-		};
-		9A2981EE2E4F4D7200713088 /* SQLite */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9A2981ED2E4F4D7200713088 /* XCRemoteSwiftPackageReference "SQLite" */;
-			productName = SQLite;
 		};
 		9A44A0BD2D2E91F900E04DC8 /* UInt128 */ = {
 			isa = XCSwiftPackageProductDependency;

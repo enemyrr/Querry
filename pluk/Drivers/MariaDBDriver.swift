@@ -8,6 +8,7 @@ struct MariaDBDatabaseWrapper: DatabaseWrapper {
 }
 
 struct MariaDBCollectionWrapper: CollectionWrapper {
+    var schema: String?
     var id: ObjectIdentifier
     let name: String
     let type: String = "table"
@@ -15,7 +16,15 @@ struct MariaDBCollectionWrapper: CollectionWrapper {
 
 // MARK: - MariaDB Driver (Placeholder)
 class MariaDBDriver: DatabaseDriver {
-    func deleteCollection(named collectionName: String) async throws {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
+    func getInformationSchema() async throws -> [InformationSchema] {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
@@ -23,7 +32,11 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
@@ -55,7 +68,7 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func listCollections() async throws -> [MariaDBCollectionWrapper] {
+    func listCollections(schema: String?) async throws -> [MariaDBCollectionWrapper] {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
@@ -71,19 +84,19 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func deleteDocument(in collectionName: String, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
@@ -91,11 +104,11 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
 } 

@@ -28,7 +28,7 @@ struct SplitView<L: View, R: View>: View {
     let right: R
 
     /// The minimum size (in points) of a split
-    let minSize: CGFloat = 10
+    let minSize: CGFloat
 
     /// The current fractional width of the split view. 0.5 means L/R are equally sized, for example.
     @Binding var split: CGFloat
@@ -73,6 +73,7 @@ struct SplitView<L: View, R: View>: View {
         _ direction: SplitViewDirection,
         _ split: Binding<CGFloat>,
         dividerColor: Color,
+        minSize: CGFloat = 10,
         resizeIncrements: NSSize = .init(width: 1, height: 1),
         @ViewBuilder left: (() -> L),
         @ViewBuilder right: (() -> R)
@@ -80,6 +81,7 @@ struct SplitView<L: View, R: View>: View {
         self.direction = direction
         self._split = split
         self.dividerColor = dividerColor
+        self.minSize = minSize
         self.resizeIncrements = resizeIncrements
         self.left = left()
         self.right = right()

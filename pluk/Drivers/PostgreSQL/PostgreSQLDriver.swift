@@ -15,6 +15,7 @@ struct PostgreSQLCollectionWrapper: CollectionWrapper {
     let name: String
     let oid: String
     let type: String
+    let schema: String?
 }
 
 struct PostgreSQLCell {
@@ -296,7 +297,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    func listCollections() async throws -> [PostgreSQLCollectionWrapper] {
+    func listCollections(schema: String? = "public") async throws -> [PostgreSQLCollectionWrapper] {
         let connection = try await ensureConnected()
         
         do {
@@ -315,9 +316,9 @@ class PostgreSQLDriver: DatabaseDriver {
                                JOIN pg_namespace AS n ON p.relnamespace = n.oid
                            WHERE
                                (p.relkind = 'r' OR p.relkind = 'v' OR p.relkind = 'p')
-                               AND n.nspname = 'public'
+                               AND n.nspname = '\(unescaped: schema ?? "public")'
                            """,
-                                                  logger: Logger(label: "postgres")
+                          logger: Logger(label: "postgres")
             )
             
             var collections: [PostgreSQLCollectionWrapper] = []
@@ -326,7 +327,8 @@ class PostgreSQLDriver: DatabaseDriver {
                     id: ObjectIdentifier(NSString(string: tableName)),
                     name: tableName,
                     oid: oid.description,
-                    type: type
+                    type: type,
+                    schema: schema
                 ))
             }
             
@@ -343,13 +345,14 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
-        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+        return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
-        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
+        var errorQuery: String? = nil
         
         do {
             let query: PostgresQuery
@@ -358,6 +361,7 @@ class PostgreSQLDriver: DatabaseDriver {
             if let rawQuery = filter["rawQuery"] as? String, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 // Use the raw query directly
                 query = PostgresQuery(stringLiteral: rawQuery)
+                errorQuery = rawQuery
             } else {
                 // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
@@ -445,15 +449,15 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         } catch let error as PSQLError {
             debugLog(String(reflecting: error))
-            throw mapPSQLError(error)
+            throw mapPSQLError(error, query: errorQuery)
         } catch {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
     
-    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         let connection = try await ensureConnected()
-        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard !document.isEmpty else {
             throw DatabaseError.operationFailed("Cannot insert an empty document.")
@@ -528,9 +532,9 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any], ) async throws {
         let connection = try await ensureConnected()
-        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard !data.isEmpty else {
             throw DatabaseError.operationFailed("No changes detected to update")
@@ -595,9 +599,9 @@ class PostgreSQLDriver: DatabaseDriver {
         return (hour, minute, second, microsecond)
     }
     
-    func deleteDocument(in collectionName: String, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         let connection = try await ensureConnected()
-        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName)
+        let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard let primaryKey = id as? PostgresCell else {
             throw DatabaseError.operationFailed("Cannot delete document without a primary key")
@@ -632,6 +636,82 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+        let connection = try await ensureConnected()
+        
+        do {
+            // Execute the raw query directly
+            let postgresQuery = PostgresQuery(stringLiteral: query)
+            let results = try await connection.query(postgresQuery, logger: Logger(label: "postgres"))
+            
+            // Process results similar to findDocuments method
+            var queryColumns: [QueryColumnInfo] = []
+            var convertedRows: [[String: QueryRowInfo]] = []
+            var convertedRawRows: [[String: Any?]] = []
+            var columnsInitialized = false
+            
+            for try await row in results {
+                // Extract and convert column info only once
+                if !columnsInitialized {
+                    var columnIndex = 0
+                    for cell in row {
+                        queryColumns.append(QueryColumnInfo(
+                            name: cell.columnName,
+                            dataType: String(describing: cell.dataType),
+                            format: String(describing: cell.format),
+                            index: columnIndex
+                        ))
+                        columnIndex += 1
+                    }
+                    columnsInitialized = true
+                }
+                
+                // Convert to random access row for O(1) cell access
+                let randomAccessRow = row.makeRandomAccess()
+                
+                // Process row data in a single pass
+                var processedRowData: [String: QueryRowInfo] = [:]
+                var rawRowData: [String: Any?] = [:]
+                
+                for column in queryColumns {
+                    let columnName = column.name
+                    if randomAccessRow.contains(columnName) {
+                        let cell = randomAccessRow[columnName]
+                        
+                        // Store PostgresCell as Any in rawRowData
+                        rawRowData[columnName] = cell
+                        
+                        // Convert to QueryRowInfo for processed row
+                        do {
+                            processedRowData[columnName] = try decode(from: cell)
+                        } catch {
+                            debugLog("executeRawQuery decode error: \(String(reflecting: error))")
+                            processedRowData[columnName] = nil
+                        }
+                    } else {
+                        processedRowData[columnName] = nil
+                        rawRowData[columnName] = nil
+                    }
+                }
+                
+                convertedRows.append(processedRowData)
+                convertedRawRows.append(rawRowData)
+            }
+            
+            return QueryResult(
+                columns: queryColumns,
+                rows: convertedRows,
+                totalCount: convertedRows.count,
+                rawRows: convertedRawRows
+            )
+            
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: query)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to execute raw query: \(error.localizedDescription)")
+        }
+    }
+    
     func createCollection(named collectionName: String) async throws {
         throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
 //        let connection = try await ensureConnected()
@@ -656,10 +736,10 @@ class PostgreSQLDriver: DatabaseDriver {
 //        }
     }
     
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         let connection = try await ensureConnected()
-        let sanitizedOldName = try validateAndSanitizeIdentifier(oldName)
-        let sanitizedNewName = try validateAndSanitizeIdentifier(newName)
+        let sanitizedOldName = try validateAndSanitizeIdentifier(oldName, databaseSchema: databaseSchema)
+        let sanitizedNewName = try validateAndSanitizeIdentifier(newName, databaseSchema: nil)
         
         let query = PostgresQuery("ALTER TABLE \(unescaped: sanitizedOldName) RENAME TO \(unescaped: sanitizedNewName)")
         
@@ -675,9 +755,9 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    func deleteCollection(named collectionName: String) async throws {
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         let connection = try await ensureConnected()
-        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         let query = PostgresQuery("DROP TABLE \(unescaped: sanitizedTableName)")
         
@@ -692,15 +772,144 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
-        return try await getSchema(for: collectionName, in: "public")
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
+        return try await getSchema(for: collectionName, in: schema ?? "public")
     }
     
     
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
+    func getInformationSchema() async throws -> [InformationSchema] {
+        let connection = try await ensureConnected()
+        
+        do {
+            let query = PostgresQuery("""
+            SELECT schema_name 
+                FROM information_schema.schemata 
+                WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
+                  AND schema_name NOT LIKE 'pg_temp_%'
+                  AND schema_name NOT LIKE 'pg_toast%'
+                  AND schema_name NOT LIKE 'pg_%'
+                ORDER BY schema_name;
+            """)
+            
+            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            var schemas: [InformationSchema] = []
+            
+            for try await (schemaName) in results.decode((String).self) {
+                schemas.append(InformationSchema(name: schemaName))
+            }
+            
+            return schemas.isEmpty ? [InformationSchema(name: "public")] : schemas
+        } catch let error as PSQLError {
+            debugLog("Error fetching schemas: \(error)")
+            throw mapPSQLError(error)
+        } catch {
+            debugLog("Error fetching schemas: \(error)")
+            throw DatabaseError.operationFailed("Failed to fetch schemas: \(error.localizedDescription)")
+        }
+    }
+    
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
         
-        let schema = await buildSchemaPrompt(for: collectionName)
+        // Get all available tables/collections
+        let collections = try await listCollections(schema: "public")
+        let tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
+        
+        return """
+        You are a PostgreSQL query assistant designed for CMD+K quick actions. You help users generate, modify, or fix SQL queries based on their natural language requests.
+
+        ## Core Responsibilities
+        - Generate new PostgreSQL SQL queries from natural language descriptions
+        - Modify existing queries based on user requests
+        - Fix syntax errors or logical issues in existing queries
+        - Provide clear, optimized, and readable SQL code
+
+        ## Available Tables
+        The database contains the following tables:
+        \(tablesList)
+        
+        
+        ## Context Handling
+        You will receive one of these contexts:
+        1. **New Query Request**: User asks to create a query from scratch
+        2. **Query Modification**: User provides existing query and asks for changes
+        3. **Query Fix**: User provides broken query and asks for fixes
+
+        ## Output Format Rules
+
+        ### For New Queries:
+        - Start with a comment describing what the query does one line only
+        - Follow with the SQL query
+        - Use proper formatting and indentation
+        - Include semicolon termination
+
+        ### For Query Modifications:
+        - Return only the modified SQL query
+        - No commentary unless the change is complex
+        - Maintain original formatting style when possible
+
+        ### For Query Fixes:
+        - Return only the corrected SQL query
+        - No explanation of what was wrong
+
+        ## Examples
+
+        **Example 1 - New Query:**
+        **Input:** "Get all active users from the last month"
+        **Output:**
+        ```sql
+        -- Retrieve all active users who were created in the last 30 days
+        SELECT * FROM users 
+        WHERE status = 'active' 
+        AND created_at >= CURRENT_DATE - INTERVAL '30 days';
+        ```
+
+        **Example 2 - Query Modification:**
+        **Input:** "Add ordering by name to this query: SELECT * FROM products WHERE price > 100;"
+        **Output:**
+        ```sql
+        SELECT * FROM products 
+        WHERE price > 100 
+        ORDER BY name ASC;
+        ```
+
+        **Example 3 - Query Fix:**
+        **Input:** "Fix this query: SELECT * FROM user WHERE age > 30 AND"
+        **Output:**
+        ```sql
+        SELECT * FROM users WHERE age > 30;
+        ```
+
+        ## Query Guidelines
+        - Use table names from the provided list
+        - Default to SELECT * unless specific columns mentioned
+        - Use appropriate PostgreSQL operators (=, >, <, IN, LIKE, ILIKE, etc.)
+        - Use ILIKE for case-insensitive string matching
+        - Use proper PostgreSQL date/time functions (CURRENT_DATE, INTERVAL, etc.)
+        - Optimize for readability and performance
+        - Handle ambiguous requests by making reasonable assumptions based on available tables
+
+        ## Formatting Rules
+        - Return SQL as plain text (no markdown code blocks)
+        - Use consistent indentation (2 or 4 spaces)
+        - Capitalize SQL keywords (SELECT, FROM, WHERE, etc.)
+        - Use single quotes for string literals
+        - Include proper semicolon termination
+        - For multi-line queries, break at logical points (SELECT, FROM, WHERE, ORDER BY, etc.)
+
+        ## Error Handling
+        - If a table name doesn't exist in the list, suggest the closest match
+        - If the request is unclear, make reasonable assumptions
+        - For complex requests requiring schema knowledge, use common column names (id, name, created_at, updated_at, status, etc.)
+        
+        IMPORTANT: If you need detailed schema information about specific tables, use the get_table_schema tool.
+        
+        Current Date: \(currentDate)
+        """
+    }
+    
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
+        let currentDate = Date().formatted(.iso8601)
         
         return """
         You are a PostgreSQL query assistant. Your primary task is to convert natural language user queries into valid PostgreSQL SQL queries.
@@ -713,7 +922,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         # Database Schema
         The current table schema is:
-        \(schema)
+        \(databaseSchema).\(schema)
         
         # Output Format
         Return ONLY the PostgreSQL SQL query.
@@ -770,9 +979,10 @@ class PostgreSQLDriver: DatabaseDriver {
         Current Date: \(currentDate)
         """
     }
+
     
     
-    private func buildSchemaPrompt(for collectionName: String) async -> String {
+    private func buildSchemaPrompt(for collectionName: String, databaseSchema: String?) async -> String {
         do {
             let schemaResult = try await getSchema(for: collectionName)
             let columnInfo = schemaResult.columns
@@ -784,7 +994,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 .joined(separator: "\n")
             
             return """
-            Table: \(schemaResult.tableName)
+            Table: \(databaseSchema).\(schemaResult.tableName)
             Schema: \(schemaResult.schemaName)
             Columns:
             \(columnInfo)
@@ -1248,7 +1458,7 @@ class PostgreSQLDriver: DatabaseDriver {
         )
     }
     
-    private func validateAndSanitizeIdentifier(_ identifier: String) throws -> String {
+    private func validateAndSanitizeIdentifier(_ identifier: String, databaseSchema: String? = "public") throws -> String {
         // Remove whitespace and validate the identifier
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
         
@@ -1280,6 +1490,9 @@ class PostgreSQLDriver: DatabaseDriver {
             }
         }
         
+        if let schema = databaseSchema {
+            return "\"\(schema)\".\"\(trimmed)\""
+        }
         // Return properly quoted identifier for PostgreSQL
         // Use double quotes to preserve case and handle reserved words
         return "\"\(trimmed)\""
@@ -1391,7 +1604,7 @@ class PostgreSQLDriver: DatabaseDriver {
         return "\"\(trimmed)\""
     }
     
-    private func mapPSQLError(_ error: PSQLError) -> DatabaseError {
+    private func mapPSQLError(_ error: PSQLError, query: String? = nil) -> DatabaseError {
         // Check the specific error code first
         switch error.code {
         case .authMechanismRequiresPassword:
@@ -1425,7 +1638,18 @@ class PostgreSQLDriver: DatabaseDriver {
                 
                 // Use the error message from the server
                 if let message = serverInfo[.message] {
-                    return DatabaseError.operationFailed("ERROR: \(message)")
+                    let position = serverInfo[.position].flatMap { Int($0) }
+                    let hint = serverInfo[.hint]
+                    let detail = serverInfo[.detail]
+                    
+                    return DatabaseError(
+                        code: .operationFailed,
+                        message: message,
+                        details: detail,
+                        position: position,
+                        hint: hint,
+                        query: query
+                    )
                 }
             }
             return DatabaseError.operationFailed("PostgreSQL server error")
@@ -1454,6 +1678,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         return nil
     }
+    
     
     // MARK: - Helper methods for foreign keys
     private func getTableOid(schema: String, table: String) async throws -> Int64? {
@@ -1545,40 +1770,105 @@ extension PostgreSQLDriver {
 }
 
 // MARK: - Database Error
-enum DatabaseError: Error, LocalizedError {
-    case notImplemented(String)
-    case connectionFailed(String)
-    case operationFailed(String)
-    case authenticationFailed(String)
-    case configurationError(String)
-    case databaseNotFound(String)
-    case databaseNotSelected
-    case notConnected(String)
-    case invalidConnectionString(String)
-    case noDatabaseSelected(String)
+struct DatabaseError: Error, LocalizedError {
+    enum Code: String, CaseIterable {
+        case notImplemented = "NOT_IMPLEMENTED"
+        case connectionFailed = "CONNECTION_FAILED"
+        case operationFailed = "OPERATION_FAILED"
+        case authenticationFailed = "AUTHENTICATION_FAILED"
+        case configurationError = "CONFIGURATION_ERROR"
+        case databaseNotFound = "DATABASE_NOT_FOUND"
+        case databaseNotSelected = "DATABASE_NOT_SELECTED"
+        case notConnected = "NOT_CONNECTED"
+        case invalidConnectionString = "INVALID_CONNECTION_STRING"
+        case noDatabaseSelected = "NO_DATABASE_SELECTED"
+    }
+    
+    let code: Code
+    let message: String
+    let details: String?
+    let position: Int?
+    let hint: String?
+    let query: String?
+    let underlyingError: Error?
+    
+    init(
+        code: Code,
+        message: String,
+        details: String? = nil,
+        position: Int? = nil,
+        hint: String? = nil,
+        query: String? = nil,
+        underlyingError: Error? = nil
+    ) {
+        self.code = code
+        self.message = message
+        self.details = details
+        self.position = position
+        self.hint = hint
+        self.query = query
+        self.underlyingError = underlyingError
+    }
     
     var errorDescription: String? {
-        switch self {
-        case .notImplemented(let message):
-            return message
-        case .connectionFailed(let message):
-            return message
-        case .operationFailed(let message):
-            return message
-        case .authenticationFailed(let message):
+        switch code {
+        case .authenticationFailed:
             return "Authentication failed: \(message)"
-        case .configurationError(let message):
-            return message
-        case .databaseNotFound(let message):
+        case .databaseNotFound:
             return "Database: \(message)"
         case .databaseNotSelected:
             return "Database not selected"
-        case .notConnected(let message):
+        case .notConnected:
             return "Not connected: \(message)"
-        case .invalidConnectionString(let message):
+        case .invalidConnectionString:
             return "Invalid connection string: \(message)"
-        case .noDatabaseSelected(let message):
+        case .noDatabaseSelected:
             return "No database selected: \(message)"
+        default:
+            return message
         }
+    }
+    
+    var errorDetails: String? {
+        return details
+    }
+    
+    // MARK: - Static convenience methods for backward compatibility
+    static func notImplemented(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .notImplemented, message: message, details: details, position: position)
+    }
+    
+    static func connectionFailed(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .connectionFailed, message: message, details: details, position: position)
+    }
+    
+    static func operationFailed(_ message: String, details: String? = nil, position: Int? = nil, hint: String? = nil, query: String? = nil) -> DatabaseError {
+        return DatabaseError(code: .operationFailed, message: message, details: details, position: position, hint: hint, query: query)
+    }
+    
+    static func authenticationFailed(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .authenticationFailed, message: message, details: details, position: position)
+    }
+    
+    static func configurationError(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .configurationError, message: message, details: details, position: position)
+    }
+    
+    static func databaseNotFound(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .databaseNotFound, message: message, details: details, position: position)
+    }
+    
+    static let databaseNotSelected = DatabaseError(code: .databaseNotSelected, message: "Database not selected")
+    
+    static func notConnected(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .notConnected, message: message, details: details, position: position)
+    }
+    
+    static func invalidConnectionString(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .invalidConnectionString, message: message, details: details, position: position)
+    }
+    
+    static func noDatabaseSelected(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
+        return DatabaseError(code: .noDatabaseSelected, message: message, details: details, position: position)
     }
 }

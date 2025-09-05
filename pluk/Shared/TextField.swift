@@ -81,3 +81,10 @@ struct FilterTextFieldStyle: TextFieldStyle {
         
     }
 }
+
+extension String {
+    var sentenceCase: String {
+        guard !isEmpty else { return self }
+        return prefix(1).uppercased() + dropFirst().lowercased()
+    }
+}

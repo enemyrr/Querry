@@ -68,6 +68,7 @@ struct DocumentList: View {
             
             let queryResult = try await instance.databaseService.findDocuments(
                 in: selectedTab.name,
+                databaseSchema: nil,
                 filter: searchFilter,
                 skip: (page - 1) * limit,
                 limit: limit,

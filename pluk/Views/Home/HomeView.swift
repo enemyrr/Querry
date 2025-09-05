@@ -10,6 +10,7 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
+    @Environment(\.colorScheme) var colorScheme
     @Environment(SidebarViewModel.self) private var viewModel
     @Query(sort: \Connection.createdAt, order: .forward)
     private var connections: [Connection]
@@ -66,10 +67,10 @@ struct HomeView: View {
                 maxHeight: .infinity,
                 alignment: .leading
             )
-            .background(Color(.controlColor).opacity(0.1))
+            .background(Color(.controlColor).opacity(colorScheme == .dark ? 0.1 : 0.4))
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(.separator, lineWidth: 1)
+                    .stroke(.separator)
             )
             .cornerRadius(20)
             .padding(8)

@@ -24,6 +24,7 @@ struct Sidebar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 8)
+        .id(viewModel.activeConnection?.id)
     }
 }
 

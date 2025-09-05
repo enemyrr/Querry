@@ -20,8 +20,9 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var filterColumn: String?
     var filterValue: String?
     var forceFetch: Bool = false
+    var databaseSchema: String?
     
-    init(name: String, type: TabType, queryState: QueryState, filterColumn: String? = nil, filterValue: String? = nil, forceFetch: Bool = false) {
+    init(name: String, type: TabType, queryState: QueryState, filterColumn: String? = nil, filterValue: String? = nil, forceFetch: Bool = false, databaseSchema: String? = nil) {
         self.id = UUID()
         self.name = name
         self.type = type
@@ -30,6 +31,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         self.filterColumn = filterColumn
         self.filterValue = filterValue
         self.forceFetch = forceFetch
+        self.databaseSchema = databaseSchema
     }
     
     static func == (lhs: DatabaseTab, rhs: DatabaseTab) -> Bool {
@@ -41,6 +43,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         case aggregate
         case schema
         case indexes
+        case sqlEditor
     }
 
     enum QueryState: Equatable, Codable {

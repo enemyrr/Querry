@@ -43,6 +43,7 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
         HStack(spacing: 0) {
             if isSidebarVisible {
                 sidebarContainer
+                    .padding(.top, isFullscreen ? 38 : 0)
             }
             
             detailContent

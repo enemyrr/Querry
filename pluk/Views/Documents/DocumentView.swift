@@ -39,7 +39,7 @@ struct DocumentView: View {
                             .modifier(GlassBackgroundStyle(cornerRadius: 12))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(.separator, lineWidth: 1)
+                                    .strokeBorder(.separator)
                             )
                     }
                     .padding(.bottom, 10)
@@ -153,10 +153,17 @@ class TabContentView: NSView {
     
     private func setupTableView() {
         if let selectedTab = selectedTab {
-            let tableListView = TableListView(
-                selectedTab: selectedTab
-            )
-            let hostingView = NSHostingView(rootView: tableListView)
+            let hostingView: NSHostingView<AnyView>
+            
+            switch selectedTab.type {
+            case .browse, .aggregate, .schema, .indexes:
+                let tableListView = TableListView(selectedTab: selectedTab)
+                hostingView = NSHostingView(rootView: AnyView(tableListView))
+            case .sqlEditor:
+                let sqlEditorView = SQLEditorView()
+                hostingView = NSHostingView(rootView: AnyView(sqlEditorView))
+            }
+            
             setContentView(hostingView)
         }
     }

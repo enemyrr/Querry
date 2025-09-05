@@ -193,7 +193,7 @@ struct AISearchView: View {
             fatalError("Database driver not set yet")
         }
         
-        let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab)
+        let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab, databaseSchema: instance.selectedTab?.databaseSchema)
         
         let openAIService = AIProxy.openAIService(
             partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",

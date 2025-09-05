@@ -18,6 +18,8 @@ struct MongoDBWrapper: DatabaseWrapper {
 }
 
 struct MongoCollectionWrapper: CollectionWrapper {
+    var schema: String?
+    
     var id: ObjectIdentifier
     let collection: MongoCollection
     let type: String
@@ -53,7 +55,11 @@ struct MongoCollectionWrapper: CollectionWrapper {
 
 // MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
-    func deleteCollection(named collectionName: String) async throws {
+    func getInformationSchema() async throws -> [InformationSchema] {
+        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    }
+    
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
@@ -65,8 +71,109 @@ class MongoDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
     
-    func buildSystemPrompt(for collectionName: String) async throws -> String {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
+        let currentDate = Date().formatted(.iso8601)
+        
+        // Get all available collections with error handling
+        var collectionsList = ""
+        do {
+            let collections = try await listCollections(schema: nil)
+            collectionsList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
+        } catch {
+            collectionsList = "No collections available (connection error)"
+        }
+        
+        return """
+        You are a MongoDB query assistant designed for CMD+K quick actions. You help users generate, modify, or fix MongoDB queries based on their natural language requests.
+
+        ## Core Responsibilities
+        - Generate new MongoDB queries from natural language descriptions
+        - Modify existing queries based on user requests
+        - Fix syntax errors or logical issues in existing queries
+        - Provide clear, optimized, and readable MongoDB query code
+
+        ## Available Collections
+        The database contains the following collections:
+        \(collectionsList)
+
+        ## Context Handling
+        You will receive one of these contexts:
+        1. **New Query Request**: User asks to create a query from scratch
+        2. **Query Modification**: User provides existing query and asks for changes
+        3. **Query Fix**: User provides broken query and asks for fixes
+
+        ## Output Format Rules
+
+        ### For New Queries:
+        - Start with a comment describing what the query does
+        - Follow with the MongoDB query
+        - Use proper formatting and indentation
+        - Include appropriate MongoDB operators
+
+        ### For Query Modifications:
+        - Return only the modified MongoDB query
+        - No commentary unless the change is complex
+        - Maintain original formatting style when possible
+
+        ### For Query Fixes:
+        - Return only the corrected MongoDB query
+        - No explanation of what was wrong
+
+        ## Examples
+
+        **Example 1 - New Query:**
+        **Input:** "Get all active users from the last month"
+        **Output:**
+        ```javascript
+        // Find all active users created in the last 30 days
+        db.users.find({
+          status: "active",
+          created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+        })
+        ```
+
+        **Example 2 - Query Modification:**
+        **Input:** "Add sorting by name to this query: db.products.find({price: {$gt: 100}})"
+        **Output:**
+        ```javascript
+        db.products.find({price: {$gt: 100}}).sort({name: 1})
+        ```
+
+        **Example 3 - Query Fix:**
+        **Input:** "Fix this query: db.user.find({age: {$gt: 30} AND"
+        **Output:**
+        ```javascript
+        db.users.find({age: {$gt: 30}})
+        ```
+
+        ## Query Guidelines
+        - Use collection names from the provided list
+        - Use appropriate MongoDB operators ($gt, $lt, $in, $regex, etc.)
+        - Use $regex for pattern matching
+        - Use proper MongoDB date functions and operators
+        - Optimize for readability and performance
+        - Handle ambiguous requests by making reasonable assumptions based on available collections
+
+        ## Formatting Rules
+        - Return MongoDB query as plain text (no markdown code blocks)
+        - Use consistent indentation (2 or 4 spaces)
+        - Use proper MongoDB syntax and operators
+        - Use double quotes for string literals
+        - For multi-line queries, break at logical points
+
+        ## Error Handling
+        - If a collection name doesn't exist in the list, suggest the closest match
+        - If the request is unclear, make reasonable assumptions
+        - For complex requests requiring schema knowledge, use common field names (_id, name, created_at, updated_at, status, etc.)
+
+        IMPORTANT: If you need detailed schema information about specific tables, use the get_table_schema tool.
+        
+        Current Date: \(currentDate)
+        """
+    }
+    
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
+        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
     
     typealias Database = MongoDBWrapper
@@ -119,7 +226,7 @@ class MongoDBDriver: DatabaseDriver {
         return databases.map { MongoDBWrapper(database: $0) }
     }
     
-    func listCollections() async throws -> [MongoCollectionWrapper] {
+    func listCollections(schema: String?) async throws -> [MongoCollectionWrapper] {
         guard let database = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -139,10 +246,10 @@ class MongoDBDriver: DatabaseDriver {
     
     
     func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
-        return try await findDocuments(in: collectionName, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
+        return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -175,7 +282,7 @@ class MongoDBDriver: DatabaseDriver {
     
     
     
-    func createDocument(in collectionName: String, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -188,7 +295,7 @@ class MongoDBDriver: DatabaseDriver {
         //        }
     }
     
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -207,7 +314,7 @@ class MongoDBDriver: DatabaseDriver {
         //        }
     }
     
-    func deleteDocument(in collectionName: String, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -219,6 +326,51 @@ class MongoDBDriver: DatabaseDriver {
         
         let filter: MongoKitten.Document = ["_id": objectId]
         try await collection.deleteOne(where: filter)
+    }
+    
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+        guard let mongoDatabase = connectedDatabase else {
+            throw MongoError.databaseNotInitialized
+        }
+        
+        do {
+            // For MongoDB, we'll treat the "raw query" as a JavaScript-like MongoDB query
+            // This is a simplified implementation - in a production system, you might want
+            // to parse the query more thoroughly or use MongoDB's $expr operator
+            
+            // For now, we'll return a simple message indicating MongoDB queries are different
+            let queryColumns: [QueryColumnInfo] = [
+                QueryColumnInfo(name: "message", dataType: "String", format: nil, index: 0),
+                QueryColumnInfo(name: "query", dataType: "String", format: nil, index: 1),
+                QueryColumnInfo(name: "note", dataType: "String", format: nil, index: 2)
+            ]
+            
+            let convertedRows: [[String: QueryRowInfo]] = [
+                [
+                    "message": QueryRowInfo(value: "MongoDB uses document-based queries, not SQL", dataType: "String", format: nil),
+                    "query": QueryRowInfo(value: query, dataType: "String", format: nil),
+                    "note": QueryRowInfo(value: "Use the collection browser or aggregation pipeline for MongoDB queries", dataType: "String", format: nil)
+                ]
+            ]
+            
+            let convertedRawRows: [[String: Any?]] = [
+                [
+                    "message": "MongoDB uses document-based queries, not SQL",
+                    "query": query,
+                    "note": "Use the collection browser or aggregation pipeline for MongoDB queries"
+                ]
+            ]
+            
+            return QueryResult(
+                columns: queryColumns,
+                rows: convertedRows,
+                totalCount: convertedRows.count,
+                rawRows: convertedRawRows
+            )
+            
+        } catch {
+            throw DatabaseError.operationFailed("Failed to execute MongoDB query: \(error.localizedDescription)")
+        }
     }
     
     func createCollection(named collectionName: String) async throws {
@@ -235,7 +387,7 @@ class MongoDBDriver: DatabaseDriver {
         )
     }
     
-    func renameCollection(from oldName: String, to newName: String) async throws {
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         guard let database = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -244,7 +396,7 @@ class MongoDBDriver: DatabaseDriver {
         //        try await from.rename(to: newName)
     }
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         throw DatabaseError.notImplemented("MongoDB schema introspection not yet implemented")
     }
     

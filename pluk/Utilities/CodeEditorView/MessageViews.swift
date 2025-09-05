@@ -56,58 +56,65 @@ struct MessageInlineView: View {
   var body: some View {
 
     let categories = messagesByCategory(messages).map{ $0.key }
+    let topMessage = messages.filter{ $0.category == categories[0] }.first
+    let shouldHide = topMessage?.summary.isEmpty ?? true
 
-    GeometryReader { geometryProxy in
+    // If summary is empty, don't show any inline view
+    if shouldHide {
+      EmptyView()
+    } else {
+      GeometryReader { geometryProxy in
 
-      let height = geometryProxy.size.height
-      let colour = if invalidated { Color(OSColor.gray) } else { Color(theme(categories[0]).colour) }
+        let height = geometryProxy.size.height
+        let colour = if invalidated { Color(OSColor.gray) } else { Color(theme(categories[0]).colour) }
 
-      HStack {
+        HStack {
 
-        Spacer()
+          Spacer()
 
-        HStack(alignment: .center, spacing: 0) {
-
-          // Category summary
           HStack(alignment: .center, spacing: 0) {
 
-            // Overall message count
-            let count = messages.count
-            if count > 1 {
-              Text("\(count)")
-                .padding([.leading, .trailing], 3)
-            }
-
-            // All category icons
+            // Category summary
             HStack(alignment: .center, spacing: 0) {
-              ForEach(0..<categories.count, id: \.self){ i in
-                HStack(alignment: .center, spacing: 0) {
-                  theme(categories[i]).icon
-                    .padding([.leading, .trailing], 2)
+
+              // Overall message count
+              let count = messages.count
+              if count > 1 {
+                Text("\(count)")
+                  .padding([.leading, .trailing], 3)
+              }
+
+              // All category icons
+              HStack(alignment: .center, spacing: 0) {
+                ForEach(0..<categories.count, id: \.self){ i in
+                  HStack(alignment: .center, spacing: 0) {
+                    theme(categories[i]).icon
+                      .padding([.leading, .trailing], 2)
+                  }
                 }
               }
+              .padding([.leading, .trailing], 2)
+
             }
-            .padding([.leading, .trailing], 2)
+            .frame(height: height)
+            .background(colour.opacity(0.5))
+            .roundedCornersOnTheLeft(cornerRadius: 5)
+
+            // Transparent narrow separator
+            Divider()
+              .foregroundColor(Color.clear)
+
+            // Topmost message of the highest priority category
+            HStack {
+              Text(topMessage?.summary ?? "")
+                .padding([.leading, .trailing], 5)
+            }
+            .frame(height: height)
+            .background(colour.opacity(0.5))
 
           }
-          .frame(height: height)
-          .background(colour.opacity(0.5))
-          .roundedCornersOnTheLeft(cornerRadius: 5)
-
-          // Transparent narrow separator
-          Divider()
-            .foregroundColor(Color.clear)
-
-          // Topmost message of the highest priority category
-          HStack {
-            Text(messages.filter{ $0.category == categories[0] }.first?.summary ?? "")
-              .padding([.leading, .trailing], 5)
-          }
-          .frame(height: height)
-          .background(colour.opacity(0.5))
-
+          .background(background.roundedCornersOnTheLeft(cornerRadius: 5))
         }
-        .background(background.roundedCornersOnTheLeft(cornerRadius: 5))
       }
     }
   }

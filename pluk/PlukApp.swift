@@ -36,6 +36,8 @@ struct Pluk: App {
         let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
         PostHogSDK.shared.setup(config)
         
+        
+        // HERE
         #if DEBUG
         config.optOut = true
         #endif
@@ -52,16 +54,14 @@ struct Pluk: App {
     var body: some Scene {
         WindowGroup("Home", id: "mainWindow") {
             MainWindow()
+                .onAppear {
+                    NSWindow.allowsAutomaticWindowTabbing = false
+                }
         }
         .defaultSize(width: 850, height: 850)
         .modelContainer(sharedModelContainer)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
-        .commands {
-            CommandGroup(replacing: .newItem) {
-                // Empty - this removes the New command
-            }
-        }
         
         Window("About Pluk", id: "aboutWindow") {
             AboutView()
@@ -89,7 +89,22 @@ struct Pluk: App {
                     }
                 }
             }
+            
+            CommandGroup(after: .help) {
+                Button("GitHub Repository") {
+                    if let url = URL(string: "https://github.com/pluk-inc/Pluk") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                
+                Button("Follow on Twitter") {
+                    if let url = URL(string: "https://x.com/pluk_sh") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
         }
     }
+    
 }
 

@@ -19,6 +19,7 @@ import SwiftUI
     // UI State
     var activeSidebarItem: SidebarItem = .home
     var searchText: String = ""
+    var isSearchVisible: Bool = false
     
     // Computed Properties
     var connections: [ConnectionInstance] {

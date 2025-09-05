@@ -146,8 +146,8 @@ struct DatabaseList: View {
         loadError = nil
 
         do {
-            try await instance.loadCollectionsForCurrentDatabase()
-        } catch DatabaseError.databaseNotSelected {
+            try await instance.loadCollectionsForCurrentDatabase(schema: nil)
+        } catch let error as DatabaseError where error.code == .databaseNotSelected {
             showDatabaseSelector = true
         } catch {
             loadError = error
@@ -160,48 +160,12 @@ struct DatabaseList: View {
     func updateConnection(with database: any DatabaseWrapper) async {
         do {
             try await instance.databaseService.switchActiveDatabase(to: database)
-            try await instance.loadCollectionsForCurrentDatabase()
+            try await instance.loadCollectionsForCurrentDatabase(schema: nil)
         } catch {
             debugLog("Failed to update connection: \(error)")
         }
     }
 }
-
-struct DatabasesSection: View {
-    var instance: ConnectionInstance
-
-    var body: some View {
-        DisclosureGroup("Databases") {
-            ForEach(instance.databases, id: \.name) { database in
-                Button(action: {
-                    //                    instance.connectedDatabase = database
-                }) {
-                    HStack {
-                        Image(systemName: databaseIcon)
-                            .foregroundStyle(.secondary)
-                        Text(database.name)
-                        Spacer()
-                    }
-                }
-                .buttonStyle(
-                    SidebarButtonStyle(
-                        isActive: instance.database?.name == database.name
-                    )
-                )
-            }
-        }
-    }
-
-    private var databaseIcon: String {
-        switch instance.connection.databaseType {
-        case .mongodb:
-            return "folder.fill"
-        default:
-            return "table.fill"
-        }
-    }
-}
-
 
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
@@ -247,9 +211,9 @@ struct CollectionsSection: View {
             let isCurrentlyRenaming = renamingCollection == collection.name
 
             if isCurrentlyRenaming {
-                inlineRenameView(for: collection)
+                inlineRenameView(for: collection, databaseSchema: collection.schema)
             } else {
-                normalCollectionButton(for: collection, isActive: isActive)
+                normalCollectionButton(for: collection, databaseSchema: collection.schema, isActive: isActive)
             }
         }
     }
@@ -258,10 +222,11 @@ struct CollectionsSection: View {
     @ViewBuilder
     private func normalCollectionButton(
         for collection: any CollectionWrapper,
+        databaseSchema: String? = nil,
         isActive: Bool
     ) -> some View {
         Button(action: {
-            instance.createNewTab(name: collection.name)
+            instance.createNewTab(name: collection.name, databaseSchema: databaseSchema)
         }) {
             HStack {
                 databaseIcon(for: collection)
@@ -287,7 +252,7 @@ struct CollectionsSection: View {
             Button("Delete", role: .destructive) {
                 if let collection = collectionToDelete {
                     Task {
-                        await performDelete(collection: collection)
+                        await performDelete(collection: collection, databaseSchema: databaseSchema)
                     }
                 }
             }
@@ -343,7 +308,7 @@ struct CollectionsSection: View {
     @FocusState private var isRenameFieldFocused: Bool
 
     @ViewBuilder
-    private func inlineRenameView(for collection: any CollectionWrapper)
+    private func inlineRenameView(for collection: any CollectionWrapper, databaseSchema: String?)
         -> some View
     {
         HStack(spacing: 8) {
@@ -357,7 +322,7 @@ struct CollectionsSection: View {
                 .textFieldStyle(.plain)
                 .focused($isRenameFieldFocused)
                 .onSubmit {
-                    confirmRename(for: collection)
+                    confirmRename(for: collection, databaseSchema: databaseSchema)
                 }
                 .onAppear {
                     // Focus the text field when it appears
@@ -371,7 +336,7 @@ struct CollectionsSection: View {
                 if hasTextChanged {
                     // Save button when text has changed
                     Button(action: {
-                        confirmRename(for: collection)
+                        confirmRename(for: collection, databaseSchema: databaseSchema)
                     }) {
                         Text("Save").font(.system(size: 12))
                     }
@@ -417,7 +382,7 @@ struct CollectionsSection: View {
         isRenaming = false
     }
 
-    private func confirmRename(for collection: any CollectionWrapper) {
+    private func confirmRename(for collection: any CollectionWrapper, databaseSchema: String?) {
         let trimmedName = renameText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
@@ -455,7 +420,7 @@ struct CollectionsSection: View {
         // Perform rename
         isRenaming = true
         Task {
-            await performRename(from: collection.name, to: trimmedName)
+            await performRename(databaseSchema: databaseSchema, from: collection.name, to: trimmedName)
         }
     }
 
@@ -472,10 +437,10 @@ struct CollectionsSection: View {
     }
 
     @MainActor
-    private func performRename(from oldName: String, to newName: String) async {
+    private func performRename(databaseSchema: String?, from oldName: String, to newName: String) async {
         do {
-            try await instance.databaseService.renameCollection(from: oldName, to: newName)
-            try await instance.loadCollectionsForCurrentDatabase()
+            try await instance.databaseService.renameCollection(databaseSchema: databaseSchema,  from: oldName, to: newName)
+            try await instance.loadCollectionsForCurrentDatabase(schema: databaseSchema)
 
             withAnimation(.easeInOut(duration: 0.2)) {
                 renamingCollection = nil
@@ -498,10 +463,10 @@ struct CollectionsSection: View {
     }
 
     @MainActor
-    private func performDelete(collection: any CollectionWrapper) async {
+    private func performDelete(collection: any CollectionWrapper, databaseSchema: String?) async {
         do {
-            try await instance.databaseService.deleteCollection(named: collection.name)
-            try await instance.loadCollectionsForCurrentDatabase()
+            try await instance.databaseService.deleteCollection(named: collection.name, databaseSchema: databaseSchema)
+            try await instance.loadCollectionsForCurrentDatabase(schema: databaseSchema)
             
             // Clear the collection to delete
             collectionToDelete = nil

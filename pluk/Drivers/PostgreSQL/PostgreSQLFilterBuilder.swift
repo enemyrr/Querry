@@ -40,7 +40,7 @@ extension PostgreSQLDriver {
     ///   - conditions: Array of filter conditions
     ///   - tableName: Name of the table to query
     /// - Returns: Complete SQL query string
-    func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
+    func generateFilterQuery(from conditions: [FilterCondition], tableName: String, databaseSchema: String? = "public") -> String {
         let validConditions = conditions.filter { condition in
             !condition.field.isEmpty && !condition.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -48,6 +48,10 @@ extension PostgreSQLDriver {
         guard !validConditions.isEmpty else { return "" }
         
         var sql = "SELECT * FROM \"\(tableName)\" "
+        
+        if let schema = databaseSchema {
+            sql = "SELECT * FROM \"\(schema)\".\"\(tableName)\""
+        }
         
         for (index, condition) in validConditions.enumerated() {
             if index == 0 {

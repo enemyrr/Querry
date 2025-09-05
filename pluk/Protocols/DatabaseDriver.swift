@@ -14,6 +14,10 @@ struct QueryRowInfo {
     let format: String?
 }
 
+struct InformationSchema {
+    let name: String
+}
+
 struct QueryResult {
     let columns: [QueryColumnInfo]
     let rows: [[String: QueryRowInfo]]
@@ -74,26 +78,31 @@ protocol DatabaseDriver {
     // Database operations
     func listDatabases() async throws -> [Database]
     func getDatabaseMetadata()  async throws -> [Database]
-    func listCollections() async throws -> [Collection]
+    func listCollections(schema: String?) async throws -> [Collection]
     
     // Collection operations
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
     func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult]
     func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult
-    func createDocument(in collectionName: String, document: [String: Any]) async throws
-    func updateDocument(in collectionName: String, id: Any, data: [String: Any]) async throws
-    func deleteDocument(in collectionName: String, id: Any) async throws
+    func findDocuments(in collectionName: String,  databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult
+    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws
     
-    func getSchema(for collectionName: String) async throws -> DatabaseSchemaResult
+    // Raw Query Execution
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult
+    
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult
+    func getInformationSchema() async throws -> [InformationSchema]
     
     // Collection management
     func createCollection(named collectionName: String) async throws
-    func renameCollection(from oldName: String, to newName: String) async throws
-    func deleteCollection(named collectionName: String) async throws
+    func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws
+    func deleteCollection(named collectionName: String, databaseSchema: String?) async throws
     
     // AI Functions
-    func buildSystemPrompt(for collectionName: String) async throws -> String
+    func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String
+    func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String
 }
 
 // MARK: - Build Info Structure
@@ -325,6 +334,7 @@ protocol DatabaseWrapper {
 protocol CollectionWrapper: Identifiable {
     var name: String { get }
     var type: String { get }
+    var schema: String? { get }
 }
 
 // MARK: - Database Driver Factory
