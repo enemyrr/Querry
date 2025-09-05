@@ -4,42 +4,46 @@
 
 ## [0.0.1-beta.20] – 2025-09-05
 
-### 🚀 SQL Editor + AI-Powered Queries
+### 🎯 Major Features
 
-This release is a big one. We’re introducing **SQL Editor with AI support**, along with schema switching and a handful of important bug fixes.
+#### **AI-Powered SQL Editor is Here** 🆕
 
-### ✨ New
+Pluk now comes with a **dedicated SQL Editor tab** that works across **SQLite, MySQL, PostgreSQL, and MongoDB**.
 
-- **SQL Editor View (with New Tab integration)** (#8)  
-  A brand-new SQL Editor is here. Open it in a new tab to write and run queries, inspect results, and explore your database schema.  
-  But this isn’t just another SQL editor—it’s powered with AI:
+- **Open in a New Tab** – Write and run queries in a focused editor view
+- **AI-Powered Querying** – Hit `cmd+k` to generate queries from natural language or refine existing SQL
+- **Smart Error Recovery** – Pluk automatically detects query errors and suggests fixes, so you never get stuck
+- **Schema Awareness** – Browse and explore your database schema directly from the editor
 
-  - **Generate or refine queries** – Hit `cmd+k` in the editor to bring up an AI assistant. Start from natural language or improve an existing query.
-  - **Smart error recovery** – If your query fails, Pluk automatically suggests fixes so you can keep moving without getting stuck.
-
-- **Schema Switching** (#1)  
-  You can now switch between database schemas and select tables across schemas. Navigate your data more freely without leaving your current connection.
-
-### 🐞 Fixed
-
-- **Active filter not respected after update/delete** (#4)  
-  Filters now persist correctly after row updates or deletes.
-
-- **Scroll indicator not visible in Databases list** (#7)  
-  The scrollbar now reliably appears when scrolling through long database lists.
-
-- **Query error state locking the UI** (#6)  
-  Query errors no longer freeze the editor—you can clear, edit, and retry as expected.
-
-- **SQLite table names with spaces** (#11)  
-  Tables like `user profiles` now open without throwing invalid character errors.
-
-- **Other minor bug fixes and UI improvements**  
-  General polish to make the app feel smoother and more reliable.
+This isn’t just another SQL editor — it’s a smarter, AI-assisted way to work with your databases.
 
 ---
 
-This update makes Pluk not just a place to run queries, but a smarter, AI-assisted way to work with your database.
+### ✨ New Features
+
+#### **Schema Switching**
+
+- Seamlessly switch between database schemas
+- Select and explore tables across schemas within the same connection
+
+---
+
+### 🛠️ Bug Fixes & Improvements
+
+#### **Query & Data Handling**
+
+- **FIXED**: Active filters now persist after row updates and deletes (#4)
+- **FIXED**: Query error state no longer locks the UI — you can now clear, edit, and retry queries (#6)
+- **FIXED**: SQLite table names with spaces (e.g., `user profiles`) are now supported (#11)
+
+#### **Interface & UX**
+
+- **FIXED**: Scroll indicator now consistently appears in the Databases list during scroll (#7)
+- Other minor bug fixes and UI improvements for a smoother experience
+
+---
+
+👉 With this release, Pluk becomes more than a database explorer — it’s your **AI-powered SQL companion**. Whether you’re working with SQLite, MySQL, Postgres, or MongoDB, Pluk now gives you a smarter way to query, debug, and explore your data.
 
 ## [0.0.1-beta.19] – 2025-08-22
 
