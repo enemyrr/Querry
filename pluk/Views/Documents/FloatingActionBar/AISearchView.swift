@@ -88,7 +88,7 @@ struct AISearchView: View {
             .padding(.horizontal, 6)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(.separator, lineWidth: 1)
+                    .strokeBorder(.separator)
             )
             .customHelp("This table schema is shared with LLM provider", delay: 0.2, position: .top, shortcut: nil, spacing: 4)
         }

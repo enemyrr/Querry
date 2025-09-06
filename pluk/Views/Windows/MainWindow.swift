@@ -34,16 +34,16 @@ struct MainWindow: View {
                     .edgesIgnoringSafeArea(.all)
             }
             
-            // Show connection color for active connection tab
-            if let activeTab = tabManager.activeTab,
-               case .connection(let instanceId) = activeTab.type,
-               let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
-                connectionInstance.connection.color.color
-                    .opacity(0.10)
-                    .blendMode(.multiply)
-                    .edgesIgnoringSafeArea(.all)
-            }
-            
+// Show connection color for active connection tab
+//            if let activeTab = tabManager.activeTab,
+//               case .connection(let instanceId) = activeTab.type,
+//               let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
+//                connectionInstance.connection.color.color
+//                    .opacity(0.10)
+//                    .blendMode(.multiply)
+//                    .edgesIgnoringSafeArea(.all)
+//            }
+//            
             CustomSplitView(
                 sidebar: {
                     Sidebar()
@@ -79,7 +79,7 @@ struct VibrantBackgroundView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .sidebar
-        view.blendingMode = .behindWindow
+//        view.blendingMode = .behindWindow
         view.state = .active
         view.wantsLayer = true
         return view

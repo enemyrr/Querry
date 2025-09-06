@@ -30,7 +30,7 @@ struct DatabaseHeader: View {
                         if let database = instance.connectedDatabase?.name {
                             Picker("Database", selection: $selectedDatabase) {
                                 ForEach([database], id: \.self) { schema in
-                                    Text("\(schema)    ").tag(schema)
+                                    truncatedText(schema, maxWidth: 180)
                                 }
                             }
                             .buttonStyle(.accessoryBar)
@@ -67,7 +67,7 @@ struct DatabaseHeader: View {
                         if let database = instance.connectedDatabase?.name {
                             Picker("Database", selection: $selectedDatabase) {
                                 ForEach([database], id: \.self) { schema in
-                                    Text("\(schema)    ").tag(schema)
+                                    truncatedText(schema, maxWidth: 180)
                                 }
                             }
                             .buttonStyle(.accessoryBar)
@@ -173,6 +173,14 @@ struct DatabaseHeader: View {
         default:
             return []
         }
+    }
+    
+    private func truncatedText(_ text: String, maxWidth: CGFloat) -> some View {
+        let approximateCharWidth: CGFloat = 7.0 // Approximate character width for system font
+        let maxChars = Int(maxWidth / approximateCharWidth)
+        let truncatedString = text.count > maxChars ? String(text.prefix(maxChars - 3)) + "..." : text
+        
+        return Text("\(truncatedString)    ").tag(text)
     }
     
     private func handleSchemaSelection(_ schema: String) {

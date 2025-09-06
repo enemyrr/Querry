@@ -58,6 +58,7 @@ struct TableListView: View {
                 )
                 
                 if cachedSchema != nil || currentQueryResult != nil {
+                    Divider()
                     TableListViewController(
                         schema: cachedSchema,
                         queryResult: currentQueryResult,

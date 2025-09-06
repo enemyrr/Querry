@@ -580,18 +580,19 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         // Create custom header view
         let customHeaderView = CustomTableHeaderView(frame: NSRect(x: 0, y: 0, width: tableView.bounds.width, height: 32))
-        
+
         let visualEffectView = NSVisualEffectView()
         visualEffectView.frame = customHeaderView.bounds
-        visualEffectView.material = .fullScreenUI
+        visualEffectView.material = .hudWindow
         visualEffectView.blendingMode = .withinWindow
         visualEffectView.state = .active
         visualEffectView.autoresizingMask = [.width, .height]
-        
+
         visualEffectView.wantsLayer = true
         visualEffectView.layer?.zPosition = -1000
-        
+
         customHeaderView.addSubview(visualEffectView)
+
         tableView.headerView = customHeaderView
     }
     
@@ -664,7 +665,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             }
             
             // Calculate header width
-            let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 40
+            let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 45
             
             // Smart sampling for content width
             let sampleSize = determineSampleSize(totalRows: self.totalCount)
