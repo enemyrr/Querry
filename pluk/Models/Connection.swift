@@ -286,7 +286,7 @@ final class Connection {
         }
         
         if (databaseType == .postgres || databaseType == .supabase || databaseType == .convex),
-           let sslMode = sslMode, sslMode != "prefer" {
+           let sslMode = sslMode {
             uri += "?sslmode=\(sslMode)"
         }
         

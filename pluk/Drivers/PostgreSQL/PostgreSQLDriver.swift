@@ -1176,7 +1176,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 on: eventLoopGroup.next(),
                 configuration: tempConfig,
                 id: Int.random(in: 1000...9999), // Random ID to avoid conflicts
-                logger: Logger(label: "postgres-metadata")
+                logger: Logger(label: "postgres-metadata"),
             )
             
             // Get table count with optimized query
@@ -1428,8 +1428,10 @@ class PostgreSQLDriver: DatabaseDriver {
                         case "prefer":
                             // Create a default SSL context for prefer mode
                             do {
-                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
-                                sslMode = .prefer(sslContext)
+                                var tlsConfig = TLSConfiguration.makeClientConfiguration()
+                                tlsConfig.certificateVerification = .none // or .fullVerification with CA
+                                let sslContext = try NIOSSLContext(configuration: tlsConfig)
+                                sslMode = .require(sslContext)
                             } catch {
                                 // Fall back to disable if SSL context creation fails
                                 sslMode = .disable
@@ -1464,6 +1466,11 @@ class PostgreSQLDriver: DatabaseDriver {
                     break
                 }
             }
+        }
+
+        // If connecting to localhost, force-disable TLS even if requested
+        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            sslMode = .disable
         }
         
         // Validate required fields
