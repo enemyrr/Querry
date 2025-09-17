@@ -596,7 +596,16 @@ struct CreateConnectionForm: View {
             URIImportSheet(
                 uriInput: $uriToImport,
                 onImport: { uri in
-                    parsePostgresURI(uri)
+                    if let db = selectedDatabaseType {
+                        switch db {
+                        case .postgres, .supabase:
+                            parsePostgresURI(uri)
+                        case .mysql:
+                            parseMySQLURI(uri)
+                        default:
+                            break
+                        }
+                    }
                     showURIImportSheet = false
                     uriToImport = ""
                 },
@@ -760,7 +769,38 @@ struct CreateConnectionForm: View {
         if hostname.isEmpty { hostname = "localhost" }
         if port.isEmpty { port = "5432" }
         if username.isEmpty { username = "postgres" }
-        if defaultDatabase.isEmpty { defaultDatabase = "postgres" }
+    }
+
+    private func parseMySQLURI(_ uriString: String) {
+        guard let url = URL(string: uriString) else { return }
+        
+        hostname = url.host ?? ""
+        port = url.port?.description ?? ""
+        username = url.user ?? ""
+        password = url.password ?? ""
+        
+        // Parse database from path
+        let path = url.path
+        if !path.isEmpty && path != "/" {
+            defaultDatabase = String(path.dropFirst())
+        }
+        
+        // Parse SSL mode (optional) from query parameters
+        if let query = url.query {
+            let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
+            for item in queryItems {
+                if item.name.lowercased() == "sslmode" {
+                    sslMode = item.value ?? "prefer"
+                    break
+                }
+            }
+        }
+        
+        // Fill defaults for MySQL
+        if hostname.isEmpty { hostname = "127.0.0.1" }
+        if port.isEmpty { port = "3306" }
+        if username.isEmpty { username = "root" }
+        if sslMode.isEmpty { sslMode = "prefer" }
     }
     
     private func constructPostgresURI() -> String {
