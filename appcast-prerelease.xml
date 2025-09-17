@@ -8,7 +8,7 @@
         <item>
             <title>Pluk 0.0.1 Beta 21</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg</link>
-            <sparkle:version>273</sparkle:version>
+            <sparkle:version>274</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.21</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 21</h2><div><h3>🛠️ Bug Fixes & Improvements</h3>
@@ -31,12 +31,12 @@
 <li>Better handling of special characters in connection strings</li>
 </ul></div>
             ]]></description>
-            <pubDate>Wed, 17 Sep 2025 08:36:07 +0000</pubDate>
+            <pubDate>Wed, 17 Sep 2025 08:47:08 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg"
-                length="19377503"
+                length="19288404"
                 type="application/octet-stream"
-                sparkle:edSignature="WQnuXpBJnT5+scaW5MHUYRmGANEQk8IXl72OlUme1TXcL6rnfz2lED/QPuR16lwrOsrWntwE5qdazNKOhE5UCw=="
+                sparkle:edSignature="TMFvEMe8vv6YHN6vhJs7jiDy8b8z7CLVL5h1aEKVW3cgPBdgVOTakTbtv0GbIf3XB3hvPH7qblY5A7d5wci9AQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
