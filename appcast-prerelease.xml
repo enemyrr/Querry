@@ -6,6 +6,41 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 21</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg</link>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.21</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 21</h2><div><h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Database Connection Reliability</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: PostgreSQL connection issues caused by URL encoding of passwords containing special characters</li>
+<li><strong>FIXED</strong>: MySQL import URLs now correctly default to PostgreSQL database connections</li>
+<li>Enhanced connection string parsing to handle special characters in credentials properly</li>
+</ul>
+<h3>✨ New Features</h3>
+<h4><strong>Connection Testing</strong></h4>
+<ul>
+<li><strong>NEW</strong>: Test Connection button added during connection creation process</li>
+<li>Verify database connectivity before saving connection configurations</li>
+<li>Immediate feedback on connection parameters and credentials</li>
+</ul>
+<h3>🔧 Under the Hood</h3>
+<ul>
+<li>Improved URL-friendly parsing for database credentials</li>
+<li>Better handling of special characters in connection strings</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Wed, 17 Sep 2025 06:37:15 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg"
+                length=""
+                type="application/octet-stream"
+                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 20</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg</link>
             <sparkle:version>272</sparkle:version>
