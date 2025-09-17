@@ -2,6 +2,29 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.21] – 2025-09-17
+
+### 🛠️ Bug Fixes & Improvements
+
+#### **Database Connection Reliability**
+
+- **FIXED**: PostgreSQL connection issues caused by URL encoding of passwords containing special characters
+- **FIXED**: MySQL import URLs now correctly default to PostgreSQL database connections
+- Enhanced connection string parsing to handle special characters in credentials properly
+
+### ✨ New Features
+
+#### **Connection Testing**
+
+- **NEW**: Test Connection button added during connection creation process
+- Verify database connectivity before saving connection configurations
+- Immediate feedback on connection parameters and credentials
+
+### 🔧 Under the Hood
+
+- Improved URL-friendly parsing for database credentials
+- Better handling of special characters in connection strings
+
 ## [0.0.1-beta.20] – 2025-09-05
 
 ### 🎯 Major Features
