@@ -583,7 +583,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
 
         let visualEffectView = NSVisualEffectView()
         visualEffectView.frame = customHeaderView.bounds
-        visualEffectView.material = .hudWindow
+        visualEffectView.material = .contentBackground
         visualEffectView.blendingMode = .withinWindow
         visualEffectView.state = .active
         visualEffectView.autoresizingMask = [.width, .height]
