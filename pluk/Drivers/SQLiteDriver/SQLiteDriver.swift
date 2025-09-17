@@ -243,6 +243,32 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
+    func ping(to connectionUri: String) async throws {
+        // For SQLite, the URI is a path or bookmark; try opening and closing
+        let path = try parseConnectionString(connectionUri)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let pool = NIOThreadPool(numberOfThreads: 1)
+        pool.start()
+        defer {
+            let g = group
+            let p = pool
+            Task {
+                try? await p.shutdownGracefully()
+                try? await g.shutdownGracefully()
+            }
+        }
+        do {
+            let temp = try await SQLiteConnection.open(
+                storage: .file(path: path),
+                threadPool: pool,
+                on: group.next()
+            )
+            try await temp.close()
+        } catch {
+            throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
+        }
+    }
+    
     func switchDatabase(to databaseName: String) async throws {
         // For SQLite, switching database means connecting to a different file
         await disconnect()

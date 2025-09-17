@@ -106,6 +106,11 @@ struct CreateConnectionForm: View {
     @State private var isWebViewLoading = false
     @FocusState private var uriFieldIsFocused: Bool
     @FocusState private var nameFieldIsFocused: Bool
+    @State private var isTestingConnection = false
+    @State private var testResultMessage: String? = nil
+    @State private var testSucceeded: Bool? = nil
+    
+    @State private var databaseService = DatabaseService()
     
     // Field-based connection parameters
     @State private var useFieldBasedInput = true
@@ -454,7 +459,10 @@ struct CreateConnectionForm: View {
                             password: $password,
                             defaultDatabase: $defaultDatabase,
                             sslMode: $sslMode,
-                            showURIImportSheet: $showURIImportSheet
+                            showURIImportSheet: $showURIImportSheet,
+                            testBackground: fieldTestBackground,
+                            isTesting: isTestingConnection,
+                            onTest: { Task { await testConnection() } }
                         )
                     } else if selectedDatabaseType == .sqlite {
                         SQLiteFieldsView(filePath: $uri)
@@ -466,7 +474,10 @@ struct CreateConnectionForm: View {
                             password: $password,
                             defaultDatabase: $defaultDatabase,
                             sslMode: $sslMode,
-                            showURIImportSheet: $showURIImportSheet
+                            showURIImportSheet: $showURIImportSheet,
+                            testBackground: fieldTestBackground,
+                            isTesting: isTestingConnection,
+                            onTest: { Task { await testConnection() } }
                         )
                     } else if selectedDatabaseType == .mongodb {
                         // Non-PostgreSQL databases use URI
@@ -578,6 +589,7 @@ struct CreateConnectionForm: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 20)
+
             }
         }
         .sheet(isPresented: $showURIImportSheet) {
@@ -593,6 +605,69 @@ struct CreateConnectionForm: View {
                     uriToImport = ""
                 }
             )
+        }
+    }
+    
+    private func buildUriForTest() -> String? {
+        guard let db = selectedDatabaseType else { return nil }
+        switch db {
+        case .postgres, .supabase:
+            var uri = "postgresql://"
+            if !username.isEmpty {
+                uri += username
+                if !password.isEmpty { uri += ":\(password)" }
+                uri += "@"
+            }
+            let p = Int(port) ?? 5432
+            uri += "\(hostname.isEmpty ? "localhost" : hostname):\(p)"
+            if !defaultDatabase.isEmpty { uri += "/\(defaultDatabase)" }
+            if sslMode != "prefer" { uri += "?sslmode=\(sslMode)" }
+            return uri
+        case .mysql:
+            var uri = "mysql://"
+            if !username.isEmpty {
+                uri += username
+                if !password.isEmpty { uri += ":\(password)" }
+                uri += "@"
+            }
+            let p = Int(port) ?? 3306
+            uri += "\(hostname.isEmpty ? "127.0.0.1" : hostname):\(p)"
+            if !defaultDatabase.isEmpty { uri += "/\(defaultDatabase)" }
+            if sslMode != "prefer" { uri += "?sslmode=\(sslMode)" }
+            return uri
+        case .sqlite:
+            return uri
+        case .mongodb:
+            return uri
+        case .convex:
+            return nil
+        }
+    }
+    
+    private var fieldTestBackground: Color? {
+        guard let success = testSucceeded else { return nil }
+        return success ? Color.green : Color.red
+    }
+    
+    private func testConnection() async {
+        guard let db = selectedDatabaseType, let uri = buildUriForTest() else { return }
+        await MainActor.run { isTestingConnection = true; testResultMessage = nil; testSucceeded = nil }
+        let result = await databaseService.testConnection(databaseType: db, uri: uri)
+        await MainActor.run {
+            isTestingConnection = false
+            switch result {
+            case .success:
+                testResultMessage = "Success"
+                testSucceeded = true
+            case .failure(_):
+                testResultMessage = "Failed"
+                testSucceeded = false
+            }
+        }
+        try? await Task.sleep(for: .seconds(2))
+        await MainActor.run {
+            testResultMessage = nil
+            testSucceeded = nil
         }
     }
     

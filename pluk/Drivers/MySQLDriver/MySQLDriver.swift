@@ -118,6 +118,27 @@ class MySQLDriver: DatabaseDriver {
         _ = try await establishConnection(with: connectionUri)
     }
     
+    func ping(to connectionUri: String) async throws {
+        // Create a throwaway connection to validate credentials and reachability
+        let info = try parseConnectionString(connectionUri)
+        let ssl = parseSSLConfiguration(from: info.url)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        defer {
+            let g = group
+            Task { try? await g.shutdownGracefully() }
+        }
+        do {
+            let temp = try await performConnection(
+                connectionInfo: info,
+                tlsConfiguration: ssl.enabled ? ssl.tlsConfiguration : nil,
+                eventLoop: group.next()
+            )
+            try await temp.close().get()
+        } catch {
+            throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
+        }
+    }
+    
     private func ensureConnected() async throws -> MySQLConnection {
         guard let connection = self.connection else {
             throw DatabaseError.notConnected("Not connected to MySQL database")

@@ -233,6 +233,29 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
+    func ping(to connectionUri: String) async throws {
+        // Create a throwaway connection to validate credentials and reachability
+        let config = try parseConnectionString(connectionUri)
+        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        defer {
+            let g = eventLoopGroup
+            Task { try? await g.shutdownGracefully() }
+        }
+        do {
+            let temp = try await PostgresConnection.connect(
+                on: eventLoopGroup.next(),
+                configuration: config,
+                id: 9999,
+                logger: Logger(label: "postgres-ping")
+            )
+            try await temp.close()
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
+        }
+    }
+    
     func switchDatabase(to databaseName: String) async throws {
         guard var config = self.configuration else {
             throw DatabaseError.configurationError("No active connection configuration")

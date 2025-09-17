@@ -11,11 +11,13 @@ struct FormField<Content: View>: View {
     let label: String
     let content: Content
     var errorMessage: String? = nil
+    var highlight: Color? = nil
     
-    init(label: String, errorMessage: String? = nil, @ViewBuilder content: () -> Content) {
+    init(label: String, errorMessage: String? = nil, highlight: Color? = nil, @ViewBuilder content: () -> Content) {
         self.label = label
         self.content = content()
         self.errorMessage = errorMessage
+        self.highlight = highlight
     }
     
     var body: some View {
@@ -36,6 +38,12 @@ struct FormField<Content: View>: View {
                .padding(.leading, 2)
                
                content
+                   .background(
+                       RoundedRectangle(cornerRadius: 10)
+                           .fill(highlight ?? Color.clear)
+                           .opacity(highlight == nil ? 0 : 0.17)
+                           .animation(.easeInOut(duration: 0.15), value: highlight == nil)
+                   )
            }
        }
 }

@@ -62,6 +62,31 @@ import SwiftUI
         try await driver.reconnect()
     }
     
+    // MARK: - Connectivity Test
+    func testConnection(_ connection: Connection) async -> Result<Void, DatabaseError> {
+        let driver = DatabaseDriverFactory.createDriver(for: connection.databaseType)
+        do {
+            try await driver.ping(to: connection.connectionUri)
+            return .success(())
+        } catch let dbError as DatabaseError {
+            return .failure(dbError)
+        } catch {
+            return .failure(DatabaseError.connectionFailed(error.localizedDescription))
+        }
+    }
+    
+    func testConnection(databaseType: DatabaseType, uri: String) async -> Result<Void, DatabaseError> {
+        let driver = DatabaseDriverFactory.createDriver(for: databaseType)
+        do {
+            try await driver.ping(to: uri)
+            return .success(())
+        } catch let dbError as DatabaseError {
+            return .failure(dbError)
+        } catch {
+            return .failure(DatabaseError.connectionFailed(error.localizedDescription))
+        }
+    }
+    
     // MARK: - Database Operations
     func getBuildInfo() async throws -> BuildInfo? {
         guard let driver = activeDriver else { return nil }

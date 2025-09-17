@@ -64,6 +64,10 @@ class MariaDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     
+    func ping(to connectionUri: String) async throws {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
+    
     func listDatabases() async throws -> [MariaDBDatabaseWrapper] {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }

@@ -16,6 +16,11 @@ struct PostgreSQLFieldsView: View {
     @Binding var sslMode: String
     @Binding var showURIImportSheet: Bool
     
+    // Testing controls
+    let testBackground: Color?
+    let isTesting: Bool
+    let onTest: () -> Void
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -27,6 +32,14 @@ struct PostgreSQLFieldsView: View {
                 
                 Spacer()
                 
+                Button(action: { onTest() }) {
+                    HStack(spacing: 6) {
+                        Text(isTesting ? "Testing..." : "Test")
+                    }
+                }
+                .font(.caption)
+                .disabled(isTesting)
+
                 Button("Import from URI") {
                     showURIImportSheet = true
                 }
@@ -35,13 +48,13 @@ struct PostgreSQLFieldsView: View {
             
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
-                    FormField(label: "Host") {
+                    FormField(label: "Host", highlight: testBackground) {
                         TextField("localhost", text: $hostname)
                             .textFieldStyle(CustomTextFieldStyle())
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    FormField(label: "Port") {
+                    FormField(label: "Port", highlight: testBackground) {
                         TextField("5432", text: $port)
                             .textFieldStyle(CustomTextFieldStyle())
                     }
@@ -49,24 +62,24 @@ struct PostgreSQLFieldsView: View {
                 }
                 
                 HStack(spacing: 12) {
-                    FormField(label: "Username") {
+                    FormField(label: "Username", highlight: testBackground) {
                         TextField("postgres", text: $username)
                             .textFieldStyle(CustomTextFieldStyle())
                     }
                     
-                    FormField(label: "Password") {
+                    FormField(label: "Password", highlight: testBackground) {
                         SecureField("password", text: $password)
                             .textFieldStyle(CustomTextFieldStyle())
                     }
                 }
                 
                 HStack(spacing: 12) {
-                    FormField(label: "Database") {
+                    FormField(label: "Database", highlight: testBackground) {
                         TextField("postgres", text: $defaultDatabase)
                             .textFieldStyle(CustomTextFieldStyle())
                     }
                     
-                    FormField(label: "SSL Mode") {
+                    FormField(label: "SSL Mode", highlight: testBackground) {
                         Menu {
                             Button(action: { sslMode = "disable" }) {
                                 Text("disable")
@@ -90,7 +103,6 @@ struct PostgreSQLFieldsView: View {
                 }
             }
             .padding(16)
-            .background(Color(.controlColor).opacity(0.1))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(.separator, lineWidth: 1)

@@ -208,6 +208,17 @@ class MongoDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MongoDB driver reconnect not yet implemented")
     }
     
+    func ping(to connectionUri: String) async throws {
+        do {
+            let db = try await MongoDatabase.connect(to: connectionUri)
+            if let cluster = db.pool as? MongoCluster {
+                await cluster.disconnect()
+            }
+        } catch {
+            throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
+        }
+    }
+    
     func getBuildInfo() async throws -> BuildInfo {
         guard let database = connectedDatabase else {
             throw MongoError.databaseNotInitialized
