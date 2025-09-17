@@ -34,9 +34,9 @@
             <pubDate>Wed, 17 Sep 2025 08:47:08 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg"
-                length="19288404"
+                length="19372864"
                 type="application/octet-stream"
-                sparkle:edSignature="TMFvEMe8vv6YHN6vhJs7jiDy8b8z7CLVL5h1aEKVW3cgPBdgVOTakTbtv0GbIf3XB3hvPH7qblY5A7d5wci9AQ=="
+                sparkle:edSignature="8WipCN7guEIhW8UwxRc2maBKpuPLyOyl1uJ/GjlWFHuABIpRUGVqJTDiSSernN7geus/j3wB+y6ufCDblRV4BA=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
