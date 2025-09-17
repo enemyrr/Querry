@@ -256,34 +256,41 @@ final class Connection {
             return url ?? ""
         }
         
-        var components = URLComponents()
-        
+        // Decide scheme without using URLComponents to avoid percent-encoding
+        let scheme: String
         switch databaseType {
         case .postgres, .supabase, .convex, .sqlite:
-            components.scheme = "postgresql"
+            scheme = "postgresql"
         case .mysql:
-            components.scheme = "mysql"
+            scheme = "mysql"
         case .mongodb:
-            components.scheme = "mongodb"
+            scheme = "mongodb"
         }
         
-        components.host = hostname.isEmpty ? "localhost" : hostname
-        components.port = Int(port) ?? (databaseType == .mysql ? 3306 : 5432)
-        components.user = username.isEmpty ? nil : username
-        components.password = password?.isEmpty == true ? nil : password
+        let resolvedHost = hostname.isEmpty ? "localhost" : hostname
+        let resolvedPort = Int(port) ?? (databaseType == .mysql ? 3306 : 5432)
         
-        // Add database path
+        var uri = "\(scheme)://"
+        if !username.isEmpty {
+            uri += username
+            if let pwd = password, !pwd.isEmpty {
+                uri += ":\(pwd)"
+            }
+            uri += "@"
+        }
+        
+        uri += "\(resolvedHost):\(resolvedPort)"
+        
         if let database = defaultDatabase, !database.isEmpty {
-            components.path = "/\(database)"
+            uri += "/\(database)"
         }
         
-        // Add SSL mode for PostgreSQL databases
         if (databaseType == .postgres || databaseType == .supabase || databaseType == .convex),
            let sslMode = sslMode, sslMode != "prefer" {
-            components.queryItems = [URLQueryItem(name: "sslmode", value: sslMode)]
+            uri += "?sslmode=\(sslMode)"
         }
         
-        return components.url?.absoluteString ?? url ?? ""
+        return uri
     }
     
     // Helper method to check if connection uses new field-based approach
