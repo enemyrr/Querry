@@ -8,7 +8,7 @@
         <item>
             <title>Pluk 0.0.1 Beta 21</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg</link>
-            <sparkle:version>276</sparkle:version>
+            <sparkle:version>277</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.21</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 21</h2><div><h3>🛠️ Bug Fixes & Improvements</h3>
@@ -34,9 +34,9 @@
             <pubDate>Sat, 20 Sep 2025 11:45:56 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg"
-                length="19241130"
+                length="19235827"
                 type="application/octet-stream"
-                sparkle:edSignature="3CLTCG2mBjdK0WqQM3J6Fob9SZtf5QqPKwnzVQDffmg4+D0lGtlatZ0dttpTbeCVwF+05nPJEiJHpijP21CqAg=="
+                sparkle:edSignature="vwgGzqQ04jQ6iLJAYQcy/db/n+Q2oFoXzaYkEjgcOs5/mFqQC8eWghktFZYCNWAt0FcOtwfYGobMPePul/z8BQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>

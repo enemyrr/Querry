@@ -231,14 +231,14 @@ create_appcast_item() {
     local signature=""
     
     # Check if we have a cached signature first
-    local cached_sig=$(get_cached_signature "$dmg_filename")
-    if [ -n "$cached_sig" ]; then
-        signature="$cached_sig"
-        print_info "Using cached signature for $dmg_filename"
-    else
-        # We'll download DMG once later for both signature and build number
-        signature=""
-    fi
+    # local cached_sig=$(get_cached_signature "$dmg_filename")
+    # if [ -n "$cached_sig" ]; then
+    #     signature="$cached_sig"
+    #     print_info "Using cached signature for $dmg_filename"
+    # else
+    #     # We'll download DMG once later for both signature and build number
+    #     signature=""
+    # fi
     
     # Extract build number from the DMG
     local build_number=""
