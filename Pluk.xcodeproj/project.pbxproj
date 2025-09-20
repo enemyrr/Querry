@@ -47,7 +47,6 @@
 		9A529E7B2D23CFC700618009 /* Pluk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pluk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A529E8E2D23CFC900618009 /* PlukTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlukTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A529E982D23CFC900618009 /* PlukUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlukUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9AAF96ED2E7D4D62002A48C1 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Package.swift; path = pluk/Drivers/Convex/Package.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -288,7 +287,6 @@
 				9A623D992E2C0A4600B9CFCB /* XCRemoteSwiftPackageReference "Sparkle" */,
 				9AA8038C2E46601200B6F1B4 /* XCRemoteSwiftPackageReference "sqlite-nio" */,
 				9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */,
-				9A1540DE2E7E84730028F735 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -681,10 +679,6 @@
 		9A02164E2DFD9BF300F7FCF3 /* XCLocalSwiftPackageReference "BSON" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = BSON;
-		};
-		9A1540DE2E7E84730028F735 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = pluk/Drivers/Convex;
 		};
 /* End XCLocalSwiftPackageReference section */
 
