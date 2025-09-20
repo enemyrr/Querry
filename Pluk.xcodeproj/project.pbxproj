@@ -288,7 +288,7 @@
 				9A623D992E2C0A4600B9CFCB /* XCRemoteSwiftPackageReference "Sparkle" */,
 				9AA8038C2E46601200B6F1B4 /* XCRemoteSwiftPackageReference "sqlite-nio" */,
 				9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */,
-				9AAF96EE2E7D4D77002A48C1 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex" */,
+				9A1540DE2E7E84730028F735 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -682,7 +682,7 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = BSON;
 		};
-		9AAF96EE2E7D4D77002A48C1 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex" */ = {
+		9A1540DE2E7E84730028F735 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = pluk/Drivers/Convex;
 		};
