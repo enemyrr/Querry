@@ -154,7 +154,7 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
-        let config = try parseConnectionString(connectionUri)
+        let config = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
         return try await establishConnection(with: config)
     }
     
@@ -235,7 +235,7 @@ class PostgreSQLDriver: DatabaseDriver {
     
     func ping(to connectionUri: String) async throws {
         // Create a throwaway connection to validate credentials and reachability
-        let config = try parseConnectionString(connectionUri)
+        let config = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer {
             let g = eventLoopGroup
@@ -1389,103 +1389,6 @@ class PostgreSQLDriver: DatabaseDriver {
     func getSchemaCacheStats() async -> (count: Int, maxSize: Int) {
         let count = await databaseSchema.count
         return (count: count, maxSize: 100)
-    }
-    
-    // MARK: - Helper Methods
-    private func parseConnectionString(_ urlString: String) throws -> PostgresConnection.Configuration {
-        guard let url = URL(string: urlString),
-              let host = url.host else {
-            throw DatabaseError.configurationError("Invalid PostgreSQL URL format")
-        }
-        
-        let port = url.port ?? 5432
-        let username = url.user ?? "postgres"
-        let password = url.password ?? ""
-        let database = String(url.path.dropFirst()) // Remove leading "/"
-        
-        // Parse query parameters for SSL mode and other options
-        var sslMode: PostgresConnection.Configuration.TLS = .disable
-        
-        if let query = url.query {
-            let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
-            
-            for item in queryItems {
-                switch item.name.lowercased() {
-                case "sslmode":
-                    if let value = item.value {
-                        switch value.lowercased() {
-                        case "disable":
-                            sslMode = .disable
-                        case "require":
-                            // Create a default SSL context for require mode
-                            do {
-                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
-                                sslMode = .require(sslContext)
-                            } catch {
-                                // Fall back to disable if SSL context creation fails
-                                sslMode = .disable
-                            }
-                        case "prefer":
-                            // Create a default SSL context for prefer mode
-                            do {
-                                var tlsConfig = TLSConfiguration.makeClientConfiguration()
-                                tlsConfig.certificateVerification = .none // or .fullVerification with CA
-                                let sslContext = try NIOSSLContext(configuration: tlsConfig)
-                                sslMode = .require(sslContext)
-                            } catch {
-                                // Fall back to disable if SSL context creation fails
-                                sslMode = .disable
-                            }
-                        case "allow":
-                            // PostgresNIO doesn't have 'allow', map to 'prefer'
-                            do {
-                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
-                                sslMode = .prefer(sslContext)
-                            } catch {
-                                sslMode = .disable
-                            }
-                        case "verify-ca", "verify-full":
-                            // Best effort mapping to require with SSL context
-                            do {
-                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
-                                sslMode = .require(sslContext)
-                            } catch {
-                                sslMode = .disable
-                            }
-                        default:
-                            // If unknown SSL mode, default to prefer for safety
-                            do {
-                                let sslContext = try NIOSSLContext(configuration: .clientDefault)
-                                sslMode = .prefer(sslContext)
-                            } catch {
-                                sslMode = .disable
-                            }
-                        }
-                    }
-                default:
-                    break
-                }
-            }
-        }
-
-        // If connecting to localhost, force-disable TLS even if requested
-        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-            sslMode = .disable
-        }
-        
-        // Validate required fields
-        if username.isEmpty {
-            throw DatabaseError.configurationError("Username is required")
-        }
-        
-        return PostgresConnection.Configuration(
-            host: host,
-            port: port,
-            username: username,
-            password: password.isEmpty ? nil : password,
-            database: database,
-            tls: sslMode
-        )
     }
     
     private func validateAndSanitizeIdentifier(_ identifier: String, databaseSchema: String? = "public") throws -> String {

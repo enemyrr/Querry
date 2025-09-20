@@ -856,7 +856,9 @@ class MySQLDriver: DatabaseDriver {
         let host = url.host ?? "localhost"
         let port = url.port ?? 3306
         let username = url.user ?? "root"
-        let password = url.password?.isEmpty == false ? url.password : nil
+        // Preserve percent-encoding in password to avoid altering literal % sequences
+        let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let password = (comps?.percentEncodedPassword?.isEmpty == false) ? comps?.percentEncodedPassword : nil
         let database = String(url.path.dropFirst()) // Remove leading "/"
         
         return ConnectionInfo(

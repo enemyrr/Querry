@@ -47,6 +47,7 @@
 		9A529E7B2D23CFC700618009 /* Pluk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pluk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A529E8E2D23CFC900618009 /* PlukTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlukTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A529E982D23CFC900618009 /* PlukUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlukUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9AAF96ED2E7D4D62002A48C1 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Package.swift; path = pluk/Drivers/Convex/ConvexMobile/Package.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -129,6 +130,7 @@
 				9A529E7D2D23CFC700618009 /* pluk */,
 				9A529E912D23CFC900618009 /* plukTests */,
 				9A529E9B2D23CFC900618009 /* plukUITests */,
+				9AAF96EC2E7D4D62002A48C1 /* Frameworks */,
 				9A529E7C2D23CFC700618009 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -141,6 +143,14 @@
 				9A529E982D23CFC900618009 /* PlukUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9AAF96EC2E7D4D62002A48C1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				9AAF96ED2E7D4D62002A48C1 /* Package.swift */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -278,6 +288,7 @@
 				9A623D992E2C0A4600B9CFCB /* XCRemoteSwiftPackageReference "Sparkle" */,
 				9AA8038C2E46601200B6F1B4 /* XCRemoteSwiftPackageReference "sqlite-nio" */,
 				9A5DDF212E53465500812D2A /* XCRemoteSwiftPackageReference "mysql-nio" */,
+				9AAF96EE2E7D4D77002A48C1 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex/ConvexMobile" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9A529E7C2D23CFC700618009 /* Products */;
@@ -670,6 +681,10 @@
 		9A02164E2DFD9BF300F7FCF3 /* XCLocalSwiftPackageReference "BSON" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = BSON;
+		};
+		9AAF96EE2E7D4D77002A48C1 /* XCLocalSwiftPackageReference "pluk/Drivers/Convex/ConvexMobile" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = pluk/Drivers/Convex/ConvexMobile;
 		};
 /* End XCLocalSwiftPackageReference section */
 

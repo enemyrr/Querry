@@ -25,7 +25,7 @@ struct PlukTabContentView: View {
                     }
                 }
             } else {
-                ConnectionErrorView()
+                HomeView()
             }
         }
     }
