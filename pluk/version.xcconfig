@@ -2,7 +2,7 @@
 // This file contains the version and build number for the app
 
 MARKETING_VERSION = 0.0.1-beta.21
-CURRENT_PROJECT_VERSION = 274
+CURRENT_PROJECT_VERSION = 275
 
 // Domain and GitHub configuration
 APP_DOMAIN = pluk.sh
