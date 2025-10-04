@@ -10,18 +10,27 @@ import SwiftUI
 struct ConnectionDetailsPopover: View {
     let connection: Connection?
     let databaseType: DatabaseType
-    let environment: ConnectionEnvironment
+    let environment: ConnectionEnvironment?
     let version: String?
     let connectedDatabase: String?
     let onDisconnect: () async -> Void
     let onReconnect: () async -> Void
     let onEdit: () -> Void
+    @Environment(ConnectionInstance.self) private var instance
     
     private var connectionURL: String {
         connection?.displayUrl ?? ""
     }
     
     private var hostname: String {
+        // For Convex, use the deployment URL from the driver if available
+        if databaseType == .convex,
+           let deploymentUrl = instance.databaseService.getCurrentDeploymentUrl(),
+           let url = URL(string: deploymentUrl) {
+            return url.host ?? deploymentUrl
+        }
+
+        // For other database types, use the stored connection URL
         guard let url = URL(string: connectionURL) else { return connectionURL }
         return url.host ?? connectionURL
     }
@@ -91,11 +100,10 @@ struct ConnectionDetailsPopover: View {
                         .tracking(0.5)
                     
                     VStack(spacing: 8) {
-//                        CompactDetailRow(label: "Server", value: hostname)
                         CompactDetailRow(label: "Host", value: hostname)
                         
                         // Only show port for network-based databases
-                        if databaseType != .sqlite {
+                        if databaseType != .sqlite && databaseType != .convex {
                             CompactDetailRow(label: "Port", value: port)
                         }
                     }
@@ -118,14 +126,17 @@ struct ConnectionDetailsPopover: View {
                     
                     VStack(spacing: 8) {
                         CompactDetailRow(label: "Driver", value: driverWithVersion)
-                        CompactDetailRow(label: "Database", value: databaseName)
+                        
+                        CompactDetailRow(label: databaseType == .convex ? "Environment" : "Environment", value: databaseName)
                         
                         // Only show username for network-based databases
-                        if databaseType != .sqlite {
+                        if let username = connection?.username, databaseType != .convex {
                             CompactDetailRow(label: "Username", value: username)
                         }
                         
-                        CompactDetailRow(label: "Environment", value: environment.rawValue)
+                        if let connectionEnvironment = environment?.rawValue {
+                            CompactDetailRow(label: "Environment", value: connectionEnvironment)
+                        }
                     }
                     .padding(16)
                     .background(Color(.controlColor).opacity(0.1))
@@ -147,12 +158,14 @@ struct ConnectionDetailsPopover: View {
                     
                     Spacer()
                     
-                    Button("Reconnect") {
-                        Task {
-                            await onReconnect()
+                    if databaseType != .convex {
+                        Button("Reconnect") {
+                            Task {
+                                await onReconnect()
+                            }
                         }
+                        .compactPrimaryStyle()
                     }
-                    .compactPrimaryStyle()
                     
                     Button("Edit") {
                         onEdit()

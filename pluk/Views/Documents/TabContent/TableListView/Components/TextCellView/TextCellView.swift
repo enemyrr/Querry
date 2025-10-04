@@ -95,7 +95,7 @@ class EditableTextField: NSTextField {
 }
 
 // MARK: - TextCellView
-class TextCellView: NSView, NSTextFieldDelegate {
+class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     var textField: EditableTextField!
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
@@ -236,10 +236,12 @@ class TextCellView: NSView, NSTextFieldDelegate {
         isModified = false
     }
     
+    var isFieldEditable = false
+
     // Internal method to enable edit mode for individual cell
     private func enableEditMode() {
         guard !isEditing else { return }
-        
+
         // Double-check that no other cell is editing
         if let currentEditingCell = TextCellView.currentEditingCell, currentEditingCell !== self {
             debugLog("Warning: Another cell is still in edit mode, forcing exit")
@@ -252,16 +254,10 @@ class TextCellView: NSView, NSTextFieldDelegate {
             // This is a fresh cell that hasn't been modified yet
             originalValue = textField.stringValue
             debugLog("📝 Setting fresh originalValue: '\(originalValue)'")
-        } else {
-            // This cell is already modified, so originalValue should already be set correctly
-            // from the modification tracker during configuration - don't overwrite it
-            debugLog("🔒 Preserving existing originalValue: '\(originalValue)' (current text: '\(textField.stringValue)')")
         }
         
-        // Enable editing
+        // Enable editing UI
         textField.isEditable = true
-        
-        // Update visual state
         isEditing = true
     }
     
@@ -340,10 +336,15 @@ class TextCellView: NSView, NSTextFieldDelegate {
         if !wantsLayer {
             wantsLayer = true
         }
-        
+
         if isModified {
             // Set background color on the cell itself to indicate modification
-            layer?.backgroundColor = NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0).cgColor
+            // Use different colors for light and dark theme
+            let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let modificationColor = isDarkMode
+                ? NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0)  // Dark theme
+                : NSColor(red: 0xFF/255.0, green: 0xE5/255.0, blue: 0x99/255.0, alpha: 1.0)  // Light theme - lighter yellow/beige
+            layer?.backgroundColor = modificationColor.cgColor
         } else {
             // Reset background color when not modified
             layer?.backgroundColor = NSColor.clear.cgColor
@@ -351,6 +352,31 @@ class TextCellView: NSView, NSTextFieldDelegate {
         
         // Update foreign key icon visibility
         updateForeignKeyIcon()
+    }
+    
+    private func updateHighlightAppearance(shouldHighlight: Bool) {
+        // Ensure the cell has a layer for animations
+        if !wantsLayer {
+            wantsLayer = true
+        }
+        
+        if shouldHighlight {
+            let highlightColor = NSColor.systemOrange.withAlphaComponent(0.45)
+            
+            let keyframeAnimation = CAKeyframeAnimation(keyPath: "backgroundColor")
+            keyframeAnimation.values = [
+                NSColor.clear.cgColor,
+                highlightColor.cgColor,
+                highlightColor.cgColor,
+                NSColor.clear.cgColor
+            ]
+            keyframeAnimation.keyTimes = [0.0, 0.15, 0.85, 1.0] // Hold highlight for most of the time
+            keyframeAnimation.duration = 0.50
+            keyframeAnimation.fillMode = .forwards
+            keyframeAnimation.isRemovedOnCompletion = true
+            
+            layer?.add(keyframeAnimation, forKey: "pulseAnimation")
+        }
     }
     
     private func updateForeignKeyIcon() {
@@ -364,11 +390,15 @@ class TextCellView: NSView, NSTextFieldDelegate {
     
     private func createForeignKeyIconIfNeeded() {
         guard foreignKeyIconView == nil else { return }
-        
-        // Create the foreign key icon
+
+        // Create the foreign key icon with symbol configuration to prevent color changes on selection
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+            .applying(.init(hierarchicalColor: NSColor.secondaryLabelColor))
+
         foreignKeyIconView = NSImageView()
-        foreignKeyIconView?.image = NSImage(systemSymbolName: "arrow.right.circle", accessibilityDescription: "Foreign Key")
-        foreignKeyIconView?.contentTintColor = NSColor.secondaryLabelColor
+        foreignKeyIconView?.image = NSImage(systemSymbolName: "arrow.right.circle", accessibilityDescription: "Foreign Key")?
+            .withSymbolConfiguration(config)
+        foreignKeyIconView?.symbolConfiguration = config
         foreignKeyIconView?.translatesAutoresizingMaskIntoConstraints = false
         addSubview(foreignKeyIconView!)
         
@@ -467,6 +497,10 @@ class TextCellView: NSView, NSTextFieldDelegate {
             enterEditMode()
             debugLog("Text editing began - ensuring edit mode is active")
         }
+        // Attach field editor delegate to block changes on read-only cells
+        if !isFieldEditable, let editor = window?.fieldEditor(true, for: textField) as? NSTextView {
+            editor.delegate = self
+        }
     }
     
     func controlTextDidChange(_ obj: Notification) {
@@ -505,7 +539,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
         
         // Handle nil values
         guard let value = queryRowInfo.value else {
-            textField.placeholderString = "(NULL)"
+            textField.placeholderString = !isFieldEditable ? "(Auto-generated)" : "(NULL)"
             textField.stringValue = ""
             return
         }
@@ -528,7 +562,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
     }
     
     // New method that includes tracking information
-    func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?, constraintInfo: ConstraintInfo? = nil, tableName: String = "") {
+    func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?, constraintInfo: ConstraintInfo? = nil, tableName: String = "", shouldHighlight: Bool = false, isReadOnly: Bool = false) {
         // Store tracking information
         self.rowIndex = rowIndex
         self.columnName = columnInfo.name
@@ -536,6 +570,7 @@ class TextCellView: NSView, NSTextFieldDelegate {
         self.modificationTracker = modificationTracker
         self.constraintInfo = constraintInfo
         self.tableName = tableName
+        self.isFieldEditable = !isReadOnly
         
         if let modification = modificationTracker?.getRowModification(for: rowIndex), modification.type == .delete {
             self.isMarkedForDeletion = true
@@ -559,6 +594,9 @@ class TextCellView: NSView, NSTextFieldDelegate {
             isModified = false
             updateModificationAppearance()
         }
+        
+        // Apply or clear real-time highlighting
+        updateHighlightAppearance(shouldHighlight: shouldHighlight)
     }
     
     private func createBorderViewIfNeeded() {
@@ -734,7 +772,6 @@ extension TextCellView {
             debugLog("Already in edit mode")
             return
         }
-        
         // First, ensure no other cell is in edit mode
         exitEditModeForAllCells()
         
@@ -751,6 +788,9 @@ extension TextCellView {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.window?.makeFirstResponder(self.textField)
+            if !self.isFieldEditable, let editor = self.window?.fieldEditor(true, for: self.textField) as? NSTextView {
+                editor.delegate = self
+            }
             self.textField.selectText(nil)
             debugLog("🔧 Forced edit mode complete")
         }
@@ -820,17 +860,23 @@ extension TextCellView {
             tableView.selectCell(row: nextRow, column: nextColumn)
             
             // Enter edit mode for the next cell
-            if let nextCellView = tableView.view(atColumn: nextColumn, row: nextRow, makeIfNecessary: false) as? TextCellView {
+            if tableView.view(atColumn: nextColumn, row: nextRow, makeIfNecessary: false) is TextCellView {
                 // Use a small delay to ensure the current cell has fully exited edit mode
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                    nextCellView.enterEditMode()
-                    // Select all text for easy replacement
-                    nextCellView.textField.selectText(nil)
+                    // Route through tableView to respect read-only redirects
+                    tableView.enterEditModeForCell(row: nextRow, column: nextColumn)
                     debugLog("✅ Successfully navigated to new cell")
                 }
             } else {
                 debugLog("❌ Could not find next cell view")
             }
         }
+    }
+}
+
+// MARK: - NSTextViewDelegate (block edits on read-only cells)
+extension TextCellView {
+    func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        return isFieldEditable
     }
 }

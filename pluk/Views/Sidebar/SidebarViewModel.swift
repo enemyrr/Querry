@@ -8,43 +8,49 @@
 import SwiftUI
 @_spi(Experimental) import PostHog
 
-@Observable final class SidebarViewModel {
+@Observable class SidebarViewModel {
     private let connectionService: ConnectionService
-    
+    private let windowConnectionInstance: ConnectionInstance?
+
     enum SidebarItem: Hashable {
         case home
         case connection(UUID)
     }
-    
+
     // UI State
     var activeSidebarItem: SidebarItem = .home
     var searchText: String = ""
     var isSearchVisible: Bool = false
-    
     // Computed Properties
     var connections: [ConnectionInstance] {
         connectionService.connectionInstances
     }
     var activeConnection: ConnectionInstance? {
-        connectionService.activeConnectionInstance
+        // If this window has a specific connection, use that; otherwise fall back to shared service
+        return windowConnectionInstance ?? connectionService.activeConnectionInstance
     }
-    
-    init(connectionService: ConnectionService = .shared) {
+
+    init(connectionService: ConnectionService = .shared, windowConnectionInstance: ConnectionInstance? = nil) {
         self.connectionService = connectionService
+        self.windowConnectionInstance = windowConnectionInstance
+
+        // Set initial sidebar item based on window context
+        if let windowInstance = windowConnectionInstance {
+            self.activeSidebarItem = .connection(windowInstance.id)
+        }
     }
     
     // Actions
     func changeActiveSidebarItem(_ item: SidebarItem) {
         activeSidebarItem = item
-        
+
         switch item {
         case .home:
-            // Switch to home tab
-            TabManager.shared.switchToHome()
+            // Switch to home tab using WindowController
+            WindowController.switchToTab(.home)
         case .connection(let instanceId):
-            connectionService.activeConnectionInstanceId = instanceId
-            // Switch to connection tab
-            TabManager.shared.switchToTab(instanceId)
+            // Switch to connection tab using WindowController
+            WindowController.switchToTab(.connection(instanceId))
         }
     }
     
@@ -54,12 +60,6 @@ import SwiftUI
     
     func disconnectConnectionInstance(_ instanceId: UUID) async {
         await connectionService.removeConnectionInstance(instanceId)
-        
-        if let lastActiveConnection = connectionService.connectionInstances.last {
-            changeActiveSidebarItem(.connection(lastActiveConnection.id))
-        } else {
-            changeActiveSidebarItem(.home)
-        }
     }
     
     func createCollection(withName: String) async throws {

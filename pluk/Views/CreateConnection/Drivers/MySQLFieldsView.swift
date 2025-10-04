@@ -161,7 +161,7 @@ struct MySQLURIImportSheet: View {
                 Button("Cancel") {
                     onCancel()
                 }
-                .customMenuButtonStyle()
+                .customCancelButtonStyle()
                 
                 Spacer()
                 

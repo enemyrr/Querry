@@ -67,7 +67,7 @@ struct Pagination: View {
             Button(action: {
                 // Open Modal
             }) {
-                Text(isAnyButtonHovering ? "Page \(currentPage)" : "\(totalCount) rows")
+                Text(isAnyButtonHovering ? "Page \(currentPage)" : "^[\(totalCount) row](inflect: true)")
                     .foregroundColor(.gray)
                     .frame(width: 60)
             }

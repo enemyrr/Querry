@@ -65,10 +65,19 @@ struct ConnectionHeader: View {
                 }
                 
                 Spacer(minLength: 8)
-                
-                // Right side
-                EnvironmentTag(environment: instance.connection.environment)
-                    .opacity(isHovered ? 1 : 0.8)
+
+                // For Convex, show current environment; for others, show saved environment tag
+                if instance.connection.databaseType == .convex {
+                    if let currentEnvironment = instance.connectedDatabase?.name {
+                        ConvexEnvironmentTag(environmentName: currentEnvironment)
+                            .opacity(isHovered ? 1 : 0.8)
+                    }
+                } else {
+                    if let connectionEnvironment = instance.connection.environment {
+                        EnvironmentTag(environment: connectionEnvironment)
+                            .opacity(isHovered ? 1 : 0.8)
+                    }
+                }
             }
         }
         .padding(12)
@@ -87,8 +96,8 @@ struct ConnectionHeader: View {
                     .fill(
                         RadialGradient(
                             gradient: Gradient(stops: [
-                                .init(color: statusColor.opacity(0.8), location: 0),
-                                .init(color: statusColor.opacity(0.4), location: 0.5),
+                                .init(color: statusColor.opacity(colorScheme == .dark ? 0.8 : 0.15), location: 0),
+                                .init(color: statusColor.opacity(colorScheme == .dark ? 0.4 : 0.08), location: 0.5),
                                 .init(color: .clear, location: 1)
                             ]),
                             center: .leading,
@@ -141,8 +150,6 @@ struct ConnectionHeader: View {
                 connectedDatabase: instance.connectedDatabase?.name,
                 onDisconnect: {
                     showConnectionDetails = false
-                    // Add delay to allow popover to close smoothly
-                    try? await Task.sleep(for: .milliseconds(200))
                     await onDisconnect()
                 },
                 onReconnect: {
@@ -183,24 +190,79 @@ struct ConnectionHeader: View {
     }
 }
 
+// MARK: - Convex Environment Tag
+private struct ConvexEnvironmentTag: View {
+    let environmentName: String
+
+    // Clean environment name by removing suffix like "(cloud)"
+    private var cleanedName: String {
+        environmentName.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? environmentName
+    }
+
+    // Map Convex environment names to colors
+    private var environmentColor: Color {
+        let lowercased = cleanedName.lowercased()
+        switch lowercased {
+        case "prod", "production":
+            return .red
+        case "staging", "stage":
+            return .orange
+        case "dev", "development":
+            return .purple
+        case "test", "testing":
+            return .blue
+        default:
+            return .green
+        }
+    }
+
+    var body: some View {
+        Text(cleanedName)
+            .font(.system(size: 10))
+            .fontWeight(.medium)
+            .foregroundColor(environmentColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(environmentColor.opacity(0.15))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(environmentColor.opacity(0.3), lineWidth: 1)
+            )
+            .cornerRadius(6)
+    }
+}
+
 // MARK: - Connection Status Page
 private struct ConnectionStatusBadge: View {
     let status: ConnectionStatus
     let onRetry: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 3) {
-            statusIcon
-                .foregroundStyle(statusColor)
-                .font(.system(size: 9))
-                .if(status == .connecting) { view in
-                    view.symbolEffect(.rotate.clockwise.byLayer, options: .repeat(.periodic(delay: 1)))
+            ViewThatFits {
+                HStack {
+                    statusIcon
+                        .foregroundStyle(statusColor)
+                        .font(.system(size: 9))
+                        .if(status == .connecting) { view in
+                            view.symbolEffect(.rotate.clockwise.byLayer, options: .repeat(.periodic(delay: 1)))
+                        }
+
+                    Text(statusText)
+                        .foregroundStyle(statusColor)
+                        .lineLimit(1)
+                        .font(.caption)
                 }
-            
-            Text(statusText)
-                .foregroundStyle(statusColor)
-                .font(.caption)
-            
+
+                Text(statusText)
+                    .foregroundStyle(statusColor)
+                    .lineLimit(1)
+                    .font(.caption)
+            }
+
             if status == .error {
                 Button(action: onRetry) {
                     Image(systemName: "arrow.clockwise")

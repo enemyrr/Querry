@@ -124,7 +124,7 @@ struct SchemaSelectorView: View {
         do {
             let result = try await instance.databaseService.findDocuments(
                 in: "information_schema.schemata",
-                databaseSchema: "puvlic",
+                databaseSchema: "public",
                 filter: "",
                 skip: 0,
                 limit: 100,

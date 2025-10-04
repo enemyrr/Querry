@@ -7,14 +7,49 @@
 
 import Foundation
 import AppKit
+import ObjectiveC
+
+// Associated object keys
+private var fieldTypeKey: UInt8 = 0
+private var tooltipTextKey: UInt8 = 0
+private var isForeignKeyKey: UInt8 = 0
+private var isActiveSortColumnKey: UInt8 = 0
+private var sortAscendingKey: UInt8 = 0
 
 class CustomTableHeaderCell: NSTableHeaderCell {
     private var titleLabel: NSTextField?
-    private var fieldType: String?
-    
+
+    // Use associated objects instead of stored properties to avoid copying issues
+    private var fieldType: String? {
+        get { objc_getAssociatedObject(self, &fieldTypeKey) as? String }
+        set { objc_setAssociatedObject(self, &fieldTypeKey, newValue, .OBJC_ASSOCIATION_COPY) }
+    }
+
+    private var tooltipText: String? {
+        get { objc_getAssociatedObject(self, &tooltipTextKey) as? String }
+        set { objc_setAssociatedObject(self, &tooltipTextKey, newValue, .OBJC_ASSOCIATION_COPY) }
+    }
+
+    private var isForeignKey: Bool {
+        get { (objc_getAssociatedObject(self, &isForeignKeyKey) as? Bool) ?? false }
+        set { objc_setAssociatedObject(self, &isForeignKeyKey, newValue, .OBJC_ASSOCIATION_RETAIN) }
+    }
+
     // Sort state
-    private var isActiveSortColumn = false
-    private var sortAscending = true
+    private var isActiveSortColumn: Bool {
+        get { (objc_getAssociatedObject(self, &isActiveSortColumnKey) as? Bool) ?? false }
+        set { objc_setAssociatedObject(self, &isActiveSortColumnKey, newValue, .OBJC_ASSOCIATION_RETAIN) }
+    }
+
+    private var sortAscending: Bool {
+        get { (objc_getAssociatedObject(self, &sortAscendingKey) as? Bool) ?? true }
+        set { objc_setAssociatedObject(self, &sortAscendingKey, newValue, .OBJC_ASSOCIATION_RETAIN) }
+    }
+
+    // Image cache to prevent over-release
+    private var cachedSortIconUp: NSImage?
+    private var cachedSortIconDown: NSImage?
+    private var cachedTypeIcon: NSImage?
     
     override init(textCell string: String) {
         super.init(textCell: string)
@@ -24,9 +59,12 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         super.init(coder: coder)
     }
     
-    func configure(title: String, fieldType: String? = nil) {
+    func configure(title: String, fieldType: String? = nil, tooltip: String? = nil, isForeignKey: Bool = false) {
         titleLabel?.stringValue = title
+        // Associated objects handle memory safely
         self.fieldType = fieldType
+        self.tooltipText = tooltip
+        self.isForeignKey = isForeignKey
     }
     
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -40,38 +78,51 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     }
     
     private func getSortIcon() -> NSImage? {
-        let symbolName: String
-        if isActiveSortColumn {
-            symbolName = sortAscending ? "chevron.up" : "chevron.down"
-            
-            // Create symbol configuration with secondary color
-            let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
-                .applying(.init(hierarchicalColor: .secondaryLabelColor))
-            
-            return NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(config)
+        guard isActiveSortColumn else { return nil }
+
+        // Use cached icon if available
+        if sortAscending {
+            if cachedSortIconUp == nil {
+                let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+                    .applying(.init(hierarchicalColor: .secondaryLabelColor))
+                cachedSortIconUp = NSImage(systemSymbolName: "chevron.up", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(config)
+            }
+            return cachedSortIconUp
+        } else {
+            if cachedSortIconDown == nil {
+                let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+                    .applying(.init(hierarchicalColor: .secondaryLabelColor))
+                cachedSortIconDown = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(config)
+            }
+            return cachedSortIconDown
         }
-        
-        return nil
     }
     
     private func getDataTypeIcon() -> (icon: NSImage, size: CGFloat)? {
+        if isForeignKey {
+            let symbolName = "link"
+            let customSize: CGFloat = 12
+            let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+                .applying(.init(hierarchicalColor: .tertiaryLabelColor))
+            guard let icon = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Foreign Key")?
+                .withSymbolConfiguration(config) else { return nil }
+            return (icon, customSize)
+        }
         guard let fieldType = fieldType else { return nil }
         
         let symbolName: String
         let customSize: CGFloat
         
         switch fieldType.lowercased() {
-        case let type where type.contains("text") || type.hasPrefix("char") || type.contains("varchar") || type.contains("var"):
+        case let type where type.contains("text") || type.hasPrefix("char") || type.contains("varchar") || type.contains("var") ||  type.hasPrefix("string"):
             symbolName = "textformat.alt"
             customSize = 10
-        case let type where type.contains("int") || type.contains("short") || type.contains("tiny"):
+        case let type where type.contains("int") || type.contains("short") || type.contains("tiny") || type.equals("id"):
             symbolName = "number"
             customSize = 12
-        case let type where type.contains("numeric"):
-            symbolName = "dollarsign"
-            customSize = 13
-        case "numeric", "decimal", "real", "double precision", "float", "money", "double":
+        case "numeric", "decimal", "real", "double precision", "float", "money", "double", "float64":
             symbolName = "dollarsign"
             customSize = 13
         case "enum":
@@ -95,14 +146,14 @@ class CustomTableHeaderCell: NSTableHeaderCell {
         case "uuid":
             symbolName = "barcode"
             customSize = 12
-        case "json", "jsonb":
+        case "json", "jsonb", "object", "record":
             symbolName = "curlybraces"
             customSize = 13
         case "array":
             symbolName = "square.stack"
             customSize = 13
-        case "bytea":
-            symbolName = "doc.text"
+        case "bytea", "bytes":
+            symbolName = "cpu"
             customSize = 12
         default:
             symbolName = "questionmark.circle"
@@ -241,15 +292,16 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     func updateSortIndicator(isActive: Bool, ascending: Bool) {
         isActiveSortColumn = isActive
         sortAscending = ascending
-        
-        // Trigger redraw
-        if let controlView = controlView {
-            controlView.setNeedsDisplay(controlView.bounds)
+
+        // Trigger redraw only if controlView is still valid
+        guard let controlView = controlView, controlView.window != nil else {
+            return
         }
+        controlView.setNeedsDisplay(controlView.bounds)
     }
     
     // MARK: - Tooltip Support
     func getFieldType() -> String? {
-        return fieldType
+        return tooltipText ?? fieldType
     }
 }

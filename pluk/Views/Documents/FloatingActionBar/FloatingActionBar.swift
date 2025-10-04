@@ -65,14 +65,13 @@ struct FloatingActionBar: View {
         return false
     }
     
-    
     @State private var debouncedIsLoading: Bool = false
     @State private var debounceTask: Task<Void, Never>?
     private let screenWidth = NSScreen.main?.frame.width ?? 200
     
     var body: some View {
         VStack(spacing: 0) {
-            if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette {
+            if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette && instance.connection.databaseType.supportsQueryEditor {
                 topRectangleView
                     .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)
@@ -85,12 +84,12 @@ struct FloatingActionBar: View {
             
             if action == .commandPalette {
                 CommandPalette.CollectionsList(
-                        searchText: $commandFilter,
-                        onBack: {
-                            withAnimation(.spring(response: 0.3)) {
-                                action = .main
-                            }
+                    searchText: $commandFilter,
+                    onBack: {
+                        withAnimation(.spring(response: 0.3)) {
+                            action = .main
                         }
+                    }
                 )
             }
             
@@ -152,11 +151,11 @@ struct FloatingActionBar: View {
                 RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
                     .stroke(.separator, lineWidth: 1)
             )
-            .background(alignment: .center) {
-                if case .error = viewState {
-                    LoadingErrorIndicator(cornerRadius: action == .main ? 12 : 20)
-                }
-            }
+//            .background(alignment: .center) {
+//                if case .error = viewState {
+//                    LoadingErrorIndicator(cornerRadius: action == .main ? 12 : 20)
+//                }
+//            }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: action)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: modificationTracker.hasModifications)
             .background(
@@ -218,6 +217,7 @@ struct FloatingActionBar: View {
             switch event.keyCode {
             case 3: // 'f' key
                 if event.modifierFlags.contains([.command, .shift]) {
+                    guard instance.databaseType?.supportsQueryEditor == true else { return event }
                     showQueryEditor = true
                     return nil // Consume the event
                 } else if event.modifierFlags.contains(.command) {
@@ -225,14 +225,6 @@ struct FloatingActionBar: View {
                     return nil // Consume the event
                 }
                 return event
-            case 36: // Enter key
-                NotificationCenter.default.post(name: NSNotification.Name("SubmitFilterBuilder"), object: nil)
-                return event
-                
-            case 53: // Escape key
-                NotificationCenter.default.post(name: NSNotification.Name("ResetFilterBuilder"), object: nil)
-                return event
-                
             case 15: // 'r' key
                 if event.modifierFlags.contains(.command) {
                     // Cancel any existing loading operations before starting new one
@@ -406,12 +398,6 @@ struct FloatingActionBar: View {
             RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
         )
-        .shadow(
-            color: Color(colorScheme == .dark ? .black : .gray).opacity(isHoveringTopRectangle ? 0.3 : 0.1),
-            radius: isHoveringTopRectangle ? 8 : 3,
-            x: 0,
-            y: isHoveringTopRectangle ? 4 : 1
-        )
         .scaleEffect(isHoveringTopRectangle ? 1.02 : 1.0)
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -489,7 +475,7 @@ struct FloatingActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             
-
+            
             Button(action: {
                 onNewRecord()
             }) {
@@ -520,8 +506,8 @@ struct FloatingActionBar: View {
                             }
                         )
                         Button(action: {
-                            modificationTracker.resetAllModifications()
-                            onRefresh(currentPage, totalPerPage, true)
+                            modificationTracker.resetAllModifications(of: .delete)
+                            NotificationCenter.default.post(name: .tableReloadData, object: nil, userInfo: ["tableName": tableName])
                         }) {
                             Text("Discard")
                         }
@@ -534,25 +520,36 @@ struct FloatingActionBar: View {
             
             // Batch update button - only show when there are documents marked for update
             if modificationTracker.hasModifications {
-                Divider()
-                    .frame(height: 22)
-                    .padding(.vertical, 6)
-                    .padding(.trailing, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                
-                UpdateActionButton(
-                    updateCount: modificationTracker.modifiedRowCount,
-                    isProcessingBatch: isProcessingUpdates,
-                    onUpdate: {
-                        onCommitModifications()
+                HStack(spacing: 6) {
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.vertical, 6)
+                        .padding(.trailing, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    
+                    UpdateActionButton(
+                        updateCount: modificationTracker.modifiedRowCount,
+                        isProcessingBatch: isProcessingUpdates,
+                        onUpdate: {
+                            onCommitModifications()
+                        }
+                    )
+                    
+                    Button(action: {
+                        modificationTracker.resetAllModifications(of: .update, .insert)
+                        NotificationCenter.default.post(name: .tableReloadData, object: nil, userInfo: ["tableName": tableName])
+                    }) {
+                        Text("Discard")
                     }
-                ).padding(.trailing, 4)
+                    .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+                    .customHelp("Discard Changes", position: .top)
+                }
             }
             
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
-
+            
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     action = .commandPalette
@@ -571,7 +568,7 @@ struct FloatingActionBar: View {
             Divider()
                 .frame(height: 22)
                 .padding(.vertical, 6)
-
+            
             Button(action: {
                 withAnimation(.spring(response: 0.3)) {
                     action = ActionBar.search
@@ -646,78 +643,6 @@ struct FloatingActionBar: View {
                         .offset(x: 5, y: -5)
                 }
             }
-        }
-    }
-    
-    // MARK: - Action Buttons
-    struct DeleteActionButton: View {
-        let deleteCount: Int
-        let isProcessingBatch: Bool
-        let onDelete: () -> Void
-        
-        var body: some View {
-            Button(action: onDelete) {
-                HStack(spacing: 4) {
-                    if !isProcessingBatch {
-                        Image(systemName: "trash")
-                            .font(.system(size: 12))
-                    }
-                    
-                    Text(isProcessingBatch ? "Deleting" : "\(deleteCount)")
-                        .font(.system(size: 12, weight: .light))
-                        .lineLimit(1)
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
-                .cornerRadius(6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isProcessingBatch)
-            .transition(.scale.combined(with: .opacity))
-            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-            .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
-                modifiers: [.command],
-                key: "S"
-            ), spacing: 10)
-        }
-    }
-    
-    struct UpdateActionButton: View {
-        let updateCount: Int
-        let isProcessingBatch: Bool
-        let onUpdate: () -> Void
-        
-        var body: some View {
-            Button(action: onUpdate) {
-                HStack(alignment: .bottom, spacing: 4) {
-                    if isProcessingBatch {
-                        // Display a loading indicator when processing
-                        ProgressView()
-                            .controlSize(.mini)
-                            .frame(width: 16, height: 16)
-                            .tint(.white)
-                    } else {
-                        Text("Save \(updateCount) \(updateCount == 1 ? "change" : "changes")")
-                            .font(.system(size: 12, weight: .medium))                    }
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.orange.opacity(isProcessingBatch ? 0.8 : 1))
-                .cornerRadius(6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isProcessingBatch)
-            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-            .transition(.scale.combined(with: .opacity))
-            .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
-                modifiers: [.command],
-                key: "S"
-            ), spacing: 10)
         }
     }
     

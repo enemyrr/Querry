@@ -15,12 +15,12 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
 
     public var updaterController: SPUStandardUpdaterController?
     private let logger = os.Logger(
-        subsystem: "com.pluk.pluk",
+        subsystem: Bundle.main.bundleIdentifier!,
         category: "SparkleUpdater"
     )
 
     private nonisolated static let staticLogger = os.Logger(
-        subsystem: "com.pluk.pluk",
+        subsystem: Bundle.main.bundleIdentifier!,
         category: "SparkleUpdater"
     )
 

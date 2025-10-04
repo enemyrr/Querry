@@ -11,8 +11,8 @@ import SwiftUI
 struct DatabaseList: View {
     @Environment(ConnectionInstance.self) private var instance
     var viewModel: SidebarViewModel
+    @Binding var isLoadingCollections: Bool
 
-    @State private var isLoading = false
     @State private var loadError: Error?
     @State private var showDatabaseSelector: Bool = false
 
@@ -142,7 +142,7 @@ struct DatabaseList: View {
     // MARK: - Private Methods
     @MainActor
     private func loadCollectionsForCurrentDatabase() async {
-        isLoading = true
+        isLoadingCollections = true
         loadError = nil
 
         do {
@@ -154,16 +154,18 @@ struct DatabaseList: View {
             debugLog("Failed to load collections: \(error)")
         }
 
-        isLoading = false
+        isLoadingCollections = false
     }
     
     func updateConnection(with database: any DatabaseWrapper) async {
+        isLoadingCollections = true
         do {
             try await instance.databaseService.switchActiveDatabase(to: database)
             try await instance.loadCollectionsForCurrentDatabase(schema: nil)
         } catch {
             debugLog("Failed to update connection: \(error)")
         }
+        isLoadingCollections = false
     }
 }
 

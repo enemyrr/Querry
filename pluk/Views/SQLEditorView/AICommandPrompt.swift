@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AIProxy
+import PostHog
 
 struct AICommandPrompt: View {
     @Environment(ConnectionInstance.self) private var instance
@@ -100,21 +101,29 @@ struct AICommandPrompt: View {
     private func generateCommand() async {
         let userMessage = userPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !userMessage.isEmpty else { return }
-        
+
         isGenerating = true
         hasError = false
-        
+
+        // Track AI query generation
+        PostHogSDK.shared.capture(
+            "ai_query_generation",
+            properties: [
+                "has_selected_text": !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                "database_type": instance.connection.databaseType
+            ]
+        )
+
         do {
             var result = ""
             var isFirstToken = true
-            
+
             for try await chunk in AIService.generateSQL(
-                prompt: userMessage, 
+                prompt: userMessage,
                 selectedText: selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : selectedText,
                 databaseService: instance.databaseService
             ) {
                 result += chunk
-                
                 // Hide loading and close prompt on first token
                 if isFirstToken {
                     await MainActor.run {
@@ -123,13 +132,11 @@ struct AICommandPrompt: View {
                     }
                     isFirstToken = false
                 }
-                
                 // Stream each chunk to the editor
                 await MainActor.run {
                     generatedQuery = result
                 }
             }
-            
             hasError = false
         } catch {
             await MainActor.run {

@@ -94,6 +94,8 @@ struct AISearchView: View {
         }
     }
     
+    @State var showErrorAlert = false
+
     @ViewBuilder
     private var rightControlsSection: some View {
         HStack(alignment: .bottom) {
@@ -115,6 +117,11 @@ struct AISearchView: View {
             }
             .keyboardShortcut(.escape, modifiers: [])
             .buttonStyle(AIBackButtonStyle())
+            .alert("Error", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("The current driver doesn’t support AI search queries")
+            }
             
             if processingStage != .idle {
                 Button(action: {
@@ -127,6 +134,12 @@ struct AISearchView: View {
             } else {
                 Button(action: {
                     Task {
+                        guard let databaseType = instance.databaseType,
+                              databaseType.supportsQueryEditor else {
+                            showErrorAlert = true
+                            return
+                        }
+                        
                         PostHogSDK.shared.capture("ai_search")
                         await processNaturalLanguageQuery(search: search)
                     }

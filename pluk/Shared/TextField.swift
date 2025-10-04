@@ -71,7 +71,7 @@ struct FilterTextFieldStyle: TextFieldStyle {
             .textFieldStyle(.plain)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(Color(.controlBackgroundColor).opacity(isFocused ? 0.2 : 0))
+            .background(Color(.controlColor).opacity(isFocused ? 0.2 : 0))
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(.separator)

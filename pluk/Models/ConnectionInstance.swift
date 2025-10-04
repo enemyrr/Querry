@@ -49,54 +49,54 @@ import AIProxy
     
     // UI State
     var tabs: [DatabaseTab] = []
-    
+
     var selectedTab: DatabaseTab?
-    
+
     var isLoadingAnimation: Bool = true
     var isLoading = true
     var error: Error?
     var lastFetchTimestamp: Date = Date()
-    
+
     init(connection: Connection) {
         self.connection = connection
+        setupNotificationObservation()
     }
-    
-    func processDatabaseCollections(previousDatabase: MongoDatabase?) async {
-        guard let currentDatabase = database else { return }
-        
-        let shouldUpdate = previousDatabase == nil || currentDatabase.name != previousDatabase?.name
-        
-        if shouldUpdate {
-            do {
-                //                let collections = try await databaseService?.listCollections()
-                //                self.collections[currentDatabase.name] = collections
-                
-                let result = try await currentDatabase.pool.listDatabases()
-                await MainActor.run {
-                    //                    self.databases = result
-                }
-            } catch {
-                lastError = error
-                collections[currentDatabase.name] = []
-            }
+
+    private func setupNotificationObservation() {
+        // Listen for database service changes and repost them with self as object
+        NotificationCenter.default.addObserver(
+            forName: .connectedDatabaseChanged,
+            object: databaseService,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
         }
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
     
-    func connect() async throws {
+    func connect(targetDatabaseName: String? = nil) async throws {
         guard connectionStatus != .connected else { return }
-        
+
         connectionStatus = .connecting
-        
+
         do {
             try await databaseService.setActiveConnection(
-                connection
+                connection,
+                targetDatabase: targetDatabaseName
             )
             connectionStatus = .connected
-            
-            let buildInfo = try await databaseService.getBuildInfo()
-            connectionVersion = buildInfo?.version
-            
+
+            do {
+                let buildInfo = try await databaseService.getBuildInfo()
+                connectionVersion = buildInfo?.version
+            } catch {
+                
+            }
+
             await loadDatabases()
             lastError = nil
         } catch {
@@ -126,6 +126,11 @@ import AIProxy
         do {
             let databaseList = try await databaseService.listDatabases()
             self.databases = databaseList
+
+            // Notify that databases have been updated
+            await MainActor.run {
+                NotificationCenter.default.post(name: .databasesUpdated, object: self)
+            }
         } catch {
             lastError = error
             debugLog("Failed to load databases \(error)")
@@ -233,10 +238,17 @@ import AIProxy
         
         // Check for existing tab with same table name
         if let existingTab = tabs.first(where: { $0.name == cleanName }) {
-            // Update the existing tab's filter - this will now trigger SwiftUI updates
+            // Check if filter parameters have actually changed
+            let hasFilterChanged = existingTab.filterColumn != filterColumn ||
+                                   existingTab.filterValue != filterValue
+
+            // Update the existing tab's filter
             existingTab.filterColumn = filterColumn
             existingTab.filterValue = filterValue
-            existingTab.forceFetch = true
+
+            // Only force refresh if filter criteria changed
+            existingTab.forceFetch = hasFilterChanged
+
             selectedTab = existingTab
             return
         }
@@ -257,7 +269,7 @@ import AIProxy
     
     func createSQLEditorTab() {
         let newTab = DatabaseTab(
-            name: "SQL Editor",
+            name: "Query Editor",
             type: .sqlEditor,
             queryState: .idle
         )
@@ -268,11 +280,11 @@ import AIProxy
     
     func removeTab(_ tab: DatabaseTab) {
         guard !tabs.isEmpty else { return }
-        
+
         if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
             let wasSelected = selectedTab?.id == tab.id
             tabs.remove(at: index)
-            
+
             // Only change selection if we removed the selected tab
             if wasSelected {
                 if !tabs.isEmpty {

@@ -197,7 +197,7 @@ struct CreateCollectionForm: View {
                 Button("Cancel") {
                     dismiss()
                 }
-                .customMenuButtonStyle()
+                .customCancelButtonStyle()
                 .disabled(isSubmitting)
                 
                 Spacer()

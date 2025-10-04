@@ -127,15 +127,12 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
             }
         }
         .padding(6)
-        .onAppear {
-            setupKeyboardMonitor()
-        }
-        .onDisappear {
-            removeKeyboardMonitor()
-        }
     }
     
     private func setupKeyboardMonitor() {
+        // Remove any existing monitor first
+        removeKeyboardMonitor()
+
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
             switch event.keyCode {
             case 125: // Down arrow

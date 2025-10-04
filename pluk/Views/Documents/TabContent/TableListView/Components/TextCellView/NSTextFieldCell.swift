@@ -68,16 +68,6 @@ class PaddedTextFieldCell: NSTextFieldCell {
             
             paddedRect.origin.x -= 2
             paddedRect.size.width += 2  // Compensate width to maintain right edge
-            
-            // Custom drawing for edit mode (non-active)
-            // You can modify appearance here - different background, border, etc.
-            
-//#if DEBUG
-//            NSColor.controlAccentColor.withAlphaComponent(0.1).set()
-//            paddedRect.fill()
-//            NSColor.controlAccentColor.withAlphaComponent(0.3).set()
-//            paddedRect.frame()
-//#endif
         }
         
         super.drawInterior(withFrame: paddedRect, in: controlView)

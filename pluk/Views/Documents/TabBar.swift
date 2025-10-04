@@ -10,41 +10,18 @@ import AppKit
 struct TabBar: View {
     @Environment(AppViewModel.self) private var appViewModel
     @Environment(ConnectionInstance.self) private var instance
-    
+    @Environment(\.leadingOverlayWidth) private var leadingOverlayWidth
+    @State private var isScrollable = false
+
     var body: some View {
         HStack(spacing: 0) {
-            if !appViewModel.isSidebarVisible {
-                Divider()
-                    .padding(.vertical, 6)
-                    .padding(.leading, 8)
-            }
-            
             HStack(alignment: .center, spacing: 0) {
                 navigationButtons
                 customTabButtons
 
-                if instance.tabs.isEmpty {
-                    Spacer()
+                if instance.databaseType?.supportsQueryEditor == true && isScrollable {
+                    newTabButton(leadingPadding: -2)
                 }
-
-                Button(action: {
-                    instance.createSQLEditorTab()
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12))
-                }
-                .keyboardShortcut("t", modifiers: [.command])
-                .buttonStyle(NewTabButtonStyle())
-                .padding(.bottom, 2)
-                .customHelp(
-                    "New Tab",
-                    position: .left,
-                    shortcut: KeyboardShortcut(
-                        modifiers: [.command],
-                        key: "t"
-                    )
-                )
-                .padding(.leading, -2)
             }
             .padding(.trailing, 12)
             .background(
@@ -61,7 +38,10 @@ struct TabBar: View {
                 .accessibilityHidden(true)
             )
         }
-        .padding(.leading, !appViewModel.isSidebarVisible ? 120 : 0)
+        .padding(
+            .leading,
+            !appViewModel.isSidebarVisible ? max(leadingOverlayWidth, 120) : 0
+        )
         .frame(height: 36)
         .background(
             // Add hidden buttons for Cmd+1 through Cmd+9
@@ -76,7 +56,6 @@ struct TabBar: View {
                 .accessibilityHidden(true)
             }
         )
-        
     }
     
     private var navigationButtons: some View {
@@ -119,44 +98,87 @@ struct TabBar: View {
                 )
             )
         }
-        .padding(.leading, 10)
+        .padding(.leading, 8)
+        .padding(.bottom, 4)
     }
     
     private var customTabButtons: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(instance.tabs) { tab in
-                        CustomTabButton(
-                            tab: tab,
-                            isSelected: instance.selectedTab?.id == tab.id,
-                            onSelect: {
-                                instance.selectTab(tab)
-                            },
-                            onClose: {
-                                instance.removeTab(tab)
-                            },
-                            databaseType: instance.connection.databaseType
-                        )
-                        .padding(
-                            .leading,
-                            instance.tabs.first?.id == tab.id ? 6 : 0
-                        )
-                        .padding(
-                            .trailing,
-                            instance.tabs.last?.id == tab.id ? 6 : 0
-                        )
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(instance.tabs) { tab in
+                            CustomTabButton(
+                                tab: tab,
+                                isSelected: instance.selectedTab?.id == tab.id,
+                                onSelect: {
+                                    instance.selectTab(tab)
+                                },
+                                onClose: {
+                                    instance.removeTab(tab)
+                                },
+                                databaseType: instance.connection.databaseType
+                            )
+                            .padding(
+                                .leading,
+                                instance.tabs.first?.id == tab.id ? 6 : 0
+                            )
+                            .padding(
+                                .trailing,
+                                instance.tabs.last?.id == tab.id ? 6 : 0
+                            )
+                            .id(tab.id)
+                        }
+                        if instance.databaseType?.supportsQueryEditor == true && !isScrollable {
+                            newTabButton(leadingPadding: -6)
+                        }
                     }
+                    .background(
+                        GeometryReader { contentGeometry in
+                            Color.clear
+                                .preference(
+                                    key: TabsWidthPreferenceKey.self,
+                                    value: contentGeometry.size.width
+                                )
+                                .onAppear {
+                                    isScrollable = contentGeometry.size.width > geometry.size.width
+                                }
+                                .onChange(of: contentGeometry.size.width) { _, newWidth in
+                                    isScrollable = newWidth > geometry.size.width
+                                }
+                        }
+                    )
                 }
-            }
-            .onChange(of: instance.selectedTab) { _, newValue in
-                if let tab = newValue {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(tab.id, anchor: .bottomTrailing)
+                .onChange(of: instance.selectedTab) { _, newValue in
+                    if let tab = newValue {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(tab.id, anchor: .center)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private func newTabButton(leadingPadding: CGFloat) -> some View {
+        Button(action: {
+            instance.createSQLEditorTab()
+        }) {
+            Image(systemName: "plus")
+                .font(.system(size: 12))
+        }
+        .keyboardShortcut("t", modifiers: [.command])
+        .buttonStyle(NewTabButtonStyle())
+        .padding(.bottom, 2)
+        .customHelp(
+            "New Tab",
+            position: .left,
+            shortcut: KeyboardShortcut(
+                modifiers: [.command],
+                key: "t"
+            )
+        )
+        .padding(.leading, leadingPadding)
     }
 }
 
@@ -324,6 +346,7 @@ struct CustomTabButton: View {
                         ? "terminal"
                         : (databaseType == .mongodb ? "document.fill" : "table")
                     )
+                    .foregroundStyle(.secondary)
                     .font(.system(size: 12))
                     
                     Text(tab.name)
@@ -369,13 +392,7 @@ struct CustomTabButton: View {
                         endPoint: .bottom
                     )
                 )
-        )
-        .overlay(
-            TabBorderShape(isSelected: isSelected)
-                .stroke(
-                    isSelected ? Color(.separatorColor) : Color.clear,
-                    lineWidth: 0.3
-                )
+                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
         .background(
             RoundedRectangle(cornerRadius: 8)
@@ -403,7 +420,7 @@ struct TabShape: Shape {
         var path = Path()
         
         if isSelected {
-            let radius: CGFloat = 8
+            let radius: CGFloat = 10
             let curveRadius: CGFloat = 10
             let smoothness: CGFloat = 1
             
@@ -461,7 +478,7 @@ struct TabBorderShape: Shape {
         var path = Path()
         
         if isSelected {
-            let radius: CGFloat = 8
+            let radius: CGFloat = 10
             let curveRadius: CGFloat = 10
             let smoothness: CGFloat = 1
             
@@ -512,17 +529,35 @@ struct NavigationButton: View {
     let icon: String
     let action: () -> Void
     let isDisabled: Bool
+    @State private var isHovering = false
     
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 6, height: 12)
-                .padding(8)
+                .font(.system(size: 14))
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
                 .contentShape(Rectangle())
         }
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering
+                    ? Color(.controlColor).opacity(0.8)
+                    : Color.clear
+                )
+        )
         .disabled(isDisabled)
         .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct TabsWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

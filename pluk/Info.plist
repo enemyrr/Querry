@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSMainNibFile</key>
+    <string>MainMenu</string>
 	<key>Preferred default scene session role</key>
 	<string>MainWindow</string>
 	<key>SEnableDownloaderService</key>
@@ -20,6 +22,17 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.pluk.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pluk</string>
+			</array>
+		</dict>
+	</array>
   <key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>

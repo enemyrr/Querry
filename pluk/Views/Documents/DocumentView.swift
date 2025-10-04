@@ -18,44 +18,53 @@ struct DocumentView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            TabBar()
-            
             if instance.tabs.isEmpty  {
-                VStack {
-                    Spacer()
-                    
-                    if isCommandBarVisible {
-                    VStack(spacing: 0) {
-                            CommandPalette.CollectionsList(
-                                searchText: $commandFilter,
-                                onBack: {},
-                            )
-                            
-                            CommandPalette(
-                                searchText: $commandFilter,
-                                onBack: {},
-                                isBackButtonEnabled: false
-                            )
-                            .modifier(GlassBackgroundStyle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(.separator)
-                            )
-                    }
-                    .padding(.bottom, 10)
+                ZStack {
+                    Color(colorScheme == .dark ? .black : .white).opacity(0.6)
+                        .cornerRadius(16)
+
+                    VStack {
+                        Spacer()
+
+                        if isCommandBarVisible {
+                            VStack(spacing: 0) {
+                                CommandPalette.CollectionsList(
+                                    searchText: $commandFilter,
+                                    onBack: {},
+                                )
+
+                                CommandPalette(
+                                    searchText: $commandFilter,
+                                    onBack: {},
+                                    isBackButtonEnabled: false
+                                )
+                                .modifier(GlassBackgroundStyle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .strokeBorder(.separator)
+                                )
+                            }
+                            .padding(.bottom, 10)
+                        }
+
+                        Spacer()
                     }
                 }
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .center
-                )
-                .background(
-                    Color(colorScheme == .dark ? .black : .white).opacity(0.6)
-                )
-                .cornerRadius(16)
-                .padding(.top, 0)
                 .padding([.horizontal, .bottom], 8)
+                .padding(.top, 40)
+                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+                .background(
+                    // Add hidden for new tab
+                    Button(action: {
+                        instance.createSQLEditorTab()
+                    }) {
+                        EmptyView()
+                    }
+                    .hidden()
+                    .keyboardShortcut("t", modifiers: [.command])
+                    .opacity(0)
+                    .accessibilityHidden(true)
+                )
                 .onAppear {
                     setupEventMonitor()
                 }
@@ -63,15 +72,14 @@ struct DocumentView: View {
                     removeEventMonitor()
                 }
             } else {
+                TabBar()
+                
                 NSTabViewWrapper()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding([.leading, .trailing, .bottom], 8)
+                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
             }
         }
-        
-        .id(instance.id)
-        .padding(.top, 8)
-        .ignoresSafeArea(.all)
         .postHogScreenView("DocumentView")
     }
     
@@ -95,7 +103,7 @@ struct DocumentView: View {
                     isCommandBarVisible = false
                     return nil
                 }
-                return event 
+                return event
             default:
                 return event // Let other keys pass through
             }
@@ -134,13 +142,10 @@ class TabContentView: NSView {
     private func setupView() {
         wantsLayer = true
         
-        // Add simple border around content
-//        layer?.borderWidth = 1.0
-//        layer?.borderColor = NSColor.separatorColor.cgColor
         layer?.cornerRadius = 16.0
         
         switch databaseType {
-        case .postgres, .sqlite, .mysql:
+        case .postgres, .sqlite, .mysql, .convex:
             setupTableView()
             
         case .mongodb:

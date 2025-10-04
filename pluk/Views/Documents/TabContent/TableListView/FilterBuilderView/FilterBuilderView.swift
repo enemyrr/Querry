@@ -40,86 +40,96 @@ struct FilterBuilderView: View {
     var body: some View {
         VStack(spacing: 0) {
             if effectiveShowFilterBuilder {
-                HStack(alignment: .top, spacing: 28) {
-                    // Filter rows with overlay divider
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(conditions.indices, id: \.self) { index in
-                            FilterRowView(
-                                columns: columns,
-                                condition: $conditions[index],
-                                isFirstRow: index == 0,
-                                onDelete: {
-                                    if conditions.count > 1 {
-                                        conditions.remove(at: index)
-                                    } else {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            showFilterBuilder = false
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 28) {
+                        // Filter rows with overlay divider
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(conditions.indices, id: \.self) { index in
+                                FilterRowView(
+                                    columns: columns,
+                                    condition: $conditions[index],
+                                    isFirstRow: index == 0,
+                                    onDelete: {
+                                        if conditions.count > 1 {
+                                            conditions.remove(at: index)
+                                        } else {
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                showFilterBuilder = false
+                                            }
                                         }
-                                    }
-                                },
-                                focusedField: $focusedField,
-                                fieldIndex: index
-                            )
+                                    },
+                                    focusedField: $focusedField,
+                                    fieldIndex: index
+                                )
+                            }
                         }
-                    }
-                    .background(alignment: .trailing) {
-                        Rectangle()
-                            .fill(Color(.separatorColor))
-                            .frame(width: 1)
-                            .offset(x: 14)
-                    }
-                    
-                    // Action buttons
-                    HStack(spacing: 14) {
-                        if hasValidCondition {
-                            Button("Apply", action: {
+                        .background(alignment: .trailing) {
+                            Rectangle()
+                                .fill(Color(.separatorColor))
+                                .frame(width: 1)
+                                .offset(x: 14)
+                        }
+                        
+                        // Action buttons
+                        HStack(spacing: 14) {
+                            if hasValidCondition {
+                                Button("Apply", action: {
+                                    let sqlFilter = generateSQLFilter()
+                                    onApplyFilter(sqlFilter)
+                                })
+                                .buttonStyle(FilterSubmitButtonStyle())
+                                .keyboardShortcut(.return, modifiers: [])
+                                .transition(.slide)
+                            }
+                            
+                            Button(action: {
+                                if conditions.count < 8 {
+                                    let newCondition = FilterCondition(
+                                        conjunction: .and,
+                                        field: columns.isEmpty ? "" : columns[0].columnName,
+                                        filterOperator: .equals,
+                                        value: ""
+                                    )
+                                    conditions.append(newCondition)
+                                }
+                            }) {
+                                HStack {
+                                    HStack {
+                                        Image(systemName: "plus")
+                                        Text("Add Filter").lineLimit(1)
+                                    }
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color(.controlColor).opacity(0.3))
+                                .cornerRadius(8)
+                                .fixedSize()
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .disabled(conditions.count >= 8)
+                            
+                            Button("Clear filters") {
+                                conditions = [FilterCondition(conjunction: .whereClause, field: columns.isEmpty ? "" : columns[0].columnName, filterOperator: .equals, value: "")]
+                                onApplyFilter("")
+                            }
+                            .buttonStyle(FilterClearButtonStyle())
+                            .fixedSize()
+                        }
+                        .background(
+                            // Hidden button for Cmd+Enter shortcut
+                            Button("", action: {
                                 let sqlFilter = generateSQLFilter()
                                 onApplyFilter(sqlFilter)
                             })
-                            .buttonStyle(FilterSubmitButtonStyle())
-                            .transition(.slide)
-                            .fixedSize()
-                        }
+                            .keyboardShortcut(.return, modifiers: .command)
+                            .hidden()
+                            .opacity(0)
+                        )
                         
-                        
-                        Button(action: {
-                            if conditions.count < 8 {
-                                let newCondition = FilterCondition(
-                                    conjunction: .and,
-                                    field: columns.isEmpty ? "" : columns[0].columnName,
-                                    filterOperator: .equals,
-                                    value: ""
-                                )
-                                conditions.append(newCondition)
-                            }
-                        }) {
-                            HStack {
-                                HStack {
-                                    Image(systemName: "plus")
-                                    Text("Add Filter").lineLimit(1)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color(.controlColor).opacity(0.3))
-                            .cornerRadius(8)
-                            .fixedSize()
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .disabled(conditions.count >= 8)
-                        
-                        Button("Clear filters") {
-                            conditions = [FilterCondition(conjunction: .whereClause, field: columns.isEmpty ? "" : columns[0].columnName, filterOperator: .equals, value: "")]
-                            onApplyFilter("")
-                        }
-                        .buttonStyle(FilterClearButtonStyle())
-                        .fixedSize()
                     }
-                    
-                    Spacer()
+                    .padding(.horizontal, 10)
                 }
                 .padding(.vertical, 8)
-                .padding(.horizontal, 10)
                 .onAppear {
                     if !columns.isEmpty && conditions[0].field.isEmpty {
                         conditions[0].field = columns[0].columnName
@@ -142,19 +152,6 @@ struct FilterBuilderView: View {
                         focusedField = 0
                     }
                 }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubmitFilterBuilder"))) { _ in
-            if hasValidCondition {
-                let sqlFilter = generateSQLFilter()
-                onApplyFilter(sqlFilter)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetFilterBuilder"))) { _ in
-            conditions = [FilterCondition(conjunction: .whereClause, field: columns.isEmpty ? "" : columns[0].columnName, filterOperator: .equals, value: "")]
-            onApplyFilter("")
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showFilterBuilder = false
             }
         }
     }

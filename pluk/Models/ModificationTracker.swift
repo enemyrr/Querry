@@ -248,21 +248,58 @@ struct RowModification {
     }
     
     func resetAllModifications() {
-        // Add reset entries to history for all modifications
-        for rowMod in allModifications {
-            for (_, cellMod) in rowMod.cellModifications where cellMod.hasChanged {
-                let historyEntry = ModificationHistoryEntry(
-                    rowIndex: cellMod.rowIndex,
-                    columnName: cellMod.columnName,
-                    previousValue: cellMod.newValue,
-                    newValue: cellMod.originalValue,
-                    dataType: cellMod.dataType
-                )
-                modificationHistory.append(historyEntry)
+        resetAllModifications(of: .insert, .update, .delete)
+    }
+    
+    func resetAllModifications(of types: RowModificationType...) {
+        let typeSet = Set(types)
+        guard !typeSet.isEmpty else { return }
+        
+        // Collect changes to avoid mutating while iterating
+        var rowsToRemove: [Int] = []
+        var rowsToUpdate: [(Int, RowModification)] = []
+        
+        for (rowIndex, rowMod) in rowModifications {
+            guard typeSet.contains(rowMod.type) else { continue }
+            var working = rowMod
+            
+            switch rowMod.type {
+            case .update:
+                // Log history for changed cells, then remove the row modification
+                for (_, cellMod) in working.cellModifications where cellMod.hasChanged {
+                    let historyEntry = ModificationHistoryEntry(
+                        rowIndex: cellMod.rowIndex,
+                        columnName: cellMod.columnName,
+                        previousValue: cellMod.newValue,
+                        newValue: cellMod.originalValue,
+                        dataType: cellMod.dataType
+                    )
+                    modificationHistory.append(historyEntry)
+                }
+                rowsToRemove.append(rowIndex)
+                
+            case .insert:
+                // Cancel the pending insert; no changed cells typically, just drop the row modification
+                rowsToRemove.append(rowIndex)
+                
+            case .delete:
+                // Unmark deletion. If there are no cell modifications, drop the entry; otherwise revert to .update
+                if working.cellModifications.isEmpty {
+                    rowsToRemove.append(rowIndex)
+                } else {
+                    working.type = .update
+                    rowsToUpdate.append((rowIndex, working))
+                }
             }
         }
         
-        rowModifications.removeAll()
+        // Apply removals and updates
+        for rowIndex in rowsToRemove {
+            rowModifications.removeValue(forKey: rowIndex)
+        }
+        for (rowIndex, updated) in rowsToUpdate {
+            rowModifications[rowIndex] = updated
+        }
     }
     
     // MARK: - Undo Functionality
@@ -372,6 +409,64 @@ struct RowModification {
     
     func isCellModified(rowIndex: Int, columnName: String) -> Bool {
         return getCellModification(rowIndex: rowIndex, columnName: columnName)?.hasChanged ?? false
+    }
+
+    // MARK: - Reconciliation with server data
+    func reconcile(with updatedResult: QueryResult) {
+        var updatedRows: [Int: RowModification] = [:]
+        var rowsToRemove: [Int] = []
+        
+        for (rowIndex, var rowMod) in rowModifications {
+            var changed = false
+            for (colName, cellMod) in rowMod.cellModifications {
+                guard cellMod.hasChanged else { continue }
+                let serverAny = updatedResult.rawValue(row: rowIndex, column: colName)
+                let serverString = serverAny.map { String(describing: $0) } ?? ""
+                if serverString == cellMod.newValue {
+                    // Server now has the same value; drop this cell modification silently
+                    rowMod.cellModifications.removeValue(forKey: colName)
+                    changed = true
+                }
+            }
+            if changed {
+                if rowMod.type == .update && !rowMod.hasModifications {
+                    rowsToRemove.append(rowIndex)
+                } else {
+                    updatedRows[rowIndex] = rowMod
+                }
+            }
+        }
+        for idx in rowsToRemove { rowModifications.removeValue(forKey: idx) }
+        for (idx, mod) in updatedRows { rowModifications[idx] = mod }
+    }
+    
+    func reconcile(changedCells: [Int: Set<String>], in updatedResult: QueryResult) {
+        var updatedRows: [Int: RowModification] = [:]
+        var rowsToRemove: [Int] = []
+        
+        for (rowIndex, cols) in changedCells {
+            guard var rowMod = rowModifications[rowIndex] else { continue }
+            var changed = false
+            for colName in cols {
+                if let cellMod = rowMod.cellModifications[colName], cellMod.hasChanged {
+                    let serverAny = updatedResult.rawValue(row: rowIndex, column: colName)
+                    let serverString = serverAny.map { String(describing: $0) } ?? ""
+                    if serverString == cellMod.newValue {
+                        rowMod.cellModifications.removeValue(forKey: colName)
+                        changed = true
+                    }
+                }
+            }
+            if changed {
+                if rowMod.type == .update && !rowMod.hasModifications {
+                    rowsToRemove.append(rowIndex)
+                } else {
+                    updatedRows[rowIndex] = rowMod
+                }
+            }
+        }
+        for idx in rowsToRemove { rowModifications.removeValue(forKey: idx) }
+        for (idx, mod) in updatedRows { rowModifications[idx] = mod }
     }
 }
 

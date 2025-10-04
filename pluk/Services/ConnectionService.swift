@@ -41,10 +41,7 @@ class ConnectionService {
         let newInstance = ConnectionInstance(connection: connection)
         connectionInstances.append(newInstance)
         activeConnectionInstanceId = newInstance.id
-        
-        // Create new tab for the new connection instance
-        _ = TabManager.shared.createConnectionTab(for: newInstance)
-        
+
         return newInstance.id
     }
     
@@ -52,12 +49,26 @@ class ConnectionService {
         // First perform any cleanup needed on the instance
         if let instanceToDisconnect = getInstance(instanceId) {
             await disconnectDBInstance(instanceToDisconnect)
-            
-            // Close the tab
-            TabManager.shared.closeTab(instanceId)
+            await closeNativeTab(for: instanceId)
             
             // Now remove from the array
             connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
+        }
+    }
+
+    @MainActor
+    private func closeNativeTab(for instanceId: UUID) {
+        // Find the native tab window for this connection instance
+        let windows = NSApp.windows.filter { $0.isVisible }
+
+        for window in windows {
+            if let windowController = WindowController.getController(for: window),
+               case .connection(let windowInstanceId) = windowController.tabType,
+               windowInstanceId == instanceId {
+                // Close the native tab window
+                window.close()
+                break
+            }
         }
     }
     
@@ -90,9 +101,9 @@ class ConnectionService {
         connectionInstances.first { $0.connection.persistentModelID == connection.persistentModelID }
     }
     
-    func connect(to instance: ConnectionInstance) async {
+    func connect(to instance: ConnectionInstance, targetDatabase: String? = nil) async {
         do {
-            try await instance.connect()
+            try await instance.connect(targetDatabaseName: targetDatabase)
         } catch {
             debugLog("Connection failed: \(error)")
         }
@@ -106,10 +117,53 @@ class ConnectionService {
         }
     }
     
+    // MARK: - Environment / Deployment Tabs (Convex)
+    /// Opens a new connection tab for the same connection targeting a specific database/environment.
+    /// For Convex, this maps to deployments (e.g., Production, Preview: <id>, Development).
+    /// - Returns: The existing or newly created connection instance ID.
+    func openEnvironmentInNewTab(from instance: ConnectionInstance, databaseName: String) async -> UUID? {
+        // Check if a tab already exists for this connection and environment
+        for existingInstance in connectionInstances {
+            if existingInstance.connection.persistentModelID == instance.connection.persistentModelID &&
+               existingInstance.connectedDatabase?.name == databaseName {
+                // Tab already exists, return its ID
+                return existingInstance.id
+            }
+        }
+
+        // No existing tab found, create a new connection instance
+        let newId = createNewConnectionInstance(for: instance.connection)
+        guard let newInstance = getInstance(newId) else { return nil }
+
+        // Set the target database in the database service
+        // Find the target database from the source instance
+        if let targetDb = instance.databases.first(where: { $0.name == databaseName }) {
+            newInstance.databaseService.connectedDatabase = targetDb
+        }
+
+        // Set tab title immediately to show the environment being loaded
+        updateTabTitle(for: newId, title: "\(newInstance.connection.name) – \(databaseName)")
+
+        return newId
+    }
+    
     // MARK: - Tab Management
     
     func updateTabTitle(for instanceId: UUID, title: String) {
-        TabManager.shared.updateTabTitle(instanceId, title: title)
+        // Ensure UI operations happen on the main thread
+        DispatchQueue.main.async {
+            // Update the native tab window title
+            let windows = NSApp.windows.filter { $0.isVisible }
+
+            for window in windows {
+                if let windowController = WindowController.getController(for: window),
+                   case .connection(let windowInstanceId) = windowController.tabType,
+                   windowInstanceId == instanceId {
+                    window.title = title
+                    break
+                }
+            }
+        }
     }
     
     func closeTab(for instanceId: UUID) async {

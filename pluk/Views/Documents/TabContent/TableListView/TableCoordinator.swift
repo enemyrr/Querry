@@ -18,11 +18,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private let containerView = NSView()
     private let scrollView = NSScrollView()
     let tableView = CustomTableView()
-    
+
     private var columnWidthCache: [String: CGFloat] = [:]
-    private var userModifiedWidths: [String: CGFloat] = [:]
-    private var autoCalculatedColumns: Set<String> = []
-//    private var lastDataHash: Int = 0
     private var knownColumns: Set<String> = []
     public var needsToSelectLastRow = false
     
@@ -44,8 +41,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     // Persistent storage
     public var tableName: String = ""
-    private var currentSchemaSignature: String = ""
-    private var isSettingWidthsProgrammatically = false
+
+    // New: Cache namespacing to disambiguate across connections
+    private let cacheNamespace: String
     
     private enum CellIdentifier {
         static let checkbox = NSUserInterfaceItemIdentifier("CheckboxCell")
@@ -63,7 +61,11 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private weak var addRowMenuItem: NSMenuItem?
     private weak var refreshMenuItem: NSMenuItem?
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil) {
+    // Real-time change highlighting
+    var highlightedFields: Set<String> = []
+    var highlightedRows: Set<Int> = []
+    
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "") {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
@@ -72,6 +74,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         self.onDeleteNewRow = onDeleteNewRow
         self.onRefresh = onRefresh
         self.onForeignKeyNavigation = onForeignKeyNavigation
+        self.highlightedFields = highlightedFields
+        self.highlightedRows = highlightedRows
+        self.cacheNamespace = cacheNamespace
         
         if let queryResult = queryResult {
             self.rows = queryResult.rawRows
@@ -88,6 +93,20 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleTableReloadData(notification:)), name: .tableReloadData, object: nil)
+    }
+    
+    @objc private func handleTableReloadData(notification: Notification) {
+        // Only reload if it targets this specific table instance (by tableName) if provided
+        if let userInfo = notification.userInfo,
+           let targetTableName = userInfo["tableName"] as? String,
+           !targetTableName.isEmpty,
+           targetTableName != self.tableName {
+            return
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.tableView.reloadData()
+        }
     }
     
     @objc private func handleDeleteKey(notification: Notification) {
@@ -203,6 +222,31 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         return containerView
     }
     
+    // MARK: - Real-time Change Highlighting
+    
+    func updateHighlighting(fields: Set<String>, rows: Set<Int>) {
+        // Only update and reload if highlighting actually changed
+        let fieldsChanged = self.highlightedFields != fields
+        let rowsChanged = self.highlightedRows != rows
+        
+        if fieldsChanged || rowsChanged {
+            self.highlightedFields = fields
+            self.highlightedRows = rows
+            
+            // Only refresh the affected cells rather than the entire table
+            DispatchQueue.main.async {
+                // If we have specific rows to update, only reload those
+                if !rows.isEmpty {
+                    let indexSet = IndexSet(rows)
+                    self.tableView.reloadData(forRowIndexes: indexSet, columnIndexes: IndexSet(0..<self.tableView.numberOfColumns))
+                } else if fieldsChanged {
+                    // If only fields changed but no specific rows, reload all data
+                    self.tableView.reloadData()
+                }
+            }
+        }
+    }
+    
     func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
         // Get the current selection BEFORE updating the data
         let previousSelectedRow = self.tableView.getCurrentSelectedCell()?.row
@@ -219,14 +263,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         debugLog("oldRowCount: \(oldRowCount), oldColumnCount: \(oldColumnCount)")
         
-        // Check if data has significantly changed for cache invalidation
-//        let oldDataHash = self.lastDataHash
-//        let newDataHash = calculateDataHash(queryResult: newQueryResult, schema: newSchema)
-        
         // Update ALL references
         self.queryResult = newQueryResult
         self.schema = newSchema
-//        self.lastDataHash = newDataHash
         
         if let newQueryResult = newQueryResult {
             self.rows = newQueryResult.rawRows
@@ -244,11 +283,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             newColumnCount = newSchema?.columns.count ?? 0
         }
         
-        // Invalidate column width cache if data changed significantly
-        // FIX: Instead of revalidating all columns only revalidate the new column:
-        // if oldDataHash != newDataHash {
-        //    invalidateColumnWidthCache()
-        // }
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -329,6 +363,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     private func updateTableHeaders() {
+        // Don't update headers if table view is being deallocated
+        guard tableView.window != nil else { return }
+
         for tableColumn in tableView.tableColumns {
             let columnId = tableColumn.identifier.rawValue
             if let headerCell = tableColumn.headerCell as? CustomTableHeaderCell {
@@ -369,32 +406,51 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private func createColumn(identifier: String, title: String, dataType: String?, icon: NSImage?) {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
         column.title = title
-        
-        // Set flag to prevent resize notifications during programmatic setup
-        isSettingWidthsProgrammatically = true
-        
-        // Priority: User modified width > Auto-calculated width > Default
-        if let userWidth = userModifiedWidths[identifier] {
-            // Always respect user's manual resize
-            debugLog("📏 Using user-modified width for '\(identifier)': \(userWidth)")
-            column.width = userWidth
-            column.minWidth = 10 // Allow user flexibility
-            column.maxWidth = CGFloat.greatestFiniteMagnitude
-        } else if let cachedWidth = columnWidthCache[identifier] {
-            // Use auto-calculated width
-            debugLog("📏 Using auto-calculated width for '\(identifier)': \(cachedWidth)")
+
+        // Use cached width if available
+        if let cachedWidth = columnWidthCache[identifier] {
+            debugLog("📏 Using cached width for '\(identifier)': \(cachedWidth)")
             column.width = cachedWidth
-            column.minWidth = 10 // Allow user flexibility
+            column.minWidth = 10
             column.maxWidth = CGFloat.greatestFiniteMagnitude
-        } else {
-            // Fallback to default sizing
-            debugLog("📏 Using default sizing for '\(identifier)'")
-            column.sizeToFit()
         }
-        
-        //             Add custom header
+
+        // Add custom header
         let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-        customHeaderCell.configure(title: title, fieldType: dataType)
+        var tooltip: String? = nil
+        var isForeignKey: Bool = false
+        if let schema = schema, let columnInfo = schema.column(named: identifier) {
+            var relationText: String?
+            if let fkConstraint = columnInfo.constraints.first(where: { $0.type == .foreignKey }) {
+                isForeignKey = true
+                let localColumn = identifier
+                let refSchema = fkConstraint.referencedSchema
+                let refTable = fkConstraint.referencedTable
+                let refColumn = fkConstraint.referencedColumns?.first
+                var target = ""
+                if let refTable = refTable {
+                    if let refSchema = refSchema, !refSchema.isEmpty {
+                        target = "\(refSchema).\(refTable)"
+                    } else {
+                        target = refTable
+                    }
+                    if let refColumn = refColumn, !refColumn.isEmpty {
+                        target += ".\(refColumn)"
+                    }
+                }
+                if !target.isEmpty {
+                    relationText = "Foreign key relation: \(localColumn) → \(target)"
+                }
+            }
+            if let relationText = relationText {
+                tooltip = relationText
+            } else if let dt = dataType, !dt.isEmpty {
+                tooltip = dt
+            }
+        } else {
+            tooltip = dataType
+        }
+        customHeaderCell.configure(title: title, fieldType: dataType, tooltip: tooltip, isForeignKey: isForeignKey)
         column.headerCell = customHeaderCell
         
         let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
@@ -404,9 +460,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         tableView.target = self
         tableView.doubleAction = #selector(tableViewDoubleClick(_:))
-        
-        // Reset flag after adding column
-        isSettingWidthsProgrammatically = false
     }
     
     @objc func tableViewDoubleClick(_ sender:AnyObject) {
@@ -460,32 +513,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             return
         }
         
-        // Generate schema signature for this table
-        let newSchemaSignature = generateSchemaSignature(columns: columnsToUse)
-        
-        // Check if we have a cached schema for this table
-        let persistentSchema = loadPersistentSchema(for: tableName)
-        
-        if let cachedSchema = persistentSchema,
-           cachedSchema.schemaSignature == newSchemaSignature {
-            // Schema matches - restore cached widths and order
-            restoreCachedColumnConfiguration(cachedSchema, columnsToUse: columnsToUse)
-        } else {
-            // Schema changed or first time - calculate optimal widths
-            if let queryResult = queryResult {
-                preCalculateOptimalColumnWidths(for: columnsToUse, queryResult: queryResult)
-            }
-            
-            // Create and save new schema cache
-            let newCachedSchema = createSchemaCache(signature: newSchemaSignature, columns: columnsToUse)
-            savePersistentSchema(newCachedSchema, for: tableName)
+        // Calculate optimal widths for initial setup
+        if let queryResult = queryResult {
+            preCalculateOptimalColumnWidths(for: columnsToUse, queryResult: queryResult)
         }
-        
-        currentSchemaSignature = newSchemaSignature
-        
-        // Create columns with appropriate widths and order
-        let orderedColumns = getOrderedColumns(columnsToUse)
-        for columnInfo in orderedColumns {
+
+        // Create columns with optimal widths
+        for columnInfo in columnsToUse {
             createColumn(
                 identifier: columnInfo.name,
                 title: columnInfo.name,
@@ -494,16 +528,21 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             )
         }
         
-        // Enable column resizing
+        // Enable column resizing and auto-save
         tableView.allowsColumnResizing = true
         tableView.allowsColumnReordering = true
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
-        
+
+        // Use NSTableView's built-in autosave with connection-specific namespace
+        let autosaveName = "\(cacheNamespace.isEmpty ? "global" : cacheNamespace)_\(tableName)"
+        tableView.autosaveName = autosaveName
+        tableView.autosaveTableColumns = true
+
         // Enable column selection only
         tableView.allowsColumnSelection = true
         tableView.allowsMultipleSelection = true
         tableView.allowsEmptySelection = true
-        
+
         // Set data source and delegate
         tableView.dataSource = self
         tableView.delegate = self
@@ -552,22 +591,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         menu.delegate = self
         menu.autoenablesItems = false
         tableView.menu = menu
-        
-        // Set up column resize and reorder notifications
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(columnDidResize(_:)),
-            name: NSTableView.columnDidResizeNotification,
-            object: tableView
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(columnDidMove(_:)),
-            name: NSTableView.columnDidMoveNotification,
-            object: tableView
-        )
-        
+
         tableView.rowSizeStyle = .custom
         
         // Table view setup
@@ -598,19 +622,18 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     
     private func rebuildTableStructure() {
-        // When rebuilding, preserve user modifications but clear auto-calculated cache
+        // When rebuilding, clear cache
         columnWidthCache.removeAll()
-        autoCalculatedColumns.removeAll()
         knownColumns.removeAll()
-        
+
         // Remove all existing columns
         while tableView.tableColumns.count > 0 {
             tableView.removeTableColumn(tableView.tableColumns[0])
         }
-        
+
         // Rebuild columns based on current data
         setupTable()
-        
+
         // Reload all data
         tableView.reloadData()
     }
@@ -639,45 +662,35 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         return hasher.finalize()
     }
     
-    private func invalidateColumnWidthCache() {
-        columnWidthCache.removeAll()
-    }
-    
     private func preCalculateOptimalColumnWidths(for columnsToUse: [(name: String, dataType: String?)], queryResult: QueryResult) {
         // Pre-computed font attributes for performance
         let headerFont = NSFont.systemFont(ofSize: 12, weight: .medium)
         let contentFont = NSFont.systemFont(ofSize: 12)
         let headerAttributes = [NSAttributedString.Key.font: headerFont]
         let contentAttributes = [NSAttributedString.Key.font: contentFont]
-        
-        // Calculate optimal width for each column (only if not user-modified)
+
+        // Calculate optimal width for each column
         for columnInfo in columnsToUse {
             let columnIdentifier = columnInfo.name
-            
-            // Skip if user has manually resized this column
-            if userModifiedWidths[columnIdentifier] != nil {
+
+            // Skip if already calculated
+            if columnWidthCache[columnIdentifier] != nil {
                 continue
             }
-            
-            // Skip if already auto-calculated and not a new column
-            if autoCalculatedColumns.contains(columnIdentifier) && columnWidthCache[columnIdentifier] != nil {
-                continue
-            }
-            
+
             // Calculate header width
             let headerWidth = (columnInfo.name as NSString).size(withAttributes: headerAttributes).width + 45
-            
             // Smart sampling for content width
             let sampleSize = determineSampleSize(totalRows: self.totalCount)
             let sampleIndices = generateSampleIndices(totalRows: self.totalCount, sampleSize: sampleSize)
-            
+
             var maxContentWidth: CGFloat = 0
-            
+
             // Efficiently calculate max content width
             for rowIndex in sampleIndices {
                 if let value = queryResult.value(row: rowIndex, column: columnIdentifier) {
                     let contentString = formatValueForWidthCalculation(value.value)
-                    
+
                     // Quick estimation first
                     if contentString.count > 300 {
                         maxContentWidth = 400
@@ -688,13 +701,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
                     }
                 }
             }
-            
-            debugLog("\(columnsToUse): \(maxContentWidth): headerWidth: \(headerWidth): optimalWidth: \(maxContentWidth)")
+
             let optimalWidth = max(headerWidth, maxContentWidth)
-            
-            // Cache the result and mark as auto-calculated
             columnWidthCache[columnIdentifier] = optimalWidth
-            autoCalculatedColumns.insert(columnIdentifier)
         }
     }
     
@@ -708,30 +717,34 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         } else {
             return
         }
-        
-        // Only recalculate for new columns, not existing ones
+
+        // Only recalculate for new columns that don't have cached widths
         let currentColumnNames = Set(columnsToProcess.map { $0.name })
         let newColumns = currentColumnNames.subtracting(knownColumns)
-        
-        if !newColumns.isEmpty {
-            let newColumnsToProcess = columnsToProcess.filter { newColumns.contains($0.name) }
-            preCalculateOptimalColumnWidths(for: newColumnsToProcess, queryResult: queryResult)
-            
-            // Apply new widths only to new columns
-            isSettingWidthsProgrammatically = true
+
+        // Find columns that need width calculation
+        let columnsNeedingCalculation = columnsToProcess.filter { columnInfo in
+            let columnName = columnInfo.name
+            return newColumns.contains(columnName) && columnWidthCache[columnName] == nil
+        }
+
+        if !columnsNeedingCalculation.isEmpty {
+            preCalculateOptimalColumnWidths(for: columnsNeedingCalculation, queryResult: queryResult)
+
+            // Apply new widths only to newly calculated columns
             for tableColumn in tableView.tableColumns {
                 let columnId = tableColumn.identifier.rawValue
-                if newColumns.contains(columnId), let newWidth = columnWidthCache[columnId] {
+                if columnsNeedingCalculation.contains(where: { $0.name == columnId }),
+                   let newWidth = columnWidthCache[columnId] {
                     tableColumn.width = newWidth
                     tableColumn.minWidth = 10
                     tableColumn.maxWidth = CGFloat.greatestFiniteMagnitude
                 }
             }
-            isSettingWidthsProgrammatically = false
-            
-            // Update known columns
-            knownColumns = currentColumnNames
         }
+
+        // Always update knownColumns to current state
+        knownColumns = currentColumnNames
     }
     
     // MARK: - NSTableViewDataSource
@@ -739,34 +752,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         return self.totalCount
     }
     
-    
-    @objc private func columnDidResize(_ notification: Notification) {
-        guard let _ = notification.object as? NSTableView,
-              let userInfo = notification.userInfo,
-              let column = userInfo["NSTableColumn"] as? NSTableColumn else {
-            return
-        }
-        
-        // Ignore programmatic width changes during setup
-        guard !isSettingWidthsProgrammatically else {
-            return
-        }
-        
-        let columnIdentifier = column.identifier.rawValue
-        let newWidth = column.width
-        
-        // Store user's manual resize - this takes precedence over auto-calculation
-        userModifiedWidths[columnIdentifier] = newWidth
-        columnWidthCache[columnIdentifier] = newWidth
-        
-        // Remove from auto-calculated set since user has now manually set it
-        autoCalculatedColumns.remove(columnIdentifier)
-        
-        // Update persistent cache immediately
-        updatePersistentColumnWidth(columnIdentifier, width: newWidth)
-        
-        debugLog("Column '\(columnIdentifier)' manually resized to width: \(newWidth)")
-    }
     
     // Row view recycling
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
@@ -781,29 +766,27 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         return rowView
     }
-    
+
     func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
         guard let tableColumn = tableView.tableColumns[safe: column] else {
             return 100 // Default width
         }
-        
+
         let columnIdentifier = tableColumn.identifier.rawValue
-        
-        // Return cached width (should already be calculated)
+
+        // Return cached width if available
         if let cachedWidth = columnWidthCache[columnIdentifier] {
             return cachedWidth
         }
-        
-        // Fallback: basic calculation if cache miss
+
+        // Fallback: basic calculation
         let headerFont = NSFont.systemFont(ofSize: 12, weight: .medium)
         let headerAttributes = [NSAttributedString.Key.font: headerFont]
         let headerWidth = (tableColumn.title as NSString).size(withAttributes: headerAttributes).width + 50
-        
+
         return max(100, headerWidth) // Minimum reasonable width
     }
-    
-    // Moved calculation logic to preCalculateOptimalColumnWidths method
-    
+
     private func determineSampleSize(totalRows: Int) -> Int {
         switch totalRows {
         case 0...50:
@@ -888,7 +871,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         let columnName = tableColumn.identifier.rawValue
         guard let queryRowInfo = queryResult.value(row: row, column: columnName) else {
+            debugLog("⚠️ TableCoordinator: No data for row \(row), column \(columnName)")
             return nil
+        }
+        
+        // Debug logging for cell data
+        if highlightedRows.contains(row) && highlightedFields.contains(columnName) {
+            debugLog("💡 TableCoordinator: Rendering highlighted cell [\(row), \(columnName)] = \(queryRowInfo.value ?? "nil")")
         }
 
         guard let columnInfo = queryResult.column(named: columnName) else {
@@ -909,13 +898,22 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         
         // Get foreign key constraint info from schema if available
         let foreignKeyConstraint = schema?.column(named: columnName)?.constraints.first { $0.type == .foreignKey }
+        let isReadOnly = schema?.column(named: columnName)?.isReadOnly ?? false
+        
+        // Check if this cell should be highlighted
+        let isHighlightedField = highlightedFields.contains(columnName)
+        let isHighlightedRow = highlightedRows.contains(row)
+        let shouldHighlight = isHighlightedField && isHighlightedRow
         
         cellView?.configure(queryRowInfo: queryRowInfo,
                             columnInfo: columnInfo,
                             rowIndex: row,
                             modificationTracker: modificationTracker,
                             constraintInfo: foreignKeyConstraint,
-                            tableName: tableName)
+                            tableName: tableName,
+                            shouldHighlight: shouldHighlight,
+                            isReadOnly: isReadOnly
+        )
         
         return cellView
     }
@@ -951,155 +949,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         }
     }
     
-    
-    @objc private func columnDidMove(_ notification: Notification) {
-        // Update persistent cache with new column order
-        saveCurrentColumnOrder()
-        debugLog("Column order changed - updating persistent cache")
-    }
-    
-    // MARK: - Persistent Storage Methods
-    
-    private struct PersistentColumnSchema: Codable {
-        let schemaSignature: String
-        let columnWidths: [String: CGFloat]
-        let columnOrder: [String]
-        let lastModified: Date
-    }
-    
-    private func generateSchemaSignature(columns: [(name: String, dataType: String?)]) -> String {
-        // Create a signature based on column names and types
-        let signature = columns.map { "\($0.name):\($0.dataType ?? "unknown")" }.joined(separator: "|")
-        return signature.data(using: .utf8)?.base64EncodedString() ?? ""
-    }
-    
-    private func loadPersistentSchema(for tableName: String) -> PersistentColumnSchema? {
-        let key = "TableColumnSchema_\(tableName)"
-        guard let data = UserDefaults.standard.data(forKey: key) else {
-            return nil
-        }
-        
-        do {
-            let decoder = Foundation.JSONDecoder()
-            let persistentSchema = try decoder.decode(PersistentColumnSchema.self, from: data)
-            return persistentSchema
-        } catch {
-            debugLog("Failed to decode persistent schema for table '\(tableName)': \(error)")
-            return nil
-        }
-    }
-    
-    private func savePersistentSchema(_ schema: PersistentColumnSchema, for tableName: String) {
-        let key = "TableColumnSchema_\(tableName)"
-        if let data = try? JSONEncoder().encode(schema) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
-    }
-    
-    private func createSchemaCache(signature: String, columns: [(name: String, dataType: String?)]) -> PersistentColumnSchema {
-        let widths = columnWidthCache.isEmpty ? [:] : columnWidthCache
-        let order = columns.map { $0.name }
-        
-        return PersistentColumnSchema(
-            schemaSignature: signature,
-            columnWidths: widths,
-            columnOrder: order,
-            lastModified: Date()
-        )
-    }
-    
-    private func restoreCachedColumnConfiguration(_ cachedSchema: PersistentColumnSchema, columnsToUse: [(name: String, dataType: String?)]) {
-        // Restore column widths to both caches
-        columnWidthCache = cachedSchema.columnWidths
-        userModifiedWidths = cachedSchema.columnWidths // These are user preferences from persistent storage
-        
-        // Mark all cached columns as having saved preferences
-        for columnName in cachedSchema.columnWidths.keys {
-            autoCalculatedColumns.insert(columnName)
-        }
-        
-        debugLog("Restored persistent schema for table '\(tableName)' with \(cachedSchema.columnWidths.count) cached column widths")
-    }
-    
-    private func getOrderedColumns(_ columnsToUse: [(name: String, dataType: String?)]) -> [(name: String, dataType: String?)] {
-        // Try to get saved column order
-        if let cachedSchema = loadPersistentSchema(for: tableName),
-           cachedSchema.schemaSignature == currentSchemaSignature {
-            
-            // Reorder columns based on saved order
-            var orderedColumns: [(name: String, dataType: String?)] = []
-            let columnMap = Dictionary(uniqueKeysWithValues: columnsToUse.map { ($0.name, $0) })
-            
-            // Add columns in saved order
-            for columnName in cachedSchema.columnOrder {
-                if let column = columnMap[columnName] {
-                    orderedColumns.append(column)
-                }
-            }
-            
-            // Add any new columns that weren't in the saved order
-            for column in columnsToUse {
-                if !cachedSchema.columnOrder.contains(column.name) {
-                    orderedColumns.append(column)
-                }
-            }
-            
-            return orderedColumns
-        }
-        
-        // Return original order if no cached order available
-        return columnsToUse
-    }
-    
-    private func saveCurrentColumnOrder() {
-        let currentOrder = tableView.tableColumns.map { $0.identifier.rawValue }
-        
-        guard let cachedSchema = loadPersistentSchema(for: tableName) else {
-            return
-        }
-        
-        // Update the cached schema with new order
-        let updatedSchema = PersistentColumnSchema(
-            schemaSignature: cachedSchema.schemaSignature,
-            columnWidths: cachedSchema.columnWidths,
-            columnOrder: currentOrder,
-            lastModified: Date()
-        )
-        
-        savePersistentSchema(updatedSchema, for: tableName)
-    }
-    
-    private func updatePersistentColumnWidth(_ columnIdentifier: String, width: CGFloat) {
-        guard let cachedSchema = loadPersistentSchema(for: tableName) else {
-            // Create new schema if none exists
-            let newSchema = createSchemaCache(signature: currentSchemaSignature, columns: [])
-            var updatedWidths = newSchema.columnWidths
-            updatedWidths[columnIdentifier] = width
-            
-            let updatedSchema = PersistentColumnSchema(
-                schemaSignature: newSchema.schemaSignature,
-                columnWidths: updatedWidths,
-                columnOrder: newSchema.columnOrder,
-                lastModified: Date()
-            )
-            
-            savePersistentSchema(updatedSchema, for: tableName)
-            return
-        }
-        
-        // Update existing schema
-        var updatedWidths = cachedSchema.columnWidths
-        updatedWidths[columnIdentifier] = width
-        
-        let updatedSchema = PersistentColumnSchema(
-            schemaSignature: cachedSchema.schemaSignature,
-            columnWidths: updatedWidths,
-            columnOrder: cachedSchema.columnOrder,
-            lastModified: Date()
-        )
-        
-        savePersistentSchema(updatedSchema, for: tableName)
-    }
     
     // MARK: - NSMenuDelegate
     

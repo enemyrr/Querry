@@ -21,28 +21,12 @@ struct PlukTabContentView: View {
                         DocumentView()
                             .environment(connectionInstance)
                     } else {
-                        ConnectionErrorView()
+                        HomeView()
                     }
                 }
             } else {
                 HomeView()
             }
         }
-    }
-}
-
-struct ConnectionErrorView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
-                .foregroundColor(.orange)
-            Text("Connection Error")
-                .font(.headline)
-            Text("Unable to load this connection")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding()
     }
 }

@@ -11,23 +11,44 @@ import SwiftUI
 @Observable
 class TabManager {
     static let shared = TabManager()
-    
+
     // Tab management
     private(set) var tabs: [PlukTab] = []
     var activeTabId: UUID = UUID() // Home tab ID
-    
-    private init() {
-        // Initialize with home tab
-        let homeTab = PlukTab(
-            id: activeTabId,
-            type: .home,
-            title: "Home"
-        )
-        tabs = [homeTab]
+
+    init(nativeTabType: TabType? = nil, connectionInstance: ConnectionInstance? = nil) {
+        // Initialize based on the native tab context
+        if let nativeTabType = nativeTabType, case .connection(let instanceId) = nativeTabType,
+           let connectionInstance = connectionInstance {
+            // For connection native tabs, start with a connection document tab
+            let connectionTab = PlukTab(
+                id: instanceId,
+                type: .connection(instanceId),
+                title: connectionInstance.connection.name,
+                connectionInstanceId: instanceId
+            )
+            tabs = [connectionTab]
+            activeTabId = instanceId
+        } else {
+            // For home native tabs or fallback, start with home
+            let homeTabId = UUID()
+            let homeTab = PlukTab(
+                id: homeTabId,
+                type: .home,
+                title: "Home"
+            )
+            tabs = [homeTab]
+            activeTabId = homeTabId
+        }
     }
     
     var activeTab: PlukTab? {
         tabs.first { $0.id == activeTabId }
+    }
+    
+    var isHomeScreen: Bool {
+        guard let activeTab = activeTab else { return true }
+        return activeTab.type == .home
     }
     
     // MARK: - Tab Operations

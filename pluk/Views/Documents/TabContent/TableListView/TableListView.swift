@@ -7,6 +7,8 @@
 import Foundation
 import SwiftUI
 import AppKit
+import ConvexMobile
+import Combine
 
 struct TableListView: View {
     let selectedTab: DatabaseTab
@@ -41,6 +43,19 @@ struct TableListView: View {
     @State private var lastTabFilterValue: String?
     @State private var currentActiveFilter: String? = nil
     
+    // Real-time subscription state
+    @State private var isSubscribedToRealTime = false
+    @State private var receivedFirstRealtimeEvent = false
+    @State private var skipNextRealtimeEvent = false
+    
+    // ConvexMobile testing
+    @State private var convexSubscription: AnyCancellable?
+    
+    // Smart deduplication and change tracking
+    @State private var changeDetector = TableChangeDetector()
+    @State private var updatedFields: Set<String> = []
+    @State private var updatedRows: Set<Int> = []
+    
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -51,24 +66,29 @@ struct TableListView: View {
                     onApplyFilter: { filter in
                         currentActiveFilter = filter.isEmpty ? nil : filter
                         Task {
-                            await loadDocuments(forceFetch: true, filter: filter)
+                            skipNextRealtimeEvent = true
+                            await loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
                         }
                     },
                     conditions: $filterConditions
                 )
                 
                 if cachedSchema != nil || currentQueryResult != nil {
-                    Divider()
+                    if colorScheme == .dark {
+                        Divider()
+                    }
                     TableListViewController(
                         schema: cachedSchema,
                         queryResult: currentQueryResult,
                         tableName: selectedTab.name,
+                        cacheNamespace: instance.connection.persistentModelID.storeIdentifier,
                         onSort: { column, ascending in
                             sortColumn = column
                             sortAscending = ascending
                             loadingTask?.cancel()
                             loadingTask = Task {
-                                await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300)
+                                skipNextRealtimeEvent = true
+                                await loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: currentActiveFilter)
                             }
                         },
                         modificationTracker: modificationTracker,
@@ -79,7 +99,9 @@ struct TableListView: View {
                         },
                         onForeignKeyNavigation: { tableName, columnName, value in
                             instance.createNewTab(name: tableName, filterColumn: columnName, filterValue: value, databaseSchema: selectedTab.databaseSchema)
-                        }
+                        },
+                        highlightedFields: updatedFields,
+                        highlightedRows: updatedRows
                     )
                 } else {
                     Spacer()
@@ -87,8 +109,9 @@ struct TableListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                Color(colorScheme == .dark ? .black : .white).opacity(0.6)
+                Color(colorScheme == .dark ? .black : .white).opacity(colorScheme == .dark ? 0.6 : 1)
             )
+            .ignoresSafeArea(.all, edges: .top)
             
             VStack {
                 Spacer()
@@ -99,23 +122,27 @@ struct TableListView: View {
                     isProcessingUpdates: isProcessingUpdates,
                     onRefresh: { currentPage, itemsPerPage, fetchSchema in
                         Task {
-                            await loadDocuments(
-                                forceFetch: true,
-                                fetchSchema: fetchSchema,
-                                page: currentPage,
-                                limit: itemsPerPage,
-                                filter: currentActiveFilter
-                            )
+                            skipNextRealtimeEvent = true
+                             await loadOrSubscribe(
+                                 forceFetch: true,
+                                 fetchSchema: fetchSchema,
+                                 page: currentPage,
+                                 limit: itemsPerPage,
+                                 filter: currentActiveFilter
+                             )
                         }
                     },
                     onLoadDocuments: { filter in
                         Task {
-                            await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
+                            skipNextRealtimeEvent = true
+                            await loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
                         }
                     },
                     onCommitModifications: {
                         Task {
+                            isProcessingUpdates = true
                             await commitModifications()
+                            isProcessingUpdates = false
                         }
                     },
                     onNewRecord: {
@@ -126,21 +153,23 @@ struct TableListView: View {
                 .padding(.bottom, 10)
             }
         }
+
         .task(id: selectedTab.name) {
+            // Set default sort order based on database type
+            if instance.connection.databaseType == .convex {
+                sortAscending = false // Convex defaults to descending (newest first)
+            } else {
+                sortAscending = true  // Other databases default to ascending
+            }
+
             // Update filter conditions when tab changes
             updateFilterConditions()
             await loadDocumentsIfNeeded()
         }
-        .onChange(of: instance.id) { _, _ in
-            loadingTask?.cancel()
-            clearCache()
-            modificationTracker.resetAllModifications()
-            loadingTask = Task {
-                await loadDocumentsIfNeeded()
-            }
-        }
         .onDisappear {
             loadingTask?.cancel()
+            convexSubscription?.cancel() // Clean up ConvexMobile subscription
+            cancelRealTimeSubscription() // Clean up real-time subscription
         }.alert(
             "Operation Failed",
             isPresented: $showingErrorAlert,
@@ -216,7 +245,9 @@ struct TableListView: View {
                     
                     // Find the primary key or unique identifier for this row
                     var rowId: Any?
-                    if let idValue = originalRow["id"] {
+                    if let idValue = originalRow["_id"] {
+                        rowId = idValue
+                    } else if let idValue = originalRow["id"] {
                         rowId = idValue
                     } else if let firstColumn = currentQueryResult.columns.first {
                         rowId = originalRow[firstColumn.name]
@@ -248,7 +279,9 @@ struct TableListView: View {
                     
                     // Find the primary key or unique identifier for this row
                     var rowId: Any?
-                    if let idValue = originalRow["id"] {
+                    if let idValue = originalRow["_id"] {
+                        rowId = idValue
+                    } else if let idValue = originalRow["id"] {
                         rowId = idValue
                     } else if let firstColumn = currentQueryResult.columns.first {
                         rowId = originalRow[firstColumn.name]
@@ -268,11 +301,12 @@ struct TableListView: View {
             }
         }
         
-        // Clear modifications after successful save
         modificationTracker.resetAllModifications()
         
-        // Optionally refresh the data to show the saved changes
-        await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: currentActiveFilter)
+        // Clear modifications after successful save
+        if !instance.databaseService.supportsRealTime {
+            await loadDocuments(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: currentActiveFilter)
+        }
         
         debugLog("✅ All modifications saved successfully")
     }
@@ -374,12 +408,17 @@ struct TableListView: View {
             // Apply initial filter if tab has filter information
             let initialFilter = generateInitialFilter()
             currentActiveFilter = initialFilter
-            await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: initialFilter)
+            await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: initialFilter)
             selectedTab.forceFetch = false
         } else {
             if let cachedDocuments = cachedDocuments,
                let cachedSchema = cachedSchema {
                 viewState = .loaded(cachedDocuments, cachedSchema)
+            }
+            
+            // Still try to subscribe for real-time if not already subscribed
+            if !isSubscribedToRealTime {
+                await subscribeToRealTimeUpdatesIfSupported(page: 1)
             }
         }
     }
@@ -404,6 +443,141 @@ struct TableListView: View {
             filterOperator: .equals,
             value: filterValue
         )]
+    }
+    
+    // MARK: - Real-time Subscription
+    
+    private func subscribeToRealTimeUpdatesIfSupported(page: Int = 1) async {
+        // Check if database supports real-time and we're not already subscribed
+        guard instance.databaseService.supportsRealTime && !isSubscribedToRealTime else {
+            return
+        }
+        
+        do {
+            try await instance.databaseService.subscribeToTableChanges(
+                tabId: selectedTab.id,
+                tableName: selectedTab.name,
+                schema: selectedTab.databaseSchema,
+                filter: currentActiveFilter,
+                limit: 300,
+                sortBy: sortColumn,
+                ascending: sortAscending,
+                page: page,
+                onUpdate: { updatedResult in
+                    DispatchQueue.main.async {
+                        self.handleRealTimeUpdate(updatedResult)
+                    }
+                },
+                onError: { error in
+                    DispatchQueue.main.async {
+                        self.handleRealTimeError(error)
+                    }
+                }
+            )
+            isSubscribedToRealTime = true
+            debugLog("✅ Subscribed to real-time updates for table: \(selectedTab.name)")
+        } catch {
+            debugLog("❌ Failed to subscribe to real-time updates: \(error)")
+        }
+    }
+    
+    private func handleRealTimeUpdate(_ updatedResult: QueryResult) {
+        receivedFirstRealtimeEvent = true
+
+        // If this is the first event after a resubscribe (e.g., filter change),
+        // treat it as a baseline (no highlights) and reset the flag.
+        if skipNextRealtimeEvent {
+            skipNextRealtimeEvent = false
+            changeDetector.baseline(with: updatedResult)
+            if cachedSchema == nil {
+                Task {
+                    if let schema = try await instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema) {
+                        await MainActor.run { self.cachedSchema = schema }
+                    }
+                }
+            }
+            // Update state with the new baseline data without highlighting
+            if let currentSchema = cachedSchema {
+                viewState = .loading
+                viewState = .loaded(updatedResult, currentSchema)
+            }
+            cachedDocuments = updatedResult
+            return
+        }
+
+        // Smart deduplication via TableChangeDetector
+        let change: TableChangeDetector.ChangeResult
+        if cachedDocuments == nil && changeDetector.lastHash == nil || skipNextRealtimeEvent {
+            // First dataset: baseline without highlighting changes
+            changeDetector.baseline(with: updatedResult)
+            change = .init(changedFields: [], changedRows: [], changedCells: [:], isDifferent: true)
+            skipNextRealtimeEvent = false
+        } else {
+            // Heuristic: exclusive mode if row count changes
+            let oldCount = cachedDocuments?.rawRows.count ?? 0
+            let newCount = updatedResult.rawRows.count
+            if oldCount != newCount {
+                change = changeDetector.detectExclusive(old: cachedDocuments, new: updatedResult)
+            } else {
+                change = changeDetector.detect(old: cachedDocuments, new: updatedResult)
+            }
+        }
+        
+        guard change.isDifferent else {
+            debugLog("📊 Real-time update skipped - no changes detected for table: \(selectedTab.name)")
+            return
+        }
+        
+        // Ensure we have schema for display on first event
+        if cachedSchema == nil {
+            Task {
+                if let schema = try await instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema) {
+                    await MainActor.run { self.cachedSchema = schema }
+                }
+            }
+        }
+
+        // Translate per-cell map to existing field/row sets expected by controller
+        var fields = Set<String>()
+        var rows = Set<Int>()
+        for (rowIndex, cols) in change.changedCells {
+            rows.insert(rowIndex)
+            fields.formUnion(cols)
+        }
+        updatedFields = fields
+        updatedRows = rows
+        
+        // Update view state to reflect the changes
+        if let currentSchema = cachedSchema {
+            viewState = .loading
+            viewState = .loaded(updatedResult, currentSchema)
+        }
+        
+        // Update cached documents
+        cachedDocuments = updatedResult
+        
+        // Optimized reconciliation: only check changed cells
+        modificationTracker.reconcile(changedCells: change.changedCells, in: updatedResult)
+        
+        // Clear highlights after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.50) {
+            self.updatedFields.removeAll()
+            self.updatedRows.removeAll()
+        }
+    }
+    
+    private func handleRealTimeError(_ error: Error) {
+        debugLog("❌ Real-time subscription error: \(error)")
+        // Reset subscription state so we can retry
+        isSubscribedToRealTime = false
+    }
+    
+    private func cancelRealTimeSubscription() {
+        if isSubscribedToRealTime {
+            instance.databaseService.cancelSubscription(forTabId: selectedTab.id)
+            isSubscribedToRealTime = false
+            debugLog("🛑 Cancelled real-time subscription for table: \(selectedTab.name)")
+        }
     }
     
     private func updateFilterConditions() {
@@ -439,6 +613,32 @@ struct TableListView: View {
         // Update tracking variables
         lastTabFilterColumn = selectedTab.filterColumn
         lastTabFilterValue = selectedTab.filterValue
+    }
+    
+    /// Unified loader: for real-time backends this subscribes; otherwise it fetches.
+    private func loadOrSubscribe(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
+        if instance.databaseService.supportsRealTime {
+            // Update current filter and show loading if we're refetching
+            currentActiveFilter = filter ?? currentActiveFilter
+            if forceFetch || cachedDocuments == nil { await MainActor.run { viewState = .loading } }
+            
+            if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
+                do {
+                    if let schema = try await instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema) {
+                        cachedSchema = schema
+                    }
+                } catch {
+                    debugLog("Failed to fetch schema for \(selectedTab.name): \(error.localizedDescription)")
+                }
+            }
+            cachedTabName = selectedTab.name
+            cancelRealTimeSubscription()
+            await subscribeToRealTimeUpdatesIfSupported(page: page)
+            return
+        }
+        
+        // Non real-time fallback: use existing fetcher
+        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, page: page, limit: limit, filter: filter)
     }
     
     /// Load documents with options to force fetch and control schema fetching
@@ -547,17 +747,19 @@ struct TableListView: View {
     
     /// Public method to refresh data when needed (e.g., from parent view)
     func refreshData() async {
-        await loadDocuments(forceFetch: true, fetchSchema: true, page: 1, limit: 300)
+        await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: currentActiveFilter)
     }
     
     /// Clear cache when needed (e.g., connection changes)
     func clearCache() {
         loadingTask?.cancel()
+        cancelRealTimeSubscription()
         cachedSchema = nil
         cachedDocuments = nil
         cachedTabName = nil
         sortColumn = nil
-        sortAscending = true
+        // Set default sort order based on database type
+        sortAscending = instance.connection.databaseType == .convex ? false : true
         viewState = .loading
     }
     

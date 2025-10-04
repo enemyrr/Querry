@@ -139,6 +139,9 @@ _Note: Table creation functionality is coming in a future release._
                 length="19188348"
                 type="application/octet-stream"
                 sparkle:edSignature="MGhot+bK9IlI+Yq8PYZoLFQOtHcrwKPhMtlgj9e9cjD9/mzFU7jZxL+lBOLYa4pT6vPlw1ikUWCPCPtYNbWzBA=="
+                length="19293315"
+                type="application/octet-stream"
+                sparkle:edSignature="qBs2oD126DEWkRYf+lv/mOOVhclzh9mynp9ASQxRESTMiG3VeNIQqmN4W07ErezdSNwAv+AUso0+FG99BoI8DA=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>

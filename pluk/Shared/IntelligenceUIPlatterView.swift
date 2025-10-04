@@ -232,7 +232,7 @@ fileprivate let PreviewContent = { (_ action: @escaping () -> Void) in
   IntelligenceUIPlatterView(content: {
     PreviewContent({ shimmerAction() })
   })
-  .cornerRadius(30)
+  .cornerRadius(20)
   .hasInteriorLight(false)
   .shimmerOn(shimmerAction)
   .onTapGesture(perform: {

@@ -175,13 +175,14 @@ struct TabCloseButtonStyle: ButtonStyle {
 
 struct NewTabButtonStyle: ButtonStyle {
     @State private var isHovering = false
-    var padding: EdgeInsets = EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
+    var padding: EdgeInsets = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
     
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
+                .foregroundStyle(.secondary)
         }
         .padding(padding)
         .background(
@@ -217,12 +218,14 @@ struct IconButton: View {
                     .contentShape(Rectangle())
                 
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(.white).opacity(0.2), lineWidth: isSelected ? 1.5 : 0)
-                    .frame(width: 32, height: 32)
-                
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color(.white).opacity(0.2) : .clear)
-                    .frame(width: 26, height: 26)
+                    .fill(isSelected ? Color(.controlColor).opacity(0.4) : .clear)
+                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(.separator)
+                            .opacity(isSelected ? 1 : 0)
+                    )
+                    .frame(width: 30, height: 30)
                     .overlay(
                         Image(systemName: systemName)
                             .font(.system(size: 12, weight: .semibold))
@@ -479,6 +482,36 @@ struct CustomMenuButtonStyle: ButtonStyle {
                     : Color.clear
                 )
         )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+}
+
+struct CustomCancelButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 32)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundColor(.primary)
+        .background(Color(.controlColor).opacity(colorScheme == .dark ? 0.1 : 0.4))
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    isHovering
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.2)
+                    : Color.clear
+                )
+        )
+        .cornerRadius(10)
         .onHover { hovering in
             isHovering = hovering
         }
@@ -982,6 +1015,119 @@ struct AICommandPromptSecondaryButtonStyle: ButtonStyle {
     }
 }
 
+struct DeleteActionButton: View {
+    let deleteCount: Int
+    let isProcessingBatch: Bool
+    let onDelete: () -> Void
+    
+    var body: some View {
+        Button(action: onDelete) {
+            HStack(spacing: 4) {
+                if isProcessingBatch {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                } else {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                    
+                    Text("\(deleteCount)")
+                        .font(.system(size: 12, weight: .light))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
+            .cornerRadius(6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isProcessingBatch)
+        .transition(.scale.combined(with: .opacity))
+        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+        .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
+            modifiers: [.command],
+            key: "S"
+        ), spacing: 10)
+    }
+}
+
+struct UpdateActionButton: View {
+    let updateCount: Int
+    let isProcessingBatch: Bool
+    let onUpdate: () -> Void
+    
+    var body: some View {
+        Button(action: onUpdate) {
+            HStack(alignment: .center, spacing: 4) {
+                if isProcessingBatch {
+                    // Display a loading indicator when processing
+                    ProgressView()
+                        .controlSize(.mini)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                } else {
+                    Image(systemName: "tray")
+                        .font(.system(size: 12))
+                        .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
+                    
+                    Text("\(updateCount)")
+                        .font(.system(size: 12, weight: .light))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .allowsHitTesting(!isProcessingBatch)
+        .background(Color.orange)
+        .cornerRadius(6)
+        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+        .transition(.scale.combined(with: .opacity))
+        .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
+            modifiers: [.command],
+            key: "S"
+        ), spacing: 10)
+    }
+}
+
+struct SidebarCollapseButton: ButtonStyle {
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+//        .padding(.vertical, 6)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    isHovering
+                    ? Color(.controlColor).opacity(0.8)
+                    : Color.clear
+                )
+        )
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.05)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+
+
 extension Button {
     func primaryStyle() -> some View {
         self.buttonStyle(PrimaryButtonStyle())
@@ -993,6 +1139,10 @@ extension Button {
     
     func customMenuButtonStyle() -> some View {
         self.buttonStyle(CustomMenuButtonStyle())
+    }
+    
+    func customCancelButtonStyle() -> some View {
+        self.buttonStyle(CustomCancelButtonStyle())
     }
     
     func compactMenuButtonStyle() -> some View {

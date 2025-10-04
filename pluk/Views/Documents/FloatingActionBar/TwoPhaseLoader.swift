@@ -58,7 +58,7 @@ struct TwoPhaseLoader: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: containerWidth * progress + 0.3, height: 4)
+                .frame(width: containerWidth * progress, height: 4)
                 .blur(radius: 3)
 
             if progress != 0 {

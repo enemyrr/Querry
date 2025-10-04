@@ -8,6 +8,7 @@
 import SwiftUI
 import CodeEditorView
 import LanguageSupport
+import PostHog
 
 struct SQLEditorView: View {
     @Environment(ConnectionInstance.self) private var instance
@@ -461,7 +462,8 @@ struct SQLEditorView: View {
             } else {
                 TableListViewController(
                     queryResult: result,
-                    tableName: "SQL Query Result"
+                    tableName: "SQL Query Result",
+                    cacheNamespace: UUID().uuidString
                 )
             }
         }
@@ -528,15 +530,24 @@ struct SQLEditorView: View {
             originalQueryBeforeSuggestion = query
             originalFullEditorContent = sqlQuery
             executedQueryPosition = position
-            
+
             // Show loading state in editor - keep original query visible
             sqlQuery = query
             showingInlineDiff = true
-            
+
             // Clear any existing messages
             messages = Set()
         }
-        
+
+        // Track error fix generation
+        PostHogSDK.shared.capture(
+            "ai_error_fix_generation",
+            properties: [
+                "database_type": instance.connection.databaseType.rawValue,
+                "query_length": query.count
+            ]
+        )
+
         do {
             let suggestion = try await performAIErrorAnalysis(query: query, error: error)
             await MainActor.run {

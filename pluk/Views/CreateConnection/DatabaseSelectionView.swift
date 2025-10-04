@@ -99,7 +99,7 @@ struct DatabaseSelectionView: View {
                     .padding(.vertical, 24)
                 }
             }
-            .padding(.bottom, 32)
+            .padding(.bottom, 16)
             
             Button(action: {
                 dismiss()
@@ -241,6 +241,8 @@ struct DatabaseTypeCard: View {
                     .scaleEffect(isHovered ? 1.01 : 1.0)
             )
         }
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 4)
         .buttonStyle(PlainButtonStyle())
         .disabled(databaseType.status == .comingSoon)
         .animation(.easeInOut(duration: 0.2), value: isHovered)

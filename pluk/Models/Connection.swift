@@ -45,7 +45,7 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var backgroundColor: Color {
         switch self {
-        case .convex: return Color(hex: "#8D2676")
+        case .convex: return Color(hex: "#1E1B1A")
         case .supabase: return Color(hex: "#3ECF8E")
         // case .neon: return Color(hex: "#00E599")
         case .postgres: return Color(hex: "#346791")
@@ -61,7 +61,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .supabase: return "supabase"
         // case .neon: return "neon"
         case .postgres: return "postgres"
-        case .mongodb: return "database.mongodb"
+        case .mongodb: return "mongodb"
         case .mysql: return "mysql"
         case .sqlite: return "sqlite"
         }
@@ -73,7 +73,7 @@ enum DatabaseType: String, Codable, CaseIterable {
         case .supabase: return "supabase"
         // case .neon: return "neon"
         case .postgres: return "postgres"
-        case .mongodb: return "database.mongodb"
+        case .mongodb: return "mongodb"
         case .mysql: return "mysql.white"
         case .sqlite: return "sqlite"
         }
@@ -82,14 +82,21 @@ enum DatabaseType: String, Codable, CaseIterable {
     
     var status: DatabaseStatus {
         switch self {
-        case .convex:
-            return .comingSoon
-        case .mongodb, .sqlite, .mysql:
+        case .mongodb, .convex:
             return .beta
         case .supabase:
             return .comingSoon
         default:
             return .available
+        }
+    }
+    
+    var supportsQueryEditor: Bool {
+        switch self {
+        case .convex:
+            return false
+        default:
+            return true
         }
     }
     
@@ -129,6 +136,15 @@ enum DatabaseType: String, Codable, CaseIterable {
                 return .sql
             }
         }
+    
+    var supportsRealTime: Bool {
+        switch self {
+        case .convex:
+            return true
+        case .supabase, .postgres, .mysql, .sqlite, .mongodb:
+            return false
+        }
+    }
 }
 
 enum DatabaseCategory: String, CaseIterable {
@@ -170,7 +186,7 @@ final class Connection {
     var name: String
     var databaseType: DatabaseType
     var color: ConnectionColor
-    var environment: ConnectionEnvironment
+    var environment: ConnectionEnvironment?
     var url: String?
     var defaultDatabase: String?
     var createdAt: Date = Date()
@@ -210,7 +226,7 @@ final class Connection {
     }
     
     // New initializer for field-based connections
-    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment, hostname: String, port: String, username: String, password: String? = nil, database: String? = nil, sslMode: String? = "prefer") {
+    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment?, hostname: String, port: String, username: String, password: String? = nil, database: String? = nil, sslMode: String? = "prefer") {
         self.name = name
         self.databaseType = databaseType
         self.color = color
@@ -236,6 +252,9 @@ final class Connection {
     }
     
     var connectionUri: String {
+        if databaseType == .convex {
+            return password ?? ""
+        }
         // If we have individual fields, construct URI from them (new approach)
         if let hostname = hostname, !hostname.isEmpty,
            let port = port, !port.isEmpty,
@@ -303,8 +322,11 @@ final class Connection {
         return KeychainHelper.shared.passwordExists(for: keychainId)
     }
     
-    // Display-friendly URL without password for home screen
-    var displayUrl: String {
+    var displayUrl: String? {
+        if databaseType == .convex {
+            return nil
+        }
+        
         // If we have individual fields, construct display URL from them
         if let hostname = hostname, !hostname.isEmpty,
            let port = port, !port.isEmpty,

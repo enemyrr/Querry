@@ -75,10 +75,13 @@ class CustomTableRowView: NSTableRowView {
     }
     
     private func drawFullRowSelection() {
-        // Subtle row selection color
-        let customColor = NSColor.controlColor.withAlphaComponent(0.08)
+        // Subtle row selection color with different colors for light/dark theme
+        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let customColor = isDarkMode
+            ? NSColor.controlColor.withAlphaComponent(0.08)
+            : NSColor.controlAccentColor.withAlphaComponent(0.08)
         customColor.setFill()
-        
+
         // Apply bottom padding to the selection rectangle
         let paddedRect = NSRect(
             x: bounds.origin.x,

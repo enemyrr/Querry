@@ -933,6 +933,7 @@ class PostgreSQLDriver: DatabaseDriver {
     
     func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
+        let schema = await buildSchemaPrompt(for: collectionName, databaseSchema: databaseSchema)
         
         return """
         You are a PostgreSQL query assistant. Your primary task is to convert natural language user queries into valid PostgreSQL SQL queries.
@@ -945,7 +946,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         # Database Schema
         The current table schema is:
-        \(databaseSchema).\(schema)
+        \(schema)
         
         # Output Format
         Return ONLY the PostgreSQL SQL query.
@@ -1017,7 +1018,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 .joined(separator: "\n")
             
             return """
-            Table: \(databaseSchema).\(schemaResult.tableName)
+            Table: \(schemaResult.tableName)
             Schema: \(schemaResult.schemaName)
             Columns:
             \(columnInfo)

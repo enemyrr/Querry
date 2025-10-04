@@ -34,7 +34,7 @@ struct HomeView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     }
-                    
+
                     Spacer()
                     CreateConnection(showSheet: $showCreateSheet)
                 }
@@ -42,7 +42,7 @@ struct HomeView: View {
                 .padding(.horizontal, 10)
                 .padding(.top, 10)
                 .padding(.bottom, 6)
-                
+
                 if connections.isEmpty {
                     EmptyConnectionsState(showSheet: $showCreateSheet)
                 } else {
@@ -68,18 +68,30 @@ struct HomeView: View {
                 alignment: .leading
             )
             .background(Color(.controlColor).opacity(colorScheme == .dark ? 0.1 : 0.4))
+            .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(.separator)
             )
             .cornerRadius(20)
-            .padding(8)
+            .padding([.trailing, .bottom], 8)
+        }
+        .onAppear {
+            print("🔍 HomeView loaded")
+            print("🔍 Connections count: \(connections.count)")
+            if !connections.isEmpty {
+                print("🔍 Connection names: \(connections.map { $0.name }.joined(separator: ", "))")
+            }
+        }
+        .onChange(of: connections.count) { oldValue, newValue in
+            print("🔍 Connections count changed from \(oldValue) to \(newValue)")
         }
         .postHogScreenView("HomeView")
         .alert(pendingConnection != nil ? "\"\(pendingConnection!.name)\" is already connected" : "", isPresented: $showConnectionAlert) {
             Button("Continue Current Tab") {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
+                    // For now, just switch using sidebar (we can improve this later)
                     viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
                 }
                 pendingConnection = nil
@@ -87,7 +99,14 @@ struct HomeView: View {
             Button("Create New Tab") {
                 if let connection = pendingConnection {
                     let instanceId = viewModel.createNewConnectionInstance(for: connection)
-                    viewModel.changeActiveSidebarItem(.connection(instanceId))
+
+                    // Create new native tab
+                    if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
+                        WindowController.newTab(
+                            tabType: .connection(instanceId),
+                            connectionInstance: connectionInstance
+                        )
+                    }
                 }
                 pendingConnection = nil
             }
@@ -106,8 +125,17 @@ struct HomeView: View {
             pendingConnection = connection
             showConnectionAlert = true
         } else {
+            // Create connection instance
             let instanceId = viewModel.createNewConnectionInstance(for: connection)
-            viewModel.changeActiveSidebarItem(.connection(instanceId))
+
+            // Get the connection instance
+            if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
+                // Create native tab using Ghostty approach
+                WindowController.newTab(
+                    tabType: .connection(instanceId),
+                    connectionInstance: connectionInstance
+                )
+            }
         }
     }
 }
@@ -199,11 +227,12 @@ struct ConnectionListItem: View {
     let onSelect: (Connection) -> Void
     let onOpen: (Connection) -> Void
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
     @State private var connectionToDelete: Connection?
-    
+
     var body: some View {
         HStack {
             HStack(spacing: 12) {
@@ -212,16 +241,30 @@ struct ConnectionListItem: View {
                         HStack {
                             DatabaseTypeIcon(databaseType: connection.databaseType)
                             
-                            Text(connection.name)
-                                .foregroundStyle(.primary)
-                            
-                            EnvironmentTag(environment: connection.environment)
+                            VStack(alignment: .leading) {
+                                Text(connection.name)
+                                    .foregroundStyle(.primary)
+                                
+                                if connection.databaseType == .convex, let hostname = connection.hostname {
+                                    Text("ID: \(hostname)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            if let connectionType = connection.environment {
+                                EnvironmentTag(environment: connectionType)
+                            }
                         }
                         
-                        Text(connection.displayUrl)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        
+                        if let displayUrl = connection.displayUrl {
+                            Text(displayUrl)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -249,7 +292,9 @@ struct ConnectionListItem: View {
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(
-                    isSelected || isHovering ? Color(.controlColor).opacity(0.3)  : Color.clear
+                    isSelected || isHovering
+                        ? Color(.controlColor).opacity(colorScheme == .dark ? 0.3 : 0.8)
+                        : Color.clear
                 )
                 .onTapGesture {
                     onSelect(connection)

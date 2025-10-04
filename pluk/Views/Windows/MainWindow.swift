@@ -50,11 +50,13 @@ struct MainWindow: View {
                         .environment(getCurrentConnection())
                 },
                 detail: {
-                    PlukTabContentView()
+                    HomeView() // Safe to hard card this beacuse this is the first tab:
                 },
-                isFullScreenView: tabManager.activeTab?.type == .home,
-                isSidebarVisible: $appViewModel.isSidebarVisible
+                isFullScreenView: true,
+                isSidebarVisible: $appViewModel.isSidebarVisible,
+                connectionInstance: getCurrentConnection()
             )
+            .environment(\.currentDatabaseType, getCurrentConnection()?.connection.databaseType)
         }
         .environment(appViewModel)
         .environment(sidebarViewModel)

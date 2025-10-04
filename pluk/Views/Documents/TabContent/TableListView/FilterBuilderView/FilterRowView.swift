@@ -31,7 +31,7 @@ struct FilterRowView: View {
                 Text(isFirstRow ? "where" : condition.conjunction.rawValue)
                     .foregroundColor(.primary)
             }
-            .frame(width: 50)
+            .frame(width: 40)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(Color(.controlColor).opacity(0.5))
@@ -62,7 +62,7 @@ struct FilterRowView: View {
             TextField("Enter a value", text: $condition.value)
                 .textFieldStyle(FilterTextFieldStyle())
                 .focused(focusedField ?? FocusState<Int?>().projectedValue, equals: fieldIndex)
-                .frame(width: 240)
+                .frame(width: 200)
         }
     }
 }

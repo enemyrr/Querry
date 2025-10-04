@@ -20,95 +20,64 @@ struct DatabaseHeader: View {
     @State private var selectedDatabase: String = ""
     @State private var isLoadingSchemas: Bool = false
     @State private var showNotImplementedAlert = false
+    @Binding var isLoadingCollections: Bool
     
     var body: some View {
         VStack {
-            
             HStack {
                 HStack(spacing: 0) {
-                    if !availableSchemas.isEmpty {
-                        if let database = instance.connectedDatabase?.name {
-                            Picker("Database", selection: $selectedDatabase) {
-                                ForEach([database], id: \.self) { schema in
-                                    truncatedText(schema, maxWidth: 180)
-                                }
-                            }
-                            .buttonStyle(.accessoryBar)
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .hoverMenuIndicator(showNormalIcon: true)
-                        } else {
-                            HStack {}
-                            .padding(12)
-                        }
-                        
-                        Picker("Schema", selection: $selectedSchema) {
-                            ForEach(availableSchemas, id: \.self) { schema in
-                                Text("\(schema)    ").tag(schema)
-                            }
-                            
-                            Divider()
-                            // Second group (nested menu)
-                            Text("New Schema...").tag("__NEW_SCHEMA__")
-                        }
-                        .buttonStyle(.accessoryBar)
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .hoverMenuIndicator(showNormalIcon: false)
-                        .onChange(of: selectedSchema) { _, newValue in
-                            handleSchemaSelection(newValue)
-                        }
-                        .onHover { hovering in
-                            withAnimation(.easeOut(duration: 0.05)) {
-                                isSchemaHovering = hovering
-                            }
-                        }
+                    if instance.databaseType == .convex {
+                        ConvexHeaderView(
+                            availableSchemas: availableSchemas,
+                            selectedSchema: $selectedSchema,
+                            onSchemaChange: handleSchemaSelection
+                        )
                     } else {
-                        if let database = instance.connectedDatabase?.name {
-                            Picker("Database", selection: $selectedDatabase) {
-                                ForEach([database], id: \.self) { schema in
-                                    truncatedText(schema, maxWidth: 180)
-                                }
-                            }
-                            .buttonStyle(.accessoryBar)
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .hoverMenuIndicator(normalIcon: "chevron.up.chevron.down", showNormalIcon: true)
-                        } else {
-                            HStack {}
-                            .padding(12)
-                        }
+                        TraditionalDatabaseHeaderView(
+                            instance: instance,
+                            availableSchemas: availableSchemas,
+                            selectedDatabase: $selectedDatabase,
+                            selectedSchema: $selectedSchema,
+                            isSchemaHovering: $isSchemaHovering,
+                            onSchemaChange: handleSchemaSelection,
+                            truncatedText: truncatedText
+                        )
                     }
                 }
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.isSearchVisible.toggle()
-                            if !viewModel.isSearchVisible {
-                                viewModel.searchText = ""
-                            }
-                        }
-                    }) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    if isLoadingCollections {
+                        ProgressView()
+                            .controlSize(.mini)
                     }
-                    .buttonStyle(ActionButtonStyle())
-                    .keyboardShortcut("f", modifiers: [.command, .shift])
-                    .customHelp("Find Tables", position: .left, shortcut: KeyboardShortcut(
-                        modifiers: [KeyboardModifier.command, KeyboardModifier.shift],
-                        key: "F"
-                    ))
-                    
-                    CreateCollection(
-                        viewModel: viewModel
-                    )
+                    HStack(spacing: 4) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewModel.isSearchVisible.toggle()
+                                if !viewModel.isSearchVisible {
+                                    viewModel.searchText = ""
+                                }
+                            }
+                        }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(ActionButtonStyle())
+                        .keyboardShortcut("f", modifiers: [.command, .shift])
+                        .customHelp("Find Tables", position: .left, shortcut: KeyboardShortcut(
+                            modifiers: [KeyboardModifier.command, KeyboardModifier.shift],
+                            key: "F"
+                        ))
+                        
+                        CreateCollection(
+                            viewModel: viewModel
+                        )
+                    }
                 }
             }
-            
         }
         .onAppear {
             selectedDatabase = instance.connectedDatabase?.name ?? ""
@@ -122,9 +91,20 @@ struct DatabaseHeader: View {
             selectedDatabase = newName ?? ""
             loadAvailableSchemas()
         }
-        .onChange(of: instance.databaseService.currentSchema) { _, newSchema in
+        .onChange(of: instance.databaseService.currentSchema) { oldSchema, newSchema in
             Task {
+                print("\(oldSchema): \(newSchema)")
+                isLoadingCollections = true
+
+                // Immediately clear collections when schema changes
+                await MainActor.run {
+                    if let databaseName = instance.connectedDatabase?.name {
+                        instance.collections[databaseName] = []
+                    }
+                }
+
                 try await instance.loadCollectionsForCurrentDatabase(schema: newSchema)
+                isLoadingCollections = false
             }
         }
         .alert("Coming Soon", isPresented: $showNotImplementedAlert) {
@@ -145,9 +125,11 @@ struct DatabaseHeader: View {
                 await MainActor.run {
                     availableSchemas = schemas
                     if selectedSchema.isEmpty || !schemas.contains(selectedSchema) {
-                        selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
-                        if !selectedSchema.isEmpty {
-                            handleSchemaSelection(selectedSchema)
+                        // For Convex, default to "app", for others default to "public"
+                        if instance.databaseType == .convex {
+                            selectedSchema = schemas.contains("app") ? "app" : (schemas.first ?? "")
+                        } else {
+                            selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
                         }
                     }
                     isLoadingSchemas = false
@@ -165,6 +147,9 @@ struct DatabaseHeader: View {
         
         switch databaseType {
         case .postgres:
+            let schemas = try await instance.databaseService.getInformationSchema()
+            return schemas.map { $0.name }
+        case .convex:
             let schemas = try await instance.databaseService.getInformationSchema()
             return schemas.map { $0.name }
         case .mysql:
@@ -187,7 +172,7 @@ struct DatabaseHeader: View {
         if schema == "__NEW_SCHEMA__" {
             showNotImplementedAlert = true
             // Reset selection to previous valid schema
-            if let currentSchema = instance.databaseService.currentSchema, 
+            if let currentSchema = instance.databaseService.currentSchema,
                availableSchemas.contains(currentSchema) {
                 selectedSchema = currentSchema
             } else {
@@ -307,5 +292,228 @@ struct SearchInput: View {
             isSearchFocused = true
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
+    }
+}
+
+// MARK: - ConvexHeaderView
+struct ConvexHeaderView: View {
+    let availableSchemas: [String]
+    @Binding var selectedSchema: String
+    let onSchemaChange: (String) -> Void
+
+    var body: some View {
+        CustomComponentPicker(
+            items: availableSchemas,
+            selectedItem: $selectedSchema,
+            onSelectionChange: onSchemaChange
+        )
+    }
+}
+
+// MARK: - Custom AppKit Component Picker
+struct CustomComponentPicker: NSViewRepresentable {
+    let items: [String]
+    @Binding var selectedItem: String
+    let onSelectionChange: (String) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let popUpButton = NSPopUpButton()
+        popUpButton.translatesAutoresizingMaskIntoConstraints = false
+        popUpButton.pullsDown = false
+        popUpButton.bezelStyle = .accessoryBar
+        popUpButton.isBordered = true
+        popUpButton.showsBorderOnlyWhileMouseInside = true
+
+        // Set target and action
+        popUpButton.target = context.coordinator
+        popUpButton.action = #selector(Coordinator.selectionChanged(_:))
+
+        // Find and replace the dropdown arrow after the button is set up
+        DispatchQueue.main.async {
+            self.replaceDropdownArrow(in: popUpButton)
+        }
+
+        // Store reference for coordinator
+        context.coordinator.popUpButton = popUpButton
+
+        return popUpButton
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let popUpButton = context.coordinator.popUpButton else { return }
+
+        // Update items
+        popUpButton.removeAllItems()
+        popUpButton.addItems(withTitles: items)
+        
+        // Resize button based on selected text
+        resizeButtonForSelectedText(popUpButton, selectedText: selectedItem)
+
+        // Update selection
+        if let index = items.firstIndex(of: selectedItem) {
+            popUpButton.selectItem(at: index)
+        } else {
+            // Add default value and item
+            popUpButton.addItems(withTitles: ["app"])
+            popUpButton.selectItem(at: 0)
+        }
+
+        // Store references in coordinator
+        context.coordinator.onSelectionChange = onSelectionChange
+        context.coordinator.selectedItemBinding = $selectedItem
+    }
+
+    private func resizeButtonForSelectedText(_ button: NSPopUpButton, selectedText: String) {
+        // Measure the text directly
+        let font = button.font ?? NSFont.systemFont(ofSize: 13)
+        let textSize = (selectedText as NSString).size(withAttributes: [.font: font])
+
+        // Add padding for button chrome and dropdown arrow
+        let padding: CGFloat = 36 // Space for borders and dropdown arrow
+        let minWidth: CGFloat = 60
+        let calculatedWidth = max(minWidth, textSize.width + padding)
+
+        // Update width constraint
+        if let existingConstraint = button.constraints.first(where: { $0.firstAttribute == .width }) {
+            existingConstraint.constant = calculatedWidth
+        } else {
+            button.widthAnchor.constraint(equalToConstant: calculatedWidth).isActive = true
+        }
+    }
+
+    private func replaceDropdownArrow(in popUpButton: NSPopUpButton) {
+        // Recursively search for NSImageView containing the dropdown arrow
+        findAndReplaceArrowImage(in: popUpButton)
+    }
+
+    private func findAndReplaceArrowImage(in view: NSView) {
+        for subview in view.subviews {
+            let className = NSStringFromClass(type(of: subview))
+
+            if className == "NSPopUpIndicatorView" {
+                // Hide the original indicator
+                subview.isHidden = true
+
+                // Add our custom arrow
+                addCustomArrow(to: view)
+                return
+            }
+
+            // Continue searching in subviews
+            findAndReplaceArrowImage(in: subview)
+        }
+    }
+
+    private func addCustomArrow(to popUpButton: NSView) {
+        // Create custom arrow image at 10pt
+        guard let customArrow = NSImage(systemSymbolName: "chevron.up.chevron.down", accessibilityDescription: nil) else { return }
+
+        let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
+        guard let scaledArrow = customArrow.withSymbolConfiguration(config) else { return }
+        scaledArrow.isTemplate = true
+
+        // Create image view for our custom arrow
+        let customImageView = NSImageView(image: scaledArrow)
+        customImageView.translatesAutoresizingMaskIntoConstraints = false
+        customImageView.wantsLayer = true
+
+        // Add to the popup button
+        popUpButton.addSubview(customImageView)
+
+        // Position it on the right side like the original indicator
+        NSLayoutConstraint.activate([
+            customImageView.trailingAnchor.constraint(equalTo: popUpButton.trailingAnchor, constant: -2),
+            customImageView.centerYAnchor.constraint(equalTo: popUpButton.centerYAnchor, constant: 1),
+            customImageView.widthAnchor.constraint(equalToConstant: 12),
+            customImageView.heightAnchor.constraint(equalToConstant: 12)
+        ])
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    class Coordinator: NSObject {
+        var onSelectionChange: ((String) -> Void)?
+        var selectedItemBinding: Binding<String>?
+        weak var popUpButton: NSPopUpButton?
+
+        @objc func selectionChanged(_ sender: NSPopUpButton) {
+            guard let selectedTitle = sender.selectedItem?.title else { return }
+
+            // Update the SwiftUI binding
+            selectedItemBinding?.wrappedValue = selectedTitle
+
+            // Also call the callback
+            onSelectionChange?(selectedTitle)
+        }
+    }
+}
+
+
+// MARK: - TraditionalDatabaseHeaderView
+struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
+    let instance: ConnectionInstance
+    let availableSchemas: [String]
+    @Binding var selectedDatabase: String
+    @Binding var selectedSchema: String
+    @Binding var isSchemaHovering: Bool
+    let onSchemaChange: (String) -> Void
+    let truncatedText: (String, CGFloat) -> TruncatedTextView
+
+    var body: some View {
+        if !availableSchemas.isEmpty {
+            if let database = instance.connectedDatabase?.name {
+                Picker("Database", selection: $selectedDatabase) {
+                    ForEach([database], id: \.self) { schema in
+                        truncatedText(schema, 180)
+                    }
+                }
+                .buttonStyle(.accessoryBar)
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .hoverMenuIndicator(showNormalIcon: true)
+            } else {
+                HStack {}
+                    .padding(12)
+            }
+
+            Picker("Schema", selection: $selectedSchema) {
+                ForEach(availableSchemas, id: \.self) { schema in
+                    Text("\(schema)    ").tag(schema)
+                }
+
+                Divider()
+                // Second group (nested menu)
+                Text("New Schema...").tag("__NEW_SCHEMA__")
+            }
+            .buttonStyle(.accessoryBar)
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .hoverMenuIndicator(showNormalIcon: false)
+            .onChange(of: selectedSchema) { _, newValue in
+                onSchemaChange(newValue)
+            }
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.05)) {
+                    isSchemaHovering = hovering
+                }
+            }
+        } else {
+            if let database = instance.connectedDatabase?.name {
+                Picker("Database", selection: $selectedDatabase) {
+                    ForEach([database], id: \.self) { schema in
+                        truncatedText(schema, 180)
+                    }
+                }
+                .buttonStyle(.accessoryBar)
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .hoverMenuIndicator(normalIcon: "chevron.up.chevron.down", showNormalIcon: true)
+            } else {
+                HStack {}
+                    .padding(12)
+            }
+        }
     }
 }

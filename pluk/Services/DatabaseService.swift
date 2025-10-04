@@ -18,8 +18,12 @@ import SwiftUI
     // MARK: - Results Cache
     private var queryCache: [String: QueryResult] = [:]
     
+    // MARK: - Real-time Subscription Management
+    private var activeSubscriptionTasks: [String: Task<Void, Never>] = [:]
+    private var subscriptionTableNames: [String: String] = [:] // Maps tabId to tableName
+    
     // MARK: - Connection Management
-    func setActiveConnection(_ connection: Connection) async throws {
+    func setActiveConnection(_ connection: Connection, targetDatabase: String? = nil) async throws {
         self.activeConnection = connection
         
         // Create appropriate driver
@@ -29,8 +33,20 @@ import SwiftUI
             throw DatabaseError.operationFailed("Failed to create database driver")
         }
         
+        // Determine target database: use provided parameter, or existing connectedDatabase name, or none
+        let targetDatabaseName = targetDatabase ?? self.connectedDatabase?.name
+        
+        // For Convex, append target database to URI if specified
+        var connectionUri = connection.connectionUri
+        if connection.databaseType == .convex, let targetName = targetDatabaseName {
+            connectionUri += "#target=\(targetName)"
+        }
+        
         // Connect to database
-        self.connectedDatabase = try await driver.connect(to: connection.connectionUri)
+        self.connectedDatabase = try await driver.connect(to: connectionUri)
+        
+        // Post notification about database connection change
+        NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
     }
     
     func setCurrentSchema(_ schema: String) {
@@ -44,9 +60,15 @@ import SwiftUI
         
         self.connectedDatabase = database
         try await driver.switchDatabase(to: database.name)
+        
+        // Post notification about database switch
+        NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
     }
     
     func disconnect() async {
+        // Cancel all active subscriptions (this also clears subscription caches)
+        cancelAllSubscriptions()
+        
         await activeDriver?.disconnect()
         activeConnection = nil
         activeDriver = nil
@@ -61,6 +83,95 @@ import SwiftUI
         
         try await driver.reconnect()
     }
+    
+    // MARK: - Real-time Support
+    
+    var supportsRealTime: Bool {
+        return activeConnection?.databaseType.supportsRealTime ?? false
+    }
+    
+    func subscribeToTableChanges(
+           tabId: UUID,
+           tableName: String,
+           schema: String?,
+           filter: String?,
+           limit: Int = 200,
+           sortBy: String? = nil,
+           ascending: Bool? = nil,
+           page: Int? = nil,
+           onUpdate: @escaping (QueryResult) -> Void,
+           onError: @escaping (Error) -> Void
+       ) async throws {
+           guard let driver = activeDriver else {
+               throw DatabaseError.operationFailed("No active database driver")
+           }
+           
+           let subscriptionKey = tabId.uuidString
+           
+           // Cancel existing subscription for this tab if any
+           if let existingTask = activeSubscriptionTasks[subscriptionKey] {
+               existingTask.cancel()
+               activeSubscriptionTasks.removeValue(forKey: subscriptionKey)
+               
+               // Clear subscription cache for the previous table
+               if let previousTableName = subscriptionTableNames[subscriptionKey] {
+                   activeDriver?.clearSubscriptionCache(for: previousTableName)
+               }
+               subscriptionTableNames.removeValue(forKey: subscriptionKey)
+           }
+           
+           // Create new subscription task
+           let subscriptionTask = Task {
+               do {
+                   try await driver.subscribeToCollectionChanges(
+                       collectionName: tableName,
+                       databaseSchema: schema,
+                       filter: filter,
+                       limit: limit,
+                       sortBy: sortBy,
+                       ascending: ascending,
+                       page: page,
+                       onUpdate: onUpdate,
+                       onError: onError
+                   )
+               } catch {
+                   await MainActor.run {
+                       onError(error)
+                   }
+               }
+           }
+           
+           activeSubscriptionTasks[subscriptionKey] = subscriptionTask
+           subscriptionTableNames[subscriptionKey] = tableName
+       }
+       
+       func cancelSubscription(forTabId tabId: UUID) {
+           let subscriptionKey = tabId.uuidString
+           if let task = activeSubscriptionTasks[subscriptionKey] {
+               task.cancel()
+               activeSubscriptionTasks.removeValue(forKey: subscriptionKey)
+               
+               // Clear subscription cache for this table
+               if let tableName = subscriptionTableNames[subscriptionKey] {
+                   activeDriver?.clearSubscriptionCache(for: tableName)
+               }
+               subscriptionTableNames.removeValue(forKey: subscriptionKey)
+           }
+       }
+       
+       func cancelAllSubscriptions() {
+           for task in activeSubscriptionTasks.values {
+               task.cancel()
+           }
+           
+           // Clear subscription cache for all tables
+           for tableName in subscriptionTableNames.values {
+               activeDriver?.clearSubscriptionCache(for: tableName)
+           }
+           
+           activeSubscriptionTasks.removeAll()
+           subscriptionTableNames.removeAll()
+       }
     
     // MARK: - Connectivity Test
     func testConnection(_ connection: Connection) async -> Result<Void, DatabaseError> {
@@ -91,6 +202,11 @@ import SwiftUI
     func getBuildInfo() async throws -> BuildInfo? {
         guard let driver = activeDriver else { return nil }
         return try await driver.getBuildInfo()
+    }
+    
+    /// Get the current deployment URL (useful for Convex environments)
+    func getCurrentDeploymentUrl() -> String? {
+        return activeDriver?.getCurrentDeploymentUrl()
     }
     
     func listDatabases() async throws -> [any DatabaseWrapper] {
@@ -154,13 +270,17 @@ import SwiftUI
         }
         
         switch connection.databaseType {
-        case .postgres, .supabase, .convex:
+        case .postgres, .supabase:
             if let postgresDriver = driver as? PostgreSQLDriver {
                 return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
             }
         case .sqlite:
             if let sqliteDriver = driver as? SQLiteDriver {
                 return sqliteDriver.generateFilterQuery(from: conditions, tableName: tableName)
+            }
+        case .convex:
+            if let convexDriver = driver as? ConvexDriver {
+                return convexDriver.generateFilterQuery(from: conditions, tableName: tableName)
             }
         case .mysql:
             if let mysqlDriver = driver as? MySQLDriver {

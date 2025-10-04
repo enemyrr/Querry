@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct EnvironmentPicker: View {
-    @Binding var selectedEnvironment: ConnectionEnvironment
+    @Binding var selectedEnvironment: ConnectionEnvironment?
     
     var body: some View {
         FormField(label: "Environment") {
@@ -20,7 +20,7 @@ struct EnvironmentPicker: View {
                     }
                 }
             } label: {
-                Text(selectedEnvironment.rawValue)
+                Text(selectedEnvironment?.rawValue ?? "Select Environment")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
                 Image(systemName: "chevron.compact.down")

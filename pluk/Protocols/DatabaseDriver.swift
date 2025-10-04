@@ -76,6 +76,9 @@ protocol DatabaseDriver {
     func ping(to connectionUri: String) async throws
     func getBuildInfo() async throws -> BuildInfo
     func switchDatabase(to databaseName: String) async throws
+
+    // Optional: Get the current deployment/host URL (useful for Convex environments)
+    func getCurrentDeploymentUrl() -> String?
     
     // Database operations
     func listDatabases() async throws -> [Database]
@@ -105,6 +108,55 @@ protocol DatabaseDriver {
     // AI Functions
     func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String
+    
+    // Real-time subscription (optional - only implemented by databases that support it)
+    func subscribeToCollectionChanges(
+        collectionName: String,
+        databaseSchema: String?,
+        filter: String?,
+        limit: Int,
+        sortBy: String?,
+        ascending: Bool?,
+        page: Int?,
+        onUpdate: @escaping (QueryResult) -> Void,
+        onError: @escaping (Error) -> Void
+    ) async throws
+
+    // Clear subscription cache for a specific table (optional - only needed for databases with caching)
+    func clearSubscriptionCache(for tableName: String)
+}
+
+// MARK: - Default Implementations
+extension DatabaseDriver {
+    // Default implementation for drivers that don't need deployment URL
+    func getCurrentDeploymentUrl() -> String? {
+        return nil
+    }
+}
+
+// MARK: - Default DatabaseDriver Implementation
+extension DatabaseDriver {
+    // Provide default no-op implementation for real-time subscriptions
+    // Only databases that support real-time will override this
+    func subscribeToCollectionChanges(
+        collectionName: String,
+        databaseSchema: String?,
+        filter: String?,
+        limit: Int,
+        sortBy: String?,
+        ascending: Bool?,
+        page: Int?,
+        onUpdate: @escaping (QueryResult) -> Void,
+        onError: @escaping (Error) -> Void
+    ) async throws {
+        throw DatabaseError.notImplemented("Real-time subscriptions not supported for this database type")
+    }
+
+    // Provide default no-op implementation for subscription cache clearing
+    // Only databases that support real-time caching will override this
+    func clearSubscriptionCache(for tableName: String) {
+        // Default implementation does nothing
+    }
 }
 
 // MARK: - Build Info Structure
@@ -204,6 +256,7 @@ struct DatabaseSchemaInfo: Equatable {
     let foreignKey: String
     let constraints: [ConstraintInfo]
     let comment: String?
+    let isReadOnly: Bool
     
     init(
         ordinalPosition: Int? = nil,
@@ -221,7 +274,8 @@ struct DatabaseSchemaInfo: Equatable {
         columnDefault: String? = nil,
         foreignKey: String = "",
         constraints: [ConstraintInfo] = [],
-        comment: String? = nil
+        comment: String? = nil,
+        isReadOnly: Bool = false
     ) {
         self.ordinalPosition = ordinalPosition
         self.columnName = columnName
@@ -239,6 +293,7 @@ struct DatabaseSchemaInfo: Equatable {
         self.constraints = constraints
         self.comment = comment
         self.typeOid = typeOid
+        self.isReadOnly = isReadOnly
     }
     
     // MARK: - Constraint convenience methods
@@ -345,8 +400,10 @@ class DatabaseDriverFactory {
         switch databaseType {
         case .mongodb:
             return MongoDBDriver()
-        case .postgres, .supabase, .convex:
+        case .postgres, .supabase:
             return PostgreSQLDriver()
+        case .convex:
+            return ConvexDriver()
         case .mysql:
             return MySQLDriver()
         case .sqlite:
