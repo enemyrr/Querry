@@ -74,9 +74,7 @@ struct TableListView: View {
                 )
                 
                 if cachedSchema != nil || currentQueryResult != nil {
-                    if colorScheme == .dark {
-                        Divider()
-                    }
+                    Divider()
                     TableListViewController(
                         schema: cachedSchema,
                         queryResult: currentQueryResult,
@@ -109,9 +107,9 @@ struct TableListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                Color(colorScheme == .dark ? .black : .white).opacity(colorScheme == .dark ? 0.6 : 1)
+                Color(colorScheme == .dark ?  Color(.black).opacity(0.40) : Color(.white))
+                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
             )
-            .ignoresSafeArea(.all, edges: .top)
             
             VStack {
                 Spacer()

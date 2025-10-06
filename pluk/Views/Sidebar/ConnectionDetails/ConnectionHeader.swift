@@ -130,12 +130,11 @@ struct ConnectionHeader: View {
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
-                    statusColor.opacity(
-                        colorScheme == .dark ? (isHovered ? 0.3 : 0.15) : (isHovered ? 0.8 : 5))
+                    Color(.sRGBLinear, white: 0, opacity: 0.16)
                 )
-                .blendMode(colorScheme == .dark ? .plusLighter : .normal)
         )
         .cornerRadius(12)
+        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 8)
         .animation(.easeInOut(duration: 0.3), value: instance.connectionStatus)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hover in

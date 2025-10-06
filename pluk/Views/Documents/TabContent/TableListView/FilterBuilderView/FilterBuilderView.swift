@@ -71,16 +71,15 @@ struct FilterBuilderView: View {
                         }
                         
                         // Action buttons
-                        HStack(spacing: 14) {
-                            if hasValidCondition {
-                                Button("Apply", action: {
-                                    let sqlFilter = generateSQLFilter()
-                                    onApplyFilter(sqlFilter)
-                                })
-                                .buttonStyle(FilterSubmitButtonStyle())
-                                .keyboardShortcut(.return, modifiers: [])
-                                .transition(.slide)
-                            }
+                        HStack(spacing: 10) {
+                            Button("Apply", action: {
+                                let sqlFilter = generateSQLFilter()
+                                onApplyFilter(sqlFilter)
+                            })
+                            .buttonStyle(FilterSubmitButtonStyle())
+                            .disabled(!hasValidCondition)
+                            .keyboardShortcut(.return, modifiers: [])
+                            .transition(.slide)
                             
                             Button(action: {
                                 if conditions.count < 8 {
@@ -101,7 +100,7 @@ struct FilterBuilderView: View {
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(Color(.controlColor).opacity(0.3))
+                                .background(Color(.separatorColor).opacity(0.5))
                                 .cornerRadius(8)
                                 .fixedSize()
                             }

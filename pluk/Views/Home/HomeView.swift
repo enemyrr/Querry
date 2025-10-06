@@ -67,13 +67,6 @@ struct HomeView: View {
                 maxHeight: .infinity,
                 alignment: .leading
             )
-            .background(Color(.controlColor).opacity(colorScheme == .dark ? 0.1 : 0.4))
-            .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(.separator)
-            )
-            .cornerRadius(20)
             .padding([.trailing, .bottom], 8)
         }
         .onAppear {
@@ -227,7 +220,6 @@ struct ConnectionListItem: View {
     let onSelect: (Connection) -> Void
     let onOpen: (Connection) -> Void
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
@@ -293,7 +285,7 @@ struct ConnectionListItem: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(
                     isSelected || isHovering
-                        ? Color(.controlColor).opacity(colorScheme == .dark ? 0.3 : 0.8)
+                    ? Color(.separatorColor).opacity(0.5)
                         : Color.clear
                 )
                 .onTapGesture {

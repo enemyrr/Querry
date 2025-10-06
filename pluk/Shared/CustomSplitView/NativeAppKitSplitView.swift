@@ -119,7 +119,7 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             if leftHost.isHidden {
                 leftHost.isHidden = false
                 // Restore to default width respecting minimum
-                let expandWidth = max(350, minSidebarWidth)
+                let expandWidth = max(330, minSidebarWidth)
                 splitView.setPosition(expandWidth, ofDividerAt: 0)
             }
         } else {
@@ -135,7 +135,7 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
         var isFixedSidebar: Bool = false
         var fixedSidebarWidth: CGFloat = 50
         var minSidebarWidth: CGFloat = 290
-        var lastUserSidebarWidth: CGFloat = 350 // Track user's preferred width
+        var lastUserSidebarWidth: CGFloat = 330 // Track user's preferred width
 
         // MARK: - Native Sidebar Collapse Methods
 

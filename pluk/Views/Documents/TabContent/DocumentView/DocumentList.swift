@@ -6,6 +6,7 @@ import MongoKitten
 struct DocumentList: View {
     let selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
     
     @State private var viewState: TableListViewState = .loading
     @State private var searchFilter: String = ""
@@ -24,8 +25,8 @@ struct DocumentList: View {
                     }
                 }
                 .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.black.opacity(0.5))
+                    Color(colorScheme == .dark ?  Color(.black).opacity(0.30) : Color(.white))
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
                 )
                 .background {
                     RoundedRectangle(cornerRadius: 10)

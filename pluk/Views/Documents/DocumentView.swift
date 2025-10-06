@@ -15,13 +15,25 @@ struct DocumentView: View {
     @State private var commandFilter: String = ""
     @State private var isCommandBarVisible: Bool = false
     @State private var eventMonitor: Any?
+    @Environment(AppViewModel.self) private var appViewModel
     
     var body: some View {
         VStack(spacing: 0) {
             if instance.tabs.isEmpty  {
                 ZStack {
-                    Color(colorScheme == .dark ? .black : .white).opacity(0.6)
-                        .cornerRadius(16)
+                    if colorScheme == .dark {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                Color(Color(.black).opacity(0.40))
+                            )
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                Color(hex: "#FDFDFD")
+                            )
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                    }
 
                     VStack {
                         Spacer()
@@ -50,9 +62,10 @@ struct DocumentView: View {
                         Spacer()
                     }
                 }
-                .padding([.horizontal, .bottom], 8)
+                .padding([.trailing, .bottom], 12)
+                .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
                 .padding(.top, 40)
-                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+               
                 .background(
                     // Add hidden for new tab
                     Button(action: {
@@ -72,12 +85,14 @@ struct DocumentView: View {
                     removeEventMonitor()
                 }
             } else {
-                TabBar()
+                TabBar().padding(.top, -2)
                 
                 NSTabViewWrapper()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding([.leading, .trailing, .bottom], 8)
-                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+                    .padding([.trailing, .bottom], 12)
+                    .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
+                    .padding(.top, 6)
+                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.08), radius: 4)
             }
         }
         .postHogScreenView("DocumentView")
@@ -142,7 +157,7 @@ class TabContentView: NSView {
     private func setupView() {
         wantsLayer = true
         
-        layer?.cornerRadius = 16.0
+        layer?.cornerRadius = 8.0
         
         switch databaseType {
         case .postgres, .sqlite, .mysql, .convex:
@@ -201,7 +216,7 @@ class TabContentView: NSView {
     private func setContentView(_ view: NSView) {
         // Remove existing content view if any
         contentView?.removeFromSuperview()
-        
+
         // Set new content view
         contentView = view
         addSubview(view)

@@ -215,16 +215,6 @@ struct FloatingActionBar: View {
     private func setupEventMonitor() {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
             switch event.keyCode {
-            case 3: // 'f' key
-                if event.modifierFlags.contains([.command, .shift]) {
-                    guard instance.databaseType?.supportsQueryEditor == true else { return event }
-                    showQueryEditor = true
-                    return nil // Consume the event
-                } else if event.modifierFlags.contains(.command) {
-                    NotificationCenter.default.post(name: NSNotification.Name("ToggleFilterBuilder"), object: nil)
-                    return nil // Consume the event
-                }
-                return event
             case 15: // 'r' key
                 if event.modifierFlags.contains(.command) {
                     // Cancel any existing loading operations before starting new one
@@ -397,6 +387,7 @@ struct FloatingActionBar: View {
         .overlay(
             RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0)
                 .stroke(.separator, lineWidth: 1)
+                .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
         )
         .scaleEffect(isHoveringTopRectangle ? 1.02 : 1.0)
         .contentShape(Rectangle())
@@ -622,8 +613,9 @@ struct FloatingActionBar: View {
         .modifier(GlassBackgroundStyle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator, lineWidth: 1)
+                .stroke(.separator)
         )
+        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
         //        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
     }
     

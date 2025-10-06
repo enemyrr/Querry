@@ -22,10 +22,8 @@ struct SidebarButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 8)
                 .fill(
                     (isActive || isHovering)
-                    ? Color(.controlColor)
-                        .opacity(
-                            (isActive && isHovering) ? 0.3 : 0.4
-                        )
+                    ? Color(.separatorColor)
+                        .opacity(0.5)
                     : Color.clear
                 )
         )
@@ -374,11 +372,11 @@ struct FilterSubmitButtonStyle: ButtonStyle {
             .lineLimit(1)
             .padding(.vertical, 6)
             .padding(.horizontal, 12)
-            .foregroundColor(isEnabled ? Color(.controlBackgroundColor).opacity(0.8) : .secondary)     // White text color
+            .foregroundColor(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
                 // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .fill(isEnabled ? Self.buttonColor : Color(Self.buttonColor).opacity(0.5))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
             .opacity(configuration.isPressed ? 0.8 : 1.0)

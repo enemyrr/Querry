@@ -63,7 +63,18 @@ struct SQLEditorView: View {
             resultsContent
         }
         .background(
-            Color(colorScheme == .dark ? .black : .white).opacity(0.6)
+            Group {
+                if colorScheme == .dark {
+                    Rectangle()
+                        .fill(
+                            Color(.black).opacity(0.30)
+                        )
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                } else {
+                    Color(colorScheme == .dark ? .clear : Color(.white))
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                }
+            }
         )
         .background(
             // Hidden button for Cmd+K shortcut

@@ -202,7 +202,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
              window.titlebarAppearsTransparent = true
          }
 
-        window.toolbarStyle = .unified
+        window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = true
         window.contentMinSize = NSSize(width: 800, height: 900)
 
@@ -262,16 +262,26 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         switch itemIdentifier {
         case .collapseSidebarItem:
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            if let image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "Toggle Sidebar") {
-                item.image = image
+
+            // Create SwiftUI button wrapped in hosting view to match environment menu approach
+            let buttonView = Button(action: {
+                self.toggleSidebarNatively(nil)
+            }) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 16))
             }
+            .buttonStyle(.borderless)
+            .padding(.top, 6) // Same padding as environment menu
+
+            let hostingView = NSHostingView(rootView: buttonView)
+            hostingView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+            hostingView.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+
+            item.view = hostingView
             item.label = "Sidebar"
             item.paletteLabel = "Sidebar"
             item.toolTip = "Toggle Sidebar"
-            item.isBordered = true
-            item.isEnabled = true
-            item.target = self
-            item.action = #selector(toggleSidebarNatively(_:))
+
             return item
 
         case .environmentMenuItem:
@@ -281,6 +291,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
             // Create a fresh SwiftUI view each time to pick up updated data
             let environmentMenu = createEnvironmentMenu(for: instance)
+                .padding(.top, 6) // Push down slightly
             let hostingView = NSHostingView(rootView: environmentMenu)
 
             // Set a reasonable size for the menu
@@ -402,6 +413,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         // Create fresh SwiftUI view with updated data
         let updatedMenu = createEnvironmentMenu(for: instance)
+            .padding(.top, 6) // Push down slightly (same as initial creation)
         let newHostingView = NSHostingView(rootView: updatedMenu)
 
         // Set sizing constraints
@@ -662,17 +674,12 @@ struct TabAwareMainWindow: View {
                 .edgesIgnoringSafeArea(.all)
 
             if colorScheme == .dark {
-                Color(hex: 0x030303)
-                    .opacity(0.3)
-                    .blur(radius: 4, opaque: false)
-                    .compositingGroup()
-                    .blendMode(.multiply)
+                Color(.windowBackgroundColor)
+                    .opacity(0.60)
                     .edgesIgnoringSafeArea(.all)
             } else {
                 Color(hex: 0xFFFFFF)
-                    .opacity(0.8)
-                    .blur(radius: 4, opaque: false)
-                    .compositingGroup()
+                    .opacity(0.10)
                     .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             }
@@ -680,11 +687,11 @@ struct TabAwareMainWindow: View {
             // Show connection color for this tab's connection
             if let connectionInstance = connectionInstance {
                 connectionInstance.connection.color.color
-                    .opacity(0.10)
+                    .opacity(0.08)
                     .blendMode(.multiply)
                     .edgesIgnoringSafeArea(.all)
             }
-
+            
             CustomSplitView(
                 sidebar: {
                     // Sidebar stays the same across all tabs
@@ -766,5 +773,16 @@ struct ConnectionNotFoundView: View {
 extension EnvironmentValues {
     @Entry var tabType: TabType = .home
     @Entry var connectionInstance: ConnectionInstance? = nil
+}
+
+struct VibrantBackgroundView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .sidebar
+        view.blendingMode = .behindWindow
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 

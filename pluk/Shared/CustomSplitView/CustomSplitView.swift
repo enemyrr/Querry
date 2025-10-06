@@ -9,16 +9,17 @@ import SwiftUI
 struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
     @Environment(\.currentDatabaseType) private var currentDatabaseType
     @Environment(SidebarViewModel.self) private var sidebarViewModel
-
+    @Environment(\.colorScheme) private var colorScheme
+    
     @State private var overlayContentWidth: CGFloat = 0
     @State private var hostingWindow: NSWindow?
-
+    
     private let sidebarContent: SidebarContent
     private let detailContent: DetailContent
     private let isFullScreenView: Bool
     private let connectionInstance: ConnectionInstance?
     @Binding var isSidebarVisible: Bool
-
+    
     init(@ViewBuilder sidebar: () -> SidebarContent,
          @ViewBuilder detail: () -> DetailContent,
          isFullScreenView: Bool = false,
@@ -31,12 +32,12 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
         _isSidebarVisible = isSidebarVisible
         self.connectionInstance = connectionInstance
     }
-
+    
     var body: some View {
         ZStack(alignment: .topLeading) {
             NativeAppKitSplitView(
                 left: sidebarContent
-                    .frame(minWidth: isFullScreenView ? 50 : 350)
+                    .frame(minWidth: isFullScreenView ? 50 : 330)
                     .ignoresSafeArea(.container, edges: .top),
                 right: detailContent
                     .environment(\.leadingOverlayWidth, overlayContentWidth)
@@ -44,23 +45,49 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
                 isSidebarVisible: $isSidebarVisible,
                 isFixedSidebar: isFullScreenView, // HomeView uses fixed sidebar
                 fixedSidebarWidth: 50,
-                minSidebarWidth: 350 // Minimum width for resizable sidebars
+                minSidebarWidth: 330 // Minimum width for resizable sidebars
             )
             .ignoresSafeArea(.container, edges: .top)
+            .background(
+                Group {
+                    if colorScheme == .dark {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                Color(.black).opacity(0.40)
+                            )
+                            .cornerRadius(16)
+                            .padding([.top], 6)
+                            .padding([.leading], isSidebarVisible ? 44 : 2)
+                            .padding([.horizontal, .bottom], 6)
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
+                    } else {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                Color(.controlBackgroundColor).opacity(0.86)
+                            )
+                            .cornerRadius(16)
+                            .padding([.top], 6)
+                            .padding([.leading], isSidebarVisible ? 44 : 2)
+                            .padding([.horizontal, .bottom], 6)
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
+                        
+                    }
+                }
+            )
             .background(WindowAccessor { win in
                 if hostingWindow !== win { hostingWindow = win }
             })
         }
     }
-
+    
     private func toggleSidebar() {
         isSidebarVisible.toggle()
     }
-
+    
     private func currentEnvironmentTitle(_ instance: ConnectionInstance) -> String {
         instance.connectedDatabase?.name ?? "Select Environment"
     }
-
+    
     private func openEnvironmentInNewTab(instance: ConnectionInstance, database: any DatabaseWrapper) {
         Task {
             if let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(from: instance, databaseName: database.name) {

@@ -51,30 +51,7 @@ struct DatabaseHeader: View {
                     if isLoadingCollections {
                         ProgressView()
                             .controlSize(.mini)
-                    }
-                    HStack(spacing: 4) {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                viewModel.isSearchVisible.toggle()
-                                if !viewModel.isSearchVisible {
-                                    viewModel.searchText = ""
-                                }
-                            }
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(ActionButtonStyle())
-                        .keyboardShortcut("f", modifiers: [.command, .shift])
-                        .customHelp("Find Tables", position: .left, shortcut: KeyboardShortcut(
-                            modifiers: [KeyboardModifier.command, KeyboardModifier.shift],
-                            key: "F"
-                        ))
-                        
-                        CreateCollection(
-                            viewModel: viewModel
-                        )
+                            .padding(.trailing, 14)
                     }
                 }
             }
@@ -251,7 +228,7 @@ struct SearchInput: View {
             .focused($isSearchFocused)
             .textFieldStyle(.plain)
             .font(.system(size: 14))
-            .foregroundColor(Color(.controlColor))
+            .foregroundColor(Color(.textColor))
             .onExitCommand {
                 if viewModel.searchText.isEmpty {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -286,8 +263,10 @@ struct SearchInput: View {
         .padding(.vertical, 6)
         .background {
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(colorScheme == .dark ? .black : .controlColor).opacity(0.2))
+                .fill(Color(colorScheme == .dark ? .black : .white).opacity(0.3))
+                .stroke(.separator)
         }
+        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
         .onTapGesture {
             isSearchFocused = true
         }

@@ -89,6 +89,7 @@ struct AICommandPrompt: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.separator, lineWidth: 0.5)
         )
+        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
         .frame(width: 450)
         .offset(y: CGFloat(cursorLineNumber * 16)) // Position based on line number
         .onAppear {

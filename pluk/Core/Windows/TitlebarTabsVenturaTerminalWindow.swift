@@ -84,7 +84,7 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         // Hide titlebar in non-fullscreen mode
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
-        titlebarSeparatorStyle = .line
+        titlebarSeparatorStyle = .none
         // Extend content view to cover titlebar area
         if let contentView = contentView {
             let windowFrame = frame

@@ -238,7 +238,7 @@ struct CommandPalette: View {
         
         private func backgroundColorForItem(at index: Int) -> Color {
             if index == activeIndex {
-                return .secondary.opacity(0.3)
+                return .secondary.opacity(0.1)
             } else if hoveredIndex == index {
                 return .secondary.opacity(0.1)
             } else {

@@ -26,23 +26,17 @@ struct ConnectionDetailsSidebar: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            ConnectionHeader(
-                onDisconnect: {
-                    await viewModel.disconnectConnectionInstance(connectionInstance.id)
-                },
-                onReconnect: {
-                    Task {
-                        try await connectionInstance.reconnect()
-                    }
-                })
-
-            VStack(spacing: 4) {
+            ConnectionNameHeader()
+            
+            VStack(spacing: 2) {
                 DatabaseHeader(viewModel: viewModel, isLoadingCollections: $isLoadingCollections)
-                    .padding(.top, 6)
+                    .padding(.leading, 2)
                     .padding(.bottom, 2)
                 
                 if viewModel.isSearchVisible {
                     SearchInput(viewModel: viewModel)
+                        .padding(.horizontal, 6)
+                        .padding(.leading, -2)
                         .padding(.bottom, 2)
                 }
                 
@@ -71,14 +65,12 @@ struct ConnectionDetailsSidebar: View {
                         )
                 }
             }
-            .padding(.trailing, -16)
+            .padding(.trailing, -10)
         }
-        .padding([.top, .horizontal], 16)
+        .padding(.top, 4)
+        .padding(.leading, 10)
+        .padding([.trailing], 8)
         .padding(.bottom, 0)
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.separator)
-        }
         .padding(.bottom, 10)
         .padding(.leading, 4)
         .cornerRadius(16)

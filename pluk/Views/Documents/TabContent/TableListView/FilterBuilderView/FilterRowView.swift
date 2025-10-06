@@ -16,7 +16,7 @@ struct FilterRowView: View {
     var fieldIndex: Int?
     
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: 10) {
             /// Remove button
             Button(action: onDelete) {
                 Image(systemName: "xmark")
@@ -34,7 +34,7 @@ struct FilterRowView: View {
             .frame(width: 40)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color(.controlColor).opacity(0.5))
+            .background(Color(.separatorColor).opacity(0.4))
             .cornerRadius(6)
             
            

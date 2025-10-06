@@ -381,18 +381,29 @@ struct CustomTabButton: View {
         .padding(.leading, 10)
         .padding(.trailing, 12)
         .background(
-            TabShape(isSelected: isSelected)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(isSelected ? Color(colorScheme == .dark ? .black : .white) : .clear).opacity(0.8),
-                            Color(isSelected ? Color(colorScheme == .dark ? .black : .white) : .clear).opacity(0.6),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+            Group {
+                if colorScheme == .dark {
+                    TabShape(isSelected: isSelected)
+                        .fill(
+                            Color(.black).opacity(0.40)
+                        )
+                        .shadow(
+                            color: Color(.sRGBLinear, white: 0, opacity: 0.02),
+                            radius: 4
+                        )
+                } else {
+                    TabShape(isSelected: isSelected)
+                        .fill(
+                            isSelected
+                            ? Color(.controlBackgroundColor).opacity(0.86)
+                            : .clear
+                        )
+                        .shadow(
+                            color: Color(.sRGBLinear, white: 0, opacity: 0.02),
+                            radius: 4
+                        )
+                }
+            }
         )
         .background(
             RoundedRectangle(cornerRadius: 8)
