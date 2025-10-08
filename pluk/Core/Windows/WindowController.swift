@@ -192,6 +192,12 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         window.styleMask.insert(.fullSizeContentView)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        
+        // Disable the native "Show/Hide Tab Bar" menu item and button
+        if let windowMenu = NSApp.windowsMenu {
+            windowMenu.items.first(where: { $0.action == #selector(NSWindow.toggleTabBar(_:)) })?.isHidden = true
+        }
 
          // For connection tabs, keep titlebar transparent for our custom TabBar
          if case .connection = tabType {
@@ -204,7 +210,8 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = true
-        window.contentMinSize = NSSize(width: 800, height: 900)
+        window.contentMinSize = NSSize(width: 800, height: 1280)
+        window.delegate = self
 
         let contentView = TabAwareMainWindow(
             tabType: tabType,
@@ -226,6 +233,15 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         // Set up observation for connection data changes
         setupConnectionObservation()
+
+        // Hide tab bar immediately on window creation
+        hideTabBarViews(in: window)
+        
+        // Also hide tab bar after a short delay to catch any that are added later
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak window] in
+            guard let self = self, let window = window else { return }
+            self.hideTabBarViews(in: window)
+        }
     }
 
 

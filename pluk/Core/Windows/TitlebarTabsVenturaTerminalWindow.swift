@@ -47,6 +47,19 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         // Ensure titlebar visibility is applied on mount
         updateTitlebarVisibility()
     }
+    
+    // Override to prevent tab bar from ever being shown
+    override func toggleTabBar(_ sender: Any?) {
+        // Do nothing - we never want to show the native tab bar
+    }
+    
+    // Override to validate the tab bar menu item (always disabled)
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(toggleTabBar(_:)) {
+            return false
+        }
+        return super.validateUserInterfaceItem(item)
+    }
 
     private func setupFullscreenNotifications() {
         NotificationCenter.default.addObserver(
