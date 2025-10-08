@@ -568,8 +568,12 @@ struct CreateConnectionForm: View {
                 // Action buttons
                 HStack(spacing: 12) {
                     Button("Cancel") {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedDatabaseType = nil
+                        if connection != nil {
+                            dismiss()
+                        } else {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDatabaseType = nil
+                            }
                         }
                     }
                     .customCancelButtonStyle()

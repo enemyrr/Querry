@@ -27,6 +27,7 @@ struct ConnectionDetailsSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             ConnectionNameHeader()
+                .padding(.bottom, 4)
             
             VStack(spacing: 2) {
                 DatabaseHeader(viewModel: viewModel, isLoadingCollections: $isLoadingCollections)
