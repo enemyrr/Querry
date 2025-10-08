@@ -90,7 +90,7 @@ hdiutil create \
     -srcfolder "$DMG_TEMP" \
     -ov \
     -format UDRW \
-    -size 200m \
+    -size 300m \
     "$DMG_RW_PATH"
 
 # Clean up temp folder
