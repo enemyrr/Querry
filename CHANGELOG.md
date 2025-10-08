@@ -10,9 +10,9 @@ We’re thrilled to announce **native Convex integration** — bringing real-tim
 
 #### **Convex Integration**
 
-* 🧠 **Full Convex Backend Support** — Native integration for queries and subscriptions with real-time synchronization built in
-* ⚡ **One-Click OAuth Connection** — Securely connect to your Convex account using OAuth, then select a project — configuration and environment detection happen automatically
-* 🧪 **Live Development & Deployment Ready** — Work seamlessly against your Convex dev environment with real-time updates. When you deploy, Pluk adapts automatically — no manual switches needed.
+* 🧠 **Full Convex Backend Support** — Native integration for queries, mutations, and subscriptions with real-time synchronization built in
+* ⚡ **One-Click OAuth Connection** — Securely connect to your Convex account using OAuth, then select a project and start exploring the data
+* 🧪 Live Development & Deployment Ready — View your Convex production deployments and other environments, and seamlessly switch between environments and components directly from Pluk — no manual setup required.
 
 This is our biggest backend integration yet — transforming Pluk into a powerful companion for Convex developers.
 
