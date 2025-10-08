@@ -2,6 +2,42 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.22] – 2025-10-08 
+
+### 🪄 **Convex Joins Pluk** — Real-Time. Native. Seamless.
+
+We’re thrilled to announce **native Convex integration** — bringing real-time data synchronization and reactive backends directly into Pluk. This unlocks an entirely new way to build and explore your data with zero setup friction.
+
+#### **Convex Integration**
+
+* 🧠 **Full Convex Backend Support** — Native integration for queries and subscriptions with real-time synchronization built in
+* ⚡ **One-Click OAuth Connection** — Securely connect to your Convex account using OAuth, then select a project — configuration and environment detection happen automatically
+* 🧪 **Live Development & Deployment Ready** — Work seamlessly against your Convex dev environment with real-time updates. When you deploy, Pluk adapts automatically — no manual switches needed.
+
+This is our biggest backend integration yet — transforming Pluk into a powerful companion for Convex developers.
+
+
+### 🎨 **A Fresh New Look**
+
+#### **Modern UI Redesign**
+
+* ✨ Complete visual overhaul with a modern interface, refined typography, and a cleaner color palette
+* Improved visual hierarchy makes key actions more discoverable
+* Polished animations and transitions create a smoother, more responsive experience
+
+#### **Flexible Sidebar Layout**
+
+* 🧱 Resizable sidebar — adjust to fit your workflow
+* Optimized layouts for both compact and spacious workspaces
+
+### 🚀 **Performance & Developer Experience**
+
+#### **Native Tab Architecture**
+
+* 🧩 Migrated to a native tab-based system for improved stability and speed
+* 🌐 Intelligent connection pooling for more efficient resource use
+* More robust state management and recovery for long-running sessions
+
 ## [0.0.1-beta.21] – 2025-09-17
 
 ### 🛠️ Bug Fixes & Improvements
