@@ -85,7 +85,14 @@ struct DocumentView: View {
                     removeEventMonitor()
                 }
             } else {
-                TabBar().padding(.top, -2)
+                TabBar()
+                    .padding(.top, {
+                        if #available(macOS 26, *) {
+                            return 0
+                        } else {
+                            return -2
+                        }
+                    }())
                 
                 NSTabViewWrapper()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

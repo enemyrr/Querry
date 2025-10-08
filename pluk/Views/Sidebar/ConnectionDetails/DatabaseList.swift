@@ -242,6 +242,7 @@ struct CollectionsSection: View {
                 Spacer()
             }
         }
+        .contentShape(Rectangle())
         .buttonStyle(SidebarButtonStyle(isActive: isActive))
         .contextMenu {
             contextMenuContent(for: collection, isActive: isActive)

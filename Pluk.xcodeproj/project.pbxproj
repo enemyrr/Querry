@@ -505,10 +505,10 @@
 				CODE_SIGN_ENTITLEMENTS = pluk/Resources/pluk.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=*]" = pluk/Resources/pluk.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 278;
+				CURRENT_PROJECT_VERSION = 279;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"pluk/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = 5P3TSMNV42;
@@ -549,10 +549,10 @@
 				CODE_SIGN_ENTITLEMENTS = Pluk/PlukRelease.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=*]" = pluk/Resources/pluk.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 278;
+				CURRENT_PROJECT_VERSION = 279;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"pluk/Resources/Preview Content\"";
 				DEVELOPMENT_TEAM = 5P3TSMNV42;

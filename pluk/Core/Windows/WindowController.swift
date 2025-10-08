@@ -199,15 +199,6 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             windowMenu.items.first(where: { $0.action == #selector(NSWindow.toggleTabBar(_:)) })?.isHidden = true
         }
 
-         // For connection tabs, keep titlebar transparent for our custom TabBar
-         if case .connection = tabType {
-             window.titleVisibility = .hidden  // Hide system titlebar, we'll draw our own
-             window.titlebarAppearsTransparent = true
-         } else {
-             window.titleVisibility = .hidden
-             window.titlebarAppearsTransparent = true
-         }
-
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = true
         window.contentMinSize = NSSize(width: 800, height: 1280)
@@ -279,7 +270,6 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         case .collapseSidebarItem:
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
 
-            // Create SwiftUI button wrapped in hosting view to match environment menu approach
             let buttonView = Button(action: {
                 self.toggleSidebarNatively(nil)
             }) {
@@ -287,9 +277,16 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
                     .font(.system(size: 16))
             }
             .buttonStyle(.borderless)
-            .padding(.top, 6) // Same padding as environment menu
-
-            let hostingView = NSHostingView(rootView: buttonView)
+            
+            // Create SwiftUI button wrapped in hosting view to match environment menu approach
+            let finalButtonView: AnyView
+            if #available(macOS 26.0, *) {
+                finalButtonView = AnyView(buttonView.padding(4).glassEffect().padding(.top, 8))
+            } else {
+                finalButtonView = AnyView(buttonView.padding(.top, 8))
+            }
+            
+            let hostingView = NSHostingView(rootView: finalButtonView)
             hostingView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
             hostingView.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
@@ -307,18 +304,22 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
             // Create a fresh SwiftUI view each time to pick up updated data
             let environmentMenu = createEnvironmentMenu(for: instance)
-                .padding(.top, 6) // Push down slightly
+                .padding(.top, 8) // Push down slightly
             let hostingView = NSHostingView(rootView: environmentMenu)
 
             // Set a reasonable size for the menu
             hostingView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
             hostingView.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-
+            
             item.view = hostingView
             item.label = "Environment"
             item.paletteLabel = "Environment"
             item.toolTip = "Switch Environment"
-
+            
+            if #available(macOS 26.0, *) {
+                item.isBordered = false
+            }
+            
             // Cache this item for updates
             environmentToolbarItem = item
             return item
@@ -550,6 +551,8 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
                 className.contains("_NSTabBarView") ||
                 className.contains("NSTitlebarTabView") ||
                 className.contains("NSToolbarTabView") ||
+                className.contains("NSTitlebarBackgroundView") ||
+                className.contains("NSGlassContainerView") ||
                 className.hasSuffix("TabBarView") {
                 // Remove all constraints related to this view
                 if let superview = subview.superview {
@@ -691,7 +694,7 @@ struct TabAwareMainWindow: View {
 
             if colorScheme == .dark {
                 Color(.windowBackgroundColor)
-                    .opacity(0.60)
+                    .opacity(0.80)
                     .edgesIgnoringSafeArea(.all)
             } else {
                 Color(hex: 0xFFFFFF)

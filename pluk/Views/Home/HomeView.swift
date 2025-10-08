@@ -281,6 +281,10 @@ struct ConnectionListItem: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovering = hovering
+        }
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(
@@ -299,9 +303,6 @@ struct ConnectionListItem: View {
                     connection.lastOpenedAt = Date()
                 }
         )
-        .onHover { hovering in
-            isHovering = hovering
-        }
         .sheet(isPresented: $showEditSheet) {
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
