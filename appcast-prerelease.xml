@@ -6,6 +6,42 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 22</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg</link>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.22</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 22</h2><div><h3>🪄 <strong>Convex Joins Pluk</strong> — Real-Time. Native. Seamless.</h3>
+We’re thrilled to announce <strong>native Convex integration</strong> — bringing real-time data synchronization and reactive backends directly into Pluk. This unlocks an entirely new way to build and explore your data with zero setup friction.
+<h4><strong>Convex Integration</strong></h4>
+* 🧠 <strong>Full Convex Backend Support</strong> — Native integration for queries, mutations, and subscriptions with real-time synchronization built in
+* ⚡ <strong>One-Click OAuth Connection</strong> — Securely connect to your Convex account using OAuth, then select a project and start exploring the data
+* 🧪 Live Development & Deployment Ready — View your Convex production deployments and other environments, and seamlessly switch between environments and components directly from Pluk — no manual setup required.
+This is our biggest backend integration yet — transforming Pluk into a powerful companion for Convex developers.
+<h3>🎨 <strong>A Fresh New Look</strong></h3>
+<h4><strong>Modern UI Redesign</strong></h4>
+* ✨ Complete visual overhaul with a modern interface, refined typography, and a cleaner color palette
+* Improved visual hierarchy makes key actions more discoverable
+* Polished animations and transitions create a smoother, more responsive experience
+<h4><strong>Flexible Sidebar Layout</strong></h4>
+* 🧱 Resizable sidebar — adjust to fit your workflow
+* Optimized layouts for both compact and spacious workspaces
+<h3>🚀 <strong>Performance & Developer Experience</strong></h3>
+<h4><strong>Native Tab Architecture</strong></h4>
+* 🧩 Migrated to a native tab-based system for improved stability and speed
+* 🌐 Intelligent connection pooling for more efficient resource use
+* More robust state management and recovery for long-running sessions</div>
+            ]]></description>
+            <pubDate>Wed, 08 Oct 2025 07:20:02 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg"
+                length=""
+                type="application/octet-stream"
+                sparkle:edSignature="/yfQRtUtQd13gP1wKqJbmwqMJmqIULBBWvbRoX0yTs57xMDmzYz1joFNTpLbuRrpicxf4sonk9rrwzZNHDQyCQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 21</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg</link>
             <sparkle:version>277</sparkle:version>
@@ -139,9 +175,6 @@ _Note: Table creation functionality is coming in a future release._
                 length="19188348"
                 type="application/octet-stream"
                 sparkle:edSignature="MGhot+bK9IlI+Yq8PYZoLFQOtHcrwKPhMtlgj9e9cjD9/mzFU7jZxL+lBOLYa4pT6vPlw1ikUWCPCPtYNbWzBA=="
-                length="19293315"
-                type="application/octet-stream"
-                sparkle:edSignature="qBs2oD126DEWkRYf+lv/mOOVhclzh9mynp9ASQxRESTMiG3VeNIQqmN4W07ErezdSNwAv+AUso0+FG99BoI8DA=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
