@@ -24,7 +24,7 @@ struct DocumentView: View {
                     if colorScheme == .dark {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(
-                                Color(Color(.black).opacity(0.40))
+                                Color(Color(.black).opacity(0.25))
                             )
                             .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
                     } else {

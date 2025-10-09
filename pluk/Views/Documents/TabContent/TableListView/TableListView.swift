@@ -107,7 +107,7 @@ struct TableListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                Color(colorScheme == .dark ?  Color(.black).opacity(0.40) : Color(.white))
+                Color(colorScheme == .dark ?  Color(.black).opacity(0.25) : Color(.white))
                     .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
             )
             
