@@ -32,10 +32,10 @@ This is our biggest backend integration yet — transforming Pluk into a powerfu
 * 🌐 Intelligent connection pooling for more efficient resource use
 * More robust state management and recovery for long-running sessions</div>
             ]]></description>
-            <pubDate>Thu, 09 Oct 2025 01:35:44 +0000</pubDate>
+            <pubDate>Thu, 09 Oct 2025 01:47:59 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg"
-                length="49351518"
+                length="49351398"
                 type="application/octet-stream"
                 sparkle:edSignature="CjNy7i/WB9ke281LxavGIr1bJXpP8iKUreoU2tiNFmlB8ZWrYuT9AQ11xI/ZnXJyHrHjq6sIRaRg6nree3dRCg=="
             />
