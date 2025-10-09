@@ -899,6 +899,51 @@ else
     echo -e "${YELLOW}⚠️  Some appcast issues detected. Please review the output above.${NC}"
 fi
 
+# Upload updated appcast files to R2
+echo ""
+echo -e "${BLUE}📤 Uploading updated appcast files to R2...${NC}"
+
+# Load R2 configuration from private file if it exists and not already loaded
+R2_CONFIG_FILE="$PROJECT_ROOT/private/r2-config"
+if [[ -f "$R2_CONFIG_FILE" ]]; then
+    source "$R2_CONFIG_FILE"
+fi
+
+# Upload the updated appcast files using AWS CLI
+if [[ -n "${R2_ACCESS_KEY_ID:-}" ]] && [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] && \
+   [[ -n "${R2_ENDPOINT_URL:-}" ]] && [[ -n "${R2_BUCKET_NAME:-}" ]]; then
+    
+    # Configure AWS CLI for R2
+    export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+    export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+    export AWS_DEFAULT_REGION="auto"
+    
+    # Upload appcast-prerelease.xml as appcast.xml
+    if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
+        echo "📤 Uploading appcast-prerelease.xml as appcast.xml..."
+        aws s3 cp "$PROJECT_ROOT/appcast-prerelease.xml" "s3://$R2_BUCKET_NAME/appcast.xml" \
+            --endpoint-url="$R2_ENDPOINT_URL" \
+            --content-type="application/xml"
+        echo -e "${GREEN}✅ Appcast uploaded: appcast.xml${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Warning: appcast-prerelease.xml not found${NC}"
+    fi
+    
+    # Also upload the original appcast-prerelease.xml
+    if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
+        echo "📤 Uploading appcast-prerelease.xml..."
+        aws s3 cp "$PROJECT_ROOT/appcast-prerelease.xml" "s3://$R2_BUCKET_NAME/appcast-prerelease.xml" \
+            --endpoint-url="$R2_ENDPOINT_URL" \
+            --content-type="application/xml"
+        echo -e "${GREEN}✅ Pre-release appcast uploaded: appcast-prerelease.xml${NC}"
+    fi
+    
+    echo -e "${GREEN}✅ Appcast files uploaded to R2${NC}"
+else
+    echo -e "${YELLOW}⚠️  R2 configuration not found - skipping appcast upload${NC}"
+    echo "   Appcast files are committed to git but not uploaded to R2"
+fi
+
 echo ""
 echo -e "${GREEN}🎉 Release Complete!${NC}"
 echo "=================="
