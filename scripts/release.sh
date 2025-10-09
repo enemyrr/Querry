@@ -817,9 +817,22 @@ fi
 echo -e "${GREEN}✅ GitHub release created${NC}"
 
 
-# Step 8: Update appcast
+# Step 8: Upload to Cloudflare R2
 echo ""
-echo -e "${BLUE}📋 Step 8/9: Updating appcast...${NC}"
+echo -e "${BLUE}📋 Step 8/9: Uploading to Cloudflare R2...${NC}"
+
+if "$SCRIPT_DIR/upload-to-r2.sh" "$DMG_PATH" "$ZIP_PATH" "$RELEASE_VERSION" "$RELEASE_TYPE"; then
+    echo -e "${GREEN}✅ Files uploaded to R2${NC}"
+else
+    echo -e "${YELLOW}⚠️  R2 upload failed - continuing without upload${NC}"
+    echo "   You can manually upload later with:"
+    echo "   $SCRIPT_DIR/upload-to-r2.sh \"$DMG_PATH\" \"$ZIP_PATH\" \"$RELEASE_VERSION\" \"$RELEASE_TYPE\""
+fi
+
+
+# Step 9: Update appcast
+echo ""
+echo -e "${BLUE}📋 Step 9/9: Updating appcast...${NC}"
 
 # Generate appcast
 echo "🔐 Generating appcast with EdDSA signatures..."
@@ -907,18 +920,6 @@ if [[ "$RELEASE_TYPE" != "stable" ]]; then
     echo "📝 Note: This is a pre-release. Users with 'Include Pre-releases' enabled will receive this update."
 else
     echo "📝 Note: This is a stable release. All users will receive this update."
-fi
-
-# Step 9: Upload to Cloudflare R2
-echo ""
-echo -e "${BLUE}📋 Step 9/9: Uploading to Cloudflare R2...${NC}"
-
-if "$SCRIPT_DIR/upload-to-r2.sh" "$DMG_PATH" "$ZIP_PATH" "$RELEASE_VERSION" "$RELEASE_TYPE"; then
-    echo -e "${GREEN}✅ Files uploaded to R2${NC}"
-else
-    echo -e "${YELLOW}⚠️  R2 upload failed - continuing without upload${NC}"
-    echo "   You can manually upload later with:"
-    echo "   $SCRIPT_DIR/upload-to-r2.sh \"$DMG_PATH\" \"$ZIP_PATH\" \"$RELEASE_VERSION\" \"$RELEASE_TYPE\""
 fi
 
 
