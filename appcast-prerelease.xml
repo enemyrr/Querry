@@ -8,7 +8,7 @@
         <item>
             <title>Pluk 0.0.1 Beta 22</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg</link>
-            <sparkle:version>279</sparkle:version>
+            <sparkle:version>280</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.22</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 22</h2><div><h3>🪄 <strong>Convex Joins Pluk</strong> — Real-Time. Native. Seamless.</h3>
@@ -37,7 +37,7 @@ This is our biggest backend integration yet — transforming Pluk into a powerfu
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg"
                 length="49353394"
                 type="application/octet-stream"
-                sparkle:edSignature="FqQTVtm/Lq9BpZ3zqHZIRySBTYX6S0T+FaPbnOtl7hFP/HLsg5+CyH2s5cjGhtPtdNFLnu6LKqXeCjTKUOUlCg=="
+                sparkle:edSignature="ggOgmnN9plWukZ1GXQF6tqVok4Nzm+a9t1/XsXHhjECZvQu3tKDcNFHoEJ8Q3KktRoipQG6ZmNjpc1GlRLtnDQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
@@ -355,7 +355,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
         <item>
             <title>Pluk 0.0.1 Beta 14</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg</link>
-            <sparkle:version>264</sparkle:version>
+            <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.14</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 14</h2><div><h3>✨ New Features</h3>
@@ -396,7 +396,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg"
                 length="16680196"
                 type="application/octet-stream"
-                sparkle:edSignature="J0e3bRxknpnMpYUjn9+Af37QdyArA3HDW8TDeA8ntr6mlU46zFlWRap42nw8rpXAX64yGjubjYT0Yk2St3uhCw=="
+                sparkle:edSignature="F+VFG7OvB4Mr0bX7QQOhlHwnThm76qjSQBgSLU12wkhfNhYLvvp+Mrep6c5hGbSNNeyFaiUHJqJZILhmdOAMBQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
