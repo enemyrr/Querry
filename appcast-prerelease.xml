@@ -130,3 +130,275 @@ This isn’t just another SQL editor — it’s a smarter, AI-assisted way to wo
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 19</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.19.dmg</link>
+            <sparkle:version>271</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.19</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 19</h2><div><h3>🎯 Major Features</h3>
+<h4><strong>MySQL Support is Here</strong> 🆕</h4>
+Pluk now speaks <strong>MySQL</strong>!
+<ul>
+<li>Connect to any <strong>MySQL database</strong> with full driver support</li>
+<li>Run queries, edit data with <strong>complete CRUD operations</strong></li>
+<li><strong>Query with AI</strong> - Ask questions about your MySQL data in natural language</li>
+<li><strong>Rename and delete tables</strong> directly from the interface</li>
+<li>Works seamlessly with existing MySQL installations and cloud instances</li>
+</ul>
+This makes Pluk a powerful companion for developers working with MySQL in development, staging, and production environments. From local development databases to cloud-hosted MySQL instances, Pluk now handles it all with full AI integration.
+_Note: Table creation functionality is coming in a future release._
+<h3>✨ New Features</h3>
+<h4><strong>Enhanced Database Management</strong></h4>
+<ul>
+<li><strong>Table Operations</strong> - Delete and rename tables across MySQL, SQLite, and PostgreSQL databases</li>
+<li><strong>SQLite Filter Support</strong> - Advanced filtering capabilities now available for SQLite databases, bringing parity with other database drivers</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Filter Operations</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Restored filter operators that were previously removed, improving data exploration capabilities across all database types</li>
+<li>Enhanced filter consistency between different database drivers</li>
+</ul>
+<h4><strong>User Experience</strong></h4>
+<ul>
+<li>Better error handling for database operations</li>
+</ul>
+<ul>
+---
+</ul>
+👉 With this release, <strong>MySQL becomes a first-class citizen in Pluk</strong>, joining SQLite as a fully supported database driver. Whether you're prototyping with SQLite or running production workloads on MySQL, Pluk now provides a unified interface for all your database exploration needs.</div>
+            ]]></description>
+            <pubDate>Tue, 02 Sep 2025 12:01:59 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.19.dmg"
+                length="19188348"
+                type="application/octet-stream"
+                sparkle:edSignature="MGhot+bK9IlI+Yq8PYZoLFQOtHcrwKPhMtlgj9e9cjD9/mzFU7jZxL+lBOLYa4pT6vPlw1ikUWCPCPtYNbWzBA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 18</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg</link>
+            <sparkle:version>268</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.18</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 18</h2><div><h3>🚀 Major Release</h3>
+<h4><strong>SQLite Support is Here</strong> 🆕</h4>
+Pluk now speaks <strong>SQLite</strong>!
+<ul>
+<li>Connect to any <strong>SQLite file</strong> (<code>.sqlite</code>, <code>.db</code>, <code>.sqlite3</code>)</li>
+<li>Run queries, edit data with <strong>full read/write access</strong></li>
+<li>Works seamlessly across all SQLite file formats</li>
+</ul>
+This makes Pluk a powerful local-first companion for developers who rely on SQLite for prototyping, embedded apps, and production systems.
+<ul>
+---
+</ul>
+<h3>🛠️ Fixes & Improvements</h3>
+<h4><strong>Interface Stability</strong></h4>
+<ul>
+<li>✅ Fixed homescreen selection issues when disconnecting popovers</li>
+<li>✅ Resolved startup loading glitches</li>
+<li>✅ Corrected layout width calculation bugs</li>
+<li>✅ Loading indicators now render in the right place</li>
+</ul>
+<h4><strong>Data Handling</strong></h4>
+<ul>
+<li>✅ Updates handle <code>NULL</code> values without errors</li>
+<li>✅ Removed flickering invalid columns during state changes</li>
+<li>✅ Popover connection data now stays accurate</li>
+</ul>
+<h4><strong>User Experience</strong></h4>
+<ul>
+<li>Smoother, more reliable popover interactions</li>
+<li>Cleaner data transitions</li>
+<li>Improved error handling for tricky cases</li>
+</ul>
+<ul>
+---
+</ul>
+👉 With this release, <strong>SQLite becomes a first-class citizen in Pluk</strong>, making it easier than ever to query and explore your data.</div>
+            ]]></description>
+            <pubDate>Sat, 16 Aug 2025 15:01:28 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg"
+                length="18648184"
+                type="application/octet-stream"
+                sparkle:edSignature="9XuM5ZG6MjM4RxOA78stLk8rPOAerl10TlN43xzvSCKAtbHyDoc74lA/r/HxQgX7aDoE3xoWvkfppDtCvn//DQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 17</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.17.dmg</link>
+            <sparkle:version>267</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.17</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 17</h2><div><h3>🛡️ Privacy & Security</h3>
+<h4><strong>Enhanced Password Protection</strong></h4>
+<ul>
+<li><strong>Keychain Integration</strong> - Database passwords are now securely stored in the system keychain instead of local storage</li>
+<li><strong>Privacy Protection</strong> - Passwords are completely hidden from the home screen to prevent accidental exposure and shoulder surfing</li>
+</ul>
+<h3>✨ New Features</h3>
+<h4><strong>Connection Management</strong></h4>
+<ul>
+<li><strong>Improved Connection Creation</strong> - Improved connection creation experience that replaces complex URI strings like postgresql://user:pass@host:port/db with a simple, intuitive form</li>
+<li><strong>Right-Click Context Menus</strong> - Added right-click support on connection status headers for quick access to connection actions</li>
+</ul>
+<h4><strong>User Interface Enhancements</strong></h4>
+<ul>
+<li><strong>Updated Floating Action Bar</strong> - AI Search bar is now more visually prominent than other buttons, making it easier to discover and use</li>
+</ul>
+<h3>🚀 Performance & Developer Experience</h3>
+<h4><strong>Database Performance</strong></h4>
+<ul>
+<li><strong>Faster Table Loading</strong> - Significantly improved performance when tables are initially loaded</li>
+<li><strong>Optimized Data Refresh</strong> - Enhanced refresh mechanisms that properly respect active filters and user preferences</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Connection Reliability</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Connected databases now display correctly even when no default database is configured</li>
+<li><strong>FIXED</strong>: Data refresh operations now properly respect applied filters, ensuring consistent view state</li>
+<li>Improved connection state management and database discovery</li>
+</ul>
+<h3>🔧 Under the Hood</h3>
+<ul>
+<li>Enhanced connection state handling for better reliability</li>
+<li>Improved error handling in database connection workflows</li>
+<li>Better separation of connection configuration logic</li>
+<li>Optimized data loading patterns for improved user experience</li>
+<li>Minor UI improvement to align with the design system</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sat, 02 Aug 2025 08:08:32 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.17.dmg"
+                length="16816104"
+                type="application/octet-stream"
+                sparkle:edSignature="mbTdxc3x1O125a9JY2JAMVXrIlVLgIQEXTOgb1up3Ly+scfyp7Dn5vf5ftIRZ9D2An9WR01uofQLhK0No9z4CA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 16</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.16.dmg</link>
+            <sparkle:version>266</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.16</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 16</h2><div><h3>✨ New Features</h3>
+<h4><strong>Foreign Key Navigation</strong></h4>
+<ul>
+<li><strong>Quick Foreign Key Filtering</strong> - Click any record to instantly navigate to related tables with foreign key filters automatically applied, streamlining relational data exploration</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Tue, 29 Jul 2025 14:26:56 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.16.dmg"
+                length="16678139"
+                type="application/octet-stream"
+                sparkle:edSignature="koiqv3YgNkj4G8d0mE9eB1xWgoT0FEiYz7pMjg9GRscaJFPl8UUc+uNkD3NGaQpY7XU1S4ftCnLbKwZaOJ7JAA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 15</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg</link>
+            <sparkle:version>265</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.15</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 15</h2><div><h3>✨ New Features</h3>
+<h4><strong>Enhanced Table Interaction</strong></h4>
+<ul>
+<li><strong>Right-click Context Menu</strong> - Table rows now support right-click actions for quick access to row-specific operations</li>
+<li><strong>Multi-row Selection</strong> - Select multiple rows simultaneously for batch operations and improved workflow efficiency</li>
+</ul>
+<h4><strong>Smart Connection Management</strong></h4>
+<ul>
+<li><strong>Intelligent Tab Handling</strong> - When opening a connection, Pluk now asks whether to create a new tab or use an existing connection tab, preventing accidental duplicate connections</li>
+</ul>
+<h3>🎨 UI Improvements</h3>
+<h4><strong>Visual Polish</strong></h4>
+<ul>
+<li><strong>Enhanced Light Theme</strong> - Improved light mode with better contrast, readability, and visual consistency across all interface elements</li>
+<li><strong>Smoother Cell Selection</strong> - More responsive and fluid cell selection animations for a polished user experience</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Database Operations</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Insert operations now work correctly even when tables contain no existing records</li>
+<li><strong>FIXED</strong>: Neon database connections no longer fail due to TLS configuration errors, ensuring reliable PostgreSQL connectivity</li>
+</ul>
+<h4><strong>Connection Reliability</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Automatic reconnection system now properly restores connections when network interruptions occur</li>
+<li><strong>FIXED</strong>: Tab bar display no longer gets cut off on the last tab, ensuring all tabs remain fully visible and accessible</li>
+</ul>
+<h3>🔧 Under the Hood</h3>
+<ul>
+<li>Improved error handling for database connection edge cases</li>
+<li>Enhanced connection state management for better reliability</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Wed, 23 Jul 2025 04:19:54 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg"
+                length="16883968"
+                type="application/octet-stream"
+                sparkle:edSignature="T8zyydiGcDjpI+JHw/F5Uxhszc8Vb9FdThE4xL5GZAT6pP4a893PfXyBxeJECamplVDKikE2lS8SxAFriNB1Dw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 14</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg</link>
+            <sparkle:version>264</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.14</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 14</h2><div><h3>✨ New Features</h3>
+<h4><strong>Enhanced Table Interaction</strong></h4>
+<ul>
+<li><strong>Right-click Context Menu</strong> - Table rows now support right-click actions for quick access to row-specific operations</li>
+<li><strong>Multi-row Selection</strong> - Select multiple rows simultaneously for batch operations and improved workflow efficiency</li>
+</ul>
+<h4><strong>Smart Connection Management</strong></h4>
+<ul>
+<li><strong>Intelligent Tab Handling</strong> - When opening a connection, Pluk now asks whether to create a new tab or use an existing connection tab, preventing accidental duplicate connections</li>
+</ul>
+<h3>🎨 UI Improvements</h3>
+<h4><strong>Visual Polish</strong></h4>
+<ul>
+<li><strong>Enhanced Light Theme</strong> - Improved light mode with better contrast, readability, and visual consistency across all interface elements</li>
+<li><strong>Smoother Cell Selection</strong> - More responsive and fluid cell selection animations for a polished user experience</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Database Operations</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Insert operations now work correctly even when tables contain no existing records</li>
+<li><strong>FIXED</strong>: Neon database connections no longer fail due to TLS configuration errors, ensuring reliable PostgreSQL connectivity</li>
+</ul>
+<h4><strong>Connection Reliability</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Automatic reconnection system now properly restores connections when network interruptions occur</li>
+<li><strong>FIXED</strong>: Tab bar display no longer gets cut off on the last tab, ensuring all tabs remain fully visible and accessible</li>
+</ul>
+<h3>🔧 Under the Hood</h3>
+<ul>
+<li>Improved error handling for database connection edge cases</li>
+<li>Enhanced connection state management for better reliability</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Tue, 22 Jul 2025 17:54:45 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg"
+                length="16680196"
+                type="application/octet-stream"
+                sparkle:edSignature="J0e3bRxknpnMpYUjn9+Af37QdyArA3HDW8TDeA8ntr6mlU46zFlWRap42nw8rpXAX64yGjubjYT0Yk2St3uhCw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
