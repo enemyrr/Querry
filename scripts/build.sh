@@ -73,8 +73,11 @@ echo "Configuration: $CONFIGURATION"
 echo "Code signing: $SIGN_APP"
 echo "Architecture: ARM64 only"
 
-# Clean build directory only if it doesn't exist
+# Clean build directory to avoid using cached build artifacts
+echo "🧹 Cleaning build directory..."
+rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
+echo "✓ Build directory cleaned"
 
 
 # Build the app
