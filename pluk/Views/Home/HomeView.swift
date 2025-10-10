@@ -317,7 +317,7 @@ struct ConnectionListItem: View {
                 onOpen(connection)
                 connection.lastOpenedAt = Date()
             } label: {
-                Text("Connect")
+                Label("Connect", systemImage: "arrow.up.forward.square")
             }
             
             Divider()
@@ -325,7 +325,7 @@ struct ConnectionListItem: View {
             Button {
                 showEditSheet.toggle()
             } label: {
-                Text("Edit")
+                Label("Edit", systemImage: "square.and.pencil")
             }
             
             Divider()
@@ -337,7 +337,7 @@ struct ConnectionListItem: View {
                 pasteboard.clearContents()
                 pasteboard.setString(connectionURI, forType: .string)
             } label: {
-                Text("Copy connection string")
+                Label("Copy connection string", systemImage: "doc.on.doc")
             }
             
             
@@ -348,7 +348,7 @@ struct ConnectionListItem: View {
                 connectionToDelete = connection
                 showDeleteConfirmation = true
             } label: {
-                Text("Delete")
+                Label("Delete", systemImage: "trash")
             }
         }
         .confirmationDialog(

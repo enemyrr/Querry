@@ -281,7 +281,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             // Create SwiftUI button wrapped in hosting view to match environment menu approach
             let finalButtonView: AnyView
             if #available(macOS 26.0, *) {
-                finalButtonView = AnyView(buttonView.padding(4).glassEffect().padding(.top, 8))
+                finalButtonView = AnyView(buttonView.padding(6).glassEffect().padding(.top, 9))
             } else {
                 finalButtonView = AnyView(buttonView.padding(.top, 8))
             }
@@ -304,7 +304,13 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
             // Create a fresh SwiftUI view each time to pick up updated data
             let environmentMenu = createEnvironmentMenu(for: instance)
-                .padding(.top, 8) // Push down slightly
+                .padding(.top, {
+                    if #available(macOS 26, *) {
+                        return 9
+                    } else {
+                        return 8
+                    }
+                }()) // Push down slightly
             let hostingView = NSHostingView(rootView: environmentMenu)
 
             // Set a reasonable size for the menu
@@ -430,7 +436,13 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         // Create fresh SwiftUI view with updated data
         let updatedMenu = createEnvironmentMenu(for: instance)
-            .padding(.top, 6) // Push down slightly (same as initial creation)
+            .padding(.top, {
+                if #available(macOS 26, *) {
+                    return 9
+                } else {
+                    return 8
+                }
+            }()) // Push down slightly
         let newHostingView = NSHostingView(rootView: updatedMenu)
 
         // Set sizing constraints
@@ -452,7 +464,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     // MARK: - Environment Menu
 
     private func createEnvironmentMenu(for instance: ConnectionInstance) -> some View {
-        Menu {
+        let menuView = Menu {
             Section {
                 if !instance.databases.isEmpty {
                     ForEach(instance.databases, id: \.name) { database in
@@ -482,6 +494,13 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
+        
+        // Apply glass effect only if available
+        if #available(macOS 26.0, *) {
+            return AnyView(menuView.glassEffect())
+        } else {
+            return AnyView(menuView)
+        }
     }
 
     private func currentEnvironmentTitle(_ instance: ConnectionInstance) -> String {

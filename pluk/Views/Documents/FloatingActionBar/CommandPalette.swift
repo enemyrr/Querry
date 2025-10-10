@@ -154,7 +154,7 @@ struct CommandPalette: View {
                 .modifier(GlassBackgroundStyle(cornerRadius: 12))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(.separator, lineWidth: 1)
+                        .stroke(.separator)
                 )
                 .frame(maxWidth: 500)
                 .padding(.bottom, 8)

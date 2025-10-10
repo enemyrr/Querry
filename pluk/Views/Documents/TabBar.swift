@@ -405,6 +405,7 @@ struct CustomTabButton: View {
                 }
             }
         )
+        .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(

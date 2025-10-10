@@ -553,7 +553,7 @@ struct CollectionsSection: View {
                 instance.createNewTab(name: collection.name)
             }
         } label: {
-            Label("Open in New Tab", systemImage: "plus.square")
+            Label("Open in New Tab", systemImage: "arrow.up.forward.square")
                 .frame(minWidth: 150, alignment: .leading)
         }
         .disabled(isActive)
@@ -575,7 +575,7 @@ struct CollectionsSection: View {
         Button {
             startRename(for: collection)
         } label: {
-            Label("Rename", systemImage: "pencil")
+            Label("Rename", systemImage: "square.and.pencil")
                 .frame(minWidth: 150, alignment: .leading)
         }
 
