@@ -115,4 +115,8 @@ class MariaDBDriver: DatabaseDriver {
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
+
+    func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
+        throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
+    }
 } 

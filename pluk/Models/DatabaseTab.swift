@@ -21,6 +21,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var filterValue: String?
     var forceFetch: Bool = false
     var databaseSchema: String?
+    var viewMode: ViewMode = .content
     
     init(name: String, type: TabType, queryState: QueryState, filterColumn: String? = nil, filterValue: String? = nil, forceFetch: Bool = false, databaseSchema: String? = nil) {
         self.id = UUID()
@@ -44,6 +45,20 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         case schema
         case indexes
         case sqlEditor
+    }
+
+    enum ViewMode: Int, Equatable, Codable {
+        case content = 0
+        case schema
+        case definition
+
+        var color: Color {
+            switch self {
+            case .content: return .orange
+            case .schema: return .purple
+            case .definition: return .blue
+            }
+        }
     }
 
     enum QueryState: Equatable, Codable {

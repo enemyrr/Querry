@@ -628,7 +628,72 @@ class MySQLDriver: DatabaseDriver {
             totalCount: columns.count
         )
     }
-    
+
+    func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
+        let connection = try await ensureConnected()
+
+        guard let database = currentDatabase else {
+            throw DatabaseError.noDatabaseSelected("No database selected")
+        }
+
+        let rows = try await connection.simpleQuery("""
+            SELECT
+                s.INDEX_NAME,
+                s.TABLE_NAME,
+                s.TABLE_SCHEMA,
+                s.NON_UNIQUE,
+                s.INDEX_TYPE,
+                GROUP_CONCAT(s.COLUMN_NAME ORDER BY s.SEQ_IN_INDEX SEPARATOR ', ') AS column_names,
+                CASE
+                    WHEN s.INDEX_NAME = 'PRIMARY' THEN 1
+                    ELSE 0
+                END AS is_primary
+            FROM information_schema.STATISTICS s
+            WHERE s.TABLE_SCHEMA = '\(database)'
+                AND s.TABLE_NAME = '\(collectionName)'
+            GROUP BY s.INDEX_NAME, s.TABLE_NAME, s.TABLE_SCHEMA, s.NON_UNIQUE, s.INDEX_TYPE
+            ORDER BY s.INDEX_NAME;
+        """).get()
+
+        var indexes: [DatabaseIndexInfo] = []
+
+        for row in rows {
+            let indexName = row.column("INDEX_NAME")?.string ?? ""
+            let tableName = row.column("TABLE_NAME")?.string ?? ""
+            let schemaName = row.column("TABLE_SCHEMA")?.string ?? ""
+            let nonUnique = row.column("NON_UNIQUE")?.int ?? 1
+            let indexType = row.column("INDEX_TYPE")?.string ?? "BTREE"
+            let columnNames = row.column("column_names")?.string ?? ""
+            let isPrimary = (row.column("is_primary")?.int ?? 0) == 1
+
+            let columns = columnNames.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+
+            let type: IndexType
+            switch indexType.uppercased() {
+            case "BTREE": type = .btree
+            case "HASH": type = .hash
+            case "FULLTEXT": type = .fulltext
+            case "SPATIAL": type = .spatial
+            default: type = .other
+            }
+
+            let indexInfo = DatabaseIndexInfo(
+                name: indexName,
+                tableName: tableName,
+                schemaName: schemaName,
+                columns: columns,
+                indexType: type,
+                isUnique: nonUnique == 0,
+                isPrimaryKey: isPrimary,
+                definition: nil,
+                condition: nil
+            )
+            indexes.append(indexInfo)
+        }
+
+        return indexes
+    }
+
     // MARK: - AI Functions
     
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {

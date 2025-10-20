@@ -801,7 +801,56 @@ class SQLiteDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to get schema: \(error.localizedDescription)")
         }
     }
-    
+
+    func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
+        let connection = try await ensureConnected()
+        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
+
+        do {
+            // Get list of indexes for the table
+            let indexListRows = try await connection.query("PRAGMA index_list(\(sanitizedTableName))")
+            var indexes: [DatabaseIndexInfo] = []
+
+            for indexRow in indexListRows {
+                guard let indexName = indexRow.column("name")?.string else {
+                    continue
+                }
+
+                let unique = (indexRow.column("unique")?.integer ?? 0) == 1
+                let origin = indexRow.column("origin")?.string ?? ""
+                let isPrimaryKey = origin == "pk"
+
+                // Get columns for this index
+                let sanitizedIndexName = try validateAndSanitizeIdentifier(indexName)
+                let indexInfoRows = try await connection.query("PRAGMA index_info(\(sanitizedIndexName))")
+                var columns: [String] = []
+
+                for infoRow in indexInfoRows {
+                    if let columnName = infoRow.column("name")?.string {
+                        columns.append(columnName)
+                    }
+                }
+
+                let indexInfo = DatabaseIndexInfo(
+                    name: indexName,
+                    tableName: collectionName,
+                    schemaName: "main",
+                    columns: columns,
+                    indexType: .btree, // SQLite primarily uses B-tree indexes
+                    isUnique: unique,
+                    isPrimaryKey: isPrimaryKey,
+                    definition: nil,
+                    condition: nil
+                )
+                indexes.append(indexInfo)
+            }
+
+            return indexes
+        } catch {
+            throw DatabaseError.operationFailed("Failed to get indexes: \(error.localizedDescription)")
+        }
+    }
+
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
         

@@ -20,13 +20,14 @@ struct ConvexDatabaseWrapper: DatabaseWrapper {
 }
 
 struct ConvexCollectionWrapper: CollectionWrapper {
-    var schema: String? = nil
+    var schema: String?
     var id: ObjectIdentifier
     let name: String
     let type: String = "table"
-    
-    init(name: String) {
+
+    init(name: String, schema: String? = nil) {
         self.name = name
+        self.schema = schema
         self.id = ObjectIdentifier(NSString(string: name))
     }
 }
@@ -358,12 +359,12 @@ class ConvexDriver: DatabaseDriver {
                 .values
                 .filter { !$0.hasPrefix("_") }
                 .sorted()
-            
-            // Create ConvexCollectionWrapper objects
+
+            // Create ConvexCollectionWrapper objects with schema
             let collections = tableNames.map { tableName in
-                ConvexCollectionWrapper(name: tableName)
+                ConvexCollectionWrapper(name: tableName, schema: schema)
             }
-            
+
             return collections
             
         } catch {
@@ -407,6 +408,10 @@ class ConvexDriver: DatabaseDriver {
                 "filters": nil,
                 "paginationOpts": paginationOpts,
             ]
+            
+            if let databaseSchema = databaseSchema {
+                args["componentId"] = getComponentId(for: databaseSchema)
+            }
             
             // Prepare order string to embed within the filter JSON (if provided)
             let orderString: String? = {
@@ -514,10 +519,14 @@ class ConvexDriver: DatabaseDriver {
             }
             
             // Prepare arguments for the addDocument mutation
-            let args: [String: ConvexEncodable?] = [
+            var args: [String: ConvexEncodable?] = [
                 "table": collectionName,
                 "documents": [encodableDocument]
             ]
+            
+            if let databaseSchema = databaseSchema {
+                args["componentId"] = getComponentId(for: databaseSchema)
+            }
             
             struct AddDocumentResult: Decodable { let success: Bool? }
             let _: AddDocumentResult = try await mobileClient.mutation("_system/frontend/addDocument", with: args)
@@ -560,11 +569,15 @@ class ConvexDriver: DatabaseDriver {
             }
             
             // Prepare arguments for the patch operation
-            let args: [String: ConvexEncodable?] = [
+            var args: [String: ConvexEncodable?] = [
                 "table": collectionName,
                 "ids": [documentId],
                 "fields": encodableFields
             ]
+            
+            if let databaseSchema = databaseSchema {
+                args["componentId"] = getComponentId(for: databaseSchema)
+            }
             
             // Define the expected response structure
             struct PatchDocumentsResult: Decodable {
@@ -611,10 +624,14 @@ class ConvexDriver: DatabaseDriver {
                 "tableName": collectionName
             ]
             
-            let args: [String: ConvexEncodable?] = [
-                "componentId": nil,
+            var args: [String: ConvexEncodable?] = [
                 "toDelete": [toDeleteItem]
             ]
+            
+            
+            if let databaseSchema = databaseSchema {
+                args["componentId"] = getComponentId(for: databaseSchema)
+            }
             
             // Decode object response to avoid String decoding path
             struct DeleteDocumentsResult: Decodable { let success: Bool? }
@@ -772,6 +789,125 @@ class ConvexDriver: DatabaseDriver {
             debugLog("⚠️ Failed to get schema from Convex: \(error), inferring from sample document")
             return try await inferSchemaFromSampleDocument(collectionName: collectionName, schema: schema)
         }
+    }
+
+    func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
+        guard isConnected, let mobileClient = convexMobileClient else {
+            throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
+        }
+        
+        let schema = schema ?? "app"
+        
+        do {
+            var args: [String: ConvexEncodable?] = [:]
+            args["tableName"] = collectionName
+            args["tableNamespace"] = getComponentId(for: schema)
+            
+            let responseString: String = try await mobileClient.query(name: "_system/frontend/indexes", with: args)
+
+            // Parse the JSON response manually
+            guard let responseData = responseString.data(using: .utf8) else {
+                throw DatabaseError.operationFailed("Failed to convert response to UTF-8 data")
+            }
+
+            let jsonObject = try JSONSerialization.jsonObject(with: responseData)
+
+            // Parse response - expect direct array of index objects
+            guard let indexes = jsonObject as? [[String: Any]] else {
+                debugLog("⚠️ Unexpected indexes response structure: \(jsonObject)")
+                return []
+            }
+
+            // Map each index to DatabaseIndexInfo (no filtering needed - API returns indexes for the specific table)
+            return indexes.compactMap { indexDict in
+                mapConvexIndexToDatabaseIndexInfo(
+                    indexDict,
+                    collectionName: collectionName,
+                    schemaName: schema
+                )
+            }
+
+        } catch {
+            if let clientError = error as? ClientError {
+                throw DatabaseError.operationFailed("ConvexMobile query failed: \(clientError.localizedDescription)")
+            } else {
+                throw error
+            }
+        }
+    }
+
+    // MARK: - Index Mapping Helper
+
+    private func mapConvexIndexToDatabaseIndexInfo(
+        _ indexDict: [String: Any],
+        collectionName: String,
+        schemaName: String
+    ) -> DatabaseIndexInfo? {
+        guard let indexName = indexDict["name"] as? String else { return nil }
+
+        // Parse fields (can be array or object)
+        var columns: [String] = []
+        var indexType: IndexType = .btree
+        var includeColumns: [String]? = nil
+
+        if let fieldsArray = indexDict["fields"] as? [String] {
+            // Regular index: ["field1", "field2"]
+            columns = fieldsArray
+            indexType = .btree
+
+        } else if let fieldsDict = indexDict["fields"] as? [String: Any] {
+            // Search or Vector index
+            if let searchField = fieldsDict["searchField"] as? String {
+                columns = [searchField]
+                indexType = .fulltext
+                includeColumns = fieldsDict["filterFields"] as? [String]
+
+            } else if let vectorField = fieldsDict["vectorField"] as? String {
+                columns = [vectorField]
+                indexType = .other
+                includeColumns = fieldsDict["filterFields"] as? [String]
+            }
+        }
+
+        // Build comment from backfill state
+        var comment: String? = nil
+        if let backfill = indexDict["backfill"] as? [String: Any],
+           let state = backfill["state"] as? String {
+            var commentParts: [String] = ["Backfill: \(state)"]
+
+            // Add stats if available
+            if let stats = backfill["stats"] as? [String: Any] {
+                if let numDocsIndexed = stats["numDocsIndexed"] as? Int {
+                    let totalDocs = stats["totalDocs"] as? Int
+                    if let total = totalDocs {
+                        commentParts.append("\(numDocsIndexed)/\(total) docs")
+                    } else {
+                        commentParts.append("\(numDocsIndexed) docs")
+                    }
+                }
+            }
+
+            comment = commentParts.joined(separator: ", ")
+        }
+
+        // Check if staged
+        if let staged = indexDict["staged"] as? Bool, staged {
+            comment = comment == nil ? "Staged" : "\(comment!), Staged"
+        }
+
+        return DatabaseIndexInfo(
+            name: indexName,
+            tableName: collectionName,
+            schemaName: schemaName,
+            columns: columns,
+            indexType: indexType,
+            isUnique: false,
+            isPrimaryKey: indexName.contains("primary") || indexName.contains("by_id"),
+            definition: nil,
+            condition: nil,
+            includeColumns: includeColumns,
+            comment: comment
+        )
     }
 
     // MARK: - Schema Inference
@@ -1109,7 +1245,6 @@ class ConvexDriver: DatabaseDriver {
 
             // If no components found, return default "app" component
             return informationSchemas.isEmpty ? [InformationSchema(name: "app")] : informationSchemas
-
         } catch {
             // If query fails, return default "app" component
             return [InformationSchema(name: "app")]
@@ -1205,6 +1340,9 @@ class ConvexDriver: DatabaseDriver {
             "numItems": Float(limit)
         ]
         args["paginationOpts"] = paginationOpts
+        if let databaseSchema = databaseSchema {
+            args["componentId"] = getComponentId(for: databaseSchema)
+        }
         debugLog("🛰️ Subscribing to _system/frontend/paginatedTableDocuments")
         
         // Create subscription

@@ -410,7 +410,13 @@ class MongoDBDriver: DatabaseDriver {
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         throw DatabaseError.notImplemented("MongoDB schema introspection not yet implemented")
     }
-    
+
+    func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
+        // MongoDB indexes are different from relational database indexes
+        // This can be implemented in the future by querying collection.listIndexes()
+        return []
+    }
+
     // MARK: - Helper Methods
     
     private func convertFormattedDocumentToRow(_ formattedDoc: Document.FormattedDocument) -> [String: QueryRowInfo] {

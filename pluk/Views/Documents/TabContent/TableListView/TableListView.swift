@@ -11,7 +11,7 @@ import ConvexMobile
 import Combine
 
 struct TableListView: View {
-    let selectedTab: DatabaseTab
+    @Bindable var selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) var colorScheme
     
@@ -20,9 +20,10 @@ struct TableListView: View {
     @State private var sortAscending: Bool = true
     
     @State private var cachedSchema: DatabaseSchemaResult?
+    @State private var cachedIndexes: [DatabaseIndexInfo]?
     @State private var cachedDocuments: QueryResult?
     @State private var cachedTabName: String?
-    
+
     // Task management for preventing race conditions
     @State private var loadingTask: Task<Void, Never>?
     
@@ -74,9 +75,10 @@ struct TableListView: View {
                 )
                 
                 if cachedSchema != nil || currentQueryResult != nil {
-                    Divider()
-                    TableListViewController(
+                    TableViewModeContainer(
+                        viewMode: selectedTab.viewMode,
                         schema: cachedSchema,
+                        indexes: cachedIndexes,
                         queryResult: currentQueryResult,
                         tableName: selectedTab.name,
                         cacheNamespace: instance.connection.persistentModelID.storeIdentifier,
@@ -116,6 +118,7 @@ struct TableListView: View {
                 FloatingActionBar(
                     viewState: viewState,
                     tableName: selectedTab.name,
+                    tabViewMode: $selectedTab.viewMode,
                     modificationTracker: modificationTracker,
                     isProcessingUpdates: isProcessingUpdates,
                     onRefresh: { currentPage, itemsPerPage, fetchSchema in
@@ -146,7 +149,8 @@ struct TableListView: View {
                     onNewRecord: {
                         handleNewRecord()
                     },
-                    currentQueryResult: currentQueryResult
+                    currentQueryResult: currentQueryResult,
+                    schema: cachedSchema
                 )
                 .padding(.bottom, 10)
             }
@@ -628,6 +632,14 @@ struct TableListView: View {
                 } catch {
                     debugLog("Failed to fetch schema for \(selectedTab.name): \(error.localizedDescription)")
                 }
+                
+                do {
+                    if let indexes = try await instance.databaseService.getIndexes(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema) {
+                        cachedIndexes = indexes
+                    }
+                } catch {
+                    debugLog("Failed to fetch indexes for \(selectedTab.name): \(error.localizedDescription)")
+                }
             }
             cachedTabName = selectedTab.name
             cancelRealTimeSubscription()
@@ -667,8 +679,9 @@ struct TableListView: View {
             let databaseSchema = selectedTab.databaseSchema
             
             if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
-                // Fetch both schema and documents
+                // Fetch schema, indexes, and documents in parallel
                 async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: databaseSchema)
+                async let indexesTask = instance.databaseService.getIndexes(for: selectedTab.name, databaseSchema: databaseSchema)
                 async let documentsTask = instance.databaseService.findDocuments(
                     in: selectedTab.name,
                     databaseSchema: databaseSchema,
@@ -678,22 +691,23 @@ struct TableListView: View {
                     sortBy: sortColumn,
                     ascending: sortAscending
                 )
-                
-                let (schema, documents) = try await (schemaTask, documentsTask)
-                
+
+                let (schema, indexes, documents) = try await (schemaTask, indexesTask, documentsTask)
+
                 // Check if task was cancelled after async operations
                 if Task.isCancelled { return }
-                
+
                 guard let schema = schema else {
                     viewState = .error("Could not load schema")
                     return
                 }
-                
+
                 schemaToUse = schema
                 documentsResult = documents
-                
-                // Cache the schema
+
+                // Cache the schema and indexes
                 cachedSchema = schema
+                cachedIndexes = indexes
             } else {
                 // Use cached schema, only fetch documents
                 guard let schema = cachedSchema else {

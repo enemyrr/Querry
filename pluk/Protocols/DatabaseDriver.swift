@@ -99,7 +99,8 @@ protocol DatabaseDriver {
     
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult
     func getInformationSchema() async throws -> [InformationSchema]
-    
+    func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo]
+
     // Collection management
     func createCollection(named collectionName: String) async throws
     func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws
@@ -235,6 +236,71 @@ struct ConstraintInfo: Equatable {
     // Convenience property for primary key identification
     var isPrimaryKey: Bool {
         return type == .primaryKey
+    }
+}
+
+// MARK: - Database Index Information Structure
+enum IndexType: String, Equatable {
+    case btree = "btree"
+    case hash = "hash"
+    case gin = "gin"
+    case gist = "gist"
+    case spgist = "spgist"
+    case brin = "brin"
+    case fulltext = "fulltext"
+    case spatial = "spatial"
+    case other = "other"
+}
+
+struct DatabaseIndexInfo: Equatable {
+    let name: String
+    let tableName: String
+    let schemaName: String
+    let columns: [String]
+    let indexType: IndexType
+    let isUnique: Bool
+    let isPrimaryKey: Bool
+    let definition: String?
+    let condition: String?  // For partial indexes (WHERE clause)
+    let includeColumns: [String]?  // For INCLUDE clause
+    let comment: String?
+
+    init(
+        name: String,
+        tableName: String,
+        schemaName: String,
+        columns: [String],
+        indexType: IndexType,
+        isUnique: Bool = false,
+        isPrimaryKey: Bool = false,
+        definition: String? = nil,
+        condition: String? = nil,
+        includeColumns: [String]? = nil,
+        comment: String? = nil
+    ) {
+        self.name = name
+        self.tableName = tableName
+        self.schemaName = schemaName
+        self.columns = columns
+        self.indexType = indexType
+        self.isUnique = isUnique
+        self.isPrimaryKey = isPrimaryKey
+        self.definition = definition
+        self.condition = condition
+        self.includeColumns = includeColumns
+        self.comment = comment
+    }
+
+    // Convenience computed property for display
+    var columnsDisplay: String {
+        return columns.joined(separator: ", ")
+    }
+
+    var includeColumnsDisplay: String? {
+        guard let includeColumns = includeColumns, !includeColumns.isEmpty else {
+            return nil
+        }
+        return includeColumns.joined(separator: ", ")
     }
 }
 

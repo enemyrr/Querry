@@ -1391,7 +1391,108 @@ class PostgreSQLDriver: DatabaseDriver {
         let count = await databaseSchema.count
         return (count: count, maxSize: 100)
     }
-    
+
+    func getIndexes(for tableName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
+        let connection = try await ensureConnected()
+        let schemaName = schema ?? "public"
+
+        do {
+            let query = PostgresQuery("""
+                SELECT
+                    ix.relname as index_name,
+                    UPPER(am.amname) AS index_algorithm,
+                    indisunique as is_unique,
+                    indisprimary as is_primary,
+                    pg_get_indexdef(indexrelid) as index_definition,
+                    replace(
+                        regexp_replace(
+                            regexp_replace(
+                                regexp_replace(pg_get_indexdef(indexrelid), ' WHERE .+|INCLUDE .+', ''),
+                                ' WITH .+', ''
+                            ),
+                            '.*\\((.*)\\)', '\\1'
+                        ),
+                        ' ', ''
+                    ) AS column_name,
+                    CASE
+                        WHEN position(' WHERE ' in pg_get_indexdef(indexrelid)) > 0
+                        THEN regexp_replace(pg_get_indexdef(indexrelid), '.+WHERE ', '')
+                        ELSE ''
+                    END AS condition,
+                    CASE
+                        WHEN position(' INCLUDE ' in pg_get_indexdef(indexrelid)) > 0
+                        THEN replace(
+                            regexp_replace(
+                                regexp_replace(pg_get_indexdef(indexrelid), '.+INCLUDE \\((.*)\\).*', '\\1'),
+                                ' ', ''
+                            ),
+                            ' ', ''
+                        )
+                        ELSE ''
+                    END AS include,
+                    pg_catalog.obj_description(i.indexrelid, 'pg_class') as comment
+                FROM pg_index i
+                JOIN pg_class t ON t.oid = i.indrelid
+                JOIN pg_class ix ON ix.oid = i.indexrelid
+                JOIN pg_namespace n ON t.relnamespace = n.oid
+                JOIN pg_am as am ON ix.relam = am.oid
+                WHERE t.relname = \(tableName) AND n.nspname = \(schemaName)
+                ORDER BY ix.relname;
+            """)
+
+            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            var indexes: [DatabaseIndexInfo] = []
+
+            for try await (indexName, idxAlgorithm, isUnique, isPrimary, definition, columnName, condition, include, comment) in results.decode(
+                (String, String, Bool, Bool, String, String, String, String, String?).self
+            ) {
+                let indexType: IndexType
+                switch idxAlgorithm.lowercased() {
+                case "btree": indexType = .btree
+                case "hash": indexType = .hash
+                case "gin": indexType = .gin
+                case "gist": indexType = .gist
+                case "spgist": indexType = .spgist
+                case "brin": indexType = .brin
+                default: indexType = .other
+                }
+
+                // Parse columns from comma-separated string
+                let columns = columnName.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+
+                // Parse include columns if present
+                var includeColumns: [String]? = nil
+                if !include.isEmpty {
+                    includeColumns = include.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+                }
+
+                // Clean up condition
+                let finalCondition = condition.isEmpty ? nil : condition
+
+                let indexInfo = DatabaseIndexInfo(
+                    name: indexName,
+                    tableName: tableName,
+                    schemaName: schemaName,
+                    columns: columns,
+                    indexType: indexType,
+                    isUnique: isUnique,
+                    isPrimaryKey: isPrimary,
+                    definition: definition,
+                    condition: finalCondition,
+                    includeColumns: includeColumns,
+                    comment: comment
+                )
+                indexes.append(indexInfo)
+            }
+
+            return indexes
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to get indexes: \(error.localizedDescription)")
+        }
+    }
+
     private func validateAndSanitizeIdentifier(_ identifier: String, databaseSchema: String? = "public") throws -> String {
         // Remove whitespace and validate the identifier
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)

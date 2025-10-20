@@ -244,9 +244,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
                     existingItem.label = tabLabel
                     existingItem.image = NSImage(
-                        systemSymbolName: tab.type == .sqlEditor
-                        ? "terminal"
-                        : (instance.connection.databaseType == .mongodb ? "document.fill" : "table"),
+                        systemSymbolName: getIconName(for: tab, databaseType: instance.connection.databaseType),
                         accessibilityDescription: nil
                     )
                 } else {
@@ -255,9 +253,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
                     tabViewItem.label = tabLabel
                     tabViewItem.image = NSImage(
-                        systemSymbolName: tab.type == .sqlEditor
-                        ? "terminal"
-                        : (instance.connection.databaseType == .mongodb ? "document.fill" : "table"),
+                        systemSymbolName: getIconName(for: tab, databaseType: instance.connection.databaseType),
                         accessibilityDescription: nil
                     )
                     
@@ -323,7 +319,28 @@ struct NSTabViewWrapper: NSViewRepresentable {
                 item.view?.menu = nil
             }
         }
-        
+
+        // Helper function to get icon name based on tab type and view mode
+        private func getIconName(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
+            if tab.type == .sqlEditor {
+                return "terminal"
+            }
+
+            // For MongoDB, use document icon for content mode
+            if databaseType == .mongodb && tab.viewMode == .content {
+                return "document.fill"
+            }
+
+            // For other tabs, use icon based on view mode
+            switch tab.viewMode {
+            case .content:
+                return "tablecells"
+            case .schema:
+                return "square.stack.3d.up"
+            case .definition:
+                return "ellipsis.curlybraces"
+            }
+        }
     }
 }
 
@@ -336,19 +353,37 @@ struct CustomTabButton: View {
     let onClose: () -> Void
     let databaseType: DatabaseType
     @State private var isHovering = false
-    
+
+    private var iconName: String {
+        if tab.type == .sqlEditor {
+            return "terminal"
+        }
+
+        // For MongoDB, use document icon for content mode
+        if databaseType == .mongodb && tab.viewMode == .content {
+            return "document.fill"
+        }
+
+        // For other tabs, use icon based on view mode
+        switch tab.viewMode {
+        case .content:
+            return "tablecells"
+        case .schema:
+            return "square.stack.3d.up"
+        case .definition:
+            return "ellipsis.curlybraces"
+        }
+    }
+
     var body: some View {
         VStack {
             ZStack {
                 HStack(spacing: 8) {
-                    Image(
-                        systemName: tab.type == .sqlEditor
-                        ? "terminal"
-                        : (databaseType == .mongodb ? "document.fill" : "table")
-                    )
-                    .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
-                    
+                    Image(systemName: iconName)
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                        .frame(width: 14, alignment: .center)
+
                     Text(tab.name)
                         .lineLimit(1)
                         .truncationMode(.middle)

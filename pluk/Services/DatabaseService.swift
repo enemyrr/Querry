@@ -303,7 +303,12 @@ import SwiftUI
         guard let driver = activeDriver else { return [] }
         return try await driver.getInformationSchema()
     }
-    
+
+    func getIndexes(for collectionName: String, databaseSchema: String?) async throws -> [DatabaseIndexInfo]? {
+        guard let driver = activeDriver else { return nil }
+        return try await driver.getIndexes(for: collectionName, schema: databaseSchema)
+    }
+
     func getDocumentCount(for collectionName: String, filter: [String: Any] = [:]) async throws -> Int {
         guard let driver = activeDriver else { return 0 }
         return try await driver.getDocumentCount(for: collectionName, filter: filter)
