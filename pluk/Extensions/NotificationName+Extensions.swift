@@ -20,4 +20,5 @@ extension Notification.Name {
     /// Connection database updates
     static let databasesUpdated = Notification.Name("databasesUpdated")
     static let connectedDatabaseChanged = Notification.Name("connectedDatabaseChanged")
+    static let toggleFilterBuilder = Notification.Name("ToggleFilterBuilder")
 }

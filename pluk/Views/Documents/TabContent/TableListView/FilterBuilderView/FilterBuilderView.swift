@@ -141,7 +141,7 @@ struct FilterBuilderView: View {
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ToggleFilterBuilder"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 showFilterBuilder.toggle()
                 

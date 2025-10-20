@@ -356,6 +356,13 @@ struct FloatingActionBar: View {
                 }
                 return event
                 
+            case 3: // 'f' key
+                if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
+                    NotificationCenter.default.post(name: .toggleFilterBuilder, object: nil)
+                    return nil // Consume the event
+                }
+                return event
+
             case 51: // Delete key with Cmd+Shift
                 if event.modifierFlags.contains([.command, .shift]) && !filter.isEmpty {
                     filter = ""
@@ -363,7 +370,7 @@ struct FloatingActionBar: View {
                     return nil // Consume the event
                 }
                 return event
-                
+
             case 53: // 'esc' key
                 withAnimation(.spring(response: 0.3)) {
                     action = .main
@@ -528,6 +535,9 @@ struct FloatingActionBar: View {
                 .stroke(.separator)
         )
         .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
+        .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { _ in
+            showFilterEditor.toggle()
+        }
         //        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)
     }
     
