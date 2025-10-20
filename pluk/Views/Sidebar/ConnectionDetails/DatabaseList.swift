@@ -68,13 +68,17 @@ struct DatabaseList: View {
                     if !viewModel.searchText.isEmpty
                         && filteredCollections.isEmpty
                     {
-                        ContentUnavailableView(
-                            "No Tables",
-                            systemImage: "folder.badge.questionmark",
-                            description: Text(
-                                "This database doesn't contain any tables that match your search query."
-                            )
-                        )
+                        VStack(spacing: 12) {
+                            Image(systemName: "folder.badge.questionmark")
+                                .font(.system(size: 32))
+                                .foregroundColor(.secondary.opacity(0.5))
+                            
+                            Text("No Tables")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                        .padding(.top, 20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
             }

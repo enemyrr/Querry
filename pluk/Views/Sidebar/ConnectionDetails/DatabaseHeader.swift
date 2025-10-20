@@ -214,13 +214,13 @@ struct SearchInput: View {
     var viewModel: SidebarViewModel
     @State private var localSearchText: String = ""
     @FocusState private var isSearchFocused: Bool
-    
+
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.gray)
                 .font(.system(size: 14))
-            
+
             TextField("Search", text: Binding(
                 get: { viewModel.searchText },
                 set: { viewModel.searchText = $0 }
@@ -238,7 +238,7 @@ struct SearchInput: View {
                     viewModel.searchText = ""
                 }
             }
-            
+
             if !viewModel.searchText.isEmpty {
                 Button(action: { viewModel.searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
@@ -256,7 +256,7 @@ struct SearchInput: View {
                 .transition(.opacity)
                 .padding(.horizontal, 2)
             }
-            
+
         }
         .padding(.leading, 8)
         .padding(.trailing, 6)
@@ -271,6 +271,20 @@ struct SearchInput: View {
             isSearchFocused = true
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
+        .onAppear {
+            // Auto-focus when search input appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isSearchFocused = true
+            }
+        }
+        .onChange(of: viewModel.isSearchVisible) { _, isVisible in
+            // Auto-focus when search becomes visible
+            if isVisible {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isSearchFocused = true
+                }
+            }
+        }
     }
 }
 
