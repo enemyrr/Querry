@@ -2,7 +2,34 @@
 
 # Pluk Release Notes
 
-## [0.0.1-beta.22] – 2025-10-08 
+## [0.0.1-beta.23] – 2025-10-21
+
+### ✨ New Features
+
+#### **Database Schema Viewer**
+
+- **Read-only Schema Browser** - Explore database structure including columns, indexes, and constraints
+- Quick reference for understanding your database schema without leaving Pluk
+- Foundation for future schema editing capabilities
+
+#### **Enhanced User Experience**
+
+- **Customizable Window Size** - Set preferred width and height when opening Pluk windows
+- **Improved Search Focus** - Search input now automatically focuses for faster navigation
+
+### 🛠️ Bug Fixes & Improvements
+
+#### **Interface Stability**
+
+- **FIXED**: Convex component documents now load correctly without errors
+- **FIXED**: Tabs are now fully clickable and responsive throughout the interface
+- Improved overall interface reliability and interaction handling
+
+---
+
+**Note**: The Schema Viewer is currently in read-only mode. Full editing capabilities will be added in a future release.
+
+## [0.0.1-beta.22] – 2025-10-08
 
 ### 🪄 **Convex Joins Pluk** — Real-Time. Native. Seamless.
 
@@ -10,33 +37,32 @@ We’re thrilled to announce **native Convex integration** — bringing real-tim
 
 #### **Convex Integration**
 
-* 🧠 **Full Convex Backend Support** — Native integration for queries, mutations, and subscriptions with real-time synchronization built in
-* ⚡ **One-Click OAuth Connection** — Securely connect to your Convex account using OAuth, then select a project and start exploring the data
-* 🧪 Live Development & Deployment Ready — View your Convex production deployments and other environments, and seamlessly switch between environments and components directly from Pluk — no manual setup required.
+- 🧠 **Full Convex Backend Support** — Native integration for queries, mutations, and subscriptions with real-time synchronization built in
+- ⚡ **One-Click OAuth Connection** — Securely connect to your Convex account using OAuth, then select a project and start exploring the data
+- 🧪 Live Development & Deployment Ready — View your Convex production deployments and other environments, and seamlessly switch between environments and components directly from Pluk — no manual setup required.
 
 This is our biggest backend integration yet — transforming Pluk into a powerful companion for Convex developers.
-
 
 ### 🎨 **A Fresh New Look**
 
 #### **Modern UI Redesign**
 
-* ✨ Complete visual overhaul with a modern interface, refined typography, and a cleaner color palette
-* Improved visual hierarchy makes key actions more discoverable
-* Polished animations and transitions create a smoother, more responsive experience
+- ✨ Complete visual overhaul with a modern interface, refined typography, and a cleaner color palette
+- Improved visual hierarchy makes key actions more discoverable
+- Polished animations and transitions create a smoother, more responsive experience
 
 #### **Flexible Sidebar Layout**
 
-* 🧱 Resizable sidebar — adjust to fit your workflow
-* Optimized layouts for both compact and spacious workspaces
+- 🧱 Resizable sidebar — adjust to fit your workflow
+- Optimized layouts for both compact and spacious workspaces
 
 ### 🚀 **Performance & Developer Experience**
 
 #### **Native Tab Architecture**
 
-* 🧩 Migrated to a native tab-based system for improved stability and speed
-* 🌐 Intelligent connection pooling for more efficient resource use
-* More robust state management and recovery for long-running sessions
+- 🧩 Migrated to a native tab-based system for improved stability and speed
+- 🌐 Intelligent connection pooling for more efficient resource use
+- More robust state management and recovery for long-running sessions
 
 ## [0.0.1-beta.21] – 2025-09-17
 
