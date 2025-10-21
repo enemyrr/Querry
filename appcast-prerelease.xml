@@ -6,6 +6,45 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 23</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.23.dmg</link>
+            <sparkle:version>281</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.23</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 23</h2><div><h3>✨ New Features</h3>
+<h4><strong>Database Schema Viewer</strong></h4>
+<ul>
+<li><strong>Read-only Schema Browser</strong> - Explore database structure including columns, indexes, and constraints</li>
+<li>Quick reference for understanding your database schema without leaving Pluk</li>
+<li>Foundation for future schema editing capabilities</li>
+</ul>
+<h4><strong>Enhanced User Experience</strong></h4>
+<ul>
+<li><strong>Customizable Window Size</strong> - Set preferred width and height when opening Pluk windows</li>
+<li><strong>Improved Search Focus</strong> - Search input now automatically focuses for faster navigation</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<h4><strong>Interface Stability</strong></h4>
+<ul>
+<li><strong>FIXED</strong>: Convex component documents now load correctly without errors</li>
+<li><strong>FIXED</strong>: Tabs are now fully clickable and responsive throughout the interface</li>
+<li>Improved overall interface reliability and interaction handling</li>
+</ul>
+<ul>
+---
+</ul>
+<strong>Note</strong>: The Schema Viewer is currently in read-only mode. Full editing capabilities will be added in a future release.</div>
+            ]]></description>
+            <pubDate>Tue, 21 Oct 2025 14:41:15 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.23.dmg"
+                length="49377615"
+                type="application/octet-stream"
+                sparkle:edSignature="isQoJM6I7NMWzBLmz1YAU1lUYK0V2ce1i9Dq1KPN/tGMkr3r837lE7CoPYqWmiWOH8sBvHnP+7s1wrtbwWQ6DQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 22</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg</link>
             <sparkle:version>280</sparkle:version>
@@ -14,23 +53,31 @@
                 <h2>Pluk 0.0.1 Beta 22</h2><div><h3>🪄 <strong>Convex Joins Pluk</strong> — Real-Time. Native. Seamless.</h3>
 We’re thrilled to announce <strong>native Convex integration</strong> — bringing real-time data synchronization and reactive backends directly into Pluk. This unlocks an entirely new way to build and explore your data with zero setup friction.
 <h4><strong>Convex Integration</strong></h4>
-* 🧠 <strong>Full Convex Backend Support</strong> — Native integration for queries, mutations, and subscriptions with real-time synchronization built in
-* ⚡ <strong>One-Click OAuth Connection</strong> — Securely connect to your Convex account using OAuth, then select a project and start exploring the data
-* 🧪 Live Development & Deployment Ready — View your Convex production deployments and other environments, and seamlessly switch between environments and components directly from Pluk — no manual setup required.
+<ul>
+<li>🧠 <strong>Full Convex Backend Support</strong> — Native integration for queries, mutations, and subscriptions with real-time synchronization built in</li>
+<li>⚡ <strong>One-Click OAuth Connection</strong> — Securely connect to your Convex account using OAuth, then select a project and start exploring the data</li>
+<li>🧪 Live Development & Deployment Ready — View your Convex production deployments and other environments, and seamlessly switch between environments and components directly from Pluk — no manual setup required.</li>
+</ul>
 This is our biggest backend integration yet — transforming Pluk into a powerful companion for Convex developers.
 <h3>🎨 <strong>A Fresh New Look</strong></h3>
 <h4><strong>Modern UI Redesign</strong></h4>
-* ✨ Complete visual overhaul with a modern interface, refined typography, and a cleaner color palette
-* Improved visual hierarchy makes key actions more discoverable
-* Polished animations and transitions create a smoother, more responsive experience
+<ul>
+<li>✨ Complete visual overhaul with a modern interface, refined typography, and a cleaner color palette</li>
+<li>Improved visual hierarchy makes key actions more discoverable</li>
+<li>Polished animations and transitions create a smoother, more responsive experience</li>
+</ul>
 <h4><strong>Flexible Sidebar Layout</strong></h4>
-* 🧱 Resizable sidebar — adjust to fit your workflow
-* Optimized layouts for both compact and spacious workspaces
+<ul>
+<li>🧱 Resizable sidebar — adjust to fit your workflow</li>
+<li>Optimized layouts for both compact and spacious workspaces</li>
+</ul>
 <h3>🚀 <strong>Performance & Developer Experience</strong></h3>
 <h4><strong>Native Tab Architecture</strong></h4>
-* 🧩 Migrated to a native tab-based system for improved stability and speed
-* 🌐 Intelligent connection pooling for more efficient resource use
-* More robust state management and recovery for long-running sessions</div>
+<ul>
+<li>🧩 Migrated to a native tab-based system for improved stability and speed</li>
+<li>🌐 Intelligent connection pooling for more efficient resource use</li>
+<li>More robust state management and recovery for long-running sessions</li>
+</ul></div>
             ]]></description>
             <pubDate>Thu, 09 Oct 2025 03:11:02 +0000</pubDate>
             <enclosure 
@@ -355,7 +402,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
         <item>
             <title>Pluk 0.0.1 Beta 14</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg</link>
-            <sparkle:version>1</sparkle:version>
+            <sparkle:version>264</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.14</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 14</h2><div><h3>✨ New Features</h3>
@@ -396,7 +443,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg"
                 length="16680196"
                 type="application/octet-stream"
-                sparkle:edSignature="F+VFG7OvB4Mr0bX7QQOhlHwnThm76qjSQBgSLU12wkhfNhYLvvp+Mrep6c5hGbSNNeyFaiUHJqJZILhmdOAMBQ=="
+                sparkle:edSignature="J0e3bRxknpnMpYUjn9+Af37QdyArA3HDW8TDeA8ntr6mlU46zFlWRap42nw8rpXAX64yGjubjYT0Yk2St3uhCw=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
