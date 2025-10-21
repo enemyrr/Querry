@@ -204,6 +204,9 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         window.contentMinSize = NSSize(width: 800, height: 1280)
         window.delegate = self
 
+        // Enable native window frame autosave for persistent window size/position
+        window.setFrameAutosaveName("PlukMainWindow")
+
         let contentView = TabAwareMainWindow(
             tabType: tabType,
             connectionInstance: connectionInstance
