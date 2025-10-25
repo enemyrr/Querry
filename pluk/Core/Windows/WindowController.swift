@@ -201,11 +201,20 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = true
-        window.contentMinSize = NSSize(width: 800, height: 1280)
+        window.contentMinSize = NSSize(width: 800, height: 600)
+        
+        // Restore saved frame (must be called BEFORE setFrameAutosaveName)
+        let autosaveName: NSWindow.FrameAutosaveName = "PlukMainWindow"
+        let restoredFrame = window.setFrameUsingName(autosaveName)
+        window.setFrameAutosaveName(autosaveName)
+        
+        // If no saved frame, set default size and center
+        if !restoredFrame {
+            window.setContentSize(NSSize(width: 1200, height: 800))
+            window.center()
+        }
+        
         window.delegate = self
-
-        // Enable native window frame autosave for persistent window size/position
-        window.setFrameAutosaveName("PlukMainWindow")
 
         let contentView = TabAwareMainWindow(
             tabType: tabType,

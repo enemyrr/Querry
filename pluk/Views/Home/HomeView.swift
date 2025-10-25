@@ -69,16 +69,6 @@ struct HomeView: View {
             )
             .padding([.trailing, .bottom], 8)
         }
-        .onAppear {
-            print("🔍 HomeView loaded")
-            print("🔍 Connections count: \(connections.count)")
-            if !connections.isEmpty {
-                print("🔍 Connection names: \(connections.map { $0.name }.joined(separator: ", "))")
-            }
-        }
-        .onChange(of: connections.count) { oldValue, newValue in
-            print("🔍 Connections count changed from \(oldValue) to \(newValue)")
-        }
         .postHogScreenView("HomeView")
         .alert(pendingConnection != nil ? "\"\(pendingConnection!.name)\" is already connected" : "", isPresented: $showConnectionAlert) {
             Button("Continue Current Tab") {
