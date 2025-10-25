@@ -47,7 +47,7 @@ struct ConnectionNameHeader: View {
                 }
                 .buttonStyle(ActionButtonStyle())
                 .keyboardShortcut("f", modifiers: [.command, .shift])
-                .customHelp("Find Tables", position: .left, shortcut: KeyboardShortcut(
+                .customHelp("Find Tables", shortcut: KeyboardShortcut(
                     modifiers: [KeyboardModifier.command, KeyboardModifier.shift],
                     key: "F"
                 ))

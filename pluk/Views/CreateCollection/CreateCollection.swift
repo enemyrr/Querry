@@ -32,7 +32,7 @@ struct CreateCollection: View {
         }
         .buttonStyle(ActionButtonStyle())
         .keyboardShortcut("N", modifiers: [.command, .shift])
-        .customHelp(helpText, position: .left, shortcut: KeyboardShortcut(
+        .customHelp(helpText, shortcut: KeyboardShortcut(
             modifiers: [.command, .shift],
             key: "N"
         ))

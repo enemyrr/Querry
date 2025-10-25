@@ -124,12 +124,10 @@ struct SQLEditorView: View {
                     systemName: "wand.and.stars",
                     action: prettifySQL,
                     disabled: sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || showingInlineDiff,
-                    tooltip: ""
                 )
                 .keyboardShortcut("i", modifiers: [.command])
                 .customHelp(
                     "Format SQL",
-                    position: .top,
                     shortcut: KeyboardShortcut(
                         modifiers: [.command],
                         key: "i"

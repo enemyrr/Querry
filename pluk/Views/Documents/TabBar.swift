@@ -72,7 +72,6 @@ struct TabBar: View {
             .keyboardShortcut("[", modifiers: [.command, .shift])
             .customHelp(
                 "Previous tab",
-                position: .bottom,
                 shortcut: KeyboardShortcut(
                     modifiers: [.command, .shift],
                     key: "["
@@ -91,7 +90,6 @@ struct TabBar: View {
             .keyboardShortcut("]", modifiers: [.command, .shift])
             .customHelp(
                 "Next tab",
-                position: .bottom,
                 shortcut: KeyboardShortcut(
                     modifiers: [.command, .shift],
                     key: "]"
@@ -172,7 +170,6 @@ struct TabBar: View {
         .padding(.bottom, 2)
         .customHelp(
             "New Tab",
-            position: .left,
             shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "t"

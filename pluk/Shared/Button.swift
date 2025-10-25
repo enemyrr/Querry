@@ -923,7 +923,6 @@ struct ToolbarIconButton: View {
     let systemName: String
     let action: () -> Void
     let disabled: Bool
-    let tooltip: String
     
     @State private var isHovering = false
     
@@ -953,7 +952,6 @@ struct ToolbarIconButton: View {
                 isHovering = hovering
             }
         }
-        .customHelp(tooltip, position: .top)
     }
 }
 
