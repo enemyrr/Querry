@@ -13,13 +13,17 @@ import MongoKitten
 struct CreateEditor: View {
     // MARK: - Dependencies
     @Binding var showCreateDocumentSheet: Bool
-    
+    @Environment(ConnectionInstance.self) private var instance
+
     // MARK: - View State
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = Set()
     @State private var isExpanded: Bool = false
     @State private var showEditor: Bool = false
     @State private var saveSuccess: Bool = false
+    @State private var jsonDocument: String = "{\n  \n}"
+    @State private var errorMessage: String?
+    @State private var isLoading: Bool = false
     
     // MARK: - Initialization
     init(showCreateDocumentSheet: Binding<Bool>) {
@@ -86,77 +90,118 @@ struct CreateEditor: View {
     
     private func handleSave() {
         Task {
-//            let success = await viewModel.saveDocument()
-//            if success {
-//                // Show success feedback
-//                await MainActor.run {
-//                    withAnimation(.easeIn(duration: 0.2)) {
-//                        saveSuccess = true
-//                    }
-//                }
-//                
-//                // Reload documents
-//                _ = await viewModel.loadDocuments()
-//                
-//                // Wait for success animation to be visible (delay closing)
-//                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8 seconds
-//                
-//                // Close the editor
-//                await MainActor.run {
-//                    closeWithAnimation()
-//                }
-//            }
+            await MainActor.run {
+                isLoading = true
+                errorMessage = nil
+            }
+
+            do {
+                // Parse JSON
+                guard let document = try? MongoKitten.Document(fromJSON: jsonDocument) else {
+                    throw MongoError.invalidData
+                }
+
+                // Convert to dictionary
+                var documentData: [String: Any] = [:]
+                for (key, value) in document {
+                    documentData[key] = value
+                }
+
+                // Get collection name from selectedTab
+                guard let collectionName = instance.selectedTab?.name else {
+                    throw DatabaseError.operationFailed("No collection selected")
+                }
+
+                // Create document
+                try await instance.databaseService.createDocument(
+                    in: collectionName,
+                    databaseSchema: nil,
+                    document: documentData
+                )
+
+                // Show success
+                await MainActor.run {
+                    withAnimation(.easeIn(duration: 0.2)) {
+                        saveSuccess = true
+                    }
+                }
+
+                // Wait for success animation
+                try? await Task.sleep(for: .milliseconds(800))
+
+                // Close editor
+                await MainActor.run {
+                    closeWithAnimation()
+                }
+
+                // Refresh document list
+                NotificationCenter.default.post(
+                    name: .tableRefresh,
+                    object: nil,
+                    userInfo: ["tableName": collectionName]
+                )
+
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isLoading = false
+                }
+            }
         }
     }
+    
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     
     private func fullQueryEditorView() -> some View {
         VStack(spacing: 0) {
             HStack {
                 Text("Insert Document")
                     .font(.headline)
+                    .fontWeight(.regular)
                     .foregroundColor(.secondary)
-                
+
                 Spacer()
-                
-//                if let error = viewModel.errorMessage {
-//                    Text(error)
-//                        .font(.system(size: 10))
-//                        .foregroundColor(.red)
-//                        .lineLimit(1)
-//                        .truncationMode(.tail)
-//                }
-//                
-//                Button(action: handleSave) {
-//                    ZStack {
-//                        ProgressView()
-//                            .controlSize(.mini)
-//                            .opacity(viewModel.isLoading ? 1 : 0)
-//                            .animation(.easeIn, value: viewModel.isLoading)
-//                        
-//                        Text("Save")
-//                    }
-//                    .frame(minWidth: 80)
-//                }
-//                .if(saveSuccess) { view in
-//                    view.buttonStyle(SuccessButtonStyle())
-//                } else: { view in
-//                    view.buttonStyle(OutlineButtonStyle())
-//                }
-//                .disabled(viewModel.isLoading || saveSuccess)
+
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+
+                Button(action: handleSave) {
+                    ZStack {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .opacity(isLoading ? 1 : 0)
+                            .animation(.easeIn, value: isLoading)
+
+                        Text("Save")
+                    }
+                    .frame(minWidth: 80)
+                }
+                .if(saveSuccess) { view in
+                    view.buttonStyle(SuccessButtonStyle())
+                } else: { view in
+                    view.buttonStyle(OutlineButtonStyle())
+                }
+                .disabled(isLoading || saveSuccess)
             }
             .padding([.top, .horizontal, .bottom], 8)
-            
-//            CodeEditor(text: $viewModel.jsonDocument, position: $position, messages: $messages, language: .mongodb())
-//                .environment(\.codeEditorTheme, Theme.defaultDark)
-//                .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
-//                .overlay(
-//                    RoundedRectangle(cornerRadius: 10)
-//                        .stroke(.separator, lineWidth: 1)
-//                )
-//                .padding(.bottom, 2)
-//                .cornerRadius(10)
-//                .frame(height: isExpanded ? 320 : 0) // Collapse height when not expanded
-//                .disabled(viewModel.isLoading || saveSuccess)
+
+            CodeEditor(text: $jsonDocument, position: $position, messages: $messages, language: .mongodb())
+                .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
+                .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
+                )
+                .padding(.bottom, 2)
+                .cornerRadius(10)
+                .frame(height: isExpanded ? 320 : 0)
+                .disabled(isLoading || saveSuccess)
         }
     }
 }

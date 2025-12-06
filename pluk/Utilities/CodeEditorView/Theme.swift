@@ -217,7 +217,7 @@ extension Theme {
 
   public static var defaultLight: Theme
     = Theme(colourScheme: .light,
-            fontName: "SFMono-Medium",
+            fontName: "SFMono",
             fontSize: 13.0,
             textColour: OSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1.0),
             commentColour: OSColor(red: 0.45, green: 0.50, blue: 0.55, alpha: 1.0),

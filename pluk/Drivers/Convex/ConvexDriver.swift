@@ -490,7 +490,7 @@ class ConvexDriver: DatabaseDriver {
                 if let nextCursor = continueCursor { pageMap[currentPageIndex + 1] = nextCursor }
                 filterMap[filtersBase64Signature] = pageMap
                 tablePageCursors[collectionName] = filterMap
-                if let nextCursor = continueCursor {
+                if continueCursor != nil {
                     debugLog("📄 Stored cursor for table=\(collectionName) filterKeyLen=\(filtersBase64Signature.count) page=\(currentPageIndex + 1)")
                 }
             }

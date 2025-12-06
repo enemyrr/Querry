@@ -10,6 +10,7 @@ import LanguageSupport
 import OnTapOutsideGesture
 
 struct QueryEditor: View {
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     @Binding var showQueryEditor: Bool
     @Binding var filter: String
     let isLoading: Bool
@@ -98,6 +99,7 @@ struct QueryEditor: View {
             HStack {
                 Text("Query Editor")
                     .font(.headline)
+                    .fontWeight(.regular)
                     .foregroundColor(.secondary)
                 
                 Spacer()
@@ -170,7 +172,7 @@ struct QueryEditor: View {
             }
             
             CodeEditor(text: $filter, position: $position, messages: $messages, language: .mongodb())
-                .environment(\.codeEditorTheme, Theme.defaultDark)
+                .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
                 .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)

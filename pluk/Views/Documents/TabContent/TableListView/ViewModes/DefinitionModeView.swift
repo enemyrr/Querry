@@ -55,7 +55,7 @@ struct DefinitionModeView: View {
     }
 
     private func generateJSONDefinition(from schema: DatabaseSchemaResult) -> String {
-        var json: [String: Any] = [
+        let json: [String: Any] = [
             "tableName": tableName,
             "schemaName": schema.schemaName,
             "columnCount": schema.columnCount,

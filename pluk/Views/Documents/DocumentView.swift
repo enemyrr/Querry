@@ -146,13 +146,11 @@ struct DocumentView: View {
 class TabContentView: NSView {
     let tab: DatabaseTab
     let databaseType: DatabaseType
-    let selectedTab: DatabaseTab?
     private var contentView: NSView?
-    
-    init(tab: DatabaseTab, databaseType: DatabaseType, selectedTab: DatabaseTab?) {
+
+    init(tab: DatabaseTab, databaseType: DatabaseType) {
         self.tab = tab
         self.databaseType = databaseType
-        self.selectedTab = selectedTab
         super.init(frame: .zero)
         setupView()
     }
@@ -179,28 +177,24 @@ class TabContentView: NSView {
     }
     
     private func setupTableView() {
-        if let selectedTab = selectedTab {
-            let hostingView: NSHostingView<AnyView>
-            
-            switch selectedTab.type {
-            case .browse, .aggregate, .schema, .indexes:
-                let tableListView = TableListView(selectedTab: selectedTab)
-                hostingView = NSHostingView(rootView: AnyView(tableListView))
-            case .sqlEditor:
-                let sqlEditorView = SQLEditorView()
-                hostingView = NSHostingView(rootView: AnyView(sqlEditorView))
-            }
-            
-            setContentView(hostingView)
+        let hostingView: NSHostingView<AnyView>
+
+        switch tab.type {
+        case .browse, .aggregate, .schema, .indexes:
+            let tableListView = TableListView(selectedTab: tab)
+            hostingView = NSHostingView(rootView: AnyView(tableListView))
+        case .sqlEditor:
+            let sqlEditorView = SQLEditorView()
+            hostingView = NSHostingView(rootView: AnyView(sqlEditorView))
         }
+
+        setContentView(hostingView)
     }
-    
+
     private func setupMongoDBView() {
-        if let selectedTab = selectedTab {
-            let documentList = DocumentList(selectedTab: selectedTab)
-            let hostingView = NSHostingView(rootView: documentList)
-            setContentView(hostingView)
-        }
+        let documentList = DocumentList(selectedTab: tab)
+        let hostingView = NSHostingView(rootView: documentList)
+        setContentView(hostingView)
     }
     
     private func setupDefaultView() {

@@ -131,7 +131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-        return true
+        return false
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {

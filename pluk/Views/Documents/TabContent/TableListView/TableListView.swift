@@ -149,6 +149,7 @@ struct TableListView: View {
                     onNewRecord: {
                         handleNewRecord()
                     },
+                    databaseType: instance.databaseType,
                     currentQueryResult: currentQueryResult,
                     schema: cachedSchema
                 )

@@ -24,6 +24,7 @@ struct ContentModeActionBar: View {
     let onNewRecord: () -> Void
     let onOpenAISearch: () -> Void
     let onDebounceLoadingChange: (Bool) -> Void
+    let databaseType: DatabaseType?
 
     @State private var debounceTask: Task<Void, Never>?
     @State private var loadingTask: Task<Void, Never>?
@@ -179,9 +180,11 @@ struct ContentModeActionBar: View {
                 key: "L"
             ), spacing: 10)
 
-            ViewModeToggle(tabViewMode: $tabViewMode)
-                .padding(.leading, 2)
-                .padding(.vertical, -2)
+            if databaseType != .mongodb {
+                ViewModeToggle(tabViewMode: $tabViewMode)
+                    .padding(.leading, 2)
+                    .padding(.vertical, -2)
+            }
         }
         .padding(8)
     }

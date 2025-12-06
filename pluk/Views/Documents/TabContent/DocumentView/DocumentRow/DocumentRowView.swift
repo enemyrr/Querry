@@ -12,53 +12,54 @@ import SwiftData
 struct DocumentRowView: View {
     let document: [String: QueryRowInfo]
     let index: Int
+    let onRefresh: () async -> Void
+
     @State private var isCardHovered = false
     @State private var showActionButton = false
-    
+    @State private var pendingAction: DocumentAction? = nil
+    @State private var showCopyFeedback = false
+    @State private var editingJSON: String = ""
+    @State private var errorMessage: String?
+    @State private var showErrorAlert = false
+    @State private var localDocument: [String: QueryRowInfo]?
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(ConnectionInstance.self) private var instance
+
+    // Use local document if available, otherwise use the passed document
+    private var displayDocument: [String: QueryRowInfo] {
+        localDocument ?? document
+    }
+
     var body: some View {
-        let pendingAction: DocumentAction? = nil
-        //        let pendingAction = viewModel.getPendingAction()
-        //        let showActionButton = isCardHovered || pendingAction == .update
-        
         Group {
             ZStack(alignment: .bottomTrailing) {
                 VStack(alignment: .leading, spacing: 2) {
-                    //                    if pendingAction == .update {
-                    //                        DocumentEditView(viewModel: viewModel)
-                    //                    } else {
-                    //                        DocumentKeyValueList(
-                    //                            document: document
-                    //                        )
-                    //                        .padding()
-                    //                    }
-                    DocumentKeyValueList(
-                        document: document
-                    )
-                    .padding()
-                    //
+                    if pendingAction == .update {
+                        DocumentEditView(editingJSON: $editingJSON)
+                    } else {
+                        DocumentKeyValueList(
+                            document: displayDocument
+                        )
+                        .padding()
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    ZStack {
-                        Color(.controlColor).opacity(0.15)
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(
-                                .linearGradient(
-                                    colors: [
-                                        Color(.controlColor).opacity(0.1),
-                                        Color(.controlColor).opacity(0.05),
-                                        .clear,
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
+                    Group {
+                        if colorScheme == .dark {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    Color(Color(.black).opacity(0.25))
                                 )
-                            )
-                            .blendMode(.plusLighter)
+                                .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                        } else {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    Color(hex: "#FDFDFD")
+                                )
+                                .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                        }
                     }
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.clear, lineWidth: 1)
                 )
                 .background(
                     RoundedRectangle(cornerRadius: 10)
@@ -83,68 +84,293 @@ struct DocumentRowView: View {
                 )
                 .cornerRadius(8)
                 .cardStyle(isHovered: isCardHovered)
-                
-//                HoverActionButtons(
-//                    isVisible: showActionButton,
-//                    onEdit: {
-//                        //                                        viewModel.togglePendingAction(.update)
-//                    },
-//                    onCopy: {
-//                        //                                        viewModel.copyDocumentJSON()
-//                    },
-//                    onDelete: {
-//                        //                                        viewModel.togglePendingAction(.delete)
-//                    },
-//                    onClone: {
-//                        //                                        viewModel.copyDocumentJSON()
-//                    },
-//                    showCopyFeedback: false,
-//                    pendingAction: {
-//                        
-//                    },
-//                    onSave: {
-//                        Task {
-//                            //                                            await viewModel.documentListViewModel.commitPendingActions()
-//                        }
-//                    },
-//                    onCancel: {
-//                        //                                        viewModel.togglePendingAction(.update)
-//                    }
-//                )
+
+                HoverActionButtons(
+                    isVisible: showActionButton,
+                    onEdit: {
+                        togglePendingAction(.update)
+                    },
+                    onCopy: {
+                        copyDocumentJSON()
+                    },
+                    onDelete: {
+                        togglePendingAction(.delete)
+                    },
+                    onClone: {
+                        copyDocumentJSON()
+                    },
+                    showCopyFeedback: showCopyFeedback,
+                    pendingAction: pendingAction,
+                    onSave: {
+                        if pendingAction == .delete {
+                            handleDelete()
+                        } else {
+                            handleSave()
+                        }
+                    },
+                    onCancel: {
+                        if pendingAction == .delete {
+                            togglePendingAction(.delete)
+                        } else {
+                            handleCancel()
+                        }
+                    }
+                )
             }
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isCardHovered = hovering
                 }
             }
+            .onChange(of: isCardHovered) { _, newValue in
+                showActionButton = newValue || pendingAction == .update || pendingAction == .delete
+            }
+            .onChange(of: pendingAction) { _, _ in
+                showActionButton = isCardHovered || pendingAction == .update || pendingAction == .delete
+            }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pendingAction)
-        //        .simultaneousGesture(
-        //            TapGesture(count: 2)
-        //                .onEnded {
-        //                    viewModel.togglePendingAction(.update)
-        //                }
-        //        )
+        .simultaneousGesture(
+            TapGesture(count: 2)
+                .onEnded {
+                    togglePendingAction(.update)
+                }
+        )
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) {
+                showErrorAlert = false
+            }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
+    }
+
+    // MARK: - Action Handlers
+
+    private func togglePendingAction(_ action: DocumentAction) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            if pendingAction == action {
+                pendingAction = nil
+            } else {
+                pendingAction = action
+
+                // If entering update mode, initialize editing JSON
+                if action == .update {
+                    editingJSON = getDocumentJSON()
+                }
+            }
+        }
+    }
+
+    private func copyDocumentJSON() {
+        let jsonString = getDocumentJSON()
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(jsonString, forType: .string)
+
+        showCopyFeedback = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            showCopyFeedback = false
+        }
+    }
+
+    private func getDocumentJSON() -> String {
+        // Extract the FormattedDocument from metadata (use displayDocument to get latest state)
+        guard let formattedDocInfo = displayDocument["__formattedDocument"],
+              let formattedDoc = formattedDocInfo.value as? MongoKitten.Document.FormattedDocument else {
+            return "{}"
+        }
+
+        // Get JSON string from the raw document
+        return formattedDoc.rawDocument.jsonString
+    }
+
+    private func handleSave() {
+        Task {
+            do {
+                // 1. Extract document ID
+                guard let idInfo = document["_id"],
+                      let documentId = idInfo.value as? String,
+                      let objectId = ObjectId(documentId) else {
+                    throw MongoError.invalidData
+                }
+
+                // 2. Get collection name from selected tab
+                guard let collectionName = instance.selectedTab?.name else {
+                    throw DatabaseError.operationFailed("No collection selected")
+                }
+
+                // 3. Parse edited JSON into MongoDB Document
+                guard let updatedDocument = try? MongoKitten.Document(fromJSON: editingJSON) else {
+                    throw MongoError.invalidData
+                }
+
+                // 4. Convert to [String: Any] dictionary
+                var documentData: [String: Any] = [:]
+                for (key, value) in updatedDocument {
+                    documentData[key] = value
+                }
+
+                // 5. Call database service to update
+                try await instance.databaseService.updateDocument(
+                    in: collectionName,
+                    databaseSchema: nil,
+                    id: objectId,
+                    data: documentData
+                )
+
+                // 6. Optimistically update local state with the saved document
+                await MainActor.run {
+                    localDocument = formatUpdatedDocument(updatedDocument)
+                }
+
+                // 7. Success - clear pending action
+                await MainActor.run {
+                    togglePendingAction(.update)
+                }
+
+            } catch {
+                // Handle error - show alert to user
+                debugLog("Failed to save document: \(error)")
+                await MainActor.run {
+                    errorMessage = "Failed to save document: \(error.localizedDescription)"
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+
+    private func handleCancel() {
+        togglePendingAction(.update)
+    }
+
+    private func formatUpdatedDocument(_ mongoDocument: MongoKitten.Document) -> [String: QueryRowInfo] {
+        // Format the document similar to how MongoDBDriver does it
+        let formattedDoc = formatMongoDocument(mongoDocument)
+        return convertFormattedDocumentToRow(formattedDoc)
+    }
+
+    private func formatMongoDocument(_ mongoDocument: MongoKitten.Document) -> MongoKitten.Document.FormattedDocument {
+        guard let id = mongoDocument["_id"] as? ObjectId else {
+            return MongoKitten.Document.FormattedDocument(id: "", fields: [], rawDocument: mongoDocument)
+        }
+
+        let fields = mongoDocument.keys.map { key in
+            formatField(key: key, value: mongoDocument[key])
+        }
+
+        return MongoKitten.Document.FormattedDocument(id: id.hexString, fields: fields, rawDocument: mongoDocument)
+    }
+
+    private func formatField(key: String, value: Primitive?) -> MongoKitten.Document.FormattedDocument.FormattedField {
+        let formatted = MongoKitten.Document().formatValue(value)
+
+        var nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
+        if let doc = value as? MongoKitten.Document {
+            nestedFields = doc.keys.map { key in
+                formatField(key: key, value: doc[key])
+            }
+        }
+
+        return MongoKitten.Document.FormattedDocument.FormattedField(
+            key: key,
+            formattedValue: formatted,
+            rawValue: value ?? "nil",
+            nestedFields: nestedFields
+        )
+    }
+
+    private func convertFormattedDocumentToRow(_ formattedDoc: MongoKitten.Document.FormattedDocument) -> [String: QueryRowInfo] {
+        var row: [String: QueryRowInfo] = [:]
+
+        // Store the FormattedDocument as metadata for access to rawDocument
+        row["__formattedDocument"] = QueryRowInfo(
+            value: formattedDoc,
+            dataType: "FormattedDocument",
+            format: nil
+        )
+
+        // Add the document ID
+        row["_id"] = QueryRowInfo(value: formattedDoc.id, dataType: "ObjectId", format: nil)
+
+        // Convert each formatted field to display value
+        for field in formattedDoc.fields {
+            if field.key == "_id" {
+                continue
+            }
+            row[field.key] = QueryRowInfo(value: field, dataType: field.formattedValue.type, format: nil)
+        }
+
+        return row
+    }
+
+    private func handleDelete() {
+        Task {
+            do {
+                // 1. Extract document ID
+                guard let idInfo = document["_id"],
+                      let documentId = idInfo.value as? String,
+                      let objectId = ObjectId(documentId) else {
+                    throw MongoError.invalidData
+                }
+
+                // 2. Get collection name from selected tab
+                guard let collectionName = instance.selectedTab?.name else {
+                    throw DatabaseError.operationFailed("No collection selected")
+                }
+
+                // 3. Call database service to delete
+                try await instance.databaseService.deleteDocument(
+                    in: collectionName,
+                    databaseSchema: nil,
+                    id: objectId
+                )
+
+                // 4. Refresh the document list
+                await onRefresh()
+
+                // 5. Success - clear pending action
+                await MainActor.run {
+                    togglePendingAction(.delete)
+                }
+
+            } catch {
+                debugLog("Failed to delete document: \(error)")
+                await MainActor.run {
+                    errorMessage = "Failed to delete document: \(error.localizedDescription)"
+                    showErrorAlert = true
+                }
+            }
+        }
     }
 }
 
 // MARK: - Document Key-Value List
 struct DocumentKeyValueList: View {
     let document: [String: QueryRowInfo]
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(document.keys.sorted()), id: \.self) { key in
+            ForEach(Array(document.keys.filter { $0 != "__formattedDocument" }.sorted()), id: \.self) { key in
                 if let queryRowInfo = document[key] {
-                    
-                    if let formattedPrimitive = queryRowInfo.value as? FormattedPrimitive {
-                        
+
+                    // Try to cast to FormattedField first (for MongoDB with nested fields)
+                    if let formattedField = queryRowInfo.value as? MongoKitten.Document.FormattedDocument.FormattedField {
                         RecursiveKeyValueRow(
-                            formattedPrimitive: formattedPrimitive,
-                            key: key,  // Use the key from iteration
+                            formattedField: formattedField,
+                            key: key
                         )
                         .fixedSize(horizontal: false, vertical: true)
-                        
+                    }
+                    // Fallback to FormattedPrimitive (for other database types)
+                    else if let formattedPrimitive = queryRowInfo.value as? FormattedPrimitive {
+                        KeyValueRow(
+                            key: key,
+                            formattedPrimitive: formattedPrimitive
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -236,24 +462,25 @@ struct ExpandableHeader: View {
 }
 
 struct RecursiveKeyValueRow: View {
-    let formattedPrimitive: FormattedPrimitive
+    let formattedField: MongoKitten.Document.FormattedDocument.FormattedField
     let key: String
-    //    let nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
-    
+
     var body: some View {
+        let formattedPrimitive = formattedField.formattedValue
+
         Group {
-//            if formattedPrimitive.isExpandable {
-//                ExpandableValueView(
-//                    formattedPrimitive: formattedPrimitive,
-//                    key: key,
-//                    nestedFields: formattedPrimitive.nestedFields
-//                )
-//            } else {
+            if formattedPrimitive.isExpandable {
+                ExpandableValueView(
+                    formattedPrimitive: formattedPrimitive,
+                    key: key,
+                    nestedFields: formattedField.nestedFields
+                )
+            } else {
                 KeyValueRow(
                     key: key,
                     formattedPrimitive: formattedPrimitive
                 )
-//            }
+            }
         }
     }
 }
@@ -307,14 +534,12 @@ struct ExpandableValueView: View {
             if isExpanded, let fields = nestedFields {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(fields, id: \.key) { field in
-                        //                        RecursiveKeyValueRow(
-                        //                            formattedPrimitive: field.formattedValue,
-                        //                            key: field.key,
-                        //                            value: field.rawValue,
-                        //                            nestedFields: field.nestedFields
-                        //                        )
-                        //                        .padding(.leading, 16)
-                        //                        .fixedSize(horizontal: false, vertical: true)
+                        RecursiveKeyValueRow(
+                            formattedField: field,
+                            key: field.key
+                        )
+                        .padding(.leading, 16)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

@@ -95,5 +95,137 @@ Active development area with components in `Views/SQLEditorView/`:
 ### Search Tools
 **Use ast-grep for syntax-aware searches**: When searching for code patterns, function definitions, or structural elements, use `sg --lang swift -p'<pattern>'` instead of text-based search tools. Only fall back to grep/text search when explicitly requested or for non-code content.
 
-### Current Work Context
-Branch `8-feature-sql-editor-view-with-new-tab-integration` suggests active SQL editor improvements with AI integration and multi-tab functionality.
+## Swift/SwiftUI Best Practices for AI-Generated Code
+
+When writing or reviewing code, watch for these common issues in AI-generated Swift/SwiftUI code and apply modern best practices:
+
+### SwiftUI Modifiers & APIs
+- ❌ `foregroundColor()` → ✅ `foregroundStyle()` (supports gradients, not deprecated)
+- ❌ `cornerRadius()` → ✅ `clipShape(.rect(cornerRadius:))` (more features, not deprecated)
+- ❌ `onChange()` with 1 parameter → ✅ Accept two parameters or none (old variant is unsafe)
+- ❌ `tabItem()` → ✅ Use new `Tab` API (type-safe selection, better features)
+- ❌ `onTapGesture()` → ✅ Use `Button` instead (better VoiceOver/accessibility support)
+- ❌ `NavigationView` → ✅ `NavigationStack` (unless supporting iOS 15)
+- ❌ Inline destination `NavigationLink` in lists → ✅ `navigationDestination(for:)`
+
+### State Management
+- ❌ `ObservableObject` → ✅ `@Observable` macro (simpler, faster, unless you need Combine)
+- ❌ Computed properties for view breakdown → ✅ Separate SwiftUI views (better performance with @Observable)
+- ❌ `DispatchQueue.main.async` overuse → ✅ Use Swift concurrency properly
+- ❌ Unnecessary `@MainActor` in new projects → ✅ Main actor isolation is on by default
+
+### SwiftData
+- ⚠️ `@Attribute(.unique)` does not work with CloudKit - avoid if using CloudKit sync
+
+### Typography & Layout
+- ❌ `.font(.system(size:))` with fixed sizes → ✅ Use Dynamic Type fonts (`.body`, `.title`, etc.)
+- ❌ For iOS 26+: Use `.font(.body.scaled(by: 1.5))` for relative sizing
+- ❌ Over-using `fontWeight()` → ✅ Remember `fontWeight(.bold)` ≠ `bold()`
+- ❌ `GeometryReader` overuse → ✅ Consider `visualEffect()` or `containerRelativeFrame()`
+- ❌ Fixed frame sizes everywhere → ✅ Use flexible layouts
+
+### Buttons & Labels
+- ❌ `Label` for button labels → ✅ Inline API: `Button("Tap me", systemImage: "plus", action: ...)`
+- ❌ Image-only buttons → ✅ Include text labels for VoiceOver
+
+### Data & Collections
+- ❌ `ForEach(Array(x.enumerated()), id: \.element.id)` → ✅ `ForEach(x.enumerated(), id: \.element.id)`
+- ❌ Long code to find documents directory → ✅ `URL.documentsDirectory`
+
+### Concurrency & Async
+- ❌ `Task.sleep(nanoseconds:)` → ✅ `Task.sleep(for: .seconds(1))`
+
+### Formatting & Rendering
+- ❌ C-style formatting: `String(format: "%.2f", value)` → ✅ `Text(value, format: .number.precision(.fractionLength(2)))`
+- ❌ `UIGraphicsImageRenderer` for SwiftUI → ✅ `ImageRenderer`
+
+### Code Organization
+- ⚠️ Avoid placing many types in a single file - guarantees longer build times
+- ⚠️ Watch for hallucinated APIs that look good but don't exist
+
+**Target Platform**: This project targets modern iOS (iOS 18+), so use the latest APIs without backwards compatibility workarounds.
+
+## Critical Architecture Patterns
+
+### Database Driver System
+
+**Unified Query Interface**: All database drivers (MongoDB, PostgreSQL, MySQL, SQLite) implement the `DatabaseDriver` protocol defined in `pluk/Protocols/DatabaseDriver.swift`. This provides a consistent interface for:
+- Connection management (`connect`, `disconnect`, `reconnect`, `ping`)
+- CRUD operations (`findDocuments`, `createDocument`, `updateDocument`, `deleteDocument`)
+- Schema introspection (`getSchema`, `getIndexes`)
+- Real-time subscriptions (optional, database-dependent)
+
+**QueryResult Standardization**: Database-specific results are converted to a unified `QueryResult` type containing:
+- `rows: [[String: QueryRowInfo]]` - Formatted data for UI display
+- `rawRows: [[String: Any?]]` - Raw data for lazy decoding
+- `columns: [QueryColumnInfo]` - Column metadata
+
+**Driver-Specific Implementations**:
+- Each driver in `Drivers/` converts native database types to the unified format
+- MongoDB uses `FormattedDocument` → `[String: QueryRowInfo]` conversion
+- SQL databases convert result sets to the same unified format
+
+### MongoDB-Specific Data Flow
+
+**Document Display Pipeline**:
+```
+MongoDB Document
+  ↓
+formatDocument() → Document.FormattedDocument (preserves rawDocument)
+  ↓
+convertFormattedDocumentToRow() → [String: QueryRowInfo]
+  ↓
+DocumentRowView displays formatted data
+```
+
+**Metadata Pattern**: MongoDB documents store `FormattedDocument` metadata using special key `__formattedDocument` in the row dictionary. This preserves access to the raw MongoDB Document for operations like JSON export while displaying formatted data in the UI.
+
+**Type Conversion**: `Document+Formatting.swift` contains formatting logic that:
+- Converts BSON types (ObjectId, Binary, Date, etc.) to display strings
+- Handles nested documents and arrays recursively
+- Preserves type information via `FormattedPrimitive`
+
+### Environment Object Hierarchy
+
+Views access services through SwiftUI environment:
+```swift
+@Environment(ConnectionInstance.self) private var instance
+@Environment(AppViewModel.self) private var appViewModel
+```
+
+**ConnectionInstance** provides:
+- `databaseService: DatabaseService` - Core database operations
+- `selectedTab: DatabaseTab?` - Current active collection/table
+- `connection: Connection` - Connection metadata
+- `databaseDriver` - Direct access to driver (use sparingly)
+
+**DatabaseService** centralizes all database operations and should be used instead of calling drivers directly.
+
+### Document Editing Architecture
+
+**Two-Way Binding Pattern**: `DocumentEditView` uses `@Binding` to share state with parent `DocumentRowView`:
+- User edits JSON in CodeEditor (via binding)
+- Changes sync to parent's `@State var editingJSON`
+- Save button triggers update via `DatabaseService.updateDocument()`
+- MongoDB driver converts edited JSON → MongoDB Document → database
+
+**State Management**:
+- `pendingAction: DocumentAction?` - Tracks edit/delete mode
+- Local state in view (not centralized view model)
+- Direct database updates without batching
+
+### Real-Time Subscriptions
+
+Some drivers support real-time updates (e.g., Convex):
+- `subscribeToCollectionChanges()` provides live data streams
+- Views check `databaseService.supportsRealTime` before subscribing
+- Subscription lifecycle managed at view level
+- Cache clearing via `clearSubscriptionCache()`
+
+### AI Integration Points
+
+AI features integrated at multiple levels:
+- **Query Generation**: `buildSystemPrompt()` and `buildAICommandPromptSystemPrompt()` in each driver
+- **Error Suggestions**: AI analyzes query errors and suggests fixes
+- **Natural Language**: CMD+K actions convert text to database queries
+- **AIProxy Service**: Centralized AI API access via AIProxy library

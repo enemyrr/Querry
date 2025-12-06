@@ -42,7 +42,30 @@ struct HoverActionButtons: View {
     
     var body: some View {
         HStack(spacing: .zero) {
-            if pendingAction == .update {
+            if pendingAction == .delete {
+                Button(action: onSave) {
+                    Text("Delete")
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                }
+                .buttonStyle(HoverActionButtonStyleText())
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.red.opacity(0.8))
+                )
+                .padding(.trailing, 4)
+
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                        .tint(.red)
+                }
+                .buttonStyle(HoverActionButtonStyleText())
+
+                Divider().frame(height: 12).padding(.horizontal, 4)
+
+            } else if pendingAction == .update {
                 Button(action: onSave) {
                     Text("Save")
                         .font(.system(size: 10))
@@ -57,12 +80,7 @@ struct HoverActionButtons: View {
                 )
                 .padding(.trailing, 4)
                 .keyboardShortcut("s", modifiers: .command)
-                .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
-                    modifiers: [.command],
-                    key: "S"
-                ), spacing: 4)
 
-                
                 Button(action: onCancel) {
                     Text("Cancel")
                         .font(.system(size: 10))
@@ -72,7 +90,7 @@ struct HoverActionButtons: View {
                 .buttonStyle(HoverActionButtonStyleText())
 
                 Divider().frame(height: 12).padding(.horizontal, 4)
-                
+
             } else {
                 ActionButton(
                     systemName: getActionIcon(for: .update),
@@ -80,7 +98,6 @@ struct HoverActionButtons: View {
                     tooltipText: getActionTooltip(for: .update),
                     tintColor: getActionColor(for: .update)
                 )
-                .customHelp(getActionTooltip(for: .update), position: .top, spacing: 4)
             }
 
             ActionButton(
@@ -88,7 +105,6 @@ struct HoverActionButtons: View {
                 action: onCopy,
                 tooltipText: "Copy to clipboard"
             )
-            .customHelp("Copy to clipboard", position: .top, spacing: 4)
             
 //            TODO: Implement later
 //            ActionButton(
@@ -104,7 +120,6 @@ struct HoverActionButtons: View {
                 tooltipText: getActionTooltip(for: .delete),
                 tintColor: getActionColor(for: .delete)
             )
-            .customHelp(getActionTooltip(for: .delete), position: .top, alignment: .right, spacing: 4)
         }
         .padding(3)
         .modifier(GlassBackgroundStyle())

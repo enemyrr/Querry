@@ -18,12 +18,14 @@ struct FloatingActionBar: View {
     let onLoadDocuments: (_ filter: String?) -> Void
     let onCommitModifications: () -> Void
     let onNewRecord: () -> Void
+    let databaseType: DatabaseType?
 
     // Add current query result as direct parameter to preserve data during loading
     let currentQueryResult: QueryResult?
     let schema: DatabaseSchemaResult?
     
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
     
     @State private var containerWidth: CGFloat = 379
     @State var showQueryEditor: Bool = false
@@ -101,8 +103,8 @@ struct FloatingActionBar: View {
             }
             
             if showCreateDocumentSheet {
-                //                CreateEditor(documentListModel: viewModel, showCreateDocumentSheet: $searchQueryViewModel.showCreateDocumentSheet)
-                //                        .frame(width: screenWidth * (0.9))
+                CreateEditor(showCreateDocumentSheet: $showCreateDocumentSheet)
+                    .frame(width: screenWidth * 0.6)
             }
             
             HStack {
@@ -123,7 +125,15 @@ struct FloatingActionBar: View {
                             debouncedIsLoading: debouncedIsLoading,
                             onRefresh: onRefresh,
                             onCommitModifications: onCommitModifications,
-                            onNewRecord: onNewRecord,
+                            onNewRecord: {
+                                if databaseType == .mongodb {
+                                    withAnimation(.spring(response: 0.3)) {
+                                        showCreateDocumentSheet = true
+                                    }
+                                } else {
+                                    onNewRecord()
+                                }
+                            },
                             onOpenAISearch: {
                                 withAnimation(.spring(response: 0.3)) {
                                     action = ActionBar.search
@@ -131,7 +141,8 @@ struct FloatingActionBar: View {
                             },
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
-                            }
+                            },
+                            databaseType: databaseType
                         )
                     case .schema:
                         SchemaModeActionBar(
@@ -199,7 +210,15 @@ struct FloatingActionBar: View {
                             debouncedIsLoading: debouncedIsLoading,
                             onRefresh: onRefresh,
                             onCommitModifications: onCommitModifications,
-                            onNewRecord: onNewRecord,
+                            onNewRecord: {
+                                if databaseType == .mongodb {
+                                    withAnimation(.spring(response: 0.3)) {
+                                        showCreateDocumentSheet = true
+                                    }
+                                } else {
+                                    onNewRecord()
+                                }
+                            },
                             onOpenAISearch: {
                                 withAnimation(.spring(response: 0.3)) {
                                     action = ActionBar.search
@@ -207,7 +226,8 @@ struct FloatingActionBar: View {
                             },
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
-                            }
+                            },
+                            databaseType: databaseType
                         )
                     case .schema:
                         SchemaModeActionBar(
@@ -241,9 +261,26 @@ struct FloatingActionBar: View {
                 )
             )
             .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
+            .background(
+                Group {
+                    if colorScheme == .dark {
+                        RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
+                            .fill(
+                                Color(.clear)
+                            )
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                    } else {
+                        RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
+                            .fill(
+                                Color(.clear)
+                            )
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                    }
+                }
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
-                    .stroke(.separator, lineWidth: 1)
+                    .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
             )
 //            .background(alignment: .center) {
 //                if case .error = viewState {
@@ -260,6 +297,11 @@ struct FloatingActionBar: View {
                         }
                 }
             )
+            .onAppear() {
+                if databaseType == .mongodb && filter.isEmpty {
+                    containerWidth = 308
+                }
+            }
             .task(id: processingStage) {
                 await handleProcessingStageChange()
             }
@@ -268,7 +310,13 @@ struct FloatingActionBar: View {
                 if let notificationTableName = notification.userInfo?["tableName"] as? String,
                    notificationTableName == tableName {
                     Task {
-                        onNewRecord()
+                        if databaseType == .mongodb {
+                            withAnimation(.spring(response: 0.3)) {
+                                showCreateDocumentSheet = true
+                            }
+                        } else {
+                            onNewRecord()
+                        }
                     }
                 }
             }
@@ -321,7 +369,13 @@ struct FloatingActionBar: View {
                 
             case 34: // 'i' key
                 if event.modifierFlags.contains(.command) {
-                    onNewRecord()
+                    if databaseType == .mongodb {
+                        withAnimation(.spring(response: 0.3)) {
+                            showCreateDocumentSheet = true
+                        }
+                    } else {
+                        onNewRecord()
+                    }
                     return nil // Consume the event
                 }
                 return event
@@ -393,7 +447,6 @@ struct FloatingActionBar: View {
     @State private var isHoveringTopRectangle: Bool = false
     @State private var animatedFilterText: String = ""
     var statusColor: Color = Color(red: 1.0, green: 0.6, blue: 0.0)
-    @Environment(\.colorScheme) var colorScheme
     
     private var topRectangleView: some View {
         VStack {
@@ -487,7 +540,7 @@ struct FloatingActionBar: View {
         )
         .overlay(
             RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0)
-                .stroke(.separator, lineWidth: 1)
+                .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
                 .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
         )
         .scaleEffect(isHoveringTopRectangle ? 1.02 : 1.0)

@@ -70,7 +70,6 @@ struct DatabaseHeader: View {
         }
         .onChange(of: instance.databaseService.currentSchema) { oldSchema, newSchema in
             Task {
-                print("\(oldSchema): \(newSchema)")
                 isLoadingCollections = true
 
                 // Immediately clear collections when schema changes

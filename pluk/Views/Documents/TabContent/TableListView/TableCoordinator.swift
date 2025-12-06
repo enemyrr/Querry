@@ -261,8 +261,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             oldColumnCount = self.schema?.columns.count ?? 0
         }
         
-        debugLog("oldRowCount: \(oldRowCount), oldColumnCount: \(oldColumnCount)")
-        
         // Update ALL references
         self.queryResult = newQueryResult
         self.schema = newSchema

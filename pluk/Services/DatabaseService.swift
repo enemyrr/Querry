@@ -253,7 +253,7 @@ import SwiftUI
         case .mongodb:
             result = try await driver.findDocuments(
                 in: collectionName,
-                filter: [:],
+                filter: ["rawQuery": filter],
                 skip: skip,
                 limit: limit
             )

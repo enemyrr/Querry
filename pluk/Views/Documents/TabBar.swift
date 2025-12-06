@@ -257,8 +257,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
                     // Create the actual content view for the tab
                     let tabContentView = TabContentView(
                         tab: tab,
-                        databaseType: instance.connection.databaseType,
-                        selectedTab: instance.selectedTab
+                        databaseType: instance.connection.databaseType
                     )
                     tabViewItem.view = tabContentView
                     
@@ -325,7 +324,7 @@ struct NSTabViewWrapper: NSViewRepresentable {
 
             // For MongoDB, use document icon for content mode
             if databaseType == .mongodb && tab.viewMode == .content {
-                return "document.fill"
+                return "text.document"
             }
 
             // For other tabs, use icon based on view mode
@@ -358,7 +357,7 @@ struct CustomTabButton: View {
 
         // For MongoDB, use document icon for content mode
         if databaseType == .mongodb && tab.viewMode == .content {
-            return "document.fill"
+            return "text.document"
         }
 
         // For other tabs, use icon based on view mode

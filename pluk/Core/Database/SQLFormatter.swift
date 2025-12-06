@@ -20,7 +20,7 @@ class SQLFormatter {
     private func setupJavaScriptEnvironment() {
         // Load the sql-formatter JavaScript library
         guard let jsPath = Bundle.main.path(forResource: "sql-formatter.min", ofType: "js"),
-              let jsContent = try? String(contentsOfFile: jsPath) else {
+              let jsContent = try? String(contentsOfFile: jsPath, encoding: .utf8) else {
             print("Error: Could not load sql-formatter.min.js")
             return
         }

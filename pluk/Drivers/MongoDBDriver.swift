@@ -173,7 +173,158 @@ class MongoDBDriver: DatabaseDriver {
     }
     
     func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
-        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
+        let currentDate = Date().formatted(.iso8601)
+        let schema = await buildSchemaPrompt(for: collectionName)
+
+        return """
+        You are a MongoDB query assistant. Your primary task is to convert natural language user queries into valid MongoDB JSON filter queries.
+
+        Core Responsibilities:
+        - Convert the user query into a MongoDB JSON filter query.
+        - Return ONLY the JSON filter object without explanation.
+        - Use proper MongoDB query operators ($gt, $lt, $in, $regex, etc.).
+        - Optimize the query for best performance.
+
+        # Collection Schema
+        The current collection structure is:
+        \(schema)
+
+        # Output Format
+        Return ONLY the MongoDB JSON filter object.
+        Do not include any explanation, preamble, or commentary.
+        Do not wrap the output in code blocks or markdown.
+        Format the JSON for readability with proper indentation.
+        Simple queries can be on one line.
+
+        # MongoDB Query Operators
+        - Comparison: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
+        - Logical: $and, $or, $not, $nor
+        - Element: $exists, $type
+        - Evaluation: $regex, $expr, $text, $where
+        - Array: $all, $elemMatch, $size
+
+        # Examples
+
+        **Example 1:**
+        **Input:** Find all users where age is greater than 30
+        **Output:**
+        {"age": {"$gt": 30}}
+
+        **Example 2:**
+        **Input:** Get records where status is active and created date is in the last week
+        **Output:**
+        {
+          "status": "active",
+          "createdAt": {"$gte": {"$date": "\(Date().addingTimeInterval(-7 * 24 * 3600).ISO8601Format())"}}
+        }
+
+        **Example 3:**
+        **Input:** Show me customers from New York or California with at least 5 orders
+        **Output:**
+        {
+          "$or": [
+            {"state": "New York"},
+            {"state": "California"}
+          ],
+          "orderCount": {"$gte": 5}
+        }
+
+        **Example 4:**
+        **Input:** Find documents where name starts with "John"
+        **Output:**
+        {"name": {"$regex": "^John"}}
+
+        **Example 5:**
+        **Input:** Find documents where tags array contains "urgent"
+        **Output:**
+        {"tags": "urgent"}
+
+        # Important Notes
+        - For date comparisons, use MongoDB Extended JSON format: {"$date": "ISO8601-string"}
+        - For ObjectId matching, use: {"_id": {"$oid": "507f1f77bcf86cd799439011"}}
+        - For regex patterns, use: {"field": {"$regex": "pattern"}}
+        - For existence checks, use: {"field": {"$exists": true}}
+        - For null checks, use: {"field": null}
+        - Empty filter {} returns all documents
+
+        # User Intent Detection
+        - "find/get/show" → Simple filter query
+        - "starts with" → Use $regex with "^pattern"
+        - "ends with" → Use $regex with "pattern$"
+        - "contains" → Use $regex with "pattern"
+        - "in the last X days/weeks" → Use $gte with date calculation
+        - "between X and Y" → Use $gte and $lte
+        - "or" → Use $or operator
+        - "not" → Use $ne or $not
+
+        Current Date: \(currentDate)
+        """
+    }
+
+    private func buildSchemaPrompt(for collectionName: String) async -> String {
+        guard let mongoDatabase = connectedDatabase else {
+            return "No database connection available"
+        }
+
+        do {
+            let collection = mongoDatabase[collectionName]
+
+            // Sample one document to infer structure
+            let sampleDocument = try await collection.find().limit(1).firstResult()
+
+            guard let doc = sampleDocument else {
+                return """
+                Collection: \(collectionName)
+                Status: Empty collection (no documents found)
+                Note: Common MongoDB fields include: _id, createdAt, updatedAt, name, status, etc.
+                """
+            }
+
+            // Build field information
+            var fieldInfo: [String] = []
+            for (key, value) in doc {
+                let typeInfo = getTypeDescription(value)
+                fieldInfo.append("\(key): \(typeInfo)")
+            }
+
+            return """
+            Collection: \(collectionName)
+            Sample Document Structure:
+            \(fieldInfo.joined(separator: "\n"))
+            """
+        } catch {
+            return """
+            Collection: \(collectionName)
+            Error: Could not retrieve schema information
+            Note: Use common MongoDB field patterns
+            """
+        }
+    }
+
+    private func getTypeDescription(_ value: Primitive?) -> String {
+        switch value {
+        case is ObjectId:
+            return "ObjectId"
+        case is String:
+            return "String"
+        case is Int32, is Int64, is Int:
+            return "Number"
+        case is Double:
+            return "Double"
+        case is Bool:
+            return "Boolean"
+        case is Date:
+            return "Date"
+        case is Document:
+            if let doc = value as? Document, doc.isArray {
+                return "Array"
+            }
+            return "Object"
+        case is Null:
+            return "Null"
+        default:
+            return String(describing: type(of: value))
+        }
     }
     
     typealias Database = MongoDBWrapper
@@ -264,25 +415,41 @@ class MongoDBDriver: DatabaseDriver {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
-        
+
         let collection = mongoDatabase[collectionName]
-        var query = collection.find().skip(skip).limit(limit)
-        
+
+        // Parse filter from rawQuery if provided
+        var mongoFilter: Document = [:]
+        if let rawQuery = filter["rawQuery"] as? String, !rawQuery.isEmpty {
+            do {
+                // Try to parse the JSON string as a MongoDB Document using Extended JSON format
+                mongoFilter = try Document(fromJSON: rawQuery)
+            } catch {
+                // If parsing fails, log and continue with empty filter
+                debugLog("Failed to parse MongoDB filter: \(error.localizedDescription)")
+                debugLog("Filter string was: \(rawQuery)")
+            }
+        }
+
+        // Build query with filter
+        var query = mongoFilter.isEmpty ? collection.find() : collection.find(mongoFilter)
+        query = query.skip(skip).limit(limit)
+
         // Add sorting if specified
         if let sortBy = sortBy {
             let sortOrder: Int32 = ascending == false ? -1 : 1
             query = query.sort([sortBy: sortOrder])
         }
-        
+
         var convertedRows: [[String: QueryRowInfo]] = []
-        
+
         for try await document in query {
             let formattedDoc = formatDocument(document)
             let convertedRow = convertFormattedDocumentToRow(formattedDoc)
-            
+
             convertedRows.append(convertedRow)
         }
-        
+
         return QueryResult(
             columns: [],
             rows: convertedRows,
@@ -297,32 +464,43 @@ class MongoDBDriver: DatabaseDriver {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
-        
+
         let collection = mongoDatabase[collectionName]
-        //        let mongoDocument = try MongoKitten.Document(from: document)
-        //        let result = try await collection.insert(mongoDocument)
-        //        if result.insertCount == 0 {
-        //            throw MongoError.invalidData
-        //        }
+
+        // Convert dictionary to MongoDB Document
+        var mongoDocument = MongoKitten.Document()
+        for (key, value) in document {
+            mongoDocument[key] = value as? Primitive
+        }
+
+        let reply = try await collection.insertEncoded(mongoDocument)
+        if reply.ok != 1 {
+            throw MongoError.invalidData
+        }
     }
     
     func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
-        
+
         let collection = mongoDatabase[collectionName]
         guard let objectId = id as? ObjectId else {
             throw MongoError.invalidData
         }
-        
+
+        // Create update document from dictionary
+        var updateDoc = MongoKitten.Document()
+        for (key, value) in data {
+            updateDoc[key] = value as? Primitive
+        }
+
         let filter: MongoKitten.Document = ["_id": objectId]
-        //        let updateDoc = try MongoKitten.Document(from: data)
-        //        let result = try await collection.updateOne(where: filter, to: updateDoc)
-        
-        //        if result.updatedCount == 0 {
-        //            throw MongoError.invalidData
-        //        }
+        let result = try await collection.updateOne(where: filter, to: updateDoc)
+
+        if result.updatedCount == 0 {
+            throw MongoError.invalidData
+        }
     }
     
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
@@ -340,48 +518,43 @@ class MongoDBDriver: DatabaseDriver {
     }
     
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
-        guard let mongoDatabase = connectedDatabase else {
+        guard connectedDatabase != nil else {
             throw MongoError.databaseNotInitialized
         }
         
-        do {
-            // For MongoDB, we'll treat the "raw query" as a JavaScript-like MongoDB query
-            // This is a simplified implementation - in a production system, you might want
-            // to parse the query more thoroughly or use MongoDB's $expr operator
-            
-            // For now, we'll return a simple message indicating MongoDB queries are different
-            let queryColumns: [QueryColumnInfo] = [
-                QueryColumnInfo(name: "message", dataType: "String", format: nil, index: 0),
-                QueryColumnInfo(name: "query", dataType: "String", format: nil, index: 1),
-                QueryColumnInfo(name: "note", dataType: "String", format: nil, index: 2)
+        // For MongoDB, we'll treat the "raw query" as a JavaScript-like MongoDB query
+        // This is a simplified implementation - in a production system, you might want
+        // to parse the query more thoroughly or use MongoDB's $expr operator
+        
+        // For now, we'll return a simple message indicating MongoDB queries are different
+        let queryColumns: [QueryColumnInfo] = [
+            QueryColumnInfo(name: "message", dataType: "String", format: nil, index: 0),
+            QueryColumnInfo(name: "query", dataType: "String", format: nil, index: 1),
+            QueryColumnInfo(name: "note", dataType: "String", format: nil, index: 2)
+        ]
+        
+        let convertedRows: [[String: QueryRowInfo]] = [
+            [
+                "message": QueryRowInfo(value: "MongoDB uses document-based queries, not SQL", dataType: "String", format: nil),
+                "query": QueryRowInfo(value: query, dataType: "String", format: nil),
+                "note": QueryRowInfo(value: "Use the collection browser or aggregation pipeline for MongoDB queries", dataType: "String", format: nil)
             ]
-            
-            let convertedRows: [[String: QueryRowInfo]] = [
-                [
-                    "message": QueryRowInfo(value: "MongoDB uses document-based queries, not SQL", dataType: "String", format: nil),
-                    "query": QueryRowInfo(value: query, dataType: "String", format: nil),
-                    "note": QueryRowInfo(value: "Use the collection browser or aggregation pipeline for MongoDB queries", dataType: "String", format: nil)
-                ]
+        ]
+        
+        let convertedRawRows: [[String: Any?]] = [
+            [
+                "message": "MongoDB uses document-based queries, not SQL",
+                "query": query,
+                "note": "Use the collection browser or aggregation pipeline for MongoDB queries"
             ]
-            
-            let convertedRawRows: [[String: Any?]] = [
-                [
-                    "message": "MongoDB uses document-based queries, not SQL",
-                    "query": query,
-                    "note": "Use the collection browser or aggregation pipeline for MongoDB queries"
-                ]
-            ]
-            
-            return QueryResult(
-                columns: queryColumns,
-                rows: convertedRows,
-                totalCount: convertedRows.count,
-                rawRows: convertedRawRows
-            )
-            
-        } catch {
-            throw DatabaseError.operationFailed("Failed to execute MongoDB query: \(error.localizedDescription)")
-        }
+        ]
+        
+        return QueryResult(
+            columns: queryColumns,
+            rows: convertedRows,
+            totalCount: convertedRows.count,
+            rawRows: convertedRawRows
+        )
     }
     
     func createCollection(named collectionName: String) async throws {
@@ -421,20 +594,28 @@ class MongoDBDriver: DatabaseDriver {
     
     private func convertFormattedDocumentToRow(_ formattedDoc: Document.FormattedDocument) -> [String: QueryRowInfo] {
         var row: [String: QueryRowInfo] = [:]
-        
+
+        // Store the FormattedDocument as metadata for access to rawDocument
+        row["__formattedDocument"] = QueryRowInfo(
+            value: formattedDoc,
+            dataType: "FormattedDocument",
+            format: nil
+        )
+
         // Add the document ID
         row["_id"] = QueryRowInfo(value: formattedDoc.id, dataType: "ObjectId", format: nil)
-        
+
         // Convert each formatted field to display value
         for field in formattedDoc.fields {
             if field.key == "_id" {
                 // Already handled above
                 continue
             }
-            
-            row[field.key] = QueryRowInfo(value: field.formattedValue, dataType: field.formattedValue.type, format: nil)
+
+            // Store the entire FormattedField to preserve nested fields information
+            row[field.key] = QueryRowInfo(value: field, dataType: field.formattedValue.type, format: nil)
         }
-        
+
         return row
     }
     

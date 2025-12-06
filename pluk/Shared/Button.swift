@@ -62,7 +62,7 @@ struct ActionButtonStyle: ButtonStyle {
                             (isHovering || isActive)
                             ? (colorScheme == .dark
                                ? Color.black.opacity(0.3)
-                               : Color(.secondarySystemFill))
+                               : Color(.separatorColor).opacity(0.4))
                             : Color.clear
                         )
                 }
@@ -78,6 +78,7 @@ struct ActionButtonStyle: ButtonStyle {
 }
 
 struct AIBackButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     @State private var isHovering = false
     var isActive: Bool = true
     
@@ -90,8 +91,7 @@ struct AIBackButtonStyle: ButtonStyle {
             RoundedCorners(tl: 8, tr: 8, bl: 8, br: 8)
                 .fill(
                     isHovering
-                    ? (Color(.controlColor))
-                        .opacity(0.3)
+                    ? colorScheme == .dark ? Color(.controlColor).opacity(0.3) : Color(.separatorColor).opacity(0.4)
                     : Color.clear
                 )
         )
@@ -408,6 +408,7 @@ struct FilterSubmitButtonStyle: ButtonStyle {
 struct ChatSendButtonStyle: ButtonStyle {
     static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     @State private var isHovering = false
     
     func makeBody(configuration: Configuration) -> some View {
@@ -416,7 +417,7 @@ struct ChatSendButtonStyle: ButtonStyle {
             .foregroundColor(isEnabled ? Color(.textBackgroundColor) : .secondary)     // White text color
             .background(
                 Circle()
-                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .fill(isEnabled ? Self.buttonColor : colorScheme == .dark ? Color.white.opacity(0.1) : Color(.separatorColor).opacity(0.4))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
             .opacity(configuration.isPressed ? 0.8 : 1.0)
@@ -682,7 +683,7 @@ struct HoverActionButtonStyle: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering
-                    ? (colorScheme == .dark ? Color.black : Color.white)
+                    ? (colorScheme == .dark ? Color.black : Color.gray)
                         .opacity(0.3)
                     : Color.clear
                 )
@@ -709,7 +710,7 @@ struct HoverActionButtonStyleText: ButtonStyle {
             RoundedRectangle(cornerRadius: 6)
                 .fill(
                     isHovering
-                    ? (colorScheme == .dark ? Color.black : Color.white)
+                    ? (colorScheme == .dark ? Color.black : Color.gray)
                         .opacity(0.3)
                     : Color.clear
                 )

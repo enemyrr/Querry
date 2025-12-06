@@ -72,7 +72,7 @@ extension MySQLDriver {
             case .isNotNull:
                 sql += "\(escapedField) IS NOT NULL"
             case .ilike:
-                ""
+                break
             }
         }
         
@@ -110,10 +110,6 @@ extension MySQLDriver {
                 whereClause += "\(escapedField) LIKE '\(condition.value.replacingOccurrences(of: "'", with: "\\'"))%'"
             case .endsWith:
                 whereClause += "\(escapedField) LIKE '%\(condition.value.replacingOccurrences(of: "'", with: "\\'"))'"
-//            case .contains:
-//                whereClause += "\(escapedField) LIKE '%\(condition.value.replacingOccurrences(of: "'", with: "\\'"))%'"
-//            case .notContains:
-//                whereClause += "\(escapedField) NOT LIKE '%\(condition.value.replacingOccurrences(of: "'", with: "\\'"))%'"
             case .greaterThan:
                 whereClause += "\(escapedField) > \(escapedValue)"
             case .greaterThanOrEquals:
@@ -128,8 +124,8 @@ extension MySQLDriver {
                 whereClause += "\(escapedField) NOT LIKE \(escapedValue)"
             case .isIn:
                 // For IN operator, value should be comma-separated list: "1,2,3"
-                let inValues = condition.value.split(separator: ",").map { 
-                    "'\($0.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "'", with: "\\'"))'" 
+                let inValues = condition.value.split(separator: ",").map {
+                    "'\($0.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "'", with: "\\'"))'"
                 }.joined(separator: ", ")
                 whereClause += "\(escapedField) IN (\(inValues))"
             case .isNull:
@@ -137,7 +133,7 @@ extension MySQLDriver {
             case .isNotNull:
                 whereClause += "\(escapedField) IS NOT NULL"
             case .ilike:
-                ""
+                break
             }
         }
         
