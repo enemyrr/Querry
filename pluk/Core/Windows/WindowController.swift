@@ -623,27 +623,12 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 // MARK: - NSWindowDelegate
 
 extension WindowController: NSWindowDelegate {
-
-    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        // Enforce our maximum size constraints
-        let maxWidth: CGFloat = 1400
-        let maxHeight: CGFloat = 1000
-
-        let constrainedWidth = min(frameSize.width, maxWidth)
-        let constrainedHeight = min(frameSize.height, maxHeight)
-
-        return NSSize(width: constrainedWidth, height: constrainedHeight)
-    }
-
     func windowDidResize(_ notification: Notification) {
         // Save window frame manually (only if within constraints)
         guard let window = notification.object as? NSWindow else { return }
         let frame = window.frame
 
-        // Only save if frame is within our constraints
-        if frame.width <= 1400 && frame.height <= 1000 {
-            UserDefaults.standard.set(NSStringFromRect(frame), forKey: "PlukWindowFrame")
-        }
+        UserDefaults.standard.set(NSStringFromRect(frame), forKey: "PlukWindowFrame")
     }
 
     func windowDidBecomeMain(_ notification: Notification) {
