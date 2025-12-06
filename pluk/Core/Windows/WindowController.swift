@@ -201,15 +201,26 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = true
+
+        // Set window size constraints to prevent unwanted expansion
         window.contentMinSize = NSSize(width: 800, height: 600)
-        
-        // Restore saved frame (must be called BEFORE setFrameAutosaveName)
-        let autosaveName: NSWindow.FrameAutosaveName = "PlukMainWindow"
-        let restoredFrame = window.setFrameUsingName(autosaveName)
-        window.setFrameAutosaveName(autosaveName)
-        
-        // If no saved frame, set default size and center
-        if !restoredFrame {
+        window.contentMaxSize = NSSize(width: 1400, height: 1000)
+
+        // Manually restore window frame with constraints (avoid autosave which can bypass max size)
+        if let savedFrameString = UserDefaults.standard.string(forKey: "PlukWindowFrame") {
+            let frame = NSRectFromString(savedFrameString)
+            // Clamp the saved frame to our constraints
+            let clampedWidth = min(max(frame.width, 800), 1400)
+            let clampedHeight = min(max(frame.height, 600), 1000)
+            let clampedFrame = NSRect(
+                x: frame.origin.x,
+                y: frame.origin.y,
+                width: clampedWidth,
+                height: clampedHeight
+            )
+            window.setFrame(clampedFrame, display: true)
+        } else {
+            // If no saved frame, set default size and center
             window.setContentSize(NSSize(width: 1200, height: 800))
             window.center()
         }
@@ -612,6 +623,28 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 // MARK: - NSWindowDelegate
 
 extension WindowController: NSWindowDelegate {
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        // Enforce our maximum size constraints
+        let maxWidth: CGFloat = 1400
+        let maxHeight: CGFloat = 1000
+
+        let constrainedWidth = min(frameSize.width, maxWidth)
+        let constrainedHeight = min(frameSize.height, maxHeight)
+
+        return NSSize(width: constrainedWidth, height: constrainedHeight)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        // Save window frame manually (only if within constraints)
+        guard let window = notification.object as? NSWindow else { return }
+        let frame = window.frame
+
+        // Only save if frame is within our constraints
+        if frame.width <= 1400 && frame.height <= 1000 {
+            UserDefaults.standard.set(NSStringFromRect(frame), forKey: "PlukWindowFrame")
+        }
+    }
 
     func windowDidBecomeMain(_ notification: Notification) {
         // Ensure tab bar stays hidden when window becomes main
