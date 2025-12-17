@@ -984,11 +984,11 @@ class MySQLDriver: DatabaseDriver {
         var enabled = false
         var required = false
         var tlsConfiguration: TLSConfiguration? = nil
-        
+
         // Parse SSL mode from query parameters
         if let query = url.query {
             let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
-            
+
             for item in queryItems where item.name.lowercased() == "sslmode" {
                 if let value = item.value?.lowercased() {
                     switch value {
@@ -998,19 +998,19 @@ class MySQLDriver: DatabaseDriver {
                         var config = TLSConfiguration.makeClientConfiguration()
                         config.certificateVerification = .none
                         tlsConfiguration = config
-                        
+
                     case "disable", "false", "0":
                         enabled = false
                         required = false
                         tlsConfiguration = nil
-                        
+
                     case "prefer":
                         enabled = true
                         required = false
                         var config = TLSConfiguration.makeClientConfiguration()
                         config.certificateVerification = .none
                         tlsConfiguration = config
-                        
+
                     default:
                         // Unknown SSL mode, default to prefer (safe fallback)
                         enabled = true
@@ -1030,7 +1030,7 @@ class MySQLDriver: DatabaseDriver {
             config.certificateVerification = .none
             tlsConfiguration = config
         }
-        
+
         return SSLConfiguration(
             enabled: enabled,
             required: required,
@@ -1081,14 +1081,15 @@ class MySQLDriver: DatabaseDriver {
         tlsConfiguration: TLSConfiguration?,
         eventLoop: EventLoop
     ) async throws -> MySQLConnection {
-        
+
         // Determine server hostname for SNI (avoid IP addresses)
         let serverHostname: String? = {
             guard tlsConfiguration != nil else { return nil }
             let host = connectionInfo.host
-            return (host == "127.0.0.1" || host == "::1" || host.contains(":")) ? nil : host
+            // Don't use SNI for IP addresses
+            return host.isIPAddress() ? nil : host
         }()
-        
+
         return try await MySQLConnection.connect(
             to: .makeAddressResolvingHost(connectionInfo.host, port: connectionInfo.port),
             username: connectionInfo.username,
@@ -1283,5 +1284,30 @@ class MySQLDriver: DatabaseDriver {
         }
         
         return constraints
+    }
+}
+
+extension String {
+    /// Check if this string is an IP address (IPv4 or IPv6)
+    /// Based on swift-nio-ssl implementation
+    internal func isIPAddress() -> Bool {
+        // We need some scratch space to let inet_pton write into.
+        var ipv4Addr = in_addr()
+        var ipv6Addr = in6_addr()
+
+        return self.withCString { ptr in
+            inet_pton(AF_INET, ptr, &ipv4Addr) == 1 || inet_pton(AF_INET6, ptr, &ipv6Addr) == 1
+        }
+    }
+}
+
+extension Optional where Wrapped == String {
+    internal func withCString<Result>(_ body: (UnsafePointer<CChar>?) throws -> Result) rethrows -> Result {
+        switch self {
+        case .some(let s):
+            return try s.withCString({ try body($0) })
+        case .none:
+            return try body(nil)
+        }
     }
 }
