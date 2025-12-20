@@ -130,12 +130,6 @@ struct DocumentRowView: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pendingAction)
-        .simultaneousGesture(
-            TapGesture(count: 2)
-                .onEnded {
-                    togglePendingAction(.update)
-                }
-        )
         .alert("Error", isPresented: $showErrorAlert) {
             Button("OK", role: .cancel) {
                 showErrorAlert = false
