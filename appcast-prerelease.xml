@@ -6,6 +6,32 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 24</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.24.dmg</link>
+            <sparkle:version>282</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.24</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 24</h2><div><h3>✨ New Features</h3>
+<ul>
+<li><strong>Enhanced MongoDB View Support</strong> - Restored full functionality to MongoDB views including edit, delete, and AI-powered query assistance with seamless integration across all MongoDB data types</li>
+</ul>
+<h3>🛠️ Bug Fixes & Improvements</h3>
+<ul>
+<li><strong>FIXED</strong>: MySQL remote server connections now work properly with SSL authentication (<a href="https://github.com/pluk-inc/Pluk/issues/31">#31</a>) - Resolved "A secure connection to the server is required for authentication" error when connecting to remote MySQL hosts on local networks and external servers</li>
+<li><strong>FIXED</strong>: New connection dialog no longer forces window to expand to full screen (<a href="https://github.com/pluk-inc/Pluk/issues/32">#32</a>) - Application window now respects previously set dimensions with proper scrolling behavior and responsive layout</li>
+<li>Various interface refinements and minor UI improvements for better visual consistency and user experience</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sat, 20 Dec 2025 05:54:28 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.24.dmg"
+                length="49697595"
+                type="application/octet-stream"
+                sparkle:edSignature="wTfJBU7rkOjj7uSigGiewKZYvQn9rwrKNb8CY0gS8CBTbKf8rBfMISgLfFqBG12bbtz3RJV6taYjETZ7hN2vCw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 23</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.23.dmg</link>
             <sparkle:version>281</sparkle:version>
