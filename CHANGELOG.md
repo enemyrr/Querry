@@ -2,6 +2,18 @@
 
 # Pluk Release Notes
 
+## [0.0.24] - 2025-12-20
+
+### ✨ New Features
+
+- **Enhanced MongoDB View Support** - Restored full functionality to MongoDB views including edit, delete, and AI-powered query assistance with seamless integration across all MongoDB data types
+
+### 🛠️ Bug Fixes & Improvements
+
+- **FIXED**: MySQL remote server connections now work properly with SSL authentication ([#31](https://github.com/pluk-inc/Pluk/issues/31)) - Resolved "A secure connection to the server is required for authentication" error when connecting to remote MySQL hosts on local networks and external servers
+- **FIXED**: New connection dialog no longer forces window to expand to full screen ([#32](https://github.com/pluk-inc/Pluk/issues/32)) - Application window now respects previously set dimensions with proper scrolling behavior and responsive layout
+- Various interface refinements and minor UI improvements for better visual consistency and user experience
+
 ## [0.0.1-beta.23] – 2025-10-21
 
 ### ✨ New Features
