@@ -2,7 +2,7 @@
 
 # Pluk Release Notes
 
-## [0.0.24] - 2025-12-20
+## [0.0.1-beta.24] – 2025-10-21
 
 ### ✨ New Features
 
