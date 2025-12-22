@@ -40,7 +40,6 @@ struct HomeView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10)
-                .padding(.top, 10)
                 .padding(.bottom, 6)
 
                 if connections.isEmpty {

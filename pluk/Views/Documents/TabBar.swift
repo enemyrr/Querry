@@ -43,6 +43,10 @@ struct TabBar: View {
             !appViewModel.isSidebarVisible ? max(leadingOverlayWidth, 120) : 0
         )
         .frame(height: 36)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Consume background clicks to prevent window minimize/maximize
+        }
         .background(
             // Add hidden buttons for Cmd+1 through Cmd+9
             ForEach(0..<9) { index in
