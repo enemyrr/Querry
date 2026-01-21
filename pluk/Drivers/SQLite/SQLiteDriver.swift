@@ -1222,15 +1222,164 @@ class SQLiteDriver: DatabaseDriver {
         guard let fileData = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
             return false
         }
-        
+
         // SQLite files start with "SQLite format 3\0" (16 bytes)
         let sqliteHeader = "SQLite format 3\0".data(using: .utf8)!
-        
+
         if fileData.count >= sqliteHeader.count {
             let headerData = fileData.prefix(sqliteHeader.count)
             return headerData == sqliteHeader
         }
-        
+
         return false
+    }
+
+    // MARK: - Schema Modification Methods
+
+    func addColumn(
+        to tableName: String,
+        schema: String?,
+        column: DatabaseSchemaInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let sanitizedTable = try validateAndSanitizeIdentifier(tableName)
+
+        let dataType = column.formatType.isEmpty ? column.dataType : column.formatType
+
+        var sql = "ALTER TABLE \(sanitizedTable) ADD COLUMN \"\(column.columnName)\" \(dataType)"
+
+        // Handle NOT NULL constraint - SQLite requires DEFAULT for NOT NULL in ADD COLUMN
+        if column.isNullable == "NO" {
+            if let defaultValue = column.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                sql += " NOT NULL DEFAULT \(defaultValue)"
+            } else {
+                // SQLite cannot add NOT NULL column without default, use a sensible default
+                sql += " NOT NULL DEFAULT ''"
+            }
+        } else if let defaultValue = column.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            sql += " DEFAULT \(defaultValue)"
+        }
+
+        do {
+            _ = try await connection.query(sql)
+            debugLog("Added column \(column.columnName) to table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to add column '\(column.columnName)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
+    }
+
+    func modifyColumn(
+        in tableName: String,
+        schema: String?,
+        columnName: String,
+        newColumn: DatabaseSchemaInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let sanitizedTable = try validateAndSanitizeIdentifier(tableName)
+
+        // SQLite has limited ALTER TABLE support
+        // - RENAME COLUMN is supported in SQLite 3.25+ (2018)
+        // - Changing type/constraints requires table rebuild
+
+        do {
+            // Step 1: Rename column if name changed
+            if columnName != newColumn.columnName {
+                let renameSQL = "ALTER TABLE \(sanitizedTable) RENAME COLUMN \"\(columnName)\" TO \"\(newColumn.columnName)\""
+                _ = try await connection.query(renameSQL)
+                debugLog("Renamed column \(columnName) to \(newColumn.columnName) in table \(tableName)")
+            }
+
+            // Note: SQLite doesn't support changing column type or constraints directly
+            // A full table rebuild would be needed for type/constraint changes
+            // For now, we only support renaming
+            debugLog("Modified column \(newColumn.columnName) in table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to modify column '\(columnName)': \(error.localizedDescription)"
+            )
+        }
+    }
+
+    func dropColumn(
+        from tableName: String,
+        schema: String?,
+        columnName: String
+    ) async throws {
+        let connection = try await ensureConnected()
+        let sanitizedTable = try validateAndSanitizeIdentifier(tableName)
+
+        // DROP COLUMN is supported in SQLite 3.35+ (2021)
+        let sql = "ALTER TABLE \(sanitizedTable) DROP COLUMN \"\(columnName)\""
+
+        do {
+            _ = try await connection.query(sql)
+            debugLog("Dropped column \(columnName) from table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to drop column '\(columnName)': \(error.localizedDescription). Note: DROP COLUMN requires SQLite 3.35+",
+                query: sql
+            )
+        }
+    }
+
+    func createIndex(
+        on tableName: String,
+        schema: String?,
+        index: DatabaseIndexInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let sanitizedTable = try validateAndSanitizeIdentifier(tableName)
+
+        // Build column list
+        let columnList = index.columns.map { "\"\($0)\"" }.joined(separator: ", ")
+
+        guard !columnList.isEmpty else {
+            throw DatabaseError.operationFailed("Cannot create index without columns")
+        }
+
+        var sql = "CREATE"
+
+        // UNIQUE keyword
+        if index.isUnique {
+            sql += " UNIQUE"
+        }
+
+        sql += " INDEX \"\(index.name)\" ON \(sanitizedTable) (\(columnList))"
+
+        // SQLite only supports BTREE indexes, no USING clause needed
+
+        do {
+            _ = try await connection.query(sql)
+            debugLog("Created index \(index.name) on table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to create index '\(index.name)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
+    }
+
+    func dropIndex(
+        indexName: String,
+        tableName: String,
+        schema: String?
+    ) async throws {
+        let connection = try await ensureConnected()
+
+        // SQLite doesn't require table name when dropping index
+        let sql = "DROP INDEX \"\(indexName)\""
+
+        do {
+            _ = try await connection.query(sql)
+            debugLog("Dropped index \(indexName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to drop index '\(indexName)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
     }
 }

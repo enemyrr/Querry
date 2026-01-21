@@ -12,7 +12,15 @@ import AppKit
 struct SchemaTableView: NSViewRepresentable {
     let columns: [DatabaseSchemaInfo]
     let searchText: String
+    let databaseType: DatabaseType
+    @Binding var modificationTracker: SchemaModificationTracker
     @Environment(\.colorScheme) var colorScheme
+
+    // This computed property forces SwiftUI to observe tracker changes
+    // When clearAll() is called, hasModifications changes, triggering updateNSView
+    private var trackerVersion: Bool {
+        modificationTracker.hasModifications
+    }
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -23,7 +31,7 @@ struct SchemaTableView: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
         
-        let tableView = NSTableView()
+        let tableView = CustomTableView()
         tableView.style = .fullWidth
         tableView.rowSizeStyle = .default
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
@@ -35,6 +43,7 @@ struct SchemaTableView: NSViewRepresentable {
         tableView.headerView = NSTableHeaderView()
         tableView.allowsColumnReordering = false
         tableView.allowsColumnResizing = true
+        tableView.allowsMultipleSelection = true
         
         // Number column
         let numberColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("number"))
@@ -89,24 +98,29 @@ struct SchemaTableView: NSViewRepresentable {
         
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
-        
+
         scrollView.documentView = tableView
-        context.coordinator.tableView = tableView
-        
+        context.coordinator.setupTableView(tableView)
+
         return scrollView
     }
     
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        // Access trackerVersion to establish SwiftUI observation on tracker changes
+        _ = trackerVersion
+
         context.coordinator.columns = filteredColumns()
         context.coordinator.colorScheme = colorScheme
-        
+        context.coordinator.databaseType = databaseType
+        context.coordinator.modificationTracker = modificationTracker
+
         if let tableView = scrollView.documentView as? NSTableView {
             tableView.reloadData()
         }
     }
-    
+
     func makeCoordinator() -> SchemaTableCoordinator {
-        SchemaTableCoordinator(columns: filteredColumns(), colorScheme: colorScheme)
+        SchemaTableCoordinator(columns: filteredColumns(), colorScheme: colorScheme, databaseType: databaseType, modificationTracker: modificationTracker)
     }
 
     private func filteredColumns() -> [DatabaseSchemaInfo] {

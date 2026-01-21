@@ -21,4 +21,10 @@ extension Notification.Name {
     static let databasesUpdated = Notification.Name("databasesUpdated")
     static let connectedDatabaseChanged = Notification.Name("connectedDatabaseChanged")
     static let toggleFilterBuilder = Notification.Name("ToggleFilterBuilder")
+
+    /// Schema mode context menu actions
+    static let schemaTableRefresh = Notification.Name("schemaTableRefresh")
+    static let schemaAddColumn = Notification.Name("schemaAddColumn")
+    static let indexTableRefresh = Notification.Name("indexTableRefresh")
+    static let indexAddIndex = Notification.Name("indexAddIndex")
 }

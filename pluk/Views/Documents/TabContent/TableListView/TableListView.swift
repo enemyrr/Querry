@@ -29,7 +29,9 @@ struct TableListView: View {
     
     // Modification tracking
     @State private var modificationTracker = TableModificationTracker()
+    @State private var schemaModificationTracker = SchemaModificationTracker()
     @State private var isProcessingUpdates = false
+    @State private var isProcessingSchemaUpdates = false
     @State private var needsToSelectLastRow = false
     
     // Generic error handling
@@ -81,6 +83,7 @@ struct TableListView: View {
                         indexes: cachedIndexes,
                         queryResult: currentQueryResult,
                         tableName: selectedTab.name,
+                        schemaName: selectedTab.databaseSchema,
                         cacheNamespace: instance.connection.persistentModelID.storeIdentifier,
                         onSort: { column, ascending in
                             sortColumn = column
@@ -92,6 +95,7 @@ struct TableListView: View {
                             }
                         },
                         modificationTracker: modificationTracker,
+                        schemaModificationTracker: $schemaModificationTracker,
                         needsToSelectLastRow: needsToSelectLastRow,
                         onDeleteNewRow: { index in
                             deleteNewlyAddedRecord(atIndex: index)
@@ -151,7 +155,18 @@ struct TableListView: View {
                     },
                     databaseType: instance.databaseType,
                     currentQueryResult: currentQueryResult,
-                    schema: cachedSchema
+                    schema: cachedSchema,
+                    schemaModificationTracker: schemaModificationTracker,
+                    onCommitSchemaModifications: {
+                        Task {
+                            isProcessingSchemaUpdates = true
+                            await commitSchemaModifications()
+                            isProcessingSchemaUpdates = false
+                        }
+                    },
+                    onNewField: {
+                        handleNewField()
+                    }
                 )
                 .padding(.bottom, 10)
             }
@@ -204,6 +219,54 @@ struct TableListView: View {
         showingErrorAlert = true
     }
     
+    // MARK: - Save Schema Modifications
+    private func commitSchemaModifications() async {
+        // Validate modifications first
+        let validationErrors = schemaModificationTracker.validateModifications()
+        guard validationErrors.isEmpty else {
+            await MainActor.run {
+                currentError = DatabaseError.operationFailed(validationErrors.joined(separator: "\n"))
+                showingErrorAlert = true
+            }
+            return
+        }
+
+        debugLog("💾 Saving \(schemaModificationTracker.totalModificationCount) schema modifications...")
+
+        do {
+            // Create modification service
+            guard let driver = instance.databaseService.driver else {
+                throw DatabaseError.operationFailed("No active database driver")
+            }
+
+            let service = SchemaModificationService(databaseDriver: driver)
+
+            // Execute all modifications in a transaction
+            try await service.executeModifications(
+                tableName: selectedTab.name,
+                schema: selectedTab.databaseSchema,
+                modifications: schemaModificationTracker
+            )
+
+            // Clear modifications on success
+            // Note: Don't nil out cachedSchema here to avoid flicker - let loadOrSubscribe replace it
+            await MainActor.run {
+                schemaModificationTracker.clearAll()
+            }
+
+            // Fetch fresh schema from database (cache was already cleared in SchemaModificationService)
+            // The onChange(of: schema?.hashValue) in SchemaModeView will trigger table update when new schema arrives
+            await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: currentActiveFilter)
+
+            debugLog("✅ Schema modifications saved successfully")
+        } catch {
+            await MainActor.run {
+                currentError = error
+                showingErrorAlert = true
+            }
+        }
+    }
+
     // MARK: - Save Modifications
     private func commitModifications() async {
         NSApp.keyWindow?.makeFirstResponder(nil)
@@ -363,7 +426,41 @@ struct TableListView: View {
         
         needsToSelectLastRow = true
     }
-    
+
+    private func handleNewField() {
+        // Create a new column with default values
+        let newColumn = DatabaseSchemaInfo(
+            ordinalPosition: (cachedSchema?.columns.count ?? 0) + 1,
+            columnName: generateUniqueColumnName(),
+            dataType: "",
+            formatType: "character varying",
+            typeOid: 1043,  // VARCHAR type OID for PostgreSQL
+            isNullable: "YES",
+            columnDefault: nil
+        )
+
+        // Track the addition
+        schemaModificationTracker.trackColumnAddition(newColumn)
+
+        // Post notification to reload table view and auto-edit the new row
+        NotificationCenter.default.post(
+            name: .tableReloadData,
+            object: nil,
+            userInfo: ["autoEditLastRow": true]
+        )
+    }
+
+    private func generateUniqueColumnName() -> String {
+        let existingNames = Set((cachedSchema?.columns ?? []).map { $0.columnName })
+        var counter = 1
+        var name = "new_column"
+        while existingNames.contains(name) || schemaModificationTracker.isColumnNew(name) {
+            name = "new_column_\(counter)"
+            counter += 1
+        }
+        return name
+    }
+
     func deleteNewlyAddedRecord(atIndex: Int) {
         guard let currentResult = cachedDocuments else { return }
         
@@ -625,17 +722,17 @@ struct TableListView: View {
             currentActiveFilter = filter ?? currentActiveFilter
             if forceFetch || cachedDocuments == nil { await MainActor.run { viewState = .loading } }
             
-            if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
+            if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != selectedTab.name) {
                 do {
-                    if let schema = try await instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema) {
+                    if let schema = try await instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema, forceFetch: forceFetch) {
                         cachedSchema = schema
                     }
                 } catch {
                     debugLog("Failed to fetch schema for \(selectedTab.name): \(error.localizedDescription)")
                 }
-                
+
                 do {
-                    if let indexes = try await instance.databaseService.getIndexes(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema) {
+                    if let indexes = try await instance.databaseService.getIndexes(for: selectedTab.name, databaseSchema: selectedTab.databaseSchema, forceFetch: forceFetch) {
                         cachedIndexes = indexes
                     }
                 } catch {
@@ -679,10 +776,10 @@ struct TableListView: View {
             let documentsResult: QueryResult
             let databaseSchema = selectedTab.databaseSchema
             
-            if fetchSchema && (cachedSchema == nil || cachedTabName != selectedTab.name) {
+            if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != selectedTab.name) {
                 // Fetch schema, indexes, and documents in parallel
-                async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: databaseSchema)
-                async let indexesTask = instance.databaseService.getIndexes(for: selectedTab.name, databaseSchema: databaseSchema)
+                async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: databaseSchema, forceFetch: forceFetch)
+                async let indexesTask = instance.databaseService.getIndexes(for: selectedTab.name, databaseSchema: databaseSchema, forceFetch: forceFetch)
                 async let documentsTask = instance.databaseService.findDocuments(
                     in: selectedTab.name,
                     databaseSchema: databaseSchema,

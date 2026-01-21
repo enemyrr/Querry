@@ -14,7 +14,12 @@ import SwiftUI
     private var activeDriver: (any DatabaseDriver)?
     public var connectedDatabase: (any DatabaseWrapper)?
     public var currentSchema: String?
-    
+
+    // Public getter for database driver (needed for schema modifications)
+    public var driver: (any DatabaseDriver)? {
+        return activeDriver
+    }
+
     // MARK: - Results Cache
     private var queryCache: [String: QueryResult] = [:]
     
@@ -294,8 +299,13 @@ import SwiftUI
         return ""
     }
     
-    func getSchema(for collectionName: String, databaseSchema: String?) async throws -> DatabaseSchemaResult? {
+    func getSchema(for collectionName: String, databaseSchema: String?, forceFetch: Bool = false) async throws -> DatabaseSchemaResult? {
         guard let driver = activeDriver else { return nil }
+
+        if forceFetch {
+            await driver.clearSchemaCache(for: collectionName, schema: databaseSchema)
+        }
+
         return try await driver.getSchema(for: collectionName, schema: databaseSchema)
     }
     
@@ -304,8 +314,13 @@ import SwiftUI
         return try await driver.getInformationSchema()
     }
 
-    func getIndexes(for collectionName: String, databaseSchema: String?) async throws -> [DatabaseIndexInfo]? {
+    func getIndexes(for collectionName: String, databaseSchema: String?, forceFetch: Bool = false) async throws -> [DatabaseIndexInfo]? {
         guard let driver = activeDriver else { return nil }
+
+        if forceFetch {
+            await driver.clearSchemaCache(for: collectionName, schema: databaseSchema)
+        }
+
         return try await driver.getIndexes(for: collectionName, schema: databaseSchema)
     }
 

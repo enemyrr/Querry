@@ -13,9 +13,11 @@ struct TableViewModeContainer: View {
     let indexes: [DatabaseIndexInfo]?
     let queryResult: QueryResult?
     let tableName: String
+    let schemaName: String?
     let cacheNamespace: String?
     let onSort: ((String, Bool) -> Void)?
     let modificationTracker: TableModificationTracker?
+    let schemaModificationTracker: Binding<SchemaModificationTracker>?
     let needsToSelectLastRow: Bool
     let onDeleteNewRow: ((Int) -> Void)?
     let onForeignKeyNavigation: ((String, String, String) -> Void)?
@@ -41,11 +43,15 @@ struct TableViewModeContainer: View {
                 )
 
             case .schema:
-                SchemaModeView(
-                    schema: schema,
-                    indexes: indexes,
-                    tableName: tableName
-                )
+                if let schemaTracker = schemaModificationTracker {
+                    SchemaModeView(
+                        schema: schema,
+                        indexes: indexes,
+                        tableName: tableName,
+                        schemaName: schemaName,
+                        modificationTracker: schemaTracker
+                    )
+                }
 
             case .definition:
                 DefinitionModeView(

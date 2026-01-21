@@ -1493,6 +1493,12 @@ class ConvexDriver: DatabaseDriver {
         debugLog("🧹 Cleared subscription cache for table: \(tableName)")
     }
 
+    // Clear schema cache (protocol conformance)
+    func clearSchemaCache(for tableName: String, schema: String?) async {
+        cachedSchemas = nil
+        schemasCacheTime = nil
+    }
+
     // Optional helper to retrieve stored cursor (if needed later)
     private func cursorFor(table: String, page: Int, filterSignature: String) -> String? {
         return tablePageCursors[table]?[filterSignature]?[page] ?? nil

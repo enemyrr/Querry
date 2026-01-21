@@ -73,7 +73,9 @@ struct DocumentList: View {
                     },
                     databaseType: instance.databaseType,
                     currentQueryResult: currentQueryResult,
-                    schema: nil
+                    schema: nil,
+                    schemaModificationTracker: nil,
+                    onCommitSchemaModifications: nil
                 )
                 .padding(.bottom, 10)
             }

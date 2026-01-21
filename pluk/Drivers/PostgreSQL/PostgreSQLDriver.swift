@@ -1385,7 +1385,14 @@ class PostgreSQLDriver: DatabaseDriver {
         let cacheKey = SchemaKey(schemaName, tableName)
         await databaseSchema.remove(cacheKey)
     }
-    
+
+    /// Clear schema cache for a specific table (protocol conformance)
+    func clearSchemaCache(for tableName: String, schema: String?) async {
+        let schemaName = schema ?? "public"
+        let cacheKey = SchemaKey(schemaName, tableName)
+        await databaseSchema.remove(cacheKey)
+    }
+
     /// Get current cache statistics
     func getSchemaCacheStats() async -> (count: Int, maxSize: Int) {
         let count = await databaseSchema.count
@@ -1770,10 +1777,183 @@ class PostgreSQLDriver: DatabaseDriver {
             
             // If no primary key is found, return nil
             return nil
-            
+
         } catch {
             // If the query fails for any reason (e.g., table not found, permissions), return nil
             return nil
+        }
+    }
+
+    // MARK: - Schema Modification Methods
+
+    func addColumn(
+        to tableName: String,
+        schema: String?,
+        column: DatabaseSchemaInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let schemaName = schema ?? "public"
+
+        // Build the ADD COLUMN SQL statement
+        var sql = "ALTER TABLE \(try validateAndSanitizeIdentifier(tableName, databaseSchema: schemaName)) ADD COLUMN \"\(column.columnName)\" \(column.formatType)"
+
+        // Add NOT NULL constraint if applicable
+        if column.isNullable == "NO" {
+            sql += " NOT NULL"
+        }
+
+        // Add DEFAULT value if specified and not empty
+        if let defaultValue = column.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            sql += " DEFAULT \(defaultValue)"
+        }
+
+        do {
+            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            debugLog("✓ Added column \(column.columnName) to table \(tableName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: sql)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to add column: \(error.localizedDescription)", query: sql)
+        }
+    }
+
+    func modifyColumn(
+        in tableName: String,
+        schema: String?,
+        columnName: String,
+        newColumn: DatabaseSchemaInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let schemaName = schema ?? "public"
+        let qualifiedTableName = try validateAndSanitizeIdentifier(tableName, databaseSchema: schemaName)
+
+        do {
+            // PostgreSQL requires separate ALTER COLUMN statements for different modifications
+
+            // Track the current column name (may change after rename)
+            var currentColumnName = columnName
+
+            // 0. Rename column if name changed (must be done first)
+            if newColumn.columnName != columnName {
+                let renameSQL = "ALTER TABLE \(qualifiedTableName) RENAME COLUMN \"\(columnName)\" TO \"\(newColumn.columnName)\""
+                _ = try await connection.query(PostgresQuery(stringLiteral: renameSQL), logger: Logger(label: "postgres"))
+                currentColumnName = newColumn.columnName
+                debugLog("✓ Renamed column \(columnName) to \(newColumn.columnName) in table \(tableName)")
+            }
+
+            // 1. Change data type if different
+            let changeTypeSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" TYPE \(newColumn.dataType)"
+            _ = try await connection.query(PostgresQuery(stringLiteral: changeTypeSQL), logger: Logger(label: "postgres"))
+
+            // 2. Set or drop NOT NULL constraint
+            if newColumn.isNullable == "NO" {
+                let setNotNullSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" SET NOT NULL"
+                _ = try await connection.query(PostgresQuery(stringLiteral: setNotNullSQL), logger: Logger(label: "postgres"))
+            } else {
+                let dropNotNullSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" DROP NOT NULL"
+                _ = try await connection.query(PostgresQuery(stringLiteral: dropNotNullSQL), logger: Logger(label: "postgres"))
+            }
+
+            // 3. Set or drop DEFAULT value
+            if let defaultValue = newColumn.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                let setDefaultSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" SET DEFAULT \(defaultValue)"
+                _ = try await connection.query(PostgresQuery(stringLiteral: setDefaultSQL), logger: Logger(label: "postgres"))
+            } else {
+                let dropDefaultSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" DROP DEFAULT"
+                _ = try await connection.query(PostgresQuery(stringLiteral: dropDefaultSQL), logger: Logger(label: "postgres"))
+            }
+
+            debugLog("✓ Modified column \(currentColumnName) in table \(tableName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to modify column: \(error.localizedDescription)")
+        }
+    }
+
+    func dropColumn(
+        from tableName: String,
+        schema: String?,
+        columnName: String
+    ) async throws {
+        let connection = try await ensureConnected()
+        let schemaName = schema ?? "public"
+
+        let sql = "ALTER TABLE \(try validateAndSanitizeIdentifier(tableName, databaseSchema: schemaName)) DROP COLUMN \"\(columnName)\""
+
+        do {
+            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            debugLog("✓ Dropped column \(columnName) from table \(tableName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: sql)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to drop column: \(error.localizedDescription)", query: sql)
+        }
+    }
+
+    func createIndex(
+        on tableName: String,
+        schema: String?,
+        index: DatabaseIndexInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let schemaName = schema ?? "public"
+
+        // Build CREATE INDEX statement
+        var sql = "CREATE"
+
+        if index.isUnique {
+            sql += " UNIQUE"
+        }
+
+        sql += " INDEX \"\(index.name)\" ON \(try validateAndSanitizeIdentifier(tableName, databaseSchema: schemaName))"
+
+        // Add index type/method
+        let indexMethod = index.indexType.rawValue.uppercased()
+        sql += " USING \(indexMethod)"
+
+        // Add columns
+        let columnList = index.columns.map { "\"\($0)\"" }.joined(separator: ", ")
+        sql += " (\(columnList))"
+
+        // Add INCLUDE columns if present
+        if let includeColumns = index.includeColumns, !includeColumns.isEmpty {
+            let includeList = includeColumns.map { "\"\($0)\"" }.joined(separator: ", ")
+            sql += " INCLUDE (\(includeList))"
+        }
+
+        // Add WHERE condition if present
+        if let condition = index.condition, !condition.isEmpty {
+            sql += " WHERE \(condition)"
+        }
+
+        do {
+            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            debugLog("✓ Created index \(index.name) on table \(tableName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: sql)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to create index: \(error.localizedDescription)", query: sql)
+        }
+    }
+
+    func dropIndex(
+        indexName: String,
+        tableName: String,
+        schema: String?
+    ) async throws {
+        let connection = try await ensureConnected()
+        let schemaName = schema ?? "public"
+
+        let sql = "DROP INDEX IF EXISTS \"\(schemaName)\".\"\(indexName)\""
+
+        do {
+            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            debugLog("✓ Dropped index \(indexName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: sql)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to drop index: \(error.localizedDescription)", query: sql)
         }
     }
 }

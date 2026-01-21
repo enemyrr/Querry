@@ -23,6 +23,11 @@ struct FloatingActionBar: View {
     // Add current query result as direct parameter to preserve data during loading
     let currentQueryResult: QueryResult?
     let schema: DatabaseSchemaResult?
+
+    // Schema modification tracking
+    let schemaModificationTracker: SchemaModificationTracker?
+    let onCommitSchemaModifications: (() -> Void)?
+    var onNewField: (() -> Void)?
     
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
@@ -153,7 +158,10 @@ struct FloatingActionBar: View {
                             onRefresh: onRefresh,
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
-                            }
+                            },
+                            schemaModificationTracker: schemaModificationTracker,
+                            onCommitSchemaModifications: onCommitSchemaModifications,
+                            onNewField: onNewField
                         )
                     case .definition:
                         DefinitionModeActionBar(
@@ -238,7 +246,10 @@ struct FloatingActionBar: View {
                             onRefresh: onRefresh,
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
-                            }
+                            },
+                            schemaModificationTracker: schemaModificationTracker,
+                            onCommitSchemaModifications: onCommitSchemaModifications,
+                            onNewField: onNewField
                         )
                     case .definition:
                         DefinitionModeActionBar(
@@ -379,7 +390,17 @@ struct FloatingActionBar: View {
                     return nil // Consume the event
                 }
                 return event
-                
+
+            case 45: // 'n' key
+                if event.modifierFlags.contains([.command, .shift]) {
+                    // Add new column in schema mode
+                    if tabViewMode == .schema {
+                        onNewField?()
+                        return nil // Consume the event
+                    }
+                }
+                return event
+
             case 37: // 'l' key
                 if event.modifierFlags.contains(.command) {
                     withAnimation(.spring(response: 0.3)) {
@@ -401,7 +422,11 @@ struct FloatingActionBar: View {
             case 1: // 's' key
                 if event.modifierFlags.contains(.command) {
                     // Handle save based on current state
-                    if modificationTracker.hasPendingDeletions {
+                    if tabViewMode == .schema,
+                       let tracker = schemaModificationTracker,
+                       tracker.hasModifications {
+                        onCommitSchemaModifications?()
+                    } else if modificationTracker.hasPendingDeletions {
                         onCommitModifications()
                     } else if modificationTracker.hasModifications {
                         onCommitModifications()

@@ -1285,6 +1285,191 @@ class MySQLDriver: DatabaseDriver {
         
         return constraints
     }
+
+    // MARK: - Schema Modification Methods
+
+    /// Quotes a MySQL identifier with backticks, escaping any embedded backticks
+    private func quoteIdentifier(_ identifier: String) -> String {
+        let escaped = identifier.replacing("`", with: "``")
+        return "`\(escaped)`"
+    }
+
+    func addColumn(
+        to tableName: String,
+        schema: String?,
+        column: DatabaseSchemaInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+
+        let quotedTable = quoteIdentifier(tableName)
+        let quotedColumn = quoteIdentifier(column.columnName)
+        let dataType = column.formatType.isEmpty ? column.dataType : column.formatType
+
+        var sql = "ALTER TABLE \(quotedTable) ADD COLUMN \(quotedColumn) \(dataType)"
+
+        // Handle NOT NULL constraint
+        if column.isNullable == "NO" {
+            sql += " NOT NULL"
+        }
+
+        // Handle DEFAULT value
+        if let defaultValue = column.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            sql += " DEFAULT \(defaultValue)"
+        }
+
+        do {
+            _ = try await connection.simpleQuery(sql).get()
+            logger.info("Added column \(column.columnName) to table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to add column '\(column.columnName)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
+    }
+
+    func modifyColumn(
+        in tableName: String,
+        schema: String?,
+        columnName: String,
+        newColumn: DatabaseSchemaInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+        let quotedTable = quoteIdentifier(tableName)
+
+        do {
+            // Track the current column name (may change after rename)
+            var currentColumnName = columnName
+
+            // Step 1: Rename column if name changed (MySQL 8.0+ supports RENAME COLUMN)
+            if columnName != newColumn.columnName {
+                let quotedOldName = quoteIdentifier(columnName)
+                let quotedNewName = quoteIdentifier(newColumn.columnName)
+                let renameSQL = "ALTER TABLE \(quotedTable) RENAME COLUMN \(quotedOldName) TO \(quotedNewName)"
+                _ = try await connection.simpleQuery(renameSQL).get()
+                currentColumnName = newColumn.columnName
+                logger.info("Renamed column \(columnName) to \(newColumn.columnName) in table \(tableName)")
+            }
+
+            // Step 2: Modify column type, nullability, and default using MODIFY COLUMN
+            let quotedCurrentName = quoteIdentifier(currentColumnName)
+            let dataType = newColumn.formatType.isEmpty ? newColumn.dataType : newColumn.formatType
+
+            var modifySQL = "ALTER TABLE \(quotedTable) MODIFY COLUMN \(quotedCurrentName) \(dataType)"
+
+            // NULL/NOT NULL
+            if newColumn.isNullable == "NO" {
+                modifySQL += " NOT NULL"
+            } else {
+                modifySQL += " NULL"
+            }
+
+            // DEFAULT value
+            if let defaultValue = newColumn.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                modifySQL += " DEFAULT \(defaultValue)"
+            }
+
+            _ = try await connection.simpleQuery(modifySQL).get()
+            logger.info("Modified column \(currentColumnName) in table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to modify column '\(columnName)': \(error.localizedDescription)"
+            )
+        }
+    }
+
+    func dropColumn(
+        from tableName: String,
+        schema: String?,
+        columnName: String
+    ) async throws {
+        let connection = try await ensureConnected()
+
+        let quotedTable = quoteIdentifier(tableName)
+        let quotedColumn = quoteIdentifier(columnName)
+
+        let sql = "ALTER TABLE \(quotedTable) DROP COLUMN \(quotedColumn)"
+
+        do {
+            _ = try await connection.simpleQuery(sql).get()
+            logger.info("Dropped column \(columnName) from table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to drop column '\(columnName)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
+    }
+
+    func createIndex(
+        on tableName: String,
+        schema: String?,
+        index: DatabaseIndexInfo
+    ) async throws {
+        let connection = try await ensureConnected()
+
+        let quotedTable = quoteIdentifier(tableName)
+        let quotedIndexName = quoteIdentifier(index.name)
+
+        // Build column list
+        let columnList = index.columns.map { quoteIdentifier($0) }.joined(separator: ", ")
+
+        var sql = "CREATE"
+
+        // UNIQUE keyword
+        if index.isUnique {
+            sql += " UNIQUE"
+        }
+
+        sql += " INDEX \(quotedIndexName) ON \(quotedTable) (\(columnList))"
+
+        // Index type (USING BTREE, HASH, etc.) - MySQL puts USING after columns
+        // Only specify non-default index types (BTREE is default)
+        let indexMethod = index.indexType.rawValue.uppercased()
+        if indexMethod == "FULLTEXT" {
+            // FULLTEXT requires special syntax without USING
+            sql = "CREATE FULLTEXT INDEX \(quotedIndexName) ON \(quotedTable) (\(columnList))"
+        } else if indexMethod == "SPATIAL" {
+            // SPATIAL requires special syntax without USING
+            sql = "CREATE SPATIAL INDEX \(quotedIndexName) ON \(quotedTable) (\(columnList))"
+        } else if indexMethod != "BTREE" && indexMethod != "OTHER" {
+            sql += " USING \(indexMethod)"
+        }
+
+        do {
+            _ = try await connection.simpleQuery(sql).get()
+            logger.info("Created index \(index.name) on table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to create index '\(index.name)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
+    }
+
+    func dropIndex(
+        indexName: String,
+        tableName: String,
+        schema: String?
+    ) async throws {
+        let connection = try await ensureConnected()
+
+        let quotedIndex = quoteIdentifier(indexName)
+        let quotedTable = quoteIdentifier(tableName)
+
+        // MySQL requires table name when dropping an index
+        let sql = "DROP INDEX \(quotedIndex) ON \(quotedTable)"
+
+        do {
+            _ = try await connection.simpleQuery(sql).get()
+            logger.info("Dropped index \(indexName) from table \(tableName)")
+        } catch {
+            throw DatabaseError.operationFailed(
+                "Failed to drop index '\(indexName)': \(error.localizedDescription)",
+                query: sql
+            )
+        }
+    }
 }
 
 extension String {

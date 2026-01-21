@@ -125,6 +125,47 @@ protocol DatabaseDriver {
 
     // Clear subscription cache for a specific table (optional - only needed for databases with caching)
     func clearSubscriptionCache(for tableName: String)
+
+    // Clear schema cache for a specific table (optional - only needed for databases with schema caching)
+    func clearSchemaCache(for tableName: String, schema: String?) async
+
+    // MARK: - Schema Modification Methods
+
+    /// Add a new column to a table
+    func addColumn(
+        to tableName: String,
+        schema: String?,
+        column: DatabaseSchemaInfo
+    ) async throws
+
+    /// Modify an existing column in a table
+    func modifyColumn(
+        in tableName: String,
+        schema: String?,
+        columnName: String,
+        newColumn: DatabaseSchemaInfo
+    ) async throws
+
+    /// Drop a column from a table
+    func dropColumn(
+        from tableName: String,
+        schema: String?,
+        columnName: String
+    ) async throws
+
+    /// Create a new index on a table
+    func createIndex(
+        on tableName: String,
+        schema: String?,
+        index: DatabaseIndexInfo
+    ) async throws
+
+    /// Drop an index from a table
+    func dropIndex(
+        indexName: String,
+        tableName: String,
+        schema: String?
+    ) async throws
 }
 
 // MARK: - Default Implementations
@@ -157,6 +198,60 @@ extension DatabaseDriver {
     // Only databases that support real-time caching will override this
     func clearSubscriptionCache(for tableName: String) {
         // Default implementation does nothing
+    }
+
+    // Provide default no-op implementation for schema cache clearing
+    // Only databases with schema caching will override this
+    func clearSchemaCache(for tableName: String, schema: String?) async {
+        // Default implementation does nothing
+    }
+
+    // MARK: - Default Schema Modification Implementations
+
+    /// Default implementation throws not implemented error
+    func addColumn(
+        to tableName: String,
+        schema: String?,
+        column: DatabaseSchemaInfo
+    ) async throws {
+        throw DatabaseError.notImplemented("Schema modification not supported for this database type")
+    }
+
+    /// Default implementation throws not implemented error
+    func modifyColumn(
+        in tableName: String,
+        schema: String?,
+        columnName: String,
+        newColumn: DatabaseSchemaInfo
+    ) async throws {
+        throw DatabaseError.notImplemented("Schema modification not supported for this database type")
+    }
+
+    /// Default implementation throws not implemented error
+    func dropColumn(
+        from tableName: String,
+        schema: String?,
+        columnName: String
+    ) async throws {
+        throw DatabaseError.notImplemented("Schema modification not supported for this database type")
+    }
+
+    /// Default implementation throws not implemented error
+    func createIndex(
+        on tableName: String,
+        schema: String?,
+        index: DatabaseIndexInfo
+    ) async throws {
+        throw DatabaseError.notImplemented("Schema modification not supported for this database type")
+    }
+
+    /// Default implementation throws not implemented error
+    func dropIndex(
+        indexName: String,
+        tableName: String,
+        schema: String?
+    ) async throws {
+        throw DatabaseError.notImplemented("Schema modification not supported for this database type")
     }
 }
 
@@ -400,7 +495,7 @@ struct DatabaseSchemaInfo: Equatable {
     }
 }
 
-struct DatabaseSchemaResult {
+struct DatabaseSchemaResult: Equatable {
     let tableName: String
     let schemaName: String
     let columns: [DatabaseSchemaInfo]

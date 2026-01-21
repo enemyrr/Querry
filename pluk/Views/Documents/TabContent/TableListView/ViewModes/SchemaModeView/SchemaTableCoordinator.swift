@@ -9,14 +9,243 @@ import Foundation
 import AppKit
 import SwiftUI
 
-class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, NSMenuDelegate {
     var columns: [DatabaseSchemaInfo]
     var colorScheme: ColorScheme
+    var databaseType: DatabaseType
     weak var tableView: NSTableView?
+    weak var modificationTracker: SchemaModificationTracker?
 
-    init(columns: [DatabaseSchemaInfo], colorScheme: ColorScheme) {
+    // Menu item references
+    private weak var refreshMenuItem: NSMenuItem?
+    private weak var addColumnMenuItem: NSMenuItem?
+    private weak var editMenuItem: NSMenuItem?
+    private weak var deleteMenuItem: NSMenuItem?
+
+    init(columns: [DatabaseSchemaInfo], colorScheme: ColorScheme, databaseType: DatabaseType, modificationTracker: SchemaModificationTracker? = nil) {
         self.columns = columns
         self.colorScheme = colorScheme
+        self.databaseType = databaseType
+        self.modificationTracker = modificationTracker
+        super.init()
+
+        // Add notification observer for table reload requests
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleTableReloadData(notification:)),
+            name: .tableReloadData,
+            object: nil
+        )
+
+        // Add notification observer for delete key requests
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDeleteKey(notification:)),
+            name: .didRequestDelete,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    func setupTableView(_ tableView: NSTableView) {
+        self.tableView = tableView
+        tableView.target = self
+        tableView.doubleAction = #selector(tableViewDoubleClick(_:))
+        setupMenu(for: tableView)
+    }
+
+    private func setupMenu(for tableView: NSTableView) {
+        let menu = NSMenu()
+
+        // Refresh
+        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshTable), keyEquivalent: "r")
+        refreshItem.keyEquivalentModifierMask = [.command]
+        refreshItem.target = self
+        menu.addItem(refreshItem)
+        self.refreshMenuItem = refreshItem
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Add Column
+        let addColumnItem = NSMenuItem(title: "Add Column", action: #selector(addColumn), keyEquivalent: "")
+        addColumnItem.target = self
+        menu.addItem(addColumnItem)
+        self.addColumnMenuItem = addColumnItem
+
+        // Edit
+        let editItem = NSMenuItem(title: "Edit", action: #selector(editColumn), keyEquivalent: "")
+        editItem.target = self
+        menu.addItem(editItem)
+        self.editMenuItem = editItem
+
+        // Delete
+        let deleteItem = NSMenuItem(title: "Delete", action: #selector(deleteColumn), keyEquivalent: "")
+        deleteItem.target = self
+        menu.addItem(deleteItem)
+        self.deleteMenuItem = deleteItem
+
+        menu.delegate = self
+        menu.autoenablesItems = false
+        tableView.menu = menu
+    }
+
+    @objc private func handleTableReloadData(notification: Notification) {
+        let autoEditLastRow = (notification.userInfo?["autoEditLastRow"] as? Bool) ?? false
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let tableView = self.tableView else { return }
+            tableView.reloadData()
+
+            // Auto-edit the name cell of the last row if requested
+            // Use tableView.numberOfRows instead of columns.count since columns may not be updated yet
+            if autoEditLastRow && tableView.numberOfRows > 0 {
+                self.scrollToLastRowAndEditNameCell()
+            }
+        }
+    }
+
+    @objc private func handleDeleteKey(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let rows = userInfo["rows"] as? IndexSet,
+              let notificationTableView = userInfo["tableView"] as? NSTableView,
+              notificationTableView === self.tableView else {
+            return
+        }
+
+        for row in rows {
+            guard row < columns.count else { continue }
+            let column = columns[row]
+
+            // Track deletion (handles both new and existing columns)
+            modificationTracker?.trackColumnDeletion(column)
+
+            // Update all cells in this row to show red highlighting
+            guard let tableView = tableView else { continue }
+            for columnIndex in 0..<tableView.numberOfColumns {
+                if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? SchemaEditableCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                } else if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? SchemaCheckboxCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                } else if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? SchemaDropdownCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                } else if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? SchemaDeletableCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                }
+            }
+        }
+
+        // Reload data for the affected rows
+        if let tableView = tableView {
+            tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
+        }
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard let tableView = tableView as? CustomTableView else { return }
+        let rightClickLocation = tableView.getRightClickedCell()
+        let hasValidRow = rightClickLocation.row >= 0
+        let hasValidCell = hasValidRow && rightClickLocation.column >= 0
+
+        refreshMenuItem?.isEnabled = true
+        addColumnMenuItem?.isEnabled = true
+        editMenuItem?.isEnabled = hasValidCell
+        deleteMenuItem?.isEnabled = hasValidRow
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        menuNeedsUpdate(menu)
+    }
+
+    // MARK: - Context Menu Actions
+
+    @objc private func refreshTable() {
+        NotificationCenter.default.post(name: .schemaTableRefresh, object: nil)
+    }
+
+    @objc private func addColumn() {
+        NotificationCenter.default.post(name: .schemaAddColumn, object: nil)
+    }
+
+    @objc private func editColumn() {
+        guard let tableView = tableView as? CustomTableView else { return }
+        let location = tableView.getRightClickedCell()
+        guard location.row >= 0, location.column >= 0 else { return }
+
+        tableView.selectRowIndexes(IndexSet(integer: location.row), byExtendingSelection: false)
+        if let cellView = tableView.view(atColumn: location.column, row: location.row, makeIfNecessary: false) as? SchemaEditableCellView {
+            cellView.enterEditMode()
+        }
+    }
+
+    @objc private func deleteColumn() {
+        guard let tableView = tableView else { return }
+        let selectedRows = tableView.selectedRowIndexes
+        guard !selectedRows.isEmpty else { return }
+
+        NotificationCenter.default.post(
+            name: .didRequestDelete,
+            object: self,
+            userInfo: ["rows": selectedRows, "tableView": tableView]
+        )
+    }
+
+    /// Scrolls to the last row and enters edit mode on the name cell
+    private func scrollToLastRowAndEditNameCell() {
+        guard let tableView = tableView else { return }
+
+        // Use tableView.numberOfRows instead of columns.count to get the actual row count
+        // after reloadData() - self.columns may not be updated yet from SwiftUI's update cycle
+        let lastRowIndex = tableView.numberOfRows - 1
+        guard lastRowIndex >= 0 else { return }
+
+        tableView.scrollRowToVisible(lastRowIndex)
+        tableView.selectRowIndexes(IndexSet(integer: lastRowIndex), byExtendingSelection: false)
+
+        // Find the "name" column index (should be column 1 after the # column)
+        guard let nameColumnIndex = tableView.tableColumns.firstIndex(where: { $0.identifier.rawValue == "name" }) else {
+            return
+        }
+
+        // Delay slightly to ensure the view is created
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let tableView = self?.tableView else { return }
+            if let nameCell = tableView.view(atColumn: nameColumnIndex, row: lastRowIndex, makeIfNecessary: true) as? SchemaEditableCellView {
+                nameCell.enterEditMode()
+            }
+        }
+    }
+
+    @objc func tableViewDoubleClick(_ sender: AnyObject) {
+        guard let tableView = tableView else { return }
+
+        let clickedRow = tableView.clickedRow
+        let clickedColumn = tableView.clickedColumn
+
+        guard clickedRow >= 0 && clickedColumn >= 0,
+              clickedColumn < tableView.tableColumns.count else { return }
+
+        // Check if this is an editable column
+        let column = tableView.tableColumns[clickedColumn]
+        guard let identifier = column.identifier as? NSUserInterfaceItemIdentifier else { return }
+
+        // Only handle double-click for editable text columns
+        switch identifier.rawValue {
+        case "name", "default":
+            if let cellView = tableView.view(atColumn: clickedColumn, row: clickedRow, makeIfNecessary: false) as? SchemaEditableCellView {
+                cellView.enterEditMode()
+            }
+        default:
+            break
+        }
     }
 
     // MARK: - Data Source
@@ -37,22 +266,25 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
         // Check if this is the last column
         let isLastColumn = tableColumn == tableView.tableColumns.last
 
+        // Check if this column is marked for deletion
+        let isMarkedForDeletion = modificationTracker?.isColumnMarkedForDeletion(column.columnName) ?? false
+
         switch identifier.rawValue {
         case "number":
-            return makeNumberCell(for: row, in: tableView, isLastColumn: isLastColumn)
+            return makeNumberCell(for: row, in: tableView, isLastColumn: isLastColumn, isMarkedForDeletion: isMarkedForDeletion)
         case "name":
-            return makeNameCell(for: column, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: column, fieldType: .name, row: row, in: tableView, isLastColumn: isLastColumn)
         case "type":
-            return makeTextCell(text: column.dataType, in: tableView, isLastColumn: isLastColumn)
+            return makeDropdownCell(for: column, row: row, in: tableView, isLastColumn: isLastColumn)
         case "nullable":
-            return makeCheckboxCell(isChecked: column.isNullable == "YES", in: tableView, isLastColumn: isLastColumn)
+            return makeNullableCell(for: column, row: row, in: tableView, isLastColumn: isLastColumn)
         case "default":
-            return makeTextCell(text: column.columnDefault, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: column, fieldType: .defaultValue, row: row, in: tableView, isLastColumn: isLastColumn)
         case "constraints":
             let referenceText: String? = column.hasForeignKey && column.primaryForeignKeyConstraint != nil
                 ? formatForeignKeyReference(column.primaryForeignKeyConstraint!)
                 : nil
-            return makeTextCell(text: referenceText, in: tableView, isLastColumn: isLastColumn)
+            return makeTextCell(text: referenceText, in: tableView, isLastColumn: isLastColumn, isMarkedForDeletion: isMarkedForDeletion)
         default:
             return nil
         }
@@ -97,8 +329,10 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
     }
 
     // MARK: - Custom cell types
-    private func makeNumberCell(for row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
-        let cell = NSTableCellView()
+    private func makeNumberCell(for row: Int, in tableView: NSTableView, isLastColumn: Bool, isMarkedForDeletion: Bool = false) -> NSView {
+        let cell = SchemaDeletableCellView()
+        cell.isMarkedForDeletion = isMarkedForDeletion
+
         let label = NSTextField(labelWithString: "\(row + 1)")
         label.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         label.textColor = .secondaryLabelColor
@@ -138,8 +372,10 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
     // MARK: - Generic Cell Factories
 
     /// Generic text cell factory - reusable for all text-based fields
-    private func makeTextCell(text: String?, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
-        let cell = NSTableCellView()
+    private func makeTextCell(text: String?, in tableView: NSTableView, isLastColumn: Bool, isMarkedForDeletion: Bool = false) -> NSView {
+        let cell = SchemaDeletableCellView()
+        cell.isMarkedForDeletion = isMarkedForDeletion
+
         let label = NSTextField()
         // Treat empty strings as nil for placeholder display
         let displayText = text?.isEmpty == true ? nil : text
@@ -208,6 +444,46 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
 
         return reference
     }
+
+    // MARK: - Editable Cell Factories
+
+    /// Creates an editable cell for schema fields (name, default)
+    private func makeEditableCell(for column: DatabaseSchemaInfo, fieldType: SchemaFieldType, row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView? {
+        let cell = SchemaEditableCellView(frame: .zero)
+        cell.configure(
+            column: column,
+            fieldType: fieldType,
+            rowIndex: row,
+            modificationTracker: modificationTracker,
+            isLastColumn: isLastColumn
+        )
+        return cell
+    }
+
+    /// Creates a dropdown cell for the type field
+    private func makeDropdownCell(for column: DatabaseSchemaInfo, row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
+        let cell = SchemaDropdownCellView(frame: .zero)
+        cell.configure(
+            column: column,
+            rowIndex: row,
+            modificationTracker: modificationTracker,
+            databaseType: databaseType,
+            isLastColumn: isLastColumn
+        )
+        return cell
+    }
+
+    /// Creates a clickable checkbox cell for the nullable field with modification tracking
+    private func makeNullableCell(for column: DatabaseSchemaInfo, row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
+        let cell = SchemaCheckboxCellView(frame: .zero)
+        cell.configure(
+            column: column,
+            rowIndex: row,
+            modificationTracker: modificationTracker,
+            isLastColumn: isLastColumn
+        )
+        return cell
+    }
 }
 
 // MARK: - Custom Row styling
@@ -275,5 +551,23 @@ class SchemaTableHeaderCellView: NSTableHeaderCell {
         // Draw the text in the title rect
         let attributedTitle = NSAttributedString(string: title, attributes: attributes)
         attributedTitle.draw(in: titleRect)
+    }
+}
+
+// MARK: - Schema deletable cell view for read-only cells with deletion support
+class SchemaDeletableCellView: NSTableCellView {
+    var isMarkedForDeletion: Bool = false {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if isMarkedForDeletion {
+            NSColor.red.withAlphaComponent(0.3).setFill()
+            let fillRect = NSRect(x: bounds.origin.x, y: bounds.origin.y, width: bounds.width - 1, height: bounds.height - 1)
+            fillRect.fill()
+        }
     }
 }

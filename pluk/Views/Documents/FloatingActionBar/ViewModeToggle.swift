@@ -16,18 +16,6 @@ struct ViewModeToggle: View {
     var body: some View {
         HStack(spacing: 4) {
             ToggleButton(
-                icon: "square.stack.3d.up",
-                isSelected: tabViewMode == .schema,
-                action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        tabViewMode = .schema
-                    }
-                },
-                namespace: animation,
-                id: DatabaseTab.ViewMode.schema
-            )
-
-            ToggleButton(
                 icon: "tablecells",
                 isSelected: tabViewMode == .content,
                 action: {
@@ -38,7 +26,17 @@ struct ViewModeToggle: View {
                 namespace: animation,
                 id: DatabaseTab.ViewMode.content
             )
-
+            ToggleButton(
+                icon: "square.stack.3d.up",
+                isSelected: tabViewMode == .schema,
+                action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        tabViewMode = .schema
+                    }
+                },
+                namespace: animation,
+                id: DatabaseTab.ViewMode.schema
+            )
 //            ToggleButton(
 //                icon: "ellipsis.curlybraces",
 //                isSelected: tabViewMode == .definition,

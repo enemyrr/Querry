@@ -7,18 +7,31 @@
 
 import SwiftUI
 import Foundation
+import AppKit
 
 struct IndexTableView: View {
     let indexes: [DatabaseIndexInfo]?
     let tableName: String
     let searchText: String
+    let databaseType: DatabaseType
+    @Binding var modificationTracker: SchemaModificationTracker
     @Environment(\.colorScheme) var colorScheme
 
+    // This computed property forces SwiftUI to observe tracker changes
+    private var trackerVersion: Bool {
+        modificationTracker.hasModifications
+    }
+
     var body: some View {
+        // Access trackerVersion to establish SwiftUI observation
+        let _ = trackerVersion
+
         if let indexes = indexes, !indexes.isEmpty {
             IndexTableContentView(
                 indexes: filteredIndexes(indexes),
-                colorScheme: colorScheme
+                colorScheme: colorScheme,
+                databaseType: databaseType,
+                modificationTracker: $modificationTracker
             )
         } else {
             VStack(spacing: 12) {
@@ -50,6 +63,8 @@ struct IndexTableView: View {
 struct IndexTableContentView: NSViewRepresentable {
     let indexes: [DatabaseIndexInfo]
     let colorScheme: ColorScheme
+    let databaseType: DatabaseType
+    @Binding var modificationTracker: SchemaModificationTracker
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -60,7 +75,7 @@ struct IndexTableContentView: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
 
-        let tableView = NSTableView()
+        let tableView = CustomTableView()
         tableView.style = .fullWidth
         tableView.rowSizeStyle = .default
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
@@ -71,6 +86,7 @@ struct IndexTableContentView: NSViewRepresentable {
         tableView.headerView = NSTableHeaderView()
         tableView.allowsColumnReordering = false
         tableView.allowsColumnResizing = true
+        tableView.allowsMultipleSelection = true
 
         // Number column
         let numberColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("number"))
@@ -136,7 +152,7 @@ struct IndexTableContentView: NSViewRepresentable {
         tableView.dataSource = context.coordinator
 
         scrollView.documentView = tableView
-        context.coordinator.tableView = tableView
+        context.coordinator.setupTableView(tableView)
 
         return scrollView
     }
@@ -144,6 +160,8 @@ struct IndexTableContentView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.indexes = indexes
         context.coordinator.colorScheme = colorScheme
+        context.coordinator.databaseType = databaseType
+        context.coordinator.modificationTracker = modificationTracker
 
         if let tableView = scrollView.documentView as? NSTableView {
             tableView.reloadData()
@@ -151,19 +169,213 @@ struct IndexTableContentView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> IndexTableCoordinator {
-        IndexTableCoordinator(indexes: indexes, colorScheme: colorScheme)
+        IndexTableCoordinator(indexes: indexes, colorScheme: colorScheme, databaseType: databaseType, modificationTracker: modificationTracker)
     }
 }
 
 // MARK: - Index Table Coordinator
-class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, NSMenuDelegate {
     var indexes: [DatabaseIndexInfo]
     var colorScheme: ColorScheme
+    var databaseType: DatabaseType
     weak var tableView: NSTableView?
+    weak var modificationTracker: SchemaModificationTracker?
 
-    init(indexes: [DatabaseIndexInfo], colorScheme: ColorScheme) {
+    // Menu item references
+    private weak var refreshMenuItem: NSMenuItem?
+    private weak var addIndexMenuItem: NSMenuItem?
+    private weak var editMenuItem: NSMenuItem?
+    private weak var deleteMenuItem: NSMenuItem?
+
+    init(indexes: [DatabaseIndexInfo], colorScheme: ColorScheme, databaseType: DatabaseType, modificationTracker: SchemaModificationTracker? = nil) {
         self.indexes = indexes
         self.colorScheme = colorScheme
+        self.databaseType = databaseType
+        self.modificationTracker = modificationTracker
+        super.init()
+
+        // Add notification observer for delete key requests
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDeleteKey(notification:)),
+            name: .didRequestDelete,
+            object: nil
+        )
+
+        // Add notification observer for table reload requests
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleTableReloadData(notification:)),
+            name: .tableReloadData,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    func setupTableView(_ tableView: NSTableView) {
+        self.tableView = tableView
+        tableView.target = self
+        tableView.doubleAction = #selector(tableViewDoubleClick(_:))
+        setupMenu(for: tableView)
+    }
+
+    private func setupMenu(for tableView: NSTableView) {
+        let menu = NSMenu()
+
+        // Refresh
+        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshTable), keyEquivalent: "r")
+        refreshItem.keyEquivalentModifierMask = [.command]
+        refreshItem.target = self
+        menu.addItem(refreshItem)
+        self.refreshMenuItem = refreshItem
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Add Index
+        let addIndexItem = NSMenuItem(title: "Add Index", action: #selector(addIndex), keyEquivalent: "")
+        addIndexItem.target = self
+        menu.addItem(addIndexItem)
+        self.addIndexMenuItem = addIndexItem
+
+        // Edit
+        let editItem = NSMenuItem(title: "Edit", action: #selector(editIndex), keyEquivalent: "")
+        editItem.target = self
+        menu.addItem(editItem)
+        self.editMenuItem = editItem
+
+        // Delete
+        let deleteItem = NSMenuItem(title: "Delete", action: #selector(deleteIndex), keyEquivalent: "")
+        deleteItem.target = self
+        menu.addItem(deleteItem)
+        self.deleteMenuItem = deleteItem
+
+        menu.delegate = self
+        menu.autoenablesItems = false
+        tableView.menu = menu
+    }
+
+    @objc func tableViewDoubleClick(_ sender: AnyObject) {
+        guard let tableView = tableView else { return }
+
+        let clickedRow = tableView.clickedRow
+        let clickedColumn = tableView.clickedColumn
+
+        guard clickedRow >= 0 && clickedColumn >= 0,
+              clickedColumn < tableView.tableColumns.count else { return }
+
+        // Check if this is an editable column
+        let column = tableView.tableColumns[clickedColumn]
+        guard let identifier = column.identifier as? NSUserInterfaceItemIdentifier else { return }
+
+        // Only handle double-click for editable columns (all except number and unique)
+        switch identifier.rawValue {
+        case "name", "type", "columns", "condition", "include", "comment":
+            if let cellView = tableView.view(atColumn: clickedColumn, row: clickedRow, makeIfNecessary: false) as? IndexEditableCellView {
+                cellView.enterEditMode()
+            }
+        default:
+            break
+        }
+    }
+
+    @objc private func handleDeleteKey(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let rows = userInfo["rows"] as? IndexSet,
+              let notificationTableView = userInfo["tableView"] as? NSTableView,
+              notificationTableView === self.tableView else {
+            return
+        }
+
+        for row in rows {
+            guard row < indexes.count else { continue }
+            let index = indexes[row]
+
+            // Track deletion (handles both new and existing indexes)
+            modificationTracker?.trackIndexDeletion(index)
+
+            // Update all cells in this row to show red highlighting
+            guard let tableView = tableView else { continue }
+            for columnIndex in 0..<tableView.numberOfColumns {
+                if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? IndexDeletableCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                } else if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? IndexEditableCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                } else if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? IndexCheckboxCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                } else if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? IndexDropdownCellView {
+                    cellView.isMarkedForDeletion = true
+                    cellView.needsDisplay = true
+                }
+            }
+        }
+
+        // Reload data for the affected rows
+        if let tableView = tableView {
+            tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
+        }
+    }
+
+    @objc private func handleTableReloadData(notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.tableView?.reloadData()
+        }
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard let tableView = tableView as? CustomTableView else { return }
+        let rightClickLocation = tableView.getRightClickedCell()
+        let hasValidRow = rightClickLocation.row >= 0
+        let hasValidCell = hasValidRow && rightClickLocation.column >= 0
+
+        refreshMenuItem?.isEnabled = true
+        addIndexMenuItem?.isEnabled = true
+        editMenuItem?.isEnabled = hasValidCell
+        deleteMenuItem?.isEnabled = hasValidRow
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        menuNeedsUpdate(menu)
+    }
+
+    // MARK: - Context Menu Actions
+
+    @objc private func refreshTable() {
+        NotificationCenter.default.post(name: .indexTableRefresh, object: nil)
+    }
+
+    @objc private func addIndex() {
+        NotificationCenter.default.post(name: .indexAddIndex, object: nil)
+    }
+
+    @objc private func editIndex() {
+        guard let tableView = tableView as? CustomTableView else { return }
+        let location = tableView.getRightClickedCell()
+        guard location.row >= 0, location.column >= 0 else { return }
+
+        tableView.selectRowIndexes(IndexSet(integer: location.row), byExtendingSelection: false)
+        if let cellView = tableView.view(atColumn: location.column, row: location.row, makeIfNecessary: false) as? IndexEditableCellView {
+            cellView.enterEditMode()
+        }
+    }
+
+    @objc private func deleteIndex() {
+        guard let tableView = tableView else { return }
+        let selectedRows = tableView.selectedRowIndexes
+        guard !selectedRows.isEmpty else { return }
+
+        NotificationCenter.default.post(
+            name: .didRequestDelete,
+            object: self,
+            userInfo: ["rows": selectedRows, "tableView": tableView]
+        )
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -181,23 +393,27 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
         let identifier = tableColumn?.identifier ?? NSUserInterfaceItemIdentifier("")
         let isLastColumn = tableColumn == tableView.tableColumns.last
 
+        // Check if this index is marked for deletion or is new
+        let isMarkedForDeletion = modificationTracker?.isIndexMarkedForDeletion(index.name) ?? false
+        let isNew = modificationTracker?.isIndexNew(index.name) ?? false
+
         switch identifier.rawValue {
         case "number":
-            return makeNumberCell(for: row, in: tableView, isLastColumn: isLastColumn)
+            return makeNumberCell(for: row, in: tableView, isLastColumn: isLastColumn, isMarkedForDeletion: isMarkedForDeletion, isNew: isNew)
         case "name":
-            return makeNameCell(for: index, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: index, fieldType: .name, row: row, in: tableView, isLastColumn: isLastColumn)
         case "type":
-            return makeTextCell(text: index.indexType.rawValue.uppercased(), in: tableView, isLastColumn: isLastColumn)
+            return makeDropdownCell(for: index, row: row, in: tableView, isLastColumn: isLastColumn)
         case "columns":
-            return makeTextCell(text: index.columnsDisplay, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: index, fieldType: .columns, row: row, in: tableView, isLastColumn: isLastColumn)
         case "unique":
-            return makeCheckboxCell(isChecked: index.isUnique, in: tableView, isLastColumn: isLastColumn)
+            return makeCheckboxCell(for: index, row: row, in: tableView, isLastColumn: isLastColumn)
         case "condition":
-            return makeTextCell(text: index.condition, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: index, fieldType: .condition, row: row, in: tableView, isLastColumn: isLastColumn)
         case "include":
-            return makeTextCell(text: index.includeColumnsDisplay, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: index, fieldType: .include, row: row, in: tableView, isLastColumn: isLastColumn)
         case "comment":
-            return makeTextCell(text: index.comment, in: tableView, isLastColumn: isLastColumn)
+            return makeEditableCell(for: index, fieldType: .comment, row: row, in: tableView, isLastColumn: isLastColumn)
         default:
             return nil
         }
@@ -237,8 +453,11 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
         ])
     }
 
-    private func makeNumberCell(for row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
-        let cell = NSTableCellView()
+    private func makeNumberCell(for row: Int, in tableView: NSTableView, isLastColumn: Bool, isMarkedForDeletion: Bool = false, isNew: Bool = false) -> NSView {
+        let cell = IndexDeletableCellView()
+        cell.isMarkedForDeletion = isMarkedForDeletion
+        cell.isNew = isNew
+
         let label = NSTextField(labelWithString: "\(row + 1)")
         label.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         label.textColor = .secondaryLabelColor
@@ -255,31 +474,42 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
         return cell
     }
 
-    private func makeNameCell(for index: DatabaseIndexInfo, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
-        let cell = NSTableCellView()
+    // MARK: - Editable Cell Factories
 
-        let label = NSTextField(labelWithString: index.name)
-        label.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        label.lineBreakMode = .byTruncatingTail
-        label.translatesAutoresizingMaskIntoConstraints = false
+    /// Creates an editable cell for index fields (name, columns, condition, include, comment)
+    private func makeEditableCell(for index: DatabaseIndexInfo, fieldType: IndexFieldType, row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView? {
+        let cell = IndexEditableCellView(frame: .zero)
+        cell.configure(
+            index: index,
+            fieldType: fieldType,
+            rowIndex: row,
+            modificationTracker: modificationTracker,
+            isLastColumn: isLastColumn
+        )
+        return cell
+    }
 
-        cell.addSubview(label)
-
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -8),
-            label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
-        ])
-
-        addCellBorders(to: cell, isLastColumn: isLastColumn)
+    /// Creates a dropdown cell for index type field
+    private func makeDropdownCell(for index: DatabaseIndexInfo, row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
+        let cell = IndexDropdownCellView(frame: .zero)
+        cell.configure(
+            index: index,
+            rowIndex: row,
+            modificationTracker: modificationTracker,
+            databaseType: databaseType,
+            isLastColumn: isLastColumn
+        )
         return cell
     }
 
     // MARK: - Generic Cell Factories
 
     /// Generic text cell factory - reusable for all text-based fields
-    private func makeTextCell(text: String?, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
-        let cell = NSTableCellView()
+    private func makeTextCell(text: String?, in tableView: NSTableView, isLastColumn: Bool, isMarkedForDeletion: Bool = false, isNew: Bool = false) -> NSView {
+        let cell = IndexDeletableCellView()
+        cell.isMarkedForDeletion = isMarkedForDeletion
+        cell.isNew = isNew
+
         let label = NSTextField()
         // Treat empty strings as nil for placeholder display
         let displayText = text?.isEmpty == true ? nil : text
@@ -304,26 +534,41 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
         return cell
     }
 
-    /// Generic checkbox cell factory - reusable for all boolean fields
-    private func makeCheckboxCell(isChecked: Bool, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
-        let cell = NSTableCellView()
-
-        let icon = NSImageView()
-        let symbolName = isChecked ? "checkmark.square.fill" : "square"
-        icon.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        icon.contentTintColor = .controlTextColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-
-        cell.addSubview(icon)
-
-        NSLayoutConstraint.activate([
-            icon.centerXAnchor.constraint(equalTo: cell.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 16),
-            icon.heightAnchor.constraint(equalToConstant: 16)
-        ])
-
-        addCellBorders(to: cell, isLastColumn: isLastColumn)
+    /// Checkbox cell factory for unique field with modification tracking
+    private func makeCheckboxCell(for index: DatabaseIndexInfo, row: Int, in tableView: NSTableView, isLastColumn: Bool) -> NSView {
+        let cell = IndexCheckboxCellView(frame: .zero)
+        cell.configure(
+            index: index,
+            rowIndex: row,
+            modificationTracker: modificationTracker,
+            isLastColumn: isLastColumn
+        )
         return cell
+    }
+}
+
+// MARK: - Index Deletable Cell View
+class IndexDeletableCellView: NSTableCellView {
+    var isMarkedForDeletion: Bool = false {
+        didSet { needsDisplay = true }
+    }
+    var isNew: Bool = false {
+        didSet { needsDisplay = true }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if isMarkedForDeletion {
+            NSColor.red.withAlphaComponent(0.3).setFill()
+            let fillRect = NSRect(x: bounds.origin.x, y: bounds.origin.y, width: bounds.width - 1, height: bounds.height - 1)
+            fillRect.fill()
+        } else if isNew {
+            let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let newColor = isDarkMode
+                ? NSColor(red: 0x2C/255.0, green: 0x59/255.0, blue: 0x3C/255.0, alpha: 1.0)
+                : NSColor(red: 0xC8/255.0, green: 0xE6/255.0, blue: 0xC8/255.0, alpha: 1.0)
+            newColor.setFill()
+            bounds.fill()
+        }
     }
 }

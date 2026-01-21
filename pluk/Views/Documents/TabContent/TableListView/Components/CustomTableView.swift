@@ -271,14 +271,18 @@ class CustomTableView: NSTableView {
             debugLog("❌ Invalid cell position: (\(row), \(column))")
             return
         }
-        
+
+        // Support both TextCellView (content mode) and SchemaEditableCellView (schema mode)
         if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
-            debugLog("✅ Entering edit mode for cell at (\(row), \(column))")
-            // Make sure row is selected
+            debugLog("✅ Entering edit mode for TextCellView at (\(row), \(column))")
+            selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            cellView.enterEditMode()
+        } else if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? SchemaEditableCellView {
+            debugLog("✅ Entering edit mode for SchemaEditableCellView at (\(row), \(column))")
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             cellView.enterEditMode()
         } else {
-            debugLog("❌ Could not find TextCellView at (\(row), \(column))")
+            debugLog("❌ Could not find editable cell at (\(row), \(column))")
         }
     }
     

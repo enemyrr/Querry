@@ -15,6 +15,11 @@ struct SchemaModeActionBar: View {
     let onRefresh: (_ currentPage: Int, _ itemsPerPage: Int, _ fetchSchema: Bool) -> Void
     let onDebounceLoadingChange: (Bool) -> Void
 
+    // Schema modification tracking
+    let schemaModificationTracker: SchemaModificationTracker?
+    let onCommitSchemaModifications: (() -> Void)?
+    var onNewField: (() -> Void)?
+
     @State private var debounceTask: Task<Void, Never>?
     @State private var loadingTask: Task<Void, Never>?
 
@@ -72,17 +77,103 @@ struct SchemaModeActionBar: View {
             ), spacing: 10)
             
             Button(action: {
-                
+                onNewField?()
             }) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 14))
                     .contentShape(Rectangle())
-                    .foregroundStyle(.secondary)
             }
-            .disabled(true)
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: false))
-            .foregroundStyle(.secondary)
-            
+            .customHelp("Add Column", position: .top, shortcut: KeyboardShortcut(
+                modifiers: [.command, .shift],
+                key: "N"
+            ), spacing: 10)
+
+            // Schema modification buttons - only show when there are modifications
+            if let tracker = schemaModificationTracker, tracker.hasModifications {
+                HStack(spacing: 6) {
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.vertical, 6)
+                        .padding(.trailing, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+
+                    // Show pending deletions with red button
+                    let totalDeletionCount = tracker.pendingDeletionCount + tracker.pendingIndexDeletionCount
+                    if totalDeletionCount > 0 {
+                        Button(action: {
+                            onCommitSchemaModifications?()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 12))
+                                Text("\(totalDeletionCount)")
+                                    .font(.system(size: 12, weight: .light))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(Color.red)
+                        .clipShape(.rect(cornerRadius: 6))
+                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                        .transition(.scale.combined(with: .opacity))
+                        .customHelp("Delete Columns/Indexes", position: .top, shortcut: KeyboardShortcut(
+                            modifiers: [.command],
+                            key: "S"
+                        ), spacing: 10)
+                    }
+
+                    // Show non-deletion modifications (additions + updates) with orange button
+                    let nonDeletionCount = tracker.columnAdditions.count + tracker.columnUpdates.count + tracker.indexAdditions.count + tracker.indexUpdates.count
+                    if nonDeletionCount > 0 {
+                        Button(action: {
+                            onCommitSchemaModifications?()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "tray")
+                                    .font(.system(size: 12))
+                                Text("\(nonDeletionCount)")
+                                    .font(.system(size: 12, weight: .light))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(Color.orange)
+                        .clipShape(.rect(cornerRadius: 6))
+                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                        .transition(.scale.combined(with: .opacity))
+                        .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
+                            modifiers: [.command],
+                            key: "S"
+                        ), spacing: 10)
+                    }
+
+                    Button(action: {
+                        tracker.clearAll()
+                        // Post notification to reload table view and reset UI
+                        NotificationCenter.default.post(
+                            name: .tableReloadData,
+                            object: nil,
+                            userInfo: nil
+                        )
+                        // Refresh schema to reload original values
+                        onRefresh(1, 300, true)
+                    }) {
+                        Text("Discard")
+                    }
+                    .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+                    .customHelp("Discard schema changes", position: .top)
+                }
+            }
+
             ViewModeToggle(tabViewMode: $tabViewMode)
                 .padding(.leading, 2)
                 .padding(.vertical, -2)
