@@ -38,6 +38,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     // Callback for foreign key navigation
     var onForeignKeyNavigation: ((String, String, String) -> Void)? // (tableName, columnName, value)
+
+    // Callback for row selection
+    var onRowSelected: (([String: QueryRowInfo]?) -> Void)?
     
     // Persistent storage
     public var tableName: String = ""
@@ -54,7 +57,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     // Store modification tracker reference
     weak var modificationTracker: TableModificationTracker?
-    
+
+    // Reference to current tab for per-tab selection state
+    weak var currentTab: DatabaseTab?
+
     // Menu item references for validation
     private weak var editMenuItem: NSMenuItem?
     private weak var deleteMenuItem: NSMenuItem?
@@ -65,7 +71,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     var highlightedFields: Set<String> = []
     var highlightedRows: Set<Int> = []
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "") {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "", onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
@@ -77,6 +83,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         self.highlightedFields = highlightedFields
         self.highlightedRows = highlightedRows
         self.cacheNamespace = cacheNamespace
+        self.onRowSelected = onRowSelected
         
         if let queryResult = queryResult {
             self.rows = queryResult.rawRows
@@ -995,5 +1002,26 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func menuWillOpen(_ menu: NSMenu) {
         debugLog("Menu will open - calling menuNeedsUpdate")
         menuNeedsUpdate(menu)
+    }
+
+    // MARK: - Row Selection
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        let selectedRow = tableView.selectedRow
+
+        if selectedRow >= 0, let queryResult = queryResult, selectedRow < queryResult.rows.count {
+            let rowData = queryResult.rows[selectedRow]
+            onRowSelected?(rowData)
+            currentTab?.selectedRowIndex = selectedRow
+            currentTab?.selectedColumnOrder = queryResult.columns.map { $0.name }
+            if selectedRow < queryResult.rawRows.count {
+                currentTab?.selectedRawRowData = queryResult.rawRows[selectedRow]
+            }
+        } else {
+            onRowSelected?(nil)
+            currentTab?.selectedRowIndex = nil
+            currentTab?.selectedColumnOrder = nil
+            currentTab?.selectedRawRowData = nil
+        }
     }
 }

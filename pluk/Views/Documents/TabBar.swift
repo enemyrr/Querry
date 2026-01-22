@@ -37,6 +37,11 @@ struct TabBar: View {
                 .opacity(0)
                 .accessibilityHidden(true)
             )
+
+            Spacer()
+
+            rightSidebarToggle
+                .padding(.trailing, 8)
         }
         .padding(
             .leading,
@@ -180,6 +185,36 @@ struct TabBar: View {
             )
         )
         .padding(.leading, leadingPadding)
+    }
+
+    private var rightSidebarToggle: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                appViewModel.isRightSidebarVisible.toggle()
+            }
+        }) {
+            Image(systemName: "sidebar.right")
+                .font(.system(size: 14))
+                .foregroundStyle(appViewModel.isRightSidebarVisible ? .primary : .secondary)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(appViewModel.isRightSidebarVisible ? Color(.controlColor).opacity(0.8) : Color.clear)
+                .animation(.easeInOut(duration: 0.15), value: appViewModel.isRightSidebarVisible)
+        )
+        .keyboardShortcut("\\", modifiers: [.command, .option])
+        .customHelp(
+            "Toggle Row Details",
+            shortcut: KeyboardShortcut(
+                modifiers: [.command, .option],
+                key: "\\"
+            )
+        )
+        .padding(.bottom, 4)
     }
 }
 

@@ -93,13 +93,39 @@ struct DocumentView: View {
                             return -2
                         }
                     }())
-                
-                NSTabViewWrapper()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding([.trailing, .bottom], 12)
-                    .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
-                    .padding(.top, 6)
-                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.08), radius: 4)
+
+                HStack(spacing: 0) {
+                    NSTabViewWrapper()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.08), radius: 4)
+
+                    if appViewModel.isRightSidebarVisible {
+                        RowDetailSidebar()
+                            .transition(
+                                .asymmetric(
+                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .trailing).combined(with: .opacity)
+                                )
+                            )
+                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.08), radius: 4)
+                    }
+                }
+                .padding([.trailing, .bottom], 12)
+                .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
+                .padding(.top, 6)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: appViewModel.isRightSidebarVisible)
+                .background(
+                    // Hidden button for Cmd+] to toggle right sidebar
+                    Button(action: {
+                        appViewModel.isRightSidebarVisible.toggle()
+                    }) {
+                        EmptyView()
+                    }
+                    .hidden()
+                    .keyboardShortcut("]", modifiers: [.command])
+                    .opacity(0)
+                    .accessibilityHidden(true)
+                )
             }
         }
         .postHogScreenView("DocumentView")
@@ -119,7 +145,14 @@ struct DocumentView: View {
                     return nil // Consume the event
                 }
                 return event // Let it pass through if not Command+P
-                
+
+            case 30: // ']' key
+                if event.modifierFlags.contains(.command) {
+                    appViewModel.isRightSidebarVisible.toggle()
+                    return nil // Consume the event
+                }
+                return event
+
             case 53: // 'esc' key
                 if isCommandBarVisible {
                     isCommandBarVisible = false

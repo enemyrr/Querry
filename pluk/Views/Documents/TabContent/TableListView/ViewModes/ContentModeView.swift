@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ContentModeView: View {
+    @Bindable var selectedTab: DatabaseTab
     let schema: DatabaseSchemaResult?
     let queryResult: QueryResult?
     let tableName: String
@@ -19,9 +20,11 @@ struct ContentModeView: View {
     let onForeignKeyNavigation: ((String, String, String) -> Void)?
     let highlightedFields: Set<String>
     let highlightedRows: Set<Int>
+    let onRowSelected: (([String: QueryRowInfo]?) -> Void)?
 
     var body: some View {
         TableListViewController(
+            selectedTab: selectedTab,
             schema: schema,
             queryResult: queryResult,
             tableName: tableName,
@@ -32,7 +35,8 @@ struct ContentModeView: View {
             onDeleteNewRow: onDeleteNewRow,
             onForeignKeyNavigation: onForeignKeyNavigation,
             highlightedFields: highlightedFields,
-            highlightedRows: highlightedRows
+            highlightedRows: highlightedRows,
+            onRowSelected: onRowSelected
         )
     }
 }

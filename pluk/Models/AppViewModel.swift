@@ -10,4 +10,6 @@ import Observation
 
 @Observable final class AppViewModel {
     var isSidebarVisible = true
+    var isRightSidebarVisible = false
+    var rightSidebarWidth: CGFloat = 300
 }

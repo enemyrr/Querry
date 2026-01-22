@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct TableViewModeContainer: View {
+    @Bindable var selectedTab: DatabaseTab
     let viewMode: DatabaseTab.ViewMode
     let schema: DatabaseSchemaResult?
     let indexes: [DatabaseIndexInfo]?
@@ -19,16 +20,18 @@ struct TableViewModeContainer: View {
     let modificationTracker: TableModificationTracker?
     let schemaModificationTracker: Binding<SchemaModificationTracker>?
     let needsToSelectLastRow: Bool
-    let onDeleteNewRow: ((Int) -> Void)?
+    let onDeleteNewRow: ((Int) -> Void)
     let onForeignKeyNavigation: ((String, String, String) -> Void)?
     let highlightedFields: Set<String>
     let highlightedRows: Set<Int>
+    let onRowSelected: (([String: QueryRowInfo]?) -> Void)?
 
     var body: some View {
         Group {
             switch viewMode {
             case .content:
                 ContentModeView(
+                    selectedTab: selectedTab,
                     schema: schema,
                     queryResult: queryResult,
                     tableName: tableName,
@@ -39,7 +42,8 @@ struct TableViewModeContainer: View {
                     onDeleteNewRow: onDeleteNewRow,
                     onForeignKeyNavigation: onForeignKeyNavigation,
                     highlightedFields: highlightedFields,
-                    highlightedRows: highlightedRows
+                    highlightedRows: highlightedRows,
+                    onRowSelected: onRowSelected
                 )
 
             case .schema:

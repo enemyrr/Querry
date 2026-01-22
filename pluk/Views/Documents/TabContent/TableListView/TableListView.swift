@@ -13,6 +13,7 @@ import Combine
 struct TableListView: View {
     @Bindable var selectedTab: DatabaseTab
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(AppViewModel.self) private var appViewModel
     @Environment(\.colorScheme) var colorScheme
     
     @State private var viewState: TableListViewState = .loading
@@ -78,6 +79,7 @@ struct TableListView: View {
                 
                 if cachedSchema != nil || currentQueryResult != nil {
                     TableViewModeContainer(
+                        selectedTab: selectedTab,
                         viewMode: selectedTab.viewMode,
                         schema: cachedSchema,
                         indexes: cachedIndexes,
@@ -105,7 +107,10 @@ struct TableListView: View {
                             instance.createNewTab(name: tableName, filterColumn: columnName, filterValue: value, databaseSchema: selectedTab.databaseSchema)
                         },
                         highlightedFields: updatedFields,
-                        highlightedRows: updatedRows
+                        highlightedRows: updatedRows,
+                        onRowSelected: { rowData in
+                            selectedTab.selectedRowData = rowData
+                        }
                     )
                 } else {
                     Spacer()
@@ -188,7 +193,24 @@ struct TableListView: View {
             loadingTask?.cancel()
             convexSubscription?.cancel() // Clean up ConvexMobile subscription
             cancelRealTimeSubscription() // Clean up real-time subscription
-        }.alert(
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .markRowAsDeleted)) { notification in
+            guard let userInfo = notification.userInfo,
+                  let rowIndex = userInfo["rowIndex"] as? Int,
+                  let tableName = userInfo["tableName"] as? String,
+                  tableName == selectedTab.name else { return }
+
+            // Mark row as deleted
+            modificationTracker.markAsDeleted(rowIndex: rowIndex)
+
+            // Trigger table refresh to show visual feedback
+            NotificationCenter.default.post(
+                name: .tableReloadData,
+                object: nil,
+                userInfo: ["tableName": tableName]
+            )
+        }
+        .alert(
             "Operation Failed",
             isPresented: $showingErrorAlert,
             presenting: currentError

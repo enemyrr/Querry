@@ -22,7 +22,19 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var forceFetch: Bool = false
     var databaseSchema: String?
     var viewMode: ViewMode = .content
-    
+
+    // Per-tab selection state (transient, not persisted)
+    var selectedRowData: [String: QueryRowInfo]?
+    var selectedRawRowData: [String: Any?]?
+    var selectedRowIndex: Int?
+    var selectedColumnOrder: [String]?
+
+    // CodingKeys to exclude transient properties from Codable
+    enum CodingKeys: String, CodingKey {
+        case id, name, type, queryState, documents, hasSchemaDeviation
+        case filterColumn, filterValue, forceFetch, databaseSchema, viewMode
+    }
+
     init(name: String, type: TabType, queryState: QueryState, filterColumn: String? = nil, filterValue: String? = nil, forceFetch: Bool = false, databaseSchema: String? = nil) {
         self.id = UUID()
         self.name = name
@@ -33,6 +45,39 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         self.filterValue = filterValue
         self.forceFetch = forceFetch
         self.databaseSchema = databaseSchema
+    }
+
+    // Custom Codable implementation to exclude transient selection state
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        type = try container.decode(TabType.self, forKey: .type)
+        queryState = try container.decode(QueryState.self, forKey: .queryState)
+        documents = try container.decode([Document].self, forKey: .documents)
+        hasSchemaDeviation = try container.decode(Bool.self, forKey: .hasSchemaDeviation)
+        filterColumn = try container.decodeIfPresent(String.self, forKey: .filterColumn)
+        filterValue = try container.decodeIfPresent(String.self, forKey: .filterValue)
+        forceFetch = try container.decode(Bool.self, forKey: .forceFetch)
+        databaseSchema = try container.decodeIfPresent(String.self, forKey: .databaseSchema)
+        viewMode = try container.decode(ViewMode.self, forKey: .viewMode)
+        // Transient properties are not decoded - they start as nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(type, forKey: .type)
+        try container.encode(queryState, forKey: .queryState)
+        try container.encode(documents, forKey: .documents)
+        try container.encode(hasSchemaDeviation, forKey: .hasSchemaDeviation)
+        try container.encodeIfPresent(filterColumn, forKey: .filterColumn)
+        try container.encodeIfPresent(filterValue, forKey: .filterValue)
+        try container.encode(forceFetch, forKey: .forceFetch)
+        try container.encodeIfPresent(databaseSchema, forKey: .databaseSchema)
+        try container.encode(viewMode, forKey: .viewMode)
+        // Transient properties (selectedRowData, selectedRowIndex) are not encoded
     }
     
     static func == (lhs: DatabaseTab, rhs: DatabaseTab) -> Bool {
