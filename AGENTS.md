@@ -14,6 +14,11 @@ This file provides guidance to AI coding agents when working with code in this r
 - Use AppKit for high-performance logic, complex table views, custom drawing, and window management
 - Do not introduce third-party frameworks without asking first
 
+## Important
+
+- Always ask the user to test the product and see if its working fine instead of you trying to build<D-s>
+- Do not add comments unless its complex or info that's needed for user reference
+
 ## Development Commands
 
 ### Building
@@ -300,4 +305,4 @@ AI features integrated at multiple levels:
 
 ### Testing
 
-- Always ask the user to test the product and see if its working fine instead of you trying to build
+- Always ask the user to test the product and see if its working fine instead of you trying to build<D-s>
