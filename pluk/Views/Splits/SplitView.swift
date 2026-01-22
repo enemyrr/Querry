@@ -38,6 +38,12 @@ struct SplitView<L: View, R: View>: View {
     private let splitterVisibleSize: CGFloat = 1
     private let splitterInvisibleSize: CGFloat = 6
 
+    /// Rubber band effect: how much resistance when dragging beyond bounds (0.0-1.0, lower = more resistance)
+    private let rubberBandFactor: CGFloat = 0.15
+
+    /// Track if we're currently dragging beyond bounds
+    @State private var isOverscrolling = false
+
     var body: some View {
         GeometryReader { geo in
             let leftRect = self.leftRect(for: geo.size)

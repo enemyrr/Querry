@@ -133,7 +133,101 @@ class PostgreSQLDriver: DatabaseDriver {
     private var databases: [PostgreSQLDatabaseWrapper] = []
     private var schema: [PostgreSQLDatabaseWrapper] = []
     private var collections: [PostgreSQLCollectionWrapper] = []
-    
+
+    private func splitSQLStatements(_ sql: String) -> [String] {
+        var statements: [String] = []
+        var currentStatement = ""
+        var inSingleQuote = false
+        var inDoubleQuote = false
+        var inDollarQuote = false
+        var dollarTag = ""
+        var i = sql.startIndex
+
+        while i < sql.endIndex {
+            let char = sql[i]
+
+            if inDollarQuote {
+                currentStatement.append(char)
+                if char == "$" {
+                    let remaining = sql[i...]
+                    if remaining.hasPrefix(dollarTag) {
+                        let endIndex = sql.index(i, offsetBy: dollarTag.count)
+                        currentStatement.append(contentsOf: sql[sql.index(after: i)..<endIndex])
+                        i = endIndex
+                        inDollarQuote = false
+                        dollarTag = ""
+                        continue
+                    }
+                }
+            } else if inSingleQuote {
+                currentStatement.append(char)
+                if char == "'" {
+                    let nextIndex = sql.index(after: i)
+                    if nextIndex < sql.endIndex && sql[nextIndex] == "'" {
+                        currentStatement.append("'")
+                        i = nextIndex
+                    } else {
+                        inSingleQuote = false
+                    }
+                }
+            } else if inDoubleQuote {
+                currentStatement.append(char)
+                if char == "\"" {
+                    inDoubleQuote = false
+                }
+            } else {
+                switch char {
+                case "'":
+                    inSingleQuote = true
+                    currentStatement.append(char)
+                case "\"":
+                    inDoubleQuote = true
+                    currentStatement.append(char)
+                case "$":
+                    var tag = "$"
+                    var j = sql.index(after: i)
+                    while j < sql.endIndex {
+                        let c = sql[j]
+                        if c == "$" {
+                            tag.append(c)
+                            break
+                        } else if c.isLetter || c.isNumber || c == "_" {
+                            tag.append(c)
+                        } else {
+                            break
+                        }
+                        j = sql.index(after: j)
+                    }
+                    if tag.count > 1 && tag.hasSuffix("$") {
+                        inDollarQuote = true
+                        dollarTag = tag
+                        currentStatement.append(contentsOf: tag)
+                        i = j
+                        continue
+                    } else {
+                        currentStatement.append(char)
+                    }
+                case ";":
+                    let trimmed = currentStatement.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        statements.append(trimmed)
+                    }
+                    currentStatement = ""
+                default:
+                    currentStatement.append(char)
+                }
+            }
+            i = sql.index(after: i)
+        }
+
+        let trimmed = currentStatement.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            statements.append(trimmed)
+        }
+
+        return statements
+    }
+
     deinit {
         // Ensure cleanup happens even if disconnect wasn't called explicitly
         // Capture the resources we need to clean up without capturing self
@@ -375,16 +469,14 @@ class PostgreSQLDriver: DatabaseDriver {
     func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
-        var errorQuery: String? = nil
-        
+        let errorQuery: String? = nil
+
         do {
             let query: PostgresQuery
-            
-            // Check if filter contains a raw query
+
             if let rawQuery = filter["rawQuery"] as? String, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // Use the raw query directly
-                query = PostgresQuery(stringLiteral: rawQuery)
-                errorQuery = rawQuery
+                let results = try await executeRawQuery(rawQuery, databaseSchema: databaseSchema)
+                return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
             } else {
                 // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
@@ -659,80 +751,83 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         let connection = try await ensureConnected()
-        
-        do {
-            // Execute the raw query directly
-            let postgresQuery = PostgresQuery(stringLiteral: query)
-            let results = try await connection.query(postgresQuery, logger: Logger(label: "postgres"))
-            
-            // Process results similar to findDocuments method
-            var queryColumns: [QueryColumnInfo] = []
-            var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = []
-            var columnsInitialized = false
-            
-            for try await row in results {
-                // Extract and convert column info only once
-                if !columnsInitialized {
-                    var columnIndex = 0
-                    for cell in row {
-                        queryColumns.append(QueryColumnInfo(
-                            name: cell.columnName,
-                            dataType: String(describing: cell.dataType),
-                            format: String(describing: cell.format),
-                            index: columnIndex
-                        ))
-                        columnIndex += 1
-                    }
-                    columnsInitialized = true
-                }
-                
-                // Convert to random access row for O(1) cell access
-                let randomAccessRow = row.makeRandomAccess()
-                
-                // Process row data in a single pass
-                var processedRowData: [String: QueryRowInfo] = [:]
-                var rawRowData: [String: Any?] = [:]
-                
-                for column in queryColumns {
-                    let columnName = column.name
-                    if randomAccessRow.contains(columnName) {
-                        let cell = randomAccessRow[columnName]
-                        
-                        // Store PostgresCell as Any in rawRowData
-                        rawRowData[columnName] = cell
-                        
-                        // Convert to QueryRowInfo for processed row
-                        do {
-                            processedRowData[columnName] = try decode(from: cell)
-                        } catch {
-                            debugLog("executeRawQuery decode error: \(String(reflecting: error))")
-                            processedRowData[columnName] = nil
-                        }
-                    } else {
-                        processedRowData[columnName] = nil
-                        rawRowData[columnName] = nil
-                    }
-                }
-                
-                convertedRows.append(processedRowData)
-                convertedRawRows.append(rawRowData)
-            }
-            
-            return QueryResult(
-                columns: queryColumns,
-                rows: convertedRows,
-                totalCount: convertedRows.count,
-                rawRows: convertedRawRows
-            )
-            
-        } catch let error as PSQLError {
-            throw mapPSQLError(error, query: query)
-        } catch {
-            throw DatabaseError.operationFailed("Failed to execute raw query: \(error.localizedDescription)")
+        let statements = splitSQLStatements(query)
+
+        if statements.isEmpty {
+            return [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])]
         }
+
+        var results: [QueryResult] = []
+
+        for statement in statements {
+            do {
+                let postgresQuery = PostgresQuery(stringLiteral: statement)
+                let queryResults = try await connection.query(postgresQuery, logger: Logger(label: "postgres"))
+
+                var queryColumns: [QueryColumnInfo] = []
+                var convertedRows: [[String: QueryRowInfo]] = []
+                var convertedRawRows: [[String: Any?]] = []
+                var columnsInitialized = false
+
+                for try await row in queryResults {
+                    if !columnsInitialized {
+                        var columnIndex = 0
+                        for cell in row {
+                            queryColumns.append(QueryColumnInfo(
+                                name: cell.columnName,
+                                dataType: String(describing: cell.dataType),
+                                format: String(describing: cell.format),
+                                index: columnIndex
+                            ))
+                            columnIndex += 1
+                        }
+                        columnsInitialized = true
+                    }
+
+                    let randomAccessRow = row.makeRandomAccess()
+                    var processedRowData: [String: QueryRowInfo] = [:]
+                    var rawRowData: [String: Any?] = [:]
+
+                    for column in queryColumns {
+                        let columnName = column.name
+                        if randomAccessRow.contains(columnName) {
+                            let cell = randomAccessRow[columnName]
+                            rawRowData[columnName] = cell
+                            do {
+                                processedRowData[columnName] = try decode(from: cell)
+                            } catch {
+                                debugLog("executeRawQuery decode error: \(String(reflecting: error))")
+                                processedRowData[columnName] = nil
+                            }
+                        } else {
+                            processedRowData[columnName] = nil
+                            rawRowData[columnName] = nil
+                        }
+                    }
+
+                    convertedRows.append(processedRowData)
+                    convertedRawRows.append(rawRowData)
+                }
+
+                let result = QueryResult(
+                    columns: queryColumns,
+                    rows: convertedRows,
+                    totalCount: convertedRows.count,
+                    rawRows: convertedRawRows
+                )
+
+                results.append(result)
+
+            } catch let error as PSQLError {
+                throw mapPSQLError(error, query: statement)
+            } catch {
+                throw DatabaseError.operationFailed("Failed to execute statement: \(error.localizedDescription)")
+            }
+        }
+
+        return results.isEmpty ? [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])] : results
     }
     
     func createCollection(named collectionName: String) async throws {

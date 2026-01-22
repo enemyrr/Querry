@@ -586,88 +586,144 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         let connection = try await ensureConnected()
-        
-        do {
-            // Execute the raw query directly
-            let rows = try await connection.query(query)
-            
-            // Process results similar to findDocuments method
-            var queryColumns: [QueryColumnInfo] = []
-            var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = []
-            
-            // Get column information from the first row
-            if let firstRow = rows.first {
-                for (columnIndex, column) in firstRow.columns.enumerated() {
-                    queryColumns.append(QueryColumnInfo(
-                        name: column.name,
-                        dataType: "TEXT", // SQLite is dynamically typed, default to TEXT
-                        format: nil,
-                        index: columnIndex
-                    ))
-                }
-            }
-            
-            // Process each row
-            for row in rows {
-                var processedRowData: [String: QueryRowInfo] = [:]
-                var rawRowData: [String: Any?] = [:]
-                
-                for column in queryColumns {
-                    let columnName = column.name
-                    let sqliteColumn = row.column(columnName)
-                    
-                    // Store raw value and processed value
-                    var rawValue: Any? = nil
-                    var processedValue: Any? = nil
-                    
-                    if let sqliteColumn = sqliteColumn {
-                        // SQLite NIO provides different accessors for different types
-                        if let stringValue = sqliteColumn.string {
-                            rawValue = stringValue
-                            processedValue = stringValue
-                        } else if let intValue = sqliteColumn.integer {
-                            rawValue = intValue
-                            processedValue = Int(intValue)
-                        } else if let doubleValue = sqliteColumn.double {
-                            rawValue = doubleValue
-                            processedValue = doubleValue
-                        } else if let blobValue = sqliteColumn.blob {
-                            rawValue = blobValue
-                            processedValue = blobValue
-                        } else {
-                            // NULL value
-                            rawValue = nil
-                            processedValue = nil
-                        }
-                    }
-                    
-                    rawRowData[columnName] = rawValue
-                    
-                    // Convert to QueryRowInfo
-                    processedRowData[columnName] = QueryRowInfo(
-                        value: processedValue,
-                        dataType: column.dataType,
-                        format: nil
-                    )
-                }
-                
-                convertedRows.append(processedRowData)
-                convertedRawRows.append(rawRowData)
-            }
-            
-            return QueryResult(
-                columns: queryColumns,
-                rows: convertedRows,
-                totalCount: convertedRows.count,
-                rawRows: convertedRawRows
-            )
-            
-        } catch {
-            throw DatabaseError.operationFailed("Failed to execute raw query: \(error.localizedDescription)")
+        let statements = splitSQLStatements(query)
+
+        if statements.isEmpty {
+            return [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])]
         }
+
+        var allResults: [QueryResult] = []
+
+        for statement in statements {
+            do {
+                let rows = try await connection.query(statement)
+
+                var queryColumns: [QueryColumnInfo] = []
+                var convertedRows: [[String: QueryRowInfo]] = []
+                var convertedRawRows: [[String: Any?]] = []
+
+                if let firstRow = rows.first {
+                    for (columnIndex, column) in firstRow.columns.enumerated() {
+                        queryColumns.append(QueryColumnInfo(
+                            name: column.name,
+                            dataType: "TEXT",
+                            format: nil,
+                            index: columnIndex
+                        ))
+                    }
+                }
+
+                for row in rows {
+                    var processedRowData: [String: QueryRowInfo] = [:]
+                    var rawRowData: [String: Any?] = [:]
+
+                    for column in queryColumns {
+                        let columnName = column.name
+                        let sqliteColumn = row.column(columnName)
+
+                        var rawValue: Any? = nil
+                        var processedValue: Any? = nil
+
+                        if let sqliteColumn = sqliteColumn {
+                            if let stringValue = sqliteColumn.string {
+                                rawValue = stringValue
+                                processedValue = stringValue
+                            } else if let intValue = sqliteColumn.integer {
+                                rawValue = intValue
+                                processedValue = Int(intValue)
+                            } else if let doubleValue = sqliteColumn.double {
+                                rawValue = doubleValue
+                                processedValue = doubleValue
+                            } else if let blobValue = sqliteColumn.blob {
+                                rawValue = blobValue
+                                processedValue = blobValue
+                            }
+                        }
+
+                        rawRowData[columnName] = rawValue
+                        processedRowData[columnName] = QueryRowInfo(
+                            value: processedValue,
+                            dataType: column.dataType,
+                            format: nil
+                        )
+                    }
+
+                    convertedRows.append(processedRowData)
+                    convertedRawRows.append(rawRowData)
+                }
+
+                let result = QueryResult(
+                    columns: queryColumns,
+                    rows: convertedRows,
+                    totalCount: convertedRows.count,
+                    rawRows: convertedRawRows
+                )
+
+                allResults.append(result)
+
+            } catch {
+                throw DatabaseError.operationFailed("Failed to execute statement: \(error.localizedDescription)")
+            }
+        }
+
+        return allResults.isEmpty ? [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])] : allResults
+    }
+
+    private func splitSQLStatements(_ sql: String) -> [String] {
+        var statements: [String] = []
+        var currentStatement = ""
+        var inSingleQuote = false
+        var inDoubleQuote = false
+        var i = sql.startIndex
+
+        while i < sql.endIndex {
+            let char = sql[i]
+
+            if inSingleQuote {
+                currentStatement.append(char)
+                if char == "'" {
+                    let nextIndex = sql.index(after: i)
+                    if nextIndex < sql.endIndex && sql[nextIndex] == "'" {
+                        currentStatement.append("'")
+                        i = nextIndex
+                    } else {
+                        inSingleQuote = false
+                    }
+                }
+            } else if inDoubleQuote {
+                currentStatement.append(char)
+                if char == "\"" {
+                    inDoubleQuote = false
+                }
+            } else {
+                switch char {
+                case "'":
+                    inSingleQuote = true
+                    currentStatement.append(char)
+                case "\"":
+                    inDoubleQuote = true
+                    currentStatement.append(char)
+                case ";":
+                    let trimmed = currentStatement.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        statements.append(trimmed)
+                    }
+                    currentStatement = ""
+                default:
+                    currentStatement.append(char)
+                }
+            }
+            i = sql.index(after: i)
+        }
+
+        let trimmed = currentStatement.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            statements.append(trimmed)
+        }
+
+        return statements
     }
     
     func createCollection(named collectionName: String) async throws {

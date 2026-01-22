@@ -395,14 +395,13 @@ import SwiftUI
     }
     
     // MARK: - Raw Query Execution
-    func executeRawQuery(_ query: String, databaseSchema: String? = nil) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String? = nil) async throws -> [QueryResult] {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
-        // Use current schema if none provided
+
         let schemaToUse = databaseSchema ?? currentSchema
-        
+
         return try await driver.executeRawQuery(query, databaseSchema: schemaToUse)
     }
     

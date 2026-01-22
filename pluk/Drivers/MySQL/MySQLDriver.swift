@@ -403,76 +403,138 @@ class MySQLDriver: DatabaseDriver {
         }
     }
     
-    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         let connection = try await ensureConnected()
-        
-        do {
-            let results = try await connection.simpleQuery(query).get()
-            
-            // Process results similar to findDocuments method
-            var queryColumns: [QueryColumnInfo] = []
-            var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = []
-            var columnsInitialized = false
-            
-            // Process each row and extract column info from first row
-            for row in results {
-                // Extract column information from first row
-                if !columnsInitialized {
-                    var columnIndex = 0
-                    // Get column names from the column definitions
-                    for columnDef in row.columnDefinitions {
-                        let cleanedDataType = String(describing: columnDef.columnType)
-                            .replacingOccurrences(of: "MYSQL_TYPE_", with: "")
-                            .lowercased()
-                        
-                        queryColumns.append(QueryColumnInfo(
-                            name: columnDef.name,
-                            dataType: cleanedDataType,
-                            format: nil,
-                            index: columnIndex
-                        ))
-                        columnIndex += 1
-                    }
-                    columnsInitialized = true
-                }
-                
-                var processedRowData: [String: QueryRowInfo] = [:]
-                var rawRowData: [String: Any?] = [:]
-                
-                for column in queryColumns {
-                    let columnName = column.name
-                    if let mysqlData = row.column(columnName) {
-                        // Store the raw MySQLData for compatibility with update operations
-                        rawRowData[columnName] = mysqlData
-                        
-                        // Convert to QueryRowInfo for processed row
-                        do {
-                            processedRowData[columnName] = try decode(from: mysqlData)
-                        } catch {
-                            logger.warning("Failed to decode column \(columnName): \(error)")
-                            processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
-                        }
-                    } else {
-                        processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
-                        rawRowData[columnName] = nil
-                    }
-                }
-                
-                convertedRows.append(processedRowData)
-                convertedRawRows.append(rawRowData)
-            }
-            
-            return QueryResult(
-                columns: queryColumns,
-                rows: convertedRows,
-                totalCount: convertedRows.count,
-                rawRows: convertedRawRows
-            )
-            
-        } catch {
-            throw DatabaseError.operationFailed("Failed to execute raw query: \(error.localizedDescription)")
+        let statements = splitSQLStatements(query)
+
+        if statements.isEmpty {
+            return [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])]
         }
+
+        var allResults: [QueryResult] = []
+
+        for statement in statements {
+            do {
+                let results = try await connection.simpleQuery(statement).get()
+
+                var queryColumns: [QueryColumnInfo] = []
+                var convertedRows: [[String: QueryRowInfo]] = []
+                var convertedRawRows: [[String: Any?]] = []
+                var columnsInitialized = false
+
+                for row in results {
+                    if !columnsInitialized {
+                        var columnIndex = 0
+                        for columnDef in row.columnDefinitions {
+                            let cleanedDataType = String(describing: columnDef.columnType)
+                                .replacingOccurrences(of: "MYSQL_TYPE_", with: "")
+                                .lowercased()
+
+                            queryColumns.append(QueryColumnInfo(
+                                name: columnDef.name,
+                                dataType: cleanedDataType,
+                                format: nil,
+                                index: columnIndex
+                            ))
+                            columnIndex += 1
+                        }
+                        columnsInitialized = true
+                    }
+
+                    var processedRowData: [String: QueryRowInfo] = [:]
+                    var rawRowData: [String: Any?] = [:]
+
+                    for column in queryColumns {
+                        let columnName = column.name
+                        if let mysqlData = row.column(columnName) {
+                            rawRowData[columnName] = mysqlData
+
+                            do {
+                                processedRowData[columnName] = try decode(from: mysqlData)
+                            } catch {
+                                logger.warning("Failed to decode column \(columnName): \(error)")
+                                processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                            }
+                        } else {
+                            processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                            rawRowData[columnName] = nil
+                        }
+                    }
+
+                    convertedRows.append(processedRowData)
+                    convertedRawRows.append(rawRowData)
+                }
+
+                let result = QueryResult(
+                    columns: queryColumns,
+                    rows: convertedRows,
+                    totalCount: convertedRows.count,
+                    rawRows: convertedRawRows
+                )
+
+                allResults.append(result)
+
+            } catch {
+                throw DatabaseError.operationFailed("Failed to execute statement: \(error.localizedDescription)")
+            }
+        }
+
+        return allResults.isEmpty ? [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])] : allResults
+    }
+
+    private func splitSQLStatements(_ sql: String) -> [String] {
+        var statements: [String] = []
+        var currentStatement = ""
+        var inSingleQuote = false
+        var inDoubleQuote = false
+        var i = sql.startIndex
+
+        while i < sql.endIndex {
+            let char = sql[i]
+
+            if inSingleQuote {
+                currentStatement.append(char)
+                if char == "'" {
+                    let nextIndex = sql.index(after: i)
+                    if nextIndex < sql.endIndex && sql[nextIndex] == "'" {
+                        currentStatement.append("'")
+                        i = nextIndex
+                    } else {
+                        inSingleQuote = false
+                    }
+                }
+            } else if inDoubleQuote {
+                currentStatement.append(char)
+                if char == "\"" {
+                    inDoubleQuote = false
+                }
+            } else {
+                switch char {
+                case "'":
+                    inSingleQuote = true
+                    currentStatement.append(char)
+                case "\"":
+                    inDoubleQuote = true
+                    currentStatement.append(char)
+                case ";":
+                    let trimmed = currentStatement.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        statements.append(trimmed)
+                    }
+                    currentStatement = ""
+                default:
+                    currentStatement.append(char)
+                }
+            }
+            i = sql.index(after: i)
+        }
+
+        let trimmed = currentStatement.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            statements.append(trimmed)
+        }
+
+        return statements
     }
     
     // MARK: - Collection Management

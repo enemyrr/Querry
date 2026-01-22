@@ -96,14 +96,12 @@ struct SQLEditorView: View {
     
     private var executionSummaryText: String {
         guard lastExecutionTime > 0 else { return "" }
-        
+
         let timeInMs = lastExecutionTime * 1000
-        let formattedTime = String(format: "%.0f", timeInMs)
-        
+        let formattedTime = timeInMs.formatted(.number.precision(.fractionLength(0)))
+
         if lastRowCount > 0 {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            let formattedCount = formatter.string(from: NSNumber(value: lastRowCount)) ?? "\(lastRowCount)"
+            let formattedCount = lastRowCount.formatted(.number)
             return "\(formattedCount) rows returned in \(formattedTime)ms"
         } else {
             return "Executed in \(formattedTime)ms"
@@ -115,6 +113,7 @@ struct SQLEditorView: View {
             Text(executionSummaryText)
                 .font(.callout)
                 .foregroundColor(.secondary)
+                .lineLimit(1)
             
             Spacer()
             
@@ -289,9 +288,9 @@ struct SQLEditorView: View {
         HStack {
             Text("Results")
                 .font(.headline)
-            
+
             Spacer()
-            
+
             switch viewState {
             case .idle:
                 Text("Ready")
@@ -299,9 +298,14 @@ struct SQLEditorView: View {
             case .loading:
                 Text("Executing...")
                     .foregroundColor(.secondary)
-            case .loaded(let result):
-                Text("\(result.totalCount) rows")
-                    .foregroundColor(.secondary)
+            case .loaded(let results):
+                if results.count == 1 {
+                    Text("\(results[0].totalCount) rows")
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("\(results.count) result sets")
+                        .foregroundColor(.secondary)
+                }
             case .error:
                 Text("Error")
                     .foregroundColor(.red)
@@ -317,8 +321,18 @@ struct SQLEditorView: View {
             switch viewState {
             case .idle:
                 emptyState
-            case .loaded(let result):
-                resultTable(result: result)
+            case .loaded(let results):
+                VStack(spacing: 0) {
+                    if results.count > 1 {
+                        resultsTabBar(results: results)
+                        Divider()
+                    }
+                    if selectedResultIndex < results.count {
+                        resultTable(result: results[selectedResultIndex])
+                    } else if let firstResult = results.first {
+                        resultTable(result: firstResult)
+                    }
+                }
             case .loading:
                 EmptyView()
             case .error(let message):
@@ -327,7 +341,86 @@ struct SQLEditorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
+
+    private func resultsTabBar(results: [QueryResult]) -> some View {
+        ResultsPillTabBar(
+            results: results,
+            selectedIndex: $selectedResultIndex
+        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+}
+
+struct ResultsPillTabBar: View {
+    let results: [QueryResult]
+    @Binding var selectedIndex: Int
+    @Namespace private var animation
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(results.indices, id: \.self) { index in
+                ResultPillTab(
+                    index: index,
+                    rowCount: results[index].totalCount,
+                    isSelected: selectedIndex == index,
+                    animation: animation,
+                    onSelect: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0)) {
+                            selectedIndex = index
+                        }
+                    }
+                )
+            }
+        }
+        .padding(3)
+        .background(Color(.separatorColor).opacity(0.3))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.separator, lineWidth: 0.5)
+        )
+        .clipShape(.rect(cornerRadius: 8))
+    }
+}
+
+struct ResultPillTab: View {
+    @Environment(\.colorScheme) var colorScheme
+    let index: Int
+    let rowCount: Int
+    let isSelected: Bool
+    let animation: Namespace.ID
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 4) {
+                Text("Result \(index + 1)")
+                    .font(.system(size: 11, weight: isSelected ? .medium : .regular))
+                    .lineLimit(1)
+
+                Text("(\(rowCount))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(.controlColor).opacity(colorScheme == .dark ? 0.8 : 1))
+                        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                        .matchedGeometryEffect(id: "pill", in: animation)
+                }
+            }
+            .contentShape(.rect(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+extension SQLEditorView {
     private var emptyState: some View {
         VStack(spacing: 12) {
             HStack(spacing: 4) {
@@ -479,42 +572,40 @@ struct SQLEditorView: View {
     }
     
     private func executeQuery() {
-        // Don't execute if we're showing an inline diff
         guard !showingInlineDiff else { return }
-        
-        // Determine what query to execute: selected text or full query
+
         let queryToExecute: String
         let trimmedSelectedText = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         if !trimmedSelectedText.isEmpty {
             queryToExecute = trimmedSelectedText
         } else {
             queryToExecute = sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        
+
         guard !queryToExecute.isEmpty else { return }
-        
+
         isExecuting = true
         viewState = .loading
         lastError = nil
-        
+        selectedResultIndex = 0
+
         Task {
             let startTime = Date()
-            
+
             do {
-                let result = try await instance.databaseService.executeRawQuery(queryToExecute, databaseSchema: selectedDatabase)
-                
+                let results = try await instance.databaseService.executeRawQuery(queryToExecute, databaseSchema: selectedDatabase)
+
                 let executionTime = Date().timeIntervalSince(startTime)
-                
+
                 await MainActor.run {
-                    viewState = .loaded(result)
+                    viewState = .loaded(results)
                     lastExecutionTime = executionTime
-                    lastRowCount = result.totalCount
+                    lastRowCount = results.reduce(0) { $0 + $1.totalCount }
                 }
-                
-                // Add delay before resetting loading button state
+
                 try? await Task.sleep(for: .milliseconds(250))
-                
+
                 await MainActor.run {
                     isExecuting = false
                 }
@@ -523,10 +614,9 @@ struct SQLEditorView: View {
                     viewState = .error(error.localizedDescription)
                     isExecuting = false
                     lastError = error
-                    aiErrorSuggestion = nil // Reset previous suggestion
+                    aiErrorSuggestion = nil
                 }
-                
-                // Get AI suggestion for the error
+
                 await getAIErrorSuggestion(for: queryToExecute, error: error)
             }
         }
@@ -903,17 +993,21 @@ struct SQLEditorView: View {
 enum SQLEditorViewState: Equatable {
     case idle
     case loading
-    case loaded(QueryResult)
+    case loaded([QueryResult])
     case error(String)
-    
+
     static func == (lhs: SQLEditorViewState, rhs: SQLEditorViewState) -> Bool {
         switch (lhs, rhs) {
         case (.idle, .idle), (.loading, .loading):
             return true
         case (.error(let lhsMessage), .error(let rhsMessage)):
             return lhsMessage == rhsMessage
-        case (.loaded(let lhsResult), .loaded(let rhsResult)):
-            return lhsResult.totalCount == rhsResult.totalCount
+        case (.loaded(let lhsResults), .loaded(let rhsResults)):
+            guard lhsResults.count == rhsResults.count else { return false }
+            for (lhs, rhs) in zip(lhsResults, rhsResults) {
+                if lhs.totalCount != rhs.totalCount { return false }
+            }
+            return true
         default:
             return false
         }

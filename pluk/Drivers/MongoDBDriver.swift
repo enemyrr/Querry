@@ -517,22 +517,17 @@ class MongoDBDriver: DatabaseDriver {
         try await collection.deleteOne(where: filter)
     }
     
-    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         guard connectedDatabase != nil else {
             throw MongoError.databaseNotInitialized
         }
-        
-        // For MongoDB, we'll treat the "raw query" as a JavaScript-like MongoDB query
-        // This is a simplified implementation - in a production system, you might want
-        // to parse the query more thoroughly or use MongoDB's $expr operator
-        
-        // For now, we'll return a simple message indicating MongoDB queries are different
+
         let queryColumns: [QueryColumnInfo] = [
             QueryColumnInfo(name: "message", dataType: "String", format: nil, index: 0),
             QueryColumnInfo(name: "query", dataType: "String", format: nil, index: 1),
             QueryColumnInfo(name: "note", dataType: "String", format: nil, index: 2)
         ]
-        
+
         let convertedRows: [[String: QueryRowInfo]] = [
             [
                 "message": QueryRowInfo(value: "MongoDB uses document-based queries, not SQL", dataType: "String", format: nil),
@@ -540,7 +535,7 @@ class MongoDBDriver: DatabaseDriver {
                 "note": QueryRowInfo(value: "Use the collection browser or aggregation pipeline for MongoDB queries", dataType: "String", format: nil)
             ]
         ]
-        
+
         let convertedRawRows: [[String: Any?]] = [
             [
                 "message": "MongoDB uses document-based queries, not SQL",
@@ -548,13 +543,13 @@ class MongoDBDriver: DatabaseDriver {
                 "note": "Use the collection browser or aggregation pipeline for MongoDB queries"
             ]
         ]
-        
-        return QueryResult(
+
+        return [QueryResult(
             columns: queryColumns,
             rows: convertedRows,
             totalCount: convertedRows.count,
             rawRows: convertedRawRows
-        )
+        )]
     }
     
     func createCollection(named collectionName: String) async throws {

@@ -18,6 +18,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 - Always ask the user to test the product and see if its working fine instead of you trying to build<D-s>
 - Do not add comments unless its complex or info that's needed for user reference
+- Always use github cli instead of API
 
 ## Development Commands
 

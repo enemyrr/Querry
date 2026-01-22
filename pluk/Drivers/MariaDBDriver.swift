@@ -16,7 +16,7 @@ struct MariaDBCollectionWrapper: CollectionWrapper {
 
 // MARK: - MariaDB Driver (Placeholder)
 class MariaDBDriver: DatabaseDriver {
-    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         throw DatabaseError.notImplemented("MariaDB driver not yet implemented")
     }
     

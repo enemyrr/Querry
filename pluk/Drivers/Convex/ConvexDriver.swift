@@ -38,7 +38,7 @@ class ConvexDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("Driver does not support this")
     }
     
-    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> QueryResult {
+    func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         throw DatabaseError.notImplemented("Driver does not support this")
     }
     
