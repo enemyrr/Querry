@@ -53,6 +53,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         static let textCell = NSUserInterfaceItemIdentifier("TextCell")
         static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
         static let forignKeyCell = NSUserInterfaceItemIdentifier("ForeignKeyCell")
+        static let enumCell = NSUserInterfaceItemIdentifier("EnumCell")
     }
     
     // Store modification tracker reference
@@ -873,14 +874,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
               let queryResult = queryResult else {
             return nil
         }
-        
+
         let columnName = tableColumn.identifier.rawValue
         guard let queryRowInfo = queryResult.value(row: row, column: columnName) else {
             debugLog("⚠️ TableCoordinator: No data for row \(row), column \(columnName)")
             return nil
         }
-        
-        // Debug logging for cell data
+
         if highlightedRows.contains(row) && highlightedFields.contains(columnName) {
             debugLog("💡 TableCoordinator: Rendering highlighted cell [\(row), \(columnName)] = \(queryRowInfo.value ?? "nil")")
         }
@@ -888,28 +888,43 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         guard let columnInfo = queryResult.column(named: columnName) else {
             return nil
         }
-        
-        // Determine cell type based on data type
+
+        let schemaColumn = schema?.column(named: columnName)
+        let isReadOnly = schemaColumn?.isReadOnly ?? false
+        let isNullable = schemaColumn?.isNullable.uppercased() == "YES"
+
+        if let schemaColumn = schemaColumn,
+           schemaColumn.isEnum,
+           let enumValues = schemaColumn.enumValues {
+            return configureEnumCell(
+                tableView: tableView,
+                value: (queryRowInfo.value as? String) ?? "",
+                enumValues: enumValues,
+                row: row,
+                columnName: columnName,
+                dataType: columnInfo.dataType,
+                isReadOnly: isReadOnly,
+                isNullable: isNullable
+            )
+        }
+
         let cellIdentifier = getCellIdentifier(for: columnInfo.dataType)
-        
+
         var cellView = tableView.makeView(withIdentifier: cellIdentifier, owner: self) as? TextCellView
-        
+
         if cellView == nil {
             cellView = createCellView(for: columnInfo.dataType)
             cellView?.identifier = cellIdentifier
         } else {
             cellView?.prepareForReuse()
         }
-        
-        // Get foreign key constraint info from schema if available
-        let foreignKeyConstraint = schema?.column(named: columnName)?.constraints.first { $0.type == .foreignKey }
-        let isReadOnly = schema?.column(named: columnName)?.isReadOnly ?? false
-        
-        // Check if this cell should be highlighted
+
+        let foreignKeyConstraint = schemaColumn?.constraints.first { $0.type == .foreignKey }
+
         let isHighlightedField = highlightedFields.contains(columnName)
         let isHighlightedRow = highlightedRows.contains(row)
         let shouldHighlight = isHighlightedField && isHighlightedRow
-        
+
         cellView?.configure(queryRowInfo: queryRowInfo,
                             columnInfo: columnInfo,
                             rowIndex: row,
@@ -919,7 +934,41 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
                             shouldHighlight: shouldHighlight,
                             isReadOnly: isReadOnly
         )
-        
+
+        return cellView
+    }
+
+    private func configureEnumCell(
+        tableView: NSTableView,
+        value: String,
+        enumValues: [String],
+        row: Int,
+        columnName: String,
+        dataType: String,
+        isReadOnly: Bool,
+        isNullable: Bool
+    ) -> NSView? {
+        var cellView = tableView.makeView(withIdentifier: CellIdentifier.enumCell, owner: self) as? EnumCellView
+
+        if cellView == nil {
+            cellView = EnumCellView()
+            cellView?.identifier = CellIdentifier.enumCell
+        } else {
+            cellView?.prepareForReuse()
+        }
+
+        cellView?.configure(
+            value: value,
+            enumValues: enumValues,
+            rowIndex: row,
+            columnName: columnName,
+            dataType: dataType,
+            modificationTracker: modificationTracker,
+            tableName: tableName,
+            isReadOnly: isReadOnly,
+            isNullable: isNullable
+        )
+
         return cellView
     }
     

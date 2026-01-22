@@ -1232,13 +1232,21 @@ class PostgreSQLDriver: DatabaseDriver {
                     COALESCE(t.oid, 0)::bigint AS pg_type_oid,
                     t.typname AS pg_type_name,
                     t.typtype,
-                    CASE 
+                    CASE
                         WHEN t.typtype = 'e' THEN 'enum'
                         WHEN t.typtype = 'c' THEN 'composite'
                         WHEN t.typtype = 'd' THEN 'domain'
                         WHEN c.data_type = 'ARRAY' THEN 'array'
                         ELSE 'base'
                     END AS type_category,
+                    CASE
+                        WHEN t.typtype = 'e' THEN (
+                            SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder)
+                            FROM pg_enum e
+                            WHERE e.enumtypid = t.oid
+                        )
+                        ELSE NULL
+                    END AS enum_values,
                     COALESCE(c.numeric_precision, 0) AS numeric_precision,
                     COALESCE(c.datetime_precision, 0) AS datetime_precision,
                     COALESCE(c.numeric_scale, 0) AS numeric_scale,
@@ -1301,18 +1309,18 @@ class PostgreSQLDriver: DatabaseDriver {
             let results = try await connection.query(combinedQuery, logger: Logger(label: "postgres"))
             var databaseSchemaInfo: [DatabaseSchemaInfo] = []
             
-            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, comment, constraintName, parentSchema, parentTable, parentColumn, onUpdate, onDelete) in results.decode((
-                Int, String, String, Int64, String?, String?, String, Int, Int, Int, Int, String, String, String, String, String, String?, String?, String?, String?, String?, String?).self) {
-                
+            for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, enumValuesStr, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, comment, constraintName, parentSchema, parentTable, parentColumn, onUpdate, onDelete) in results.decode((
+                Int, String, String, Int64, String?, String?, String, String?, Int, Int, Int, Int, String, String, String, String, String, String?, String?, String?, String?, String?, String?).self) {
+
                 // Build constraint info if foreign key data exists
                 var columnConstraints: [ConstraintInfo] = []
                 var foreignKey = ""
-                
+
                 if let constraintName = constraintName,
                    let parentSchema = parentSchema,
                    let parentTable = parentTable,
                    let parentColumn = parentColumn {
-                    
+
                     let constraintInfo = ConstraintInfo(
                         oid: 0,
                         name: constraintName,
@@ -1329,12 +1337,13 @@ class PostgreSQLDriver: DatabaseDriver {
                         onDelete: onDelete ?? "no action",
                         extensionName: nil
                     )
-                    
+
                     columnConstraints.append(constraintInfo)
                     foreignKey = constraintName
                 }
-                
+
                 let format = PostgresDataType(UInt32(pgTypeOid))
+                let enumValues: [String]? = enumValuesStr?.split(separator: ",").map { String($0) }
                 let schemaInfo = DatabaseSchemaInfo(
                     ordinalPosition: ordinalPosition,
                     columnName: columnName,
@@ -1351,9 +1360,10 @@ class PostgreSQLDriver: DatabaseDriver {
                     columnDefault: columnDefault,
                     foreignKey: foreignKey,
                     constraints: columnConstraints,
-                    comment: comment
+                    comment: comment,
+                    enumValues: enumValues
                 )
-                
+
                 databaseSchemaInfo.append(schemaInfo)
             }
             

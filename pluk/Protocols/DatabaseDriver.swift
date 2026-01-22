@@ -418,7 +418,12 @@ struct DatabaseSchemaInfo: Equatable {
     let constraints: [ConstraintInfo]
     let comment: String?
     let isReadOnly: Bool
-    
+    let enumValues: [String]?
+
+    var isEnum: Bool {
+        enumValues != nil && !(enumValues?.isEmpty ?? true)
+    }
+
     init(
         ordinalPosition: Int? = nil,
         columnName: String,
@@ -436,7 +441,8 @@ struct DatabaseSchemaInfo: Equatable {
         foreignKey: String = "",
         constraints: [ConstraintInfo] = [],
         comment: String? = nil,
-        isReadOnly: Bool = false
+        isReadOnly: Bool = false,
+        enumValues: [String]? = nil
     ) {
         self.ordinalPosition = ordinalPosition
         self.columnName = columnName
@@ -455,6 +461,7 @@ struct DatabaseSchemaInfo: Equatable {
         self.comment = comment
         self.typeOid = typeOid
         self.isReadOnly = isReadOnly
+        self.enumValues = enumValues
     }
     
     // MARK: - Constraint convenience methods

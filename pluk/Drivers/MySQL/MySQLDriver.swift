@@ -554,7 +554,7 @@ class MySQLDriver: DatabaseDriver {
         """).get()
         
         var columns: [DatabaseSchemaInfo] = []
-        
+
         for row in rows {
             let columnName = row.column("COLUMN_NAME")?.string ?? ""
             let dataType = row.column("DATA_TYPE")?.string ?? ""
@@ -563,7 +563,7 @@ class MySQLDriver: DatabaseDriver {
             let isNullable = row.column("IS_NULLABLE")?.string ?? "YES"
             let columnDefault = row.column("COLUMN_DEFAULT")?.string
             let comment = row.column("COLUMN_COMMENT")?.string
-            
+
             // Foreign key information
             let constraintName = row.column("CONSTRAINT_NAME")?.string
             let referencedSchema = row.column("REFERENCED_TABLE_SCHEMA")?.string
@@ -571,16 +571,16 @@ class MySQLDriver: DatabaseDriver {
             let referencedColumn = row.column("REFERENCED_COLUMN_NAME")?.string
             let updateRule = row.column("UPDATE_RULE")?.string
             let deleteRule = row.column("DELETE_RULE")?.string
-            
+
             // Build constraint info if foreign key data exists
             var columnConstraints: [ConstraintInfo] = []
             var foreignKey = ""
-            
+
             if let constraintName = constraintName,
                let referencedSchema = referencedSchema,
                let referencedTable = referencedTable,
                let referencedColumn = referencedColumn {
-                
+
                 let constraintInfo = ConstraintInfo(
                     oid: 0,
                     name: constraintName,
@@ -597,17 +597,19 @@ class MySQLDriver: DatabaseDriver {
                     onDelete: deleteRule?.lowercased() ?? "no action",
                     extensionName: nil
                 )
-                
+
                 columnConstraints.append(constraintInfo)
                 foreignKey = constraintName
             }
-            
+
+            let enumValues = dataType.lowercased() == "enum" ? parseEnumValues(from: columnType) : nil
+
             columns.append(DatabaseSchemaInfo(
                 ordinalPosition: ordinalPosition,
                 columnName: columnName,
                 dataType: dataType,
                 formatType: columnType,
-                typeOid: 0, // MySQL doesn't use OIDs like PostgreSQL
+                typeOid: 0,
                 numericPrecision: 0,
                 datetimePrecision: 0,
                 numericScale: 0,
@@ -618,7 +620,8 @@ class MySQLDriver: DatabaseDriver {
                 columnDefault: columnDefault,
                 foreignKey: foreignKey,
                 constraints: columnConstraints,
-                comment: comment
+                comment: comment,
+                enumValues: enumValues
             ))
         }
         return DatabaseSchemaResult(
@@ -1469,6 +1472,16 @@ class MySQLDriver: DatabaseDriver {
                 query: sql
             )
         }
+    }
+
+    private func parseEnumValues(from columnType: String) -> [String]? {
+        guard columnType.lowercased().hasPrefix("enum(") else { return nil }
+        let start = columnType.index(columnType.startIndex, offsetBy: 5)
+        let end = columnType.index(before: columnType.endIndex)
+        guard start < end else { return nil }
+        return String(columnType[start..<end])
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "'\" ")) }
     }
 }
 
