@@ -20,6 +20,12 @@ This file provides guidance to AI coding agents when working with code in this r
 - Do not add comments unless its complex or info that's needed for user reference
 - Always use github cli instead of API
 
+## GitHub Workflow
+
+- Create issues on the public repo: `pluk-inc/Pluk`
+- Create PRs on the private repo: `pluk-inc/app-pluk`
+- Link PRs to issues using `Fixes pluk-inc/Pluk#<issue-number>`
+
 ## Development Commands
 
 ### Building
