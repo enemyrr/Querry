@@ -201,7 +201,7 @@ public enum PostgreSQLConnectionStringParser {
         let port = parsed.port ?? 5432
         let username = (parsed.user?.isEmpty == false ? parsed.user : nil) ?? "postgres"
         let password = (parsed.password?.isEmpty == false ? parsed.password : nil)
-        let database = (parsed.database?.isEmpty == false ? parsed.database : nil) ?? "postgres"
+        let database = (parsed.database?.isEmpty == false ? parsed.database : nil) ?? ""
 
         // TLS mapping
         var tls: PostgresConnection.Configuration.TLS = .disable
