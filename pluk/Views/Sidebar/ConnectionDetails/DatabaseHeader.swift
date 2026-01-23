@@ -40,6 +40,7 @@ struct DatabaseHeader: View {
                             selectedSchema: $selectedSchema,
                             isSchemaHovering: $isSchemaHovering,
                             onSchemaChange: handleSchemaSelection,
+                            onDatabaseChange: handleDatabaseSelection,
                             truncatedText: truncatedText
                         )
                     }
@@ -156,6 +157,22 @@ struct DatabaseHeader: View {
             }
         } else {
             instance.databaseService.setCurrentSchema(schema)
+        }
+    }
+
+    private func handleDatabaseSelection(_ databaseName: String) {
+        // Don't do anything if selecting the already-connected database
+        guard databaseName != instance.connectedDatabase?.name else { return }
+
+        Task {
+            if let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(
+                from: instance,
+                databaseName: databaseName
+            ) {
+                await MainActor.run {
+                    WindowController.switchToTab(.connection(instanceId))
+                }
+            }
         }
     }
 }
@@ -451,20 +468,26 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
     @Binding var selectedSchema: String
     @Binding var isSchemaHovering: Bool
     let onSchemaChange: (String) -> Void
+    let onDatabaseChange: (String) -> Void
     let truncatedText: (String, CGFloat) -> TruncatedTextView
 
     var body: some View {
         if !availableSchemas.isEmpty {
-            if let database = instance.connectedDatabase?.name {
+            if instance.connectedDatabase?.name != nil {
                 Picker("Database", selection: $selectedDatabase) {
-                    ForEach([database], id: \.self) { schema in
-                        truncatedText(schema, 180)
+                    ForEach(instance.databases, id: \.name) { db in
+                        truncatedText(db.name, 180)
                     }
                 }
                 .buttonStyle(.accessoryBar)
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .hoverMenuIndicator(showNormalIcon: true)
+                .onChange(of: selectedDatabase) { oldValue, newValue in
+                    if oldValue != newValue, !newValue.isEmpty {
+                        onDatabaseChange(newValue)
+                    }
+                }
             } else {
                 HStack {}
                     .padding(12)
@@ -492,16 +515,21 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                 }
             }
         } else {
-            if let database = instance.connectedDatabase?.name {
+            if instance.connectedDatabase?.name != nil {
                 Picker("Database", selection: $selectedDatabase) {
-                    ForEach([database], id: \.self) { schema in
-                        truncatedText(schema, 180)
+                    ForEach(instance.databases, id: \.name) { db in
+                        truncatedText(db.name, 180)
                     }
                 }
                 .buttonStyle(.accessoryBar)
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .hoverMenuIndicator(normalIcon: "chevron.up.chevron.down", showNormalIcon: true)
+                .onChange(of: selectedDatabase) { oldValue, newValue in
+                    if oldValue != newValue, !newValue.isEmpty {
+                        onDatabaseChange(newValue)
+                    }
+                }
             } else {
                 HStack {}
                     .padding(12)

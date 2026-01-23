@@ -342,9 +342,14 @@ class MongoDBDriver: DatabaseDriver {
         guard let connectedDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
-        
+
         let newDb = connectedDatabase.pool[databaseName]
         self.connectedDatabase = newDb
+    }
+
+    func getCurrentDatabaseWrapper() -> MongoDBWrapper? {
+        guard let db = connectedDatabase else { return nil }
+        return MongoDBWrapper(database: db)
     }
     
     func disconnect() async {

@@ -49,7 +49,32 @@ import SwiftUI
         
         // Connect to database
         self.connectedDatabase = try await driver.connect(to: connectionUri)
-        
+
+        // For non-Convex databases, switch to target database if needed
+        if connection.databaseType != .convex,
+           let targetName = targetDatabaseName,
+           !targetName.isEmpty,
+           connectedDatabase?.name != targetName {
+            try await driver.switchDatabase(to: targetName)
+            // Update connectedDatabase to reflect the switch using the appropriate wrapper type
+            switch connection.databaseType {
+            case .postgres, .supabase:
+                self.connectedDatabase = PostgreSQLDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
+            case .mysql:
+                self.connectedDatabase = MySQLDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
+            case .sqlite:
+                self.connectedDatabase = SQLiteDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
+            case .mongodb:
+                // For MongoDB, get the database wrapper from the driver after switching
+                if let mongoDriver = driver as? MongoDBDriver,
+                   let wrapper = mongoDriver.getCurrentDatabaseWrapper() {
+                    self.connectedDatabase = wrapper
+                }
+            default:
+                break
+            }
+        }
+
         // Post notification about database connection change
         NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
     }
