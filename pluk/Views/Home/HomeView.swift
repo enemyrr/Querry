@@ -347,13 +347,18 @@ struct ConnectionListItem: View {
         ) {
             Button("Delete", role: .destructive) {
                 if let connection = connectionToDelete {
+                    // Clean up query history before deleting the connection
+                    QueryHistoryService.deleteHistoryForConnection(
+                        modelContext: modelContext,
+                        connectionKeychainId: connection.keychainId
+                    )
                     // Clean up keychain before deleting the connection
                     connection.cleanupKeychain()
                     modelContext.delete(connection)
                     connectionToDelete = nil
                 }
             }
-            
+
             Button("Cancel", role: .cancel) {
                 connectionToDelete = nil
             }

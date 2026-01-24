@@ -473,41 +473,49 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
 
     var body: some View {
         if !availableSchemas.isEmpty {
-            if instance.connectedDatabase?.name != nil {
-                Picker("Database", selection: $selectedDatabase) {
-                    ForEach(instance.databases, id: \.name) { db in
-                        truncatedText(db.name, 180)
+            if let database = instance.connectedDatabase?.name {
+                MinimalDropdown(selectedValue: database, chevron: "chevron.right") {
+                    Picker("", selection: Binding(
+                        get: { database },
+                        set: { newValue in
+                            if newValue != database {
+                                onDatabaseChange(newValue)
+                            }
+                        }
+                    )) {
+                        ForEach(instance.databases, id: \.name) { db in
+                            Text(db.name).tag(db.name)
+                        }
                     }
-                }
-                .buttonStyle(.accessoryBar)
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .hoverMenuIndicator(showNormalIcon: true)
-                .onChange(of: selectedDatabase) { oldValue, newValue in
-                    if oldValue != newValue, !newValue.isEmpty {
-                        onDatabaseChange(newValue)
-                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                 }
             } else {
                 HStack {}
                     .padding(12)
             }
 
-            Picker("Schema", selection: $selectedSchema) {
-                ForEach(availableSchemas, id: \.self) { schema in
-                    Text("\(schema)    ").tag(schema)
+            MinimalDropdown(selectedValue: selectedSchema, chevron: nil) {
+                Picker("", selection: Binding(
+                    get: { selectedSchema },
+                    set: { newValue in
+                        selectedSchema = newValue
+                        onSchemaChange(newValue)
+                    }
+                )) {
+                    ForEach(availableSchemas, id: \.self) { schema in
+                        Text(schema).tag(schema)
+                    }
                 }
+                .pickerStyle(.inline)
+                .labelsHidden()
 
                 Divider()
-                // Second group (nested menu)
-                Text("New Schema...").tag("__NEW_SCHEMA__")
-            }
-            .buttonStyle(.accessoryBar)
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .hoverMenuIndicator(showNormalIcon: false)
-            .onChange(of: selectedSchema) { _, newValue in
-                onSchemaChange(newValue)
+
+                Button("New Schema...") {
+                    selectedSchema = "__NEW_SCHEMA__"
+                    onSchemaChange("__NEW_SCHEMA__")
+                }
             }
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.05)) {
@@ -515,25 +523,64 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                 }
             }
         } else {
-            if instance.connectedDatabase?.name != nil {
-                Picker("Database", selection: $selectedDatabase) {
-                    ForEach(instance.databases, id: \.name) { db in
-                        truncatedText(db.name, 180)
+            if let database = instance.connectedDatabase?.name {
+                MinimalDropdown(selectedValue: database) {
+                    Picker("", selection: Binding(
+                        get: { database },
+                        set: { newValue in
+                            if newValue != database {
+                                onDatabaseChange(newValue)
+                            }
+                        }
+                    )) {
+                        ForEach(instance.databases, id: \.name) { db in
+                            Text(db.name).tag(db.name)
+                        }
                     }
-                }
-                .buttonStyle(.accessoryBar)
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .hoverMenuIndicator(normalIcon: "chevron.up.chevron.down", showNormalIcon: true)
-                .onChange(of: selectedDatabase) { oldValue, newValue in
-                    if oldValue != newValue, !newValue.isEmpty {
-                        onDatabaseChange(newValue)
-                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                 }
             } else {
                 HStack {}
                     .padding(12)
             }
+        }
+    }
+}
+
+// MARK: - MinimalDropdown
+struct MinimalDropdown<MenuContent: View>: View {
+    let selectedValue: String
+    var chevron: String? = "chevron.down"
+    @ViewBuilder let menuContent: () -> MenuContent
+    @State private var isHovered = false
+
+    var body: some View {
+        Menu {
+            menuContent()
+        } label: {
+            HStack(spacing: 3) {
+                Text(selectedValue)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+
+                if let chevron {
+                    Image(systemName: chevron)
+                        .padding(.top, 1)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.primary)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovered ? Color(.separatorColor).opacity(0.5) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
         }
     }
 }

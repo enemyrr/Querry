@@ -9,15 +9,17 @@ import Foundation
 import MongoKitten
 import MongoCore
 import SwiftUI
+import SwiftData
 import AIProxy
 
 @Observable class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
     //    var connectedDatabase: (any DatabaseWrapper)?
-    
+
     private var _databaseDriver: (any DatabaseDriver)?
     var databaseService = DatabaseService()
+    var queryHistoryService: QueryHistoryService?
     
     // Public getter for database driver (needed by ConnectionService)
     var databaseDriver: (any DatabaseDriver)? {
@@ -60,6 +62,20 @@ import AIProxy
     init(connection: Connection) {
         self.connection = connection
         setupNotificationObservation()
+        Task { @MainActor in
+            self.setupQueryHistoryService()
+        }
+    }
+
+    @MainActor
+    private func setupQueryHistoryService() {
+        guard let appDelegate = NSApplication.shared.delegate as? AppDelegate else { return }
+        let modelContext = ModelContext(appDelegate.sharedModelContainer)
+        queryHistoryService = QueryHistoryService(
+            modelContext: modelContext,
+            connectionKeychainId: connection.keychainId
+        )
+        databaseService.queryHistoryService = queryHistoryService
     }
 
     private func setupNotificationObservation() {
@@ -267,14 +283,15 @@ import AIProxy
         selectedTab = newTab
     }
     
-    func createSQLEditorTab() {
+    func createSQLEditorTab(withQuery query: String? = nil) {
         let newTab = DatabaseTab(
             name: "Query Editor",
             type: .sqlEditor,
             queryState: .idle
         )
+        newTab.initialQuery = query
         tabs.append(newTab)
-        
+
         selectedTab = newTab
     }
     

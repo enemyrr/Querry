@@ -18,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Connection.self,
+            QueryHistoryEntry.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

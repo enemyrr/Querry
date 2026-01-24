@@ -553,7 +553,7 @@ private struct ActionMenuItem: View {
                 }
 
                 Text(title)
-                    .font(.system(size: 13, weight: isPrimary ? .semibold : .regular))
+                    .font(.system(size: 13))
                     .foregroundStyle(foregroundColor)
 
                 Spacer()

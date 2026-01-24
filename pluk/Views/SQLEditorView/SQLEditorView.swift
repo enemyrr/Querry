@@ -86,8 +86,10 @@ struct SQLEditorView: View {
             }
                 .keyboardShortcut("k", modifiers: [.command])
                 .hidden()
-        ).onAppear {
+        )
+        .onAppear {
             loadAvailableDatabases()
+            loadInitialQueryFromTab()
         }
     }
     
@@ -986,6 +988,15 @@ extension SQLEditorView {
                     self.selectedDatabase = ""
                 }
             }
+        }
+    }
+
+    private func loadInitialQueryFromTab() {
+        if let tab = instance.selectedTab,
+           tab.type == .sqlEditor,
+           let query = tab.initialQuery {
+            sqlQuery = query
+            tab.initialQuery = nil
         }
     }
 }

@@ -29,6 +29,9 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     var selectedRowIndex: Int?
     var selectedColumnOrder: [String]?
 
+    // Initial query for SQL Editor tabs (transient, not persisted)
+    var initialQuery: String?
+
     // CodingKeys to exclude transient properties from Codable
     enum CodingKeys: String, CodingKey {
         case id, name, type, queryState, documents, hasSchemaDeviation

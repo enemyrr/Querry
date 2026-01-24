@@ -20,6 +20,40 @@ import SwiftUI
         return activeDriver
     }
 
+    // MARK: - Query History
+    weak var queryHistoryService: QueryHistoryService?
+
+    private func recordQueryHistory(
+        query: String,
+        queryType: QueryType? = nil,
+        source: QuerySource,
+        databaseType: DatabaseType,
+        databaseName: String?,
+        schemaName: String?,
+        tableName: String? = nil,
+        executionDurationMs: Int?,
+        rowsAffected: Int? = nil,
+        wasSuccessful: Bool,
+        errorMessage: String? = nil
+    ) {
+        let service = queryHistoryService
+        Task { @MainActor in
+            service?.recordQuery(
+                query: query,
+                queryType: queryType,
+                source: source,
+                databaseType: databaseType,
+                databaseName: databaseName,
+                schemaName: schemaName,
+                tableName: tableName,
+                executionDurationMs: executionDurationMs,
+                rowsAffected: rowsAffected,
+                wasSuccessful: wasSuccessful,
+                errorMessage: errorMessage
+            )
+        }
+    }
+
     // MARK: - Results Cache
     private var queryCache: [String: QueryResult] = [:]
     
@@ -392,42 +426,199 @@ import SwiftUI
     
     // MARK: - Document Modification
     func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
-        guard let driver = activeDriver else {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
-        try await driver.createDocument(in: collectionName, databaseSchema: databaseSchema, document: document)
-        
-        clearDocumentCache(for: collectionName)
+
+        let startTime = ContinuousClock.now
+        let documentDescription = "INSERT INTO \(collectionName) - \(document.keys.joined(separator: ", "))"
+
+        do {
+            try await driver.createDocument(in: collectionName, databaseSchema: databaseSchema, document: document)
+
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: documentDescription,
+                queryType: .insert,
+                source: .documentCreate,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: databaseSchema,
+                tableName: collectionName,
+                executionDurationMs: durationMs,
+                rowsAffected: 1,
+                wasSuccessful: true
+            )
+
+            clearDocumentCache(for: collectionName)
+        } catch {
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: documentDescription,
+                queryType: .insert,
+                source: .documentCreate,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: databaseSchema,
+                tableName: collectionName,
+                executionDurationMs: durationMs,
+                wasSuccessful: false,
+                errorMessage: error.localizedDescription
+            )
+
+            throw error
+        }
     }
-    
+
     func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
-        guard let driver = activeDriver else {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
-        try await driver.updateDocument(in: collectionName, databaseSchema: databaseSchema, id: id, data: data)
+
+        let startTime = ContinuousClock.now
+        let documentDescription = "UPDATE \(collectionName) SET \(data.keys.joined(separator: ", ")) WHERE id = \(id)"
+
+        do {
+            try await driver.updateDocument(in: collectionName, databaseSchema: databaseSchema, id: id, data: data)
+
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: documentDescription,
+                queryType: .update,
+                source: .documentUpdate,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: databaseSchema,
+                tableName: collectionName,
+                executionDurationMs: durationMs,
+                rowsAffected: 1,
+                wasSuccessful: true
+            )
+        } catch {
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: documentDescription,
+                queryType: .update,
+                source: .documentUpdate,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: databaseSchema,
+                tableName: collectionName,
+                executionDurationMs: durationMs,
+                wasSuccessful: false,
+                errorMessage: error.localizedDescription
+            )
+
+            throw error
+        }
     }
-    
+
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
-        guard let driver = activeDriver else {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
-        try await driver.deleteDocument(in: collectionName, databaseSchema: databaseSchema, id: id)
-        
-        clearDocumentCache(for: collectionName)
+
+        let startTime = ContinuousClock.now
+        let documentDescription = "DELETE FROM \(collectionName) WHERE id = \(id)"
+
+        do {
+            try await driver.deleteDocument(in: collectionName, databaseSchema: databaseSchema, id: id)
+
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: documentDescription,
+                queryType: .delete,
+                source: .documentDelete,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: databaseSchema,
+                tableName: collectionName,
+                executionDurationMs: durationMs,
+                rowsAffected: 1,
+                wasSuccessful: true
+            )
+
+            clearDocumentCache(for: collectionName)
+        } catch {
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: documentDescription,
+                queryType: .delete,
+                source: .documentDelete,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: databaseSchema,
+                tableName: collectionName,
+                executionDurationMs: durationMs,
+                wasSuccessful: false,
+                errorMessage: error.localizedDescription
+            )
+
+            throw error
+        }
     }
     
     // MARK: - Raw Query Execution
     func executeRawQuery(_ query: String, databaseSchema: String? = nil) async throws -> [QueryResult] {
-        guard let driver = activeDriver else {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
 
         let schemaToUse = databaseSchema ?? currentSchema
+        let startTime = ContinuousClock.now
 
-        return try await driver.executeRawQuery(query, databaseSchema: schemaToUse)
+        do {
+            let results = try await driver.executeRawQuery(query, databaseSchema: schemaToUse)
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            let totalRows = results.reduce(0) { $0 + $1.rows.count }
+
+            recordQueryHistory(
+                query: query,
+                source: .sqlEditor,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: schemaToUse,
+                executionDurationMs: durationMs,
+                rowsAffected: totalRows,
+                wasSuccessful: true
+            )
+
+            return results
+        } catch {
+            let duration = startTime.duration(to: .now)
+            let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+
+            recordQueryHistory(
+                query: query,
+                source: .sqlEditor,
+                databaseType: connection.databaseType,
+                databaseName: connectedDatabase?.name,
+                schemaName: schemaToUse,
+                executionDurationMs: durationMs,
+                wasSuccessful: false,
+                errorMessage: error.localizedDescription
+            )
+
+            throw error
+        }
     }
     
     // MARK: - AI Operations
