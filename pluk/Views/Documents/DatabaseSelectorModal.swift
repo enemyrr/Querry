@@ -67,14 +67,14 @@ struct DatabaseSelectorModal: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.controlColor).opacity(0.2))
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.controlColor).opacity(0.1))
                     }
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.separatorColor).opacity(0.5), lineWidth: 1)
+                            .stroke(.separator, lineWidth: 1)
                     )
-                    .cornerRadius(12)
+                    .clipShape(.rect(cornerRadius: 12))
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 32)
@@ -165,20 +165,20 @@ struct DatabaseCard: View {
     
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 // Database Icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(databaseIconBackground)
                         .frame(width: 40, height: 40)
-                    
+
                     Image(systemName: "cylinder.fill")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(databaseIconColor)
                         .scaleEffect(isHovered ? 1.05 : 1.0)
                         .animation(.easeInOut(duration: 0.15), value: isHovered)
                 }
-                
+
                 // Database Info
                 VStack(alignment: .leading, spacing: 3) {
                     Text(database.name)
@@ -201,21 +201,11 @@ struct DatabaseCard: View {
                         }
                     }
                 }
-                
-                Spacer()
-                
-                // Hover indicator
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .opacity(isHovered ? 1.0 : 0.0)
-                    .scaleEffect(isHovered ? 1.0 : 0.8)
-                    .animation(.easeInOut(duration: 0.15), value: isHovered)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .background(cardBackground)
-            .cornerRadius(16)
+            .clipShape(.rect(cornerRadius: 16))
             .shadow(
                 color: shadowColor,
                 radius: shadowRadius,
@@ -224,7 +214,7 @@ struct DatabaseCard: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(borderColor, lineWidth: borderWidth)
+                    .stroke(borderColor, lineWidth: 1)
             )
             .scaleEffect(isHovered ? 1.01 : 1.0)
         }
@@ -234,35 +224,23 @@ struct DatabaseCard: View {
     
     // MARK: - Computed Properties
     private var databaseIconBackground: Color {
-        if isHovered {
-            return Color(.controlColor).opacity(0.8)
-        } else {
-            return Color(.controlColor).opacity(0.3)
-        }
+        return Color(.controlBackgroundColor).opacity(0.5)
     }
-    
+
     private var databaseIconColor: Color {
-        .secondary
+        Color(.gray)
     }
-    
+
     private var cardBackground: Color {
         if isHovered {
-            return Color(.controlColor).opacity(0.5)
+            return Color(.controlColor).opacity(0.2)
         } else {
             return Color(.controlColor).opacity(0.1)
         }
     }
     
     private var borderColor: Color {
-        if isHovered {
-            return Color(.separatorColor)
-        } else {
-            return Color(.separatorColor).opacity(0.3)
-        }
-    }
-    
-    private var borderWidth: CGFloat {
-        1
+        Color(.separatorColor)
     }
     
     private var shadowColor: Color {
