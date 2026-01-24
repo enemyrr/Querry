@@ -41,6 +41,8 @@ final class TooltipCoordinator {
     private var currentOwner: ObjectIdentifier?
     private var showTask: Task<Void, Never>?
     private var clickMonitor: Any?
+    private var lastTooltipDismissTime: Date?
+    private let warmupDuration: TimeInterval = 0.5
 
     private init() {
         setupClickMonitor()
@@ -71,26 +73,41 @@ final class TooltipCoordinator {
 
         currentOwner = owner
 
-        showTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(delay))
+        let isWarm = lastTooltipDismissTime.map { Date().timeIntervalSince($0) < warmupDuration } ?? false
 
-                guard !Task.isCancelled,
-                      self?.currentOwner == owner,
-                      view.window != nil else {
-                    return
+        if isWarm {
+            showTooltip(
+                text: text,
+                relativeTo: view,
+                position: position,
+                alignment: alignment,
+                spacing: spacing,
+                shortcut: shortcut,
+                animated: false
+            )
+        } else {
+            showTask = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: .seconds(delay))
+
+                    guard !Task.isCancelled,
+                          self?.currentOwner == owner,
+                          view.window != nil else {
+                        return
+                    }
+
+                    self?.showTooltip(
+                        text: text,
+                        relativeTo: view,
+                        position: position,
+                        alignment: alignment,
+                        spacing: spacing,
+                        shortcut: shortcut,
+                        animated: true
+                    )
+                } catch {
+                    // Task cancelled
                 }
-
-                self?.showTooltip(
-                    text: text,
-                    relativeTo: view,
-                    position: position,
-                    alignment: alignment,
-                    spacing: spacing,
-                    shortcut: shortcut
-                )
-            } catch {
-                // Task cancelled
             }
         }
     }
@@ -101,10 +118,11 @@ final class TooltipCoordinator {
         position: TooltipPosition,
         alignment: TooltipPosition?,
         spacing: CGFloat,
-        shortcut: KeyboardShortcut?
+        shortcut: KeyboardShortcut?,
+        animated: Bool = true
     ) {
         let tooltip = TooltipWindow(text: text, shortcut: shortcut)
-        tooltip.show(relativeTo: view, position: position, alignment: alignment, spacing: spacing)
+        tooltip.show(relativeTo: view, position: position, alignment: alignment, spacing: spacing, animated: animated)
         currentTooltip = tooltip
     }
 
@@ -112,6 +130,9 @@ final class TooltipCoordinator {
         showTask?.cancel()
         showTask = nil
         currentOwner = nil
+        if currentTooltip != nil {
+            lastTooltipDismissTime = Date()
+        }
         currentTooltip?.hide()
         currentTooltip = nil
     }
@@ -314,7 +335,7 @@ class TooltipWindow: NSWindow {
         return container
     }
 
-    func show(relativeTo view: NSView, position: TooltipPosition, alignment: TooltipPosition?, spacing: CGFloat) {
+    func show(relativeTo view: NSView, position: TooltipPosition, alignment: TooltipPosition?, spacing: CGFloat, animated: Bool = true) {
         guard let window = view.window else { return }
 
         let viewBounds = view.bounds
@@ -387,13 +408,17 @@ class TooltipWindow: NSWindow {
 
         self.setFrameOrigin(tooltipOrigin)
 
-        self.alphaValue = 0
-        window.addChildWindow(self, ordered: .above)
-
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.15
-            self.animator().alphaValue = 1.0
-        })
+        if animated {
+            self.alphaValue = 0
+            window.addChildWindow(self, ordered: .above)
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.15
+                self.animator().alphaValue = 1.0
+            })
+        } else {
+            self.alphaValue = 1.0
+            window.addChildWindow(self, ordered: .above)
+        }
     }
 
     func hide() {
