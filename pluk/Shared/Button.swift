@@ -187,26 +187,45 @@ struct NewTabButtonStyle: ButtonStyle {
     var padding: EdgeInsets = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
-    
+
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.label
                 .foregroundStyle(.secondary)
         }
         .padding(padding)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(
-                    (isHovering || isActive)
-                    ? Color(.controlColor).opacity(0.8)
-                    : Color.clear
-                )
-        )
+        .modifier(NewTabGlassBackground(isHovering: isHovering, isActive: isActive))
         .if(!disableScaleEffect) { view in
             view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)
         }
         .onHover { hovering in
             isHovering = hovering
+        }
+    }
+}
+
+/// Glass effect background for new tab button on macOS 26+
+struct NewTabGlassBackground: ViewModifier {
+    let isHovering: Bool
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            if isHovering || isActive {
+                content.glassEffect(.regular, in: .rect(cornerRadius: 8))
+            } else {
+                content
+            }
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            (isHovering || isActive)
+                            ? Color(.controlColor).opacity(0.8)
+                            : Color.clear
+                        )
+                )
         }
     }
 }

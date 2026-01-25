@@ -12,6 +12,7 @@ struct TabBar: View {
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.leadingOverlayWidth) private var leadingOverlayWidth
     @State private var isScrollable = false
+    @State private var isHoveringRightSidebar = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -23,7 +24,6 @@ struct TabBar: View {
                     newTabButton(leadingPadding: -2)
                 }
             }
-            .padding(.trailing, 12)
             .background(
                 // Hidden keyboard shortcut for closing tabs
                 Button(action: {
@@ -41,6 +41,8 @@ struct TabBar: View {
             Spacer()
 
             rightSidebarToggle
+                .padding(.leading, -4)
+                .padding(.top, 2)
                 .padding(.trailing, 8)
         }
         .padding(
@@ -201,20 +203,43 @@ struct TabBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(appViewModel.isRightSidebarVisible ? Color(.controlColor).opacity(0.8) : Color.clear)
-                .animation(.easeInOut(duration: 0.15), value: appViewModel.isRightSidebarVisible)
-        )
-        .keyboardShortcut("\\", modifiers: [.command, .option])
+        .modifier(GlassToggleBackground(isHovering: isHoveringRightSidebar, isActive: appViewModel.isRightSidebarVisible))
+        .onHover { hovering in
+            isHoveringRightSidebar = hovering
+        }
+        .keyboardShortcut("]", modifiers: [.command])
         .customHelp(
             "Toggle Row Details",
             shortcut: KeyboardShortcut(
-                modifiers: [.command, .option],
-                key: "\\"
+                modifiers: [.command],
+                key: "]"
             )
         )
         .padding(.bottom, 4)
+    }
+}
+
+/// A view modifier that applies glass effect on macOS 26+ when hovering or active, otherwise just shows the icon
+struct GlassToggleBackground: ViewModifier {
+    let isHovering: Bool
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            if isHovering || isActive {
+                content
+                    .glassEffect(.regular, in: .rect(cornerRadius: 8))
+            } else {
+                content
+            }
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill((isHovering || isActive) ? Color(.controlColor).opacity(0.8) : Color.clear)
+                        .animation(.easeInOut(duration: 0.15), value: isActive)
+                )
+        }
     }
 }
 

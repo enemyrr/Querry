@@ -34,7 +34,7 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
         return nil
     }
-    
+
     // MARK: NSWindow
     override func awakeFromNib() {
         super.awakeFromNib()
@@ -47,12 +47,12 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         // Ensure titlebar visibility is applied on mount
         updateTitlebarVisibility()
     }
-    
+
     // Override to prevent tab bar from ever being shown
     override func toggleTabBar(_ sender: Any?) {
         // Do nothing - we never want to show the native tab bar
     }
-    
+
     // Override to validate the tab bar menu item (always disabled)
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(toggleTabBar(_:)) {
@@ -185,15 +185,64 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
 
         super.addTitlebarAccessoryViewController(childViewController)
+
+        // macOS 26+: Hide tab bar views that block toolbar clicks
+        if #available(macOS 26, *), isTabBar {
+            // Try multiple times with delays since system may recreate views
+            hideTabBarAccessoryClipViews()
+
+            DispatchQueue.main.async { [weak self] in
+                self?.hideTabBarAccessoryClipViews()
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.hideTabBarAccessoryClipViews()
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.hideTabBarAccessoryClipViews()
+            }
+        }
     }
-    
+
+    /// Hide NSTitlebarAccessoryClipView views that contain tab bars (macOS 26+)
+    @available(macOS 26, *)
+    private func hideTabBarAccessoryClipViews() {
+        guard let titlebarContainer = titlebarContainer else { return }
+
+        // Hide all clip views containing tab bars
+        for clipView in titlebarContainer.descendants(withClassName: "NSTitlebarAccessoryClipView") {
+            if clipView.firstDescendant(withClassName: "NSTabBar") != nil {
+                clipView.isHidden = true
+                clipView.frame = .zero
+                clipView.alphaValue = 0
+            }
+        }
+
+        // Also hide NSTabBar directly
+        for tabBar in titlebarContainer.descendants(withClassName: "NSTabBar") {
+            tabBar.isHidden = true
+            tabBar.frame = .zero
+            tabBar.alphaValue = 0
+        }
+
+        // Hide any accessory views that might contain tabs
+        for accessoryView in titlebarAccessoryViewControllers {
+            if accessoryView.identifier == Self.tabBarIdentifier {
+                accessoryView.view.isHidden = true
+                accessoryView.view.frame = .zero
+                accessoryView.view.alphaValue = 0
+            }
+        }
+    }
+
     // MARK: Tab Bar
 
     /// This identifier is attached to the tab bar view controller when we detect it being
     /// added.
     static let tabBarIdentifier: NSUserInterfaceItemIdentifier = .init("_plukTabBar")
-    
-    
+
+
     /// Returns true if there is a tab bar visible on this window.
     var hasTabBar: Bool {
         contentView?.firstViewFromRoot(withClassName: "NSTabBar") != nil
