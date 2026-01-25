@@ -12,8 +12,11 @@ extension Notification.Name {
     /// Request an NSTableView-level reload without refetching data
     static let tableReloadData = Notification.Name("tableReloadData")
 
-    /// Collapse the primary sidebar in the main split view
-    static let collapseSidebar = Notification.Name("CollapseSidebar")
+    /// Toggle the left sidebar in the main split view
+    static let toggleLeftSidebar = Notification.Name("ToggleLeftSidebar")
+
+    /// Toggle the right sidebar (row details)
+    static let toggleRightSidebar = Notification.Name("ToggleRightSidebar")
 
     /// Tab change notification
     static let tabDidChange = Notification.Name("tabDidChange")

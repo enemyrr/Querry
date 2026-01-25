@@ -114,21 +114,14 @@ struct DocumentView: View {
                 .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
                 .padding(.top, 6)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: appViewModel.isRightSidebarVisible)
-                .background(
-                    // Hidden button for Cmd+] to toggle right sidebar
-                    Button(action: {
-                        appViewModel.isRightSidebarVisible.toggle()
-                    }) {
-                        EmptyView()
-                    }
-                    .hidden()
-                    .keyboardShortcut("]", modifiers: [.command])
-                    .opacity(0)
-                    .accessibilityHidden(true)
-                )
             }
         }
         .postHogScreenView("DocumentView")
+        .onReceive(NotificationCenter.default.publisher(for: .toggleRightSidebar)) { _ in
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                appViewModel.isRightSidebarVisible.toggle()
+            }
+        }
     }
     
     
@@ -145,13 +138,6 @@ struct DocumentView: View {
                     return nil // Consume the event
                 }
                 return event // Let it pass through if not Command+P
-
-            case 30: // ']' key
-                if event.modifierFlags.contains(.command) {
-                    appViewModel.isRightSidebarVisible.toggle()
-                    return nil // Consume the event
-                }
-                return event
 
             case 53: // 'esc' key
                 if isCommandBarVisible {

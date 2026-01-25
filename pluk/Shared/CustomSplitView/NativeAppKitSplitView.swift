@@ -81,7 +81,7 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.handleSidebarToggle(_:)),
-            name: .collapseSidebar,
+            name: .toggleLeftSidebar,
             object: nil
         )
 

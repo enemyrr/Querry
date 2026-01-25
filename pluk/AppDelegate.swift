@@ -106,10 +106,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // Handle the toggleRightSidebar: action from menu
+    @objc func toggleRightSidebar(_ sender: Any?) {
+        NotificationCenter.default.post(name: .toggleRightSidebar, object: nil)
+    }
+
     // Validate menu items to keep them enabled
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleSidebar(_:)) {
-            return true // Always enable sidebar toggle
+        if menuItem.action == #selector(toggleSidebar(_:)) ||
+           menuItem.action == #selector(toggleRightSidebar(_:)) {
+            return true
         }
         return true
     }

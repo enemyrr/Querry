@@ -55,28 +55,14 @@ struct TabBar: View {
             // Consume background clicks to prevent window minimize/maximize
         }
         .background(
-            Group {
-                // Add hidden buttons for Cmd+1 through Cmd+9
-                ForEach(0..<9) { index in
-                    Button(action: {
-                        instance.selectTabByIndex(index)
-                    }) {
-                        EmptyView()
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command])
-                    .opacity(0)
-                    .accessibilityHidden(true)
-                }
-
-                // Hidden keyboard shortcut for right sidebar toggle
+            // Add hidden buttons for Cmd+1 through Cmd+9
+            ForEach(0..<9) { index in
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        appViewModel.isRightSidebarVisible.toggle()
-                    }
+                    instance.selectTabByIndex(index)
                 }) {
                     EmptyView()
                 }
-                .keyboardShortcut("]", modifiers: [.command])
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command])
                 .opacity(0)
                 .accessibilityHidden(true)
             }

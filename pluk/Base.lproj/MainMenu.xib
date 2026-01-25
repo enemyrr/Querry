@@ -299,6 +299,11 @@
                                     <action selector="toggleSidebar:" target="-1" id="iwa-gc-5KM"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Toggle Row Details" keyEquivalent="]" id="rSD-tg-rD1">
+                                <connections>
+                                    <action selector="toggleRightSidebar:" target="Voe-Tx-rLC" id="tRd-sB-r1D"/>
+                                </connections>
+                            </menuItem>
                         </items>
                     </menu>
                 </menuItem>
