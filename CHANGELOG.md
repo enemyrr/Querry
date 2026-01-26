@@ -2,6 +2,27 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.25] – 2026-01-26
+
+This update is all about staying in flow. You can edit schemas without leaving Pluk, inspect rows in a proper sidebar, and run multi-statement queries with cleaner results and fewer surprises.
+
+Here’s what’s new:
+
+- **Schema edits, built in.** Modify columns and indexes directly in Pluk, so schema work feels as fast as writing a query. ([#34](https://github.com/pluk-inc/Pluk/issues/34))
+- **A right sidebar for row details.** Inspect full rows without fighting horizontal scroll, with a dedicated Row Details Inspector. ([#35](https://github.com/pluk-inc/Pluk/issues/35))
+- **Enum values, without typing.** Enum fields now let you pick valid values instead of manually entering them. ([#36](https://github.com/pluk-inc/Pluk/issues/36))
+- **Multiple query results in tabs.** Run multiple statements and flip through results in a clean tabbed view. ([#38](https://github.com/pluk-inc/Pluk/issues/38))
+- **Switch databases from the sidebar.** Jump between databases using a dropdown, without rebuilding your workspace each time. ([#40](https://github.com/pluk-inc/Pluk/issues/40))
+- **Query history is here.** Pluk now tracks executed queries so you can revisit what worked and keep moving. ([#41](https://github.com/pluk-inc/Pluk/issues/41))
+
+We’ve also shipped some small but mighty updates:
+
+- **Custom popovers are steadier.** Fixed reliability issues so popovers behave consistently. ([#37](https://github.com/pluk-inc/Pluk/issues/37))
+- **Tooltips feel snappier after the first one.** Added warmup behavior so subsequent tooltips can appear instantly. ([#42](https://github.com/pluk-inc/Pluk/issues/42))
+- **Multi-statement queries are more reliable.** Fixed a failure mode caused by prepared statement errors. ([#23](https://github.com/pluk-inc/Pluk/issues/23))
+- **Postgres database selection behaves properly.** The database selector popup now shows when you connect without specifying a database. ([#39](https://github.com/pluk-inc/Pluk/issues/39))
+- **No more TabBar click-through.** Background clicks won’t accidentally trigger macOS window controls anymore. ([#33](https://github.com/pluk-inc/Pluk/issues/33))
+
 ## [0.0.1-beta.24] – 2025-10-21
 
 ### ✨ New Features

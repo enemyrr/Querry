@@ -137,6 +137,14 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
         var minSidebarWidth: CGFloat = 290
         var lastUserSidebarWidth: CGFloat = 330 // Track user's preferred width
 
+        private var isAnimating = false
+        private var animationDisplayLink: CVDisplayLink?
+        private var animationStartTime: CFTimeInterval = 0
+        private var animationStartPosition: CGFloat = 0
+        private var animationTargetPosition: CGFloat = 0
+        private var animationDuration: CFTimeInterval = 0.3
+        private var isCollapsing = false
+
         // MARK: - Native Sidebar Collapse Methods
 
         func toggleSidebar() {
@@ -148,17 +156,64 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
                 return
             }
 
+            // Don't start new animation if one is in progress
+            if isAnimating {
+                return
+            }
+
             if leftHost.isHidden {
                 // Show sidebar at user's last preferred width
                 let expandWidth = max(lastUserSidebarWidth, minSidebarWidth)
-                splitView.setPosition(expandWidth, ofDividerAt: 0)
                 leftHost.isHidden = false
                 sidebarVisibilityBinding?.wrappedValue = true
+                animateSidebarPosition(from: 0, to: expandWidth, collapsing: false)
             } else {
                 // Store current width before hiding
                 lastUserSidebarWidth = leftHost.frame.width
-                leftHost.isHidden = true
-                sidebarVisibilityBinding?.wrappedValue = false
+                animateSidebarPosition(from: leftHost.frame.width, to: 0, collapsing: true)
+            }
+        }
+
+        private func animateSidebarPosition(from startPos: CGFloat, to endPos: CGFloat, collapsing: Bool) {
+            isAnimating = true
+            isCollapsing = collapsing
+            animationStartPosition = startPos
+            animationTargetPosition = endPos
+            animationStartTime = CACurrentMediaTime()
+
+            // Use a timer for the animation since CVDisplayLink requires more setup
+            let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
+                self?.updateAnimation(timer: timer)
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
+
+        private func updateAnimation(timer: Timer) {
+            guard let splitView = splitView else {
+                timer.invalidate()
+                isAnimating = false
+                return
+            }
+
+            let elapsed = CACurrentMediaTime() - animationStartTime
+            let progress = min(elapsed / animationDuration, 1.0)
+
+            // Ease-out cubic timing function for smooth deceleration
+            let easedProgress = 1.0 - pow(1.0 - progress, 3.0)
+
+            let currentPosition = animationStartPosition + (animationTargetPosition - animationStartPosition) * easedProgress
+
+            splitView.setPosition(currentPosition, ofDividerAt: 0)
+
+            if progress >= 1.0 {
+                timer.invalidate()
+                isAnimating = false
+
+                // Hide the view after collapse animation completes
+                if isCollapsing {
+                    leftHost?.isHidden = true
+                    sidebarVisibilityBinding?.wrappedValue = false
+                }
             }
         }
 
@@ -167,6 +222,10 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
         func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
             if isFixedSidebar {
                 return fixedSidebarWidth // Fixed width
+            }
+            // During animation, allow position to go to 0
+            if isAnimating {
+                return 0
             }
             return minSidebarWidth // Minimum width for resizable sidebars
         }
@@ -192,6 +251,12 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
 
         func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
             guard let leftHost = leftHost, let rightHost = rightHost else {
+                splitView.adjustSubviews()
+                return
+            }
+
+            // During animation, let the split view handle its own layout
+            if isAnimating {
                 splitView.adjustSubviews()
                 return
             }
