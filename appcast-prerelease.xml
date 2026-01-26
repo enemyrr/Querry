@@ -6,6 +6,40 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 25</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.25.dmg</link>
+            <sparkle:version>283</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.25</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 25</h2><div>This update is all about staying in flow. You can edit schemas without leaving Pluk, inspect rows in a proper sidebar, and run multi-statement queries with cleaner results and fewer surprises.
+Here’s what’s new:
+<ul>
+<li><strong>Schema edits, built in.</strong> Modify columns and indexes directly in Pluk, so schema work feels as fast as writing a query. (<a href="https://github.com/pluk-inc/Pluk/issues/34">#34</a>)</li>
+<li><strong>A right sidebar for row details.</strong> Inspect full rows without fighting horizontal scroll, with a dedicated Row Details Inspector. (<a href="https://github.com/pluk-inc/Pluk/issues/35">#35</a>)</li>
+<li><strong>Enum values, without typing.</strong> Enum fields now let you pick valid values instead of manually entering them. (<a href="https://github.com/pluk-inc/Pluk/issues/36">#36</a>)</li>
+<li><strong>Multiple query results in tabs.</strong> Run multiple statements and flip through results in a clean tabbed view. (<a href="https://github.com/pluk-inc/Pluk/issues/38">#38</a>)</li>
+<li><strong>Switch databases from the sidebar.</strong> Jump between databases using a dropdown, without rebuilding your workspace each time. (<a href="https://github.com/pluk-inc/Pluk/issues/40">#40</a>)</li>
+<li><strong>Query history is here.</strong> Pluk now tracks executed queries so you can revisit what worked and keep moving. (<a href="https://github.com/pluk-inc/Pluk/issues/41">#41</a>)</li>
+</ul>
+We’ve also shipped some small but mighty updates:
+<ul>
+<li><strong>Custom popovers are steadier.</strong> Fixed reliability issues so popovers behave consistently. (<a href="https://github.com/pluk-inc/Pluk/issues/37">#37</a>)</li>
+<li><strong>Tooltips feel snappier after the first one.</strong> Added warmup behavior so subsequent tooltips can appear instantly. (<a href="https://github.com/pluk-inc/Pluk/issues/42">#42</a>)</li>
+<li><strong>Multi-statement queries are more reliable.</strong> Fixed a failure mode caused by prepared statement errors. (<a href="https://github.com/pluk-inc/Pluk/issues/23">#23</a>)</li>
+<li><strong>Postgres database selection behaves properly.</strong> The database selector popup now shows when you connect without specifying a database. (<a href="https://github.com/pluk-inc/Pluk/issues/39">#39</a>)</li>
+<li><strong>No more TabBar click-through.</strong> Background clicks won’t accidentally trigger macOS window controls anymore. (<a href="https://github.com/pluk-inc/Pluk/issues/33">#33</a>)</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Mon, 26 Jan 2026 09:14:01 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.25.dmg"
+                length="50187071"
+                type="application/octet-stream"
+                sparkle:edSignature="ueMi1qxB3W4SB/IPlpdi2n/N0MXS6Z7wEF6KRJdvZzs5Cboe7aQzNdckl5S8RjMyRKaKjwjcT5Iwu0ATCoEgAQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 24</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.24.dmg</link>
             <sparkle:version>282</sparkle:version>
