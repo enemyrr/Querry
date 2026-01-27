@@ -88,6 +88,7 @@ struct DatabaseList: View {
         .sheet(isPresented: $showDatabaseSelector) {
             DatabaseSelectorModal(
                 databaseService: instance.databaseService,
+                databaseType: instance.databaseType,
                 onSelection: { database in
                     Task {
                         await updateConnection(with: database)
@@ -193,22 +194,16 @@ struct CollectionsSection: View {
             != renamingCollectionName
     }
     
-    private var deleteConfirmationTitle: String {
-        switch instance.connection.databaseType {
-        case .mongodb:
-            return "Delete Collection"
-        default:
-            return "Delete Table"
-        }
+    private var entityName: String {
+        instance.connection.databaseType == .mongodb ? "Collection" : "Table"
     }
-    
+
+    private var deleteConfirmationTitle: String {
+        "Delete \(entityName)"
+    }
+
     private var deleteConfirmationMessage: String {
-        switch instance.connection.databaseType {
-        case .mongodb:
-            return "Are you sure you want to delete this collection? This action cannot be undone."
-        default:
-            return "Are you sure you want to delete this table? This action cannot be undone."
-        }
+        "Are you sure you want to delete this \(entityName.lowercased())? This action cannot be undone."
     }
 
     var body: some View {
@@ -332,8 +327,8 @@ struct CollectionsSection: View {
                     confirmRename(for: collection, databaseSchema: databaseSchema)
                 }
                 .onAppear {
-                    // Focus the text field when it appears
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(100))
                         isRenameFieldFocused = true
                     }
                 }
@@ -438,7 +433,8 @@ struct CollectionsSection: View {
             isRenameFieldFocused = false
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(200))
             renameText = ""
         }
     }
@@ -455,10 +451,10 @@ struct CollectionsSection: View {
                 isRenameFieldFocused = false
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            Task {
+                try? await Task.sleep(for: .milliseconds(200))
                 renameText = ""
             }
-
         } catch {
             // Handle error - show popup alert
             isRenaming = false

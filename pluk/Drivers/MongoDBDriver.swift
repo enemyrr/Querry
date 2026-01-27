@@ -9,12 +9,8 @@ struct MongoDBWrapper: DatabaseWrapper {
     var name: String {
         database.name
     }
-    var size: String? {
-        return nil
-    }
-    var tableCount: Int? {
-        return nil
-    }
+    var size: String? { nil }
+    var tableCount: Int? { nil }
 }
 
 struct MongoCollectionWrapper: CollectionWrapper {
@@ -28,21 +24,12 @@ struct MongoCollectionWrapper: CollectionWrapper {
         collection.name
     }
     
-    // MARK: - Initializers
     init(collection: MongoCollection, type: String = "collection") {
         self.collection = collection
         self.id = ObjectIdentifier(collection)
         self.type = type
     }
     
-    // Alternative initializer with explicit ID (if needed)
-    init(id: ObjectIdentifier, collection: MongoCollection, type: String = "collection") {
-        self.id = id
-        self.collection = collection
-        self.type = type
-    }
-    
-    // MARK: - Hashable Conformance
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
@@ -53,22 +40,21 @@ struct MongoCollectionWrapper: CollectionWrapper {
     }
 }
 
-// MARK: - MongoDB Driver
 class MongoDBDriver: DatabaseDriver {
     func getInformationSchema() async throws -> [InformationSchema] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
-    
+
     func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
-    
+
     func getDatabaseMetadata() async throws -> [MongoDBWrapper] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
-    
+
     func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
-        throw DatabaseError.notImplemented("MySQL driver not yet implemented")
+        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
     
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
@@ -410,8 +396,7 @@ class MongoDBDriver: DatabaseDriver {
         let collection = mongoDatabase[collectionName]
         return try await collection.count()
     }
-    
-    
+
     func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
@@ -459,12 +444,10 @@ class MongoDBDriver: DatabaseDriver {
             columns: [],
             rows: convertedRows,
             totalCount: convertedRows.count,
-            rawRows: [],
+            rawRows: []
         )
     }
-    
-    
-    
+
     func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
@@ -572,12 +555,10 @@ class MongoDBDriver: DatabaseDriver {
     }
     
     func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
-        guard let database = connectedDatabase else {
+        guard connectedDatabase != nil else {
             throw MongoError.databaseNotInitialized
         }
-        
-        let from = database[oldName]
-        //        try await from.rename(to: newName)
+        throw DatabaseError.notImplemented("MongoDB collection rename not yet implemented")
     }
     
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
@@ -588,6 +569,27 @@ class MongoDBDriver: DatabaseDriver {
         // MongoDB indexes are different from relational database indexes
         // This can be implemented in the future by querying collection.listIndexes()
         return []
+    }
+
+    // MARK: - Database Management
+
+    func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
+        guard let database = connectedDatabase,
+              let cluster = database.pool as? MongoCluster else {
+            throw MongoError.databaseNotInitialized
+        }
+
+        let newDb = cluster[databaseName]
+        let tempCollectionName = "_pluk_temp_\(UUID().uuidString)"
+        let createCommand: Document = ["create": tempCollectionName]
+
+        let connection = try await newDb.pool.next(for: .basic)
+        _ = try await connection.execute(createCommand, namespace: newDb.commandNamespace)
+
+        let dropCommand: Document = ["drop": tempCollectionName]
+        _ = try await connection.execute(dropCommand, namespace: newDb.commandNamespace)
+
+        debugLog("✓ Created database \(databaseName)")
     }
 
     // MARK: - Helper Methods
@@ -650,37 +652,3 @@ class MongoDBDriver: DatabaseDriver {
     }
 }
 
-// MARK: - Dictionary to Document Extension
-//extension MongoKitten.Document {
-//    init(from dictionary: [String: Any]) throws {
-//        var doc = MongoKitten.Document()
-//        for (key, value) in dictionary {
-//            doc[key] = try BSONValue(from: value)
-//        }
-//        self = doc
-//    }
-//}
-//
-//extension BSONValue {
-//    init(from value: Any) throws {
-//        switch value {
-//        case let string as String:
-//            self = .string(string)
-//        case let int as Int:
-//            self = .int32(Int32(int))
-//        case let int64 as Int64:
-//            self = .int64(int64)
-//        case let double as Double:
-//            self = .double(double)
-//        case let bool as Bool:
-//            self = .bool(bool)
-//        case let array as [Any]:
-//            let bsonArray = try array.map { try BSONValue(from: $0) }
-//            self = .array(bsonArray)
-//        case let dict as [String: Any]:
-//            self = .document(try MongoKitten.Document(from: dict))
-//        default:
-//            throw MongoError.invalidData
-//        }
-//    }
-//}

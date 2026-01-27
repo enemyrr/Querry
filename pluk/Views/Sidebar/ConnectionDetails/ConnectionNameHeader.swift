@@ -14,6 +14,7 @@ struct ConnectionNameHeader: View {
     @State private var showConnectionDetails = false
     @State private var showEditSheet = false
     @State private var showEditConfirmation = false
+    @State private var showCreateCollectionPopover = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -24,7 +25,6 @@ struct ConnectionNameHeader: View {
                     .font(.headline)
                     .fontWeight(.regular)
                     .lineLimit(1)
-
 
                 StatusBadge(status: connectionInstance.connectionStatus)
             }
@@ -52,7 +52,22 @@ struct ConnectionNameHeader: View {
                     key: "F"
                 ))
 
-                CreateCollection(viewModel: viewModel)
+                Button(action: {
+                    showCreateCollectionPopover.toggle()
+                }) {
+                    Image(systemName: "plus.circle")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(ActionButtonStyle())
+                .keyboardShortcut("N", modifiers: [.command, .shift])
+                .customHelp(
+                    connectionInstance.databaseType?.dataModelType == .sql ? "New Table" : "New Collection",
+                    shortcut: KeyboardShortcut(modifiers: [.command, .shift], key: "N")
+                )
+                .popover(isPresented: $showCreateCollectionPopover) {
+                    CreateTableForm()
+                }
             }
         }
         .padding(.vertical, 6)
@@ -64,6 +79,7 @@ struct ConnectionNameHeader: View {
         .onHover { hovering in
             isHovering = hovering
         }
+        .contentShape(Rectangle())
         .onTapGesture {
             showConnectionDetails = true
         }
@@ -133,7 +149,6 @@ private struct StatusBadge: View {
                     view.symbolEffect(.rotate.clockwise.byLayer, options: .repeat(.periodic(delay: 1)))
                 }
 
-            
             Text(statusText)
                 .font(.caption)
                 .foregroundStyle(statusColor)
@@ -142,36 +157,26 @@ private struct StatusBadge: View {
 
     private var statusText: String {
         switch status {
-        case .connected:
-            return "Connected"
-        case .connecting:
-            return "Connecting"
-        case .disconnected:
-            return "Disconnected"
-        case .error:
-            return "Error"
+        case .connected: "Connected"
+        case .connecting: "Connecting"
+        case .disconnected: "Disconnected"
+        case .error: "Error"
         }
     }
 
     private var statusColor: Color {
         switch status {
-        case .connected:
-            return .green
-        case .connecting:
-            return .orange
-        case .disconnected, .error:
-            return .secondary
+        case .connected: .green
+        case .connecting: .orange
+        case .disconnected, .error: .secondary
         }
     }
 
     private var statusIcon: String {
         switch status {
-        case .connected:
-            return "server.rack"
-        case .connecting:
-            return "arrow.2.circlepath"
-        case .disconnected, .error:
-            return "network.slash"
+        case .connected: "server.rack"
+        case .connecting: "arrow.2.circlepath"
+        case .disconnected, .error: "network.slash"
         }
     }
 }

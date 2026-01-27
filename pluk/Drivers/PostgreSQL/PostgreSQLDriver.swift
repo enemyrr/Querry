@@ -2061,6 +2061,28 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to drop index: \(error.localizedDescription)", query: sql)
         }
     }
+
+    // MARK: - Database Management
+
+    func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
+        let connection = try await ensureConnected()
+
+        let sanitizedName = databaseName.replacing("\"", with: "\"\"")
+        var sql = "CREATE DATABASE \"\(sanitizedName)\""
+
+        if let encoding = options.encoding, !encoding.isEmpty {
+            sql += " ENCODING '\(encoding)'"
+        }
+
+        do {
+            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            debugLog("✓ Created database \(databaseName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: sql)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to create database: \(error.localizedDescription)", query: sql)
+        }
+    }
 }
 
 // MARK: - Utility Extensions

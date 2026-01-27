@@ -8,15 +8,28 @@ import SwiftUI
 
 struct DatabaseSelectorModal: View {
     let databaseService: DatabaseService
+    let databaseType: DatabaseType?
     let onSelection: (DatabaseWrapper) -> Void
     let onCreateNew: () -> Void
     @Environment(\.dismiss) private var dismiss
-    
+
     @State private var databases: [DatabaseWrapper] = []
     @State private var searchText = ""
     @State private var hoveredDatabase: DatabaseWrapper? = nil
+    @State private var isHoveringCreateButton = false
     @State private var isLoading = true
     @State private var loadError: Error? = nil
+    @State private var showCreateDatabaseSheet = false
+
+    private var supportsCreateDatabase: Bool {
+        guard let databaseType else { return false }
+        switch databaseType {
+        case .postgres, .mysql, .mongodb, .supabase:
+            return true
+        case .sqlite, .convex:
+            return false
+        }
+    }
     
     var filteredDatabases: [DatabaseWrapper] {
         if searchText.isEmpty {
@@ -123,6 +136,18 @@ struct DatabaseSelectorModal: View {
                                     }
                                 }
                             }
+
+                            if supportsCreateDatabase && searchText.isEmpty {
+                                CreateDatabaseCard(
+                                    isHovered: isHoveringCreateButton,
+                                    onSelect: { showCreateDatabaseSheet = true }
+                                )
+                                .onHover { isHovered in
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        isHoveringCreateButton = isHovered
+                                    }
+                                }
+                            }
                         }
                         .padding(.horizontal, 32)
                         .padding(.vertical, 20)
@@ -139,6 +164,17 @@ struct DatabaseSelectorModal: View {
             await loadDatabases()
         }
         .interactiveDismissDisabled()
+        .sheet(isPresented: $showCreateDatabaseSheet) {
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+                CreateDatabaseForm(onCreated: { _ in
+                    Task {
+                        await loadDatabases()
+                    }
+                })
+            }
+        }
     }
     
     @MainActor
@@ -222,9 +258,8 @@ struct DatabaseCard: View {
         .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
     
-    // MARK: - Computed Properties
     private var databaseIconBackground: Color {
-        return Color(.controlBackgroundColor).opacity(0.5)
+        Color(.controlBackgroundColor).opacity(0.5)
     }
 
     private var databaseIconColor: Color {
@@ -232,30 +267,85 @@ struct DatabaseCard: View {
     }
 
     private var cardBackground: Color {
-        if isHovered {
-            return Color(.controlColor).opacity(0.2)
-        } else {
-            return Color(.controlColor).opacity(0.1)
-        }
+        Color(.controlColor).opacity(isHovered ? 0.2 : 0.1)
     }
-    
+
     private var borderColor: Color {
         Color(.separatorColor)
     }
-    
+
     private var shadowColor: Color {
-        if isHovered {
-            return Color.black.opacity(0.1)
-        } else {
-            return Color.clear
-        }
+        isHovered ? Color.black.opacity(0.1) : Color.clear
     }
-    
+
     private var shadowRadius: CGFloat {
         isHovered ? 4 : 0
     }
-    
+
     private var shadowOffset: CGFloat {
         isHovered ? 2 : 0
+    }
+}
+
+// MARK: - Create Database Card
+struct CreateDatabaseCard: View {
+    let isHovered: Bool
+    let onSelect: () -> Void
+
+    private var cardBackground: Color {
+        Color(.controlColor).opacity(isHovered ? 0.2 : 0.1)
+    }
+
+    private var shadowColor: Color {
+        isHovered ? Color.black.opacity(0.1) : Color.clear
+    }
+
+    private var shadowRadius: CGFloat {
+        isHovered ? 4 : 0
+    }
+
+    private var shadowOffset: CGFloat {
+        isHovered ? 2 : 0
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.controlBackgroundColor).opacity(0.5))
+                        .frame(width: 40, height: 40)
+
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .scaleEffect(isHovered ? 1.05 : 1.0)
+                        .animation(.easeInOut(duration: 0.15), value: isHovered)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Create Database")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("Create a new database")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(cardBackground)
+            .clipShape(.rect(cornerRadius: 16))
+            .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowOffset)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color(.separatorColor), lineWidth: 1)
+            )
+            .scaleEffect(isHovered ? 1.01 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
 }

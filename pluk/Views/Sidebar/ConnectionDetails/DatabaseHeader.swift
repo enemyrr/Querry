@@ -20,8 +20,9 @@ struct DatabaseHeader: View {
     @State private var selectedDatabase: String = ""
     @State private var isLoadingSchemas: Bool = false
     @State private var showNotImplementedAlert = false
+    @State private var showCreateDatabaseSheet = false
     @Binding var isLoadingCollections: Bool
-    
+
     var body: some View {
         VStack {
             HStack {
@@ -39,6 +40,7 @@ struct DatabaseHeader: View {
                             selectedDatabase: $selectedDatabase,
                             selectedSchema: $selectedSchema,
                             isSchemaHovering: $isSchemaHovering,
+                            showCreateDatabasePopover: $showCreateDatabaseSheet,
                             onSchemaChange: handleSchemaSelection,
                             onDatabaseChange: handleDatabaseSelection,
                             truncatedText: truncatedText
@@ -121,15 +123,9 @@ struct DatabaseHeader: View {
         guard let databaseType = instance.databaseType else {
             return []
         }
-        
+
         switch databaseType {
-        case .postgres:
-            let schemas = try await instance.databaseService.getInformationSchema()
-            return schemas.map { $0.name }
-        case .convex:
-            let schemas = try await instance.databaseService.getInformationSchema()
-            return schemas.map { $0.name }
-        case .mysql:
+        case .postgres, .convex, .mysql:
             let schemas = try await instance.databaseService.getInformationSchema()
             return schemas.map { $0.name }
         default:
@@ -223,12 +219,10 @@ struct DatabaseSchemaItem: View {
     }
 }
 
-
 // MARK: - SearchInput
 struct SearchInput: View {
     @Environment(\.colorScheme) var colorScheme
     var viewModel: SidebarViewModel
-    @State private var localSearchText: String = ""
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -288,15 +282,15 @@ struct SearchInput: View {
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
         .onAppear {
-            // Auto-focus when search input appears
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            Task {
+                try? await Task.sleep(for: .milliseconds(100))
                 isSearchFocused = true
             }
         }
         .onChange(of: viewModel.isSearchVisible) { _, isVisible in
-            // Auto-focus when search becomes visible
             if isVisible {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(100))
                     isSearchFocused = true
                 }
             }
@@ -337,8 +331,7 @@ struct CustomComponentPicker: NSViewRepresentable {
         popUpButton.target = context.coordinator
         popUpButton.action = #selector(Coordinator.selectionChanged(_:))
 
-        // Find and replace the dropdown arrow after the button is set up
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.replaceDropdownArrow(in: popUpButton)
         }
 
@@ -459,7 +452,6 @@ struct CustomComponentPicker: NSViewRepresentable {
     }
 }
 
-
 // MARK: - TraditionalDatabaseHeaderView
 struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
     let instance: ConnectionInstance
@@ -467,9 +459,20 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
     @Binding var selectedDatabase: String
     @Binding var selectedSchema: String
     @Binding var isSchemaHovering: Bool
+    @Binding var showCreateDatabasePopover: Bool
     let onSchemaChange: (String) -> Void
     let onDatabaseChange: (String) -> Void
     let truncatedText: (String, CGFloat) -> TruncatedTextView
+
+    private var supportsCreateDatabase: Bool {
+        guard let databaseType = instance.databaseType else { return false }
+        switch databaseType {
+        case .postgres, .mysql, .mongodb, .supabase:
+            return true
+        case .sqlite, .convex:
+            return false
+        }
+    }
 
     var body: some View {
         if !availableSchemas.isEmpty {
@@ -489,6 +492,18 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+
+                    if supportsCreateDatabase {
+                        Divider()
+
+                        Button("New Database...") {
+                            showCreateDatabasePopover = true
+                        }
+                    }
+                }
+                .popover(isPresented: $showCreateDatabasePopover) {
+                    CreateDatabaseForm()
+                        .environment(instance)
                 }
             } else {
                 HStack {}
@@ -539,6 +554,18 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+
+                    if supportsCreateDatabase {
+                        Divider()
+
+                        Button("New Database...") {
+                            showCreateDatabasePopover = true
+                        }
+                    }
+                }
+                .popover(isPresented: $showCreateDatabasePopover) {
+                    CreateDatabaseForm()
+                        .environment(instance)
                 }
             } else {
                 HStack {}

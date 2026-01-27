@@ -311,7 +311,7 @@ import SwiftUI
                 skip: skip,
                 limit: limit,
                 sortBy: sortBy,
-                ascending: ascending,
+                ascending: ascending
             )
             
         case .mongodb:
@@ -396,12 +396,27 @@ import SwiftUI
         return try await driver.getDatabaseMetadata()
     }
     
+    // MARK: - Database Management
+    func createDatabase(named databaseName: String, options: CreateDatabaseOptions = .default) async throws {
+        guard let driver = activeDriver,
+              let connection = activeConnection else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+
+        try await driver.createDatabase(named: databaseName, options: options)
+        clearCache()
+
+        Task { @MainActor in
+            AnalyticsService.shared.trackDatabaseCreated(databaseType: connection.databaseType)
+        }
+    }
+
     // MARK: - Collection Management
     func createCollection(named collectionName: String) async throws {
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
+
         try await driver.createCollection(named: collectionName)
         clearCache() // Clear cache after structural changes
     }

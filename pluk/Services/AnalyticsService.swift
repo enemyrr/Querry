@@ -150,6 +150,16 @@ final class AnalyticsService {
         ])
     }
 
+    func trackDatabaseCreated(databaseType: DatabaseType) {
+        PostHogSDK.shared.capture("database_created", properties: [
+            "database_type": databaseType.rawValue
+        ])
+
+        trackFirstEvent("first_database_created", properties: [
+            "database_type": databaseType.rawValue
+        ])
+    }
+
     // MARK: - Tab Events
 
     func trackTabCreated(databaseType: DatabaseType?, tabType: String) {

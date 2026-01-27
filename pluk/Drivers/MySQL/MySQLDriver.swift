@@ -564,12 +564,35 @@ class MySQLDriver: DatabaseDriver {
     
     func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         let connection = try await ensureConnected()
-        
+
         let query = "DROP TABLE `\(collectionName)`"
-        
+
         _ = try await connection.simpleQuery(query).get()
     }
-    
+
+    // MARK: - Database Management
+
+    func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
+        let connection = try await ensureConnected()
+
+        let sanitizedName = databaseName.replacing("`", with: "``")
+        var query = "CREATE DATABASE `\(sanitizedName)`"
+
+        if let charset = options.charset, !charset.isEmpty {
+            query += " CHARACTER SET \(charset)"
+        }
+        if let collation = options.collation, !collation.isEmpty {
+            query += " COLLATE \(collation)"
+        }
+
+        do {
+            _ = try await connection.simpleQuery(query).get()
+            debugLog("✓ Created database \(databaseName)")
+        } catch {
+            throw DatabaseError.operationFailed("Failed to create database: \(error.localizedDescription)", query: query)
+        }
+    }
+
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         let connection = try await ensureConnected()
         
@@ -1236,8 +1259,7 @@ class MySQLDriver: DatabaseDriver {
         
         return columns
     }
-    
-    
+
     // MARK: - Helper method to get primary key column
     private func getPrimaryKeyColumn(for tableName: String, in databaseName: String? = nil) async throws -> String? {
         let connection = try await ensureConnected()

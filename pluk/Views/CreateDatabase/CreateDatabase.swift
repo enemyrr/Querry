@@ -1,0 +1,493 @@
+//
+//  CreateDatabase.swift
+//  Pluk
+//
+
+import SwiftUI
+
+struct CreateTableForm: View {
+    @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.dismiss) var dismiss
+
+    var onCreated: ((String) -> Void)?
+
+    @State private var name = ""
+    @State private var nameError: String?
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+    @State private var showErrorAlert = false
+
+    private var entityName: String {
+        instance.databaseType?.dataModelType == .sql ? "Table" : "Collection"
+    }
+
+    private var isFormValid: Bool {
+        !name.isEmpty && nameError == nil
+    }
+
+    private func validateName(_ name: String) -> String? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedName.isEmpty {
+            return "\(entityName) name cannot be empty"
+        }
+
+        if trimmedName.count > 64 {
+            return "\(entityName) name cannot exceed 64 characters"
+        }
+
+        if trimmedName.hasPrefix("system.") {
+            return "\(entityName) names cannot start with 'system.'"
+        }
+
+        if trimmedName.contains("$") {
+            return "\(entityName) name cannot contain '$'"
+        }
+
+        if trimmedName.contains("\0") {
+            return "\(entityName) name cannot contain null characters"
+        }
+
+        if trimmedName.hasPrefix(".") {
+            return "\(entityName) name cannot start with a period"
+        }
+
+        let reservedChars = ["\\", "/", ":", "*", "\"", "<", ">", "|", "?"]
+        for char in reservedChars {
+            if trimmedName.contains(char) {
+                return "\(entityName) name cannot contain '\(char)'"
+            }
+        }
+
+        return nil
+    }
+
+    private func create() {
+        guard !isSubmitting else { return }
+
+        errorMessage = nil
+        isSubmitting = true
+
+        Task {
+            do {
+                try await instance.databaseService.createCollection(named: name)
+                let createdName = name
+
+                await MainActor.run {
+                    isSubmitting = false
+                    if let onCreated {
+                        onCreated(createdName)
+                    } else {
+                        instance.createNewTab(name: createdName)
+                    }
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Create \(entityName)")
+                .font(.system(size: 13, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("\(entityName) name", text: $name)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .disabled(isSubmitting)
+                    .onChange(of: name) { _, newValue in
+                        nameError = validateName(newValue)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(.controlColor).opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(.separator, lineWidth: 1)
+                    )
+                    .clipShape(.rect(cornerRadius: 8))
+
+                if let nameError {
+                    Text(nameError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Button(action: create) {
+                Group {
+                    if isSubmitting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Create \(entityName)")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 36)
+            }
+            .buttonStyle(CreateButtonStyle())
+            .disabled(!isFormValid || isSubmitting)
+        }
+        .padding(20)
+        .frame(width: 280)
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
+        .disabled(isSubmitting)
+    }
+}
+
+// MARK: - CreateDatabaseForm
+
+struct CreateDatabaseForm: View {
+    @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.dismiss) var dismiss
+    @Namespace private var animation
+
+    var onCreated: ((String) -> Void)?
+
+    @State private var name = ""
+    @State private var nameError: String?
+    @State private var encoding = "UTF8"
+    @State private var charset = "utf8mb4"
+    @State private var collation = "utf8mb4_unicode_ci"
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+    @State private var showErrorAlert = false
+
+    private var isFormValid: Bool {
+        !name.isEmpty && nameError == nil
+    }
+
+    private var showsPostgresOptions: Bool {
+        instance.databaseType == .postgres
+    }
+
+    private var showsMySQLOptions: Bool {
+        instance.databaseType == .mysql
+    }
+
+    private var supportsOperation: Bool {
+        guard let databaseType = instance.databaseType else { return false }
+        switch databaseType {
+        case .postgres, .mysql, .mongodb, .supabase:
+            return true
+        case .sqlite, .convex:
+            return false
+        }
+    }
+
+    private var unsupportedMessage: String {
+        guard let databaseType = instance.databaseType else {
+            return "Database creation is not supported"
+        }
+        switch databaseType {
+        case .sqlite:
+            return "SQLite databases are file-based. Create a new .db file to create a new database."
+        case .convex:
+            return "Convex databases are managed through the Convex dashboard."
+        default:
+            return "Database creation is not supported for this database type"
+        }
+    }
+
+    private func validateName(_ name: String) -> String? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedName.isEmpty {
+            return "Database name cannot be empty"
+        }
+
+        if trimmedName.count > 64 {
+            return "Database name cannot exceed 64 characters"
+        }
+
+        if trimmedName.hasPrefix("_") {
+            return "Database name cannot start with an underscore"
+        }
+
+        guard let firstChar = trimmedName.first, firstChar.isLetter else {
+            return "Database name must start with a letter"
+        }
+
+        let reservedChars = ["\\", "/", ":", "*", "\"", "<", ">", "|", "?", " ", "'", ";"]
+        for char in reservedChars {
+            if trimmedName.contains(char) {
+                return "Database name cannot contain '\(char)'"
+            }
+        }
+
+        return nil
+    }
+
+    private func create() {
+        guard !isSubmitting else { return }
+
+        errorMessage = nil
+        isSubmitting = true
+
+        Task {
+            do {
+                var options = CreateDatabaseOptions.default
+                if showsPostgresOptions {
+                    options = CreateDatabaseOptions(encoding: encoding)
+                } else if showsMySQLOptions {
+                    options = CreateDatabaseOptions(charset: charset, collation: collation)
+                }
+
+                try await instance.databaseService.createDatabase(named: name, options: options)
+                let createdName = name
+
+                await instance.loadDatabases()
+
+                if let onCreated {
+                    await MainActor.run {
+                        isSubmitting = false
+                        onCreated(createdName)
+                        dismiss()
+                    }
+                } else {
+                    if let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(
+                        from: instance,
+                        databaseName: createdName
+                    ) {
+                        await MainActor.run {
+                            isSubmitting = false
+                            WindowController.switchToTab(.connection(instanceId))
+                            dismiss()
+                        }
+                    } else {
+                        await MainActor.run {
+                            isSubmitting = false
+                            dismiss()
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Create Database")
+                .font(.system(size: 13, weight: .semibold))
+
+            if supportsOperation {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Database name", text: $name)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .disabled(isSubmitting)
+                        .onChange(of: name) { _, newValue in
+                            nameError = validateName(newValue)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(.controlColor).opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(.separator, lineWidth: 1)
+                        )
+                        .clipShape(.rect(cornerRadius: 8))
+
+                    if let nameError {
+                        Text(nameError)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                if showsPostgresOptions {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Encoding")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 0) {
+                            ForEach(["UTF8", "LATIN1", "SQL_ASCII"], id: \.self) { option in
+                                SegmentTextButton(
+                                    text: option,
+                                    isSelected: encoding == option,
+                                    segmentId: "encoding",
+                                    animation: animation
+                                ) {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                        encoding = option
+                                    }
+                                }
+                                .disabled(isSubmitting)
+                            }
+                        }
+                        .padding(2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.clear)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                }
+
+                if showsMySQLOptions {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Character Set")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 0) {
+                                ForEach(["utf8mb4", "utf8mb3", "latin1", "ascii"], id: \.self) { option in
+                                    SegmentTextButton(
+                                        text: option,
+                                        isSelected: charset == option,
+                                        segmentId: "charset",
+                                        animation: animation
+                                    ) {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                            charset = option
+                                        }
+                                    }
+                                    .disabled(isSubmitting)
+                                }
+                            }
+                            .padding(2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.clear)
+                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Collation")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 0) {
+                                ForEach(["utf8mb4_unicode_ci", "utf8mb4_general_ci", "utf8mb4_bin"], id: \.self) { option in
+                                    SegmentTextButton(
+                                        text: option.replacing("utf8mb4_", with: ""),
+                                        isSelected: collation == option,
+                                        segmentId: "collation",
+                                        animation: animation
+                                    ) {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                            collation = option
+                                        }
+                                    }
+                                    .disabled(isSubmitting)
+                                }
+                            }
+                            .padding(2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.clear)
+                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+
+                Button(action: create) {
+                    Group {
+                        if isSubmitting {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Create Database")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                }
+                .buttonStyle(CreateButtonStyle())
+                .disabled(!isFormValid || isSubmitting)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+
+                    Text(unsupportedMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+            }
+        }
+        .padding(20)
+        .frame(width: 280)
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
+        .disabled(isSubmitting)
+    }
+}
+
+// MARK: - SegmentTextButton
+
+private struct SegmentTextButton: View {
+    let text: String
+    let isSelected: Bool
+    let segmentId: String
+    let animation: Namespace.ID
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 11))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(.separatorColor).opacity(0.5))
+                            .matchedGeometryEffect(id: segmentId, in: animation)
+                    }
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - CreateButtonStyle
+
+private struct CreateButtonStyle: ButtonStyle {
+    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isEnabled ? Self.buttonColor : Color(.controlColor).opacity(0.3))
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}

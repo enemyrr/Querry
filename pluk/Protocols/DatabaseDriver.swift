@@ -18,6 +18,20 @@ struct InformationSchema {
     let name: String
 }
 
+struct CreateDatabaseOptions {
+    let encoding: String?
+    let charset: String?
+    let collation: String?
+
+    init(encoding: String? = nil, charset: String? = nil, collation: String? = nil) {
+        self.encoding = encoding
+        self.charset = charset
+        self.collation = collation
+    }
+
+    static let `default` = CreateDatabaseOptions()
+}
+
 struct QueryResult {
     let columns: [QueryColumnInfo]
     let rows: [[String: QueryRowInfo]]
@@ -84,6 +98,9 @@ protocol DatabaseDriver {
     func listDatabases() async throws -> [Database]
     func getDatabaseMetadata()  async throws -> [Database]
     func listCollections(schema: String?) async throws -> [Collection]
+
+    // Database management
+    func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws
     
     // Collection operations
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
@@ -204,6 +221,11 @@ extension DatabaseDriver {
     // Only databases with schema caching will override this
     func clearSchemaCache(for tableName: String, schema: String?) async {
         // Default implementation does nothing
+    }
+
+    // Default implementation for createDatabase - throws not implemented
+    func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
+        throw DatabaseError.notImplemented("Creating databases is not supported for this database type")
     }
 
     // MARK: - Default Schema Modification Implementations
@@ -578,6 +600,4 @@ class DatabaseDriverFactory {
             return SQLiteDriver()
         }
     }
-} 
-
-
+}
