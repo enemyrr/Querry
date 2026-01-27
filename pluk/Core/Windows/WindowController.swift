@@ -74,12 +74,13 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
                 tabType: tabType,
                 connectionInstance: connectionInstance
             )
-            
-            // Temporarily enable tabbing for this operation
+
             if let newWindow = controller.window {
-                // Enable tabbing temporarily for tab creation
+                // Match parent window's frame before adding as tab to prevent resize
+                newWindow.setFrame(parentWindow.frame, display: false)
+
                 newWindow.tabbingMode = .preferred
-                
+
                 // Add as a tab to existing window
                 parentWindow.addTabbedWindow(newWindow, ordered: .above)
 
