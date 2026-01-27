@@ -348,6 +348,20 @@ import AIProxy
         guard index >= 0 && index < tabs.count else { return }
         selectedTab = tabs[index]
     }
+
+    func moveTab(fromIndex: Int, toIndex: Int) {
+        guard fromIndex != toIndex,
+              fromIndex >= 0, fromIndex < tabs.count,
+              toIndex >= 0, toIndex <= tabs.count else {
+            return
+        }
+
+        var newTabs = tabs
+        let tab = newTabs.remove(at: fromIndex)
+        let adjustedIndex = toIndex > fromIndex ? toIndex - 1 : toIndex
+        newTabs.insert(tab, at: adjustedIndex)
+        tabs = newTabs
+    }
     
     // MARK: - Pagination Management (direct and simple)
     
