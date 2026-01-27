@@ -201,6 +201,7 @@ struct TabBar: View {
         .keyboardShortcut("t", modifiers: [.command])
         .buttonStyle(NewTabButtonStyle())
         .padding(.bottom, 2)
+        .padding(.leading, 6)
         .customHelp(
             "New Tab",
             shortcut: KeyboardShortcut(

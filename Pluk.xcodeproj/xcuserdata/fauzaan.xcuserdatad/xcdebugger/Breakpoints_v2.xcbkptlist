@@ -62,8 +62,8 @@
             filePath = "pluk/Views/Documents/TabBar.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "835"
-            endingLineNumber = "835"
+            startingLineNumber = "836"
+            endingLineNumber = "836"
             landmarkName = "Notification.Name"
             landmarkType = "21">
          </BreakpointContent>
@@ -78,10 +78,10 @@
             filePath = "pluk/Views/Documents/TabBar.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "836"
-            endingLineNumber = "836"
-            landmarkName = "Notification.Name"
-            landmarkType = "21">
+            startingLineNumber = "837"
+            endingLineNumber = "837"
+            landmarkName = "DraggableTabNSView"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
