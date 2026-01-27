@@ -1248,7 +1248,7 @@ class DraggableTabNSView: NSView, NSDraggingSource {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.level = .floating
-        panel.hasShadow = true
+        panel.hasShadow = false
 
         let hostingView = NSHostingView(rootView: TabDragPreview(title: snapshotTitle, icon: snapshotIcon))
         panel.contentView = hostingView
@@ -1306,23 +1306,8 @@ struct TabDragPreview: View {
         .padding(.leading, 10)
         .padding(.trailing, 12)
         .background(
-            Group {
-                if colorScheme == .dark {
-                    TabShape(isSelected: true)
-                        .fill(Color(.black).opacity(0.40))
-                        .shadow(
-                            color: Color(.sRGBLinear, white: 0, opacity: 0.02),
-                            radius: 4
-                        )
-                } else {
-                    TabShape(isSelected: true)
-                        .fill(Color(.controlBackgroundColor).opacity(0.86))
-                        .shadow(
-                            color: Color(.sRGBLinear, white: 0, opacity: 0.02),
-                            radius: 4
-                        )
-                }
-            }
+            TabShape(isSelected: true)
+                .fill(colorScheme == .dark ? Color(.black).opacity(0.40) : Color(.controlBackgroundColor).opacity(0.86))
         )
         // Extra horizontal padding to accommodate the TabShape's curved feet
         .padding(.horizontal, 10)
