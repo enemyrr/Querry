@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import PostHog
 
 @Observable
 class TabManager {
@@ -55,13 +56,13 @@ class TabManager {
     
     func createConnectionTab(for connectionInstance: ConnectionInstance) -> UUID {
         let tabId = connectionInstance.id
-        
+
         // Check if tab already exists
         if let existingTab = tabs.first(where: { $0.connectionInstanceId == connectionInstance.id }) {
             activeTabId = existingTab.id
             return existingTab.id
         }
-        
+
         // Create new tab
         let newTab = PlukTab(
             id: tabId,
@@ -69,10 +70,17 @@ class TabManager {
             title: connectionInstance.connection.name,
             connectionInstanceId: connectionInstance.id
         )
-        
+
         tabs.append(newTab)
         activeTabId = tabId
-        
+
+        Task { @MainActor in
+            AnalyticsService.shared.trackTabCreated(
+                databaseType: connectionInstance.connection.databaseType,
+                tabType: "connection"
+            )
+        }
+
         return tabId
     }
     

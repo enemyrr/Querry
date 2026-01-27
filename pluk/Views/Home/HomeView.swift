@@ -73,8 +73,13 @@ struct HomeView: View {
             Button("Continue Current Tab") {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
-                    // For now, just switch using sidebar (we can improve this later)
                     viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
+                    Task { @MainActor in
+                        AnalyticsService.shared.trackConnectionOpened(
+                            databaseType: connection.databaseType,
+                            isFirstConnection: false
+                        )
+                    }
                 }
                 pendingConnection = nil
             }
@@ -82,12 +87,17 @@ struct HomeView: View {
                 if let connection = pendingConnection {
                     let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
-                    // Create new native tab
                     if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
                         WindowController.newTab(
                             tabType: .connection(instanceId),
                             connectionInstance: connectionInstance
                         )
+                        Task { @MainActor in
+                            AnalyticsService.shared.trackConnectionOpened(
+                                databaseType: connection.databaseType,
+                                isFirstConnection: false
+                            )
+                        }
                     }
                 }
                 pendingConnection = nil
@@ -103,6 +113,8 @@ struct HomeView: View {
     }
     
     private func handleConnectionOpen(_ connection: Connection) {
+        let isFirstConnection = connections.count == 1 && ConnectionService.shared.connectionInstances.isEmpty
+
         if ConnectionService.shared.getExistingInstance(for: connection) != nil {
             pendingConnection = connection
             showConnectionAlert = true
@@ -117,6 +129,13 @@ struct HomeView: View {
                     tabType: .connection(instanceId),
                     connectionInstance: connectionInstance
                 )
+
+                Task { @MainActor in
+                    AnalyticsService.shared.trackConnectionOpened(
+                        databaseType: connection.databaseType,
+                        isFirstConnection: isFirstConnection
+                    )
+                }
             }
         }
     }
@@ -347,14 +366,25 @@ struct ConnectionListItem: View {
         ) {
             Button("Delete", role: .destructive) {
                 if let connection = connectionToDelete {
-                    // Clean up query history before deleting the connection
+                    let databaseType = connection.databaseType
+
                     QueryHistoryService.deleteHistoryForConnection(
                         modelContext: modelContext,
                         connectionKeychainId: connection.keychainId
                     )
-                    // Clean up keychain before deleting the connection
                     connection.cleanupKeychain()
                     modelContext.delete(connection)
+
+                    Task { @MainActor in
+                        AnalyticsService.shared.trackConnectionDeleted(databaseType: databaseType)
+
+                        let remainingConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []
+                        let databaseTypes = Array(Set(remainingConnections.map { $0.databaseType.rawValue }))
+                        AnalyticsService.shared.updateConnectionSuperProperties(
+                            totalConnections: remainingConnections.count,
+                            databaseTypes: databaseTypes
+                        )
+                    }
                     connectionToDelete = nil
                 }
             }

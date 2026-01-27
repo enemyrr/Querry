@@ -992,12 +992,18 @@ struct CreateConnectionForm: View {
 
             savedConnection = newConnection
 
-            // Track connection creation event
-            PostHogSDK.shared.capture(
-                "connection_created",
-                properties: [
-                    "database_type": databaseTypeEnum.rawValue
-                ]
+            let connectionCount = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
+            let isFirstConnection = connectionCount == 1
+            AnalyticsService.shared.trackConnectionCreated(
+                databaseType: databaseTypeEnum,
+                isFirstConnection: isFirstConnection
+            )
+
+            let allConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []
+            let databaseTypes = Array(Set(allConnections.map { $0.databaseType.rawValue }))
+            AnalyticsService.shared.updateConnectionSuperProperties(
+                totalConnections: connectionCount,
+                databaseTypes: databaseTypes
             )
         }
 

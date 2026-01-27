@@ -118,10 +118,17 @@ import AIProxy
         } catch {
             lastError = error
             connectionStatus = .error
+            let errorType = AnalyticsService.categorizeError(error)
+            Task { @MainActor in
+                AnalyticsService.shared.trackConnectionFailed(
+                    databaseType: connection.databaseType,
+                    errorType: errorType
+                )
+            }
             throw error
         }
     }
-    
+
     func reconnect() async throws {
         connectionStatus = .connecting
         

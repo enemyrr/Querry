@@ -106,15 +106,6 @@ struct AICommandPrompt: View {
         isGenerating = true
         hasError = false
 
-        // Track AI query generation
-        PostHogSDK.shared.capture(
-            "ai_query_generation",
-            properties: [
-                "has_selected_text": !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                "database_type": instance.connection.databaseType
-            ]
-        )
-
         do {
             var result = ""
             var isFirstToken = true
@@ -138,11 +129,27 @@ struct AICommandPrompt: View {
                     generatedQuery = result
                 }
             }
+
+            AnalyticsService.shared.trackAIQueryGeneration(
+                hasSelectedText: !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                databaseType: instance.connection.databaseType,
+                promptLength: userMessage.count,
+                success: true
+            )
             hasError = false
         } catch {
             await MainActor.run {
                 isGenerating = false
                 hasError = true
+            }
+
+            await MainActor.run {
+                AnalyticsService.shared.trackAIQueryGeneration(
+                    hasSelectedText: !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    databaseType: instance.connection.databaseType,
+                    promptLength: userMessage.count,
+                    success: false
+                )
             }
             debugLog(error)
         }

@@ -139,8 +139,7 @@ struct AISearchView: View {
                             showErrorAlert = true
                             return
                         }
-                        
-                        PostHogSDK.shared.capture("ai_search")
+
                         await processNaturalLanguageQuery(search: search)
                     }
                 }) {
@@ -187,14 +186,26 @@ struct AISearchView: View {
     /// Submits a natural language query to AI service and processes the result
     private func processNaturalLanguageQuery(search: String) async {
         guard !search.isEmpty else { return }
-        
+
+        let searchLength = search.count
+
         await MainActor.run {
             processingStage = .writingQuery
         }
 
         do {
             filter = try await performAIQuery(databaseService: instance.databaseService, search: search)
-            
+
+            if let databaseType = instance.databaseType {
+                await MainActor.run {
+                    AnalyticsService.shared.trackAISearch(
+                        databaseType: databaseType,
+                        queryLength: searchLength,
+                        resultsCount: 0
+                    )
+                }
+            }
+
             await processQueryResult(filter)
         } catch {
             await handleQueryError(error)

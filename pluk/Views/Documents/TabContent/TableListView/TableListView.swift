@@ -64,11 +64,16 @@ struct TableListView: View {
         ZStack {
             VStack(spacing: 0) {
                 FilterBuilderView(
-                    columns: cachedSchema?.columns ?? [], 
+                    columns: cachedSchema?.columns ?? [],
                     tableName: selectedTab.name,
                     databaseSchema: selectedTab.databaseSchema,
                     onApplyFilter: { filter in
                         currentActiveFilter = filter.isEmpty ? nil : filter
+                        if let databaseType = instance.databaseType, !filter.isEmpty {
+                            Task { @MainActor in
+                                AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
+                            }
+                        }
                         Task {
                             skipNextRealtimeEvent = true
                             await loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
@@ -90,6 +95,11 @@ struct TableListView: View {
                         onSort: { column, ascending in
                             sortColumn = column
                             sortAscending = ascending
+                            if let databaseType = instance.databaseType {
+                                Task { @MainActor in
+                                    AnalyticsService.shared.trackSortApplied(databaseType: databaseType)
+                                }
+                            }
                             loadingTask?.cancel()
                             loadingTask = Task {
                                 skipNextRealtimeEvent = true
@@ -525,8 +535,15 @@ struct TableListView: View {
         let shouldFetch = cachedTabName != selectedTab.name ||
         cachedSchema == nil ||
         cachedDocuments == nil || selectedTab.forceFetch
-        
+
         if shouldFetch {
+            // Track table view event
+            if let databaseType = instance.databaseType {
+                Task { @MainActor in
+                    AnalyticsService.shared.trackTableViewed(databaseType: databaseType)
+                }
+            }
+
             // Apply initial filter if tab has filter information
             let initialFilter = generateInitialFilter()
             currentActiveFilter = initialFilter

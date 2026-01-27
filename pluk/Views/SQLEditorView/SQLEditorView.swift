@@ -640,14 +640,14 @@ extension SQLEditorView {
             messages = Set()
         }
 
-        // Track error fix generation
-        PostHogSDK.shared.capture(
-            "ai_error_fix_generation",
-            properties: [
-                "database_type": instance.connection.databaseType.rawValue,
-                "query_length": query.count
-            ]
-        )
+        let errorCategory = AnalyticsService.categorizeError(error)
+        Task { @MainActor in
+            AnalyticsService.shared.trackAIErrorFixGeneration(
+                databaseType: instance.connection.databaseType,
+                queryLength: query.count,
+                errorCategory: errorCategory
+            )
+        }
 
         do {
             let suggestion = try await performAIErrorAnalysis(query: query, error: error)

@@ -453,6 +453,10 @@ import SwiftUI
                 wasSuccessful: true
             )
 
+            Task { @MainActor in
+                AnalyticsService.shared.trackDocumentCreated(databaseType: connection.databaseType)
+            }
+
             clearDocumentCache(for: collectionName)
         } catch {
             let duration = startTime.duration(to: .now)
@@ -502,6 +506,10 @@ import SwiftUI
                 rowsAffected: 1,
                 wasSuccessful: true
             )
+
+            Task { @MainActor in
+                AnalyticsService.shared.trackDocumentUpdated(databaseType: connection.databaseType)
+            }
         } catch {
             let duration = startTime.duration(to: .now)
             let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
@@ -550,6 +558,10 @@ import SwiftUI
                 rowsAffected: 1,
                 wasSuccessful: true
             )
+
+            Task { @MainActor in
+                AnalyticsService.shared.trackDocumentDeleted(databaseType: connection.databaseType)
+            }
 
             clearDocumentCache(for: collectionName)
         } catch {
@@ -601,6 +613,17 @@ import SwiftUI
                 wasSuccessful: true
             )
 
+            let queryType = AnalyticsService.detectQueryType(from: query)
+            Task { @MainActor in
+                AnalyticsService.shared.trackQueryExecuted(
+                    databaseType: connection.databaseType,
+                    queryType: queryType,
+                    executionTimeMs: durationMs,
+                    rowCount: totalRows,
+                    success: true
+                )
+            }
+
             return results
         } catch {
             let duration = startTime.duration(to: .now)
@@ -616,6 +639,14 @@ import SwiftUI
                 wasSuccessful: false,
                 errorMessage: error.localizedDescription
             )
+
+            let errorCategory = AnalyticsService.categorizeError(error)
+            Task { @MainActor in
+                AnalyticsService.shared.trackQueryFailed(
+                    databaseType: connection.databaseType,
+                    errorCategory: errorCategory
+                )
+            }
 
             throw error
         }
