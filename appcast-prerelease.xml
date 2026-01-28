@@ -6,6 +6,33 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 26</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.26.dmg</link>
+            <sparkle:version>284</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.26</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 26</h2><div>This release focuses on workflow polish: you can create databases without leaving Pluk, your tabs finally behave like a proper browser, and connection strings are much more resilient.
+Here’s what’s new:
+<ul>
+<li><strong>Create databases from Pluk.</strong> Create new PostgreSQL, MySQL, and MongoDB databases right from the sidebar, with database-specific options (like Postgres encodings, MySQL charset and collation). Newly created databases open automatically in a new tab. (<a href="https://github.com/pluk-inc/Pluk/issues/46">#46</a>)</li>
+<li><strong>Draggable tabs, done right.</strong> Reorder tabs by dragging with smooth animations, a clear insertion gap, auto-scroll at the edges, and haptic feedback at the moments that matter. (<a href="https://github.com/pluk-inc/Pluk/issues/43">#43</a>, <a href="https://github.com/pluk-inc/Pluk/issues/2">#2</a>)</li>
+</ul>
+We’ve also shipped some small but mighty updates:
+<ul>
+<li><strong>Connection URIs now handle special characters properly.</strong> Passwords with characters like <code>@</code> or <code>:</code> are no longer truncated, percent-encoded values decode correctly on import, and copied URIs are human-readable. (<a href="https://github.com/pluk-inc/Pluk/issues/47">#47</a>)</li>
+<li><strong>No more window resizing when opening a new tab.</strong> Opening a tab should not mess with your window size or position, and now it doesn’t. (<a href="https://github.com/pluk-inc/Pluk/issues/44">#44</a>)</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Wed, 28 Jan 2026 16:43:14 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.26.dmg"
+                length="50203341"
+                type="application/octet-stream"
+                sparkle:edSignature="0Yp7Koy/qbKXM/QPoMpcs+xzpuN9SbiPbdFITiQB8L24+T6m/H3zQFTs8TSNtDfwPgXCDiaRksuA/Qc0EnXnDg=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 25</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.25.dmg</link>
             <sparkle:version>283</sparkle:version>
