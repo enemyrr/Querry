@@ -2,6 +2,20 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.26] – 2026-01-29
+
+This release focuses on workflow polish: you can create databases without leaving Pluk, your tabs finally behave like a proper browser, and connection strings are much more resilient.
+
+Here’s what’s new:
+
+- **Create databases from Pluk.** Create new PostgreSQL, MySQL, and MongoDB databases right from the sidebar, with database-specific options (like Postgres encodings, MySQL charset and collation). Newly created databases open automatically in a new tab. ([#46](https://github.com/pluk-inc/Pluk/issues/46))
+- **Draggable tabs, done right.** Reorder tabs by dragging with smooth animations, a clear insertion gap, auto-scroll at the edges, and haptic feedback at the moments that matter. ([#43](https://github.com/pluk-inc/Pluk/issues/43), [#2](https://github.com/pluk-inc/Pluk/issues/2))
+
+We’ve also shipped some small but mighty updates:
+
+- **Connection URIs now handle special characters properly.** Passwords with characters like `@` or `:` are no longer truncated, percent-encoded values decode correctly on import, and copied URIs are human-readable. ([#47](https://github.com/pluk-inc/Pluk/issues/47))
+- **No more window resizing when opening a new tab.** Opening a tab should not mess with your window size or position, and now it doesn’t. ([#44](https://github.com/pluk-inc/Pluk/issues/44))
+
 ## [0.0.1-beta.25] – 2026-01-26
 
 This update is all about staying in flow. You can edit schemas without leaving Pluk, inspect rows in a proper sidebar, and run multi-statement queries with cleaner results and fewer surprises.
