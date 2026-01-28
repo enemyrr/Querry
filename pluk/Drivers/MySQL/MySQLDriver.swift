@@ -1002,58 +1002,28 @@ class MySQLDriver: DatabaseDriver {
     }
     
     private func parseConnectionString(_ connectionUri: String) throws -> ConnectionInfo {
-        // Capture raw credentials as typed before URL normalization
-        var rawUserFromInput: String? = nil
-        var rawPassFromInput: String? = nil
-        do {
-            let source = connectionUri
-            if let schemeRange = source.range(of: "://") {
-                let afterScheme = schemeRange.upperBound
-                let remainder = source[afterScheme...]
-                if let atIndex = remainder.firstIndex(of: "@") {
-                    let userInfo = remainder[..<atIndex]
-                    if let colon = userInfo.firstIndex(of: ":") {
-                        rawUserFromInput = String(userInfo[..<colon])
-                        rawPassFromInput = String(userInfo[userInfo.index(after: colon)...])
-                    } else {
-                        rawUserFromInput = String(userInfo)
-                    }
-                }
-            } else {
-                if let atIndex = source.firstIndex(of: "@") {
-                    let userInfo = source[..<atIndex]
-                    if let colon = userInfo.firstIndex(of: ":") {
-                        rawUserFromInput = String(userInfo[..<colon])
-                        rawPassFromInput = String(userInfo[userInfo.index(after: colon)...])
-                    } else {
-                        rawUserFromInput = String(userInfo)
-                    }
-                }
-            }
-        }
-
         // Ensure URL has a scheme for parsing
         let urlString: String = connectionUri.contains("://") ? connectionUri : "mysql://" + connectionUri
-        guard let url = URL(string: urlString) else {
-            throw DatabaseError.invalidConnectionString("Invalid MySQL connection URI")
+
+        do {
+            // Use Vapor-based parser which handles percent-decoding automatically
+            let parsed = try ConnectionURLParser.parseMySQL(urlString)
+
+            guard let url = URL(string: urlString) else {
+                throw DatabaseError.invalidConnectionString("Invalid MySQL connection URI")
+            }
+
+            return ConnectionInfo(
+                host: parsed.hostname,
+                port: parsed.port,
+                username: parsed.username,
+                password: parsed.password,
+                database: parsed.database ?? "",
+                url: url
+            )
+        } catch let error as ConnectionURLParserError {
+            throw DatabaseError.invalidConnectionString(error.localizedDescription)
         }
-
-        let host = url.host ?? "localhost"
-        let port = url.port ?? 3306
-        let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let username = (rawUserFromInput?.isEmpty == false ? rawUserFromInput : (url.user ?? "root")) ?? "root"
-        // Prefer raw password exactly as typed; fall back to percent-encoded value
-        let password = (rawPassFromInput?.isEmpty == false ? rawPassFromInput : comps?.percentEncodedPassword)
-        let database = String(url.path.dropFirst()) // Remove leading "/"
-
-        return ConnectionInfo(
-            host: host,
-            port: port,
-            username: username,
-            password: password,
-            database: database,
-            url: url
-        )
     }
     
     private func getEventLoop() throws -> EventLoop {

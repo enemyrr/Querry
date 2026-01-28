@@ -339,8 +339,8 @@ struct ConnectionListItem: View {
             Divider()
             
             Button {
-                let connectionURI = connection.connectionUri
-                
+                let connectionURI = connection.copyableConnectionUri
+
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(connectionURI, forType: .string)

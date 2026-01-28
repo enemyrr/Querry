@@ -62,39 +62,6 @@ public struct PostgreSQLParseOptions: Equatable {
 public enum PostgreSQLConnectionStringParser {
     /// Parse a PostgreSQL connection string into a structured `PostgreSQLParsedConfig`.
     public static func parse(_ input: String, options: PostgreSQLParseOptions = .init()) throws -> PostgreSQLParsedConfig {
-        // Try to capture raw credentials (exactly as typed) before URL normalization
-        var rawUserFromInput: String? = nil
-        var rawPassFromInput: String? = nil
-        do {
-            // Work on original input to avoid normalization side-effects
-            let source = input
-            // Find start index after scheme if present
-            if let schemeRange = source.range(of: "://") {
-                let afterScheme = schemeRange.upperBound
-                let remainder = source[afterScheme...]
-                if let atIndex = remainder.firstIndex(of: "@") {
-                    let userInfo = remainder[..<atIndex]
-                    if let colon = userInfo.firstIndex(of: ":") {
-                        rawUserFromInput = String(userInfo[..<colon])
-                        rawPassFromInput = String(userInfo[userInfo.index(after: colon)...])
-                    } else {
-                        rawUserFromInput = String(userInfo)
-                    }
-                }
-            } else {
-                // No scheme; treat from start until '@' as potential userinfo
-                if let atIndex = source.firstIndex(of: "@") {
-                    let userInfo = source[..<atIndex]
-                    if let colon = userInfo.firstIndex(of: ":") {
-                        rawUserFromInput = String(userInfo[..<colon])
-                        rawPassFromInput = String(userInfo[userInfo.index(after: colon)...])
-                    } else {
-                        rawUserFromInput = String(userInfo)
-                    }
-                }
-            }
-        }
-
         // 1) Unix socket short form: "/path/to/socket dbname"
         if let first = input.first, first == "/" {
             let parts = input.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
@@ -104,7 +71,6 @@ public enum PostgreSQLConnectionStringParser {
         }
 
         // 2) Normalize and handle spaces/percent-encoding similar to encodeURI
-        // Avoid double-decoding credentials by not touching % sequences that are already correct.
         var str = input
         if str.contains(" ") { // Only replace spaces to %20; leave existing %xx sequences intact
             str = str.replacingOccurrences(of: " ", with: "%20")
@@ -141,15 +107,11 @@ public enum PostgreSQLConnectionStringParser {
         }
 
         // User/Password (only if not set by query params)
-        // Prefer raw values exactly as typed in the original input; fall back to percent-encoded values
-        if config.user == nil || config.password == nil {
-            if config.user == nil { config.user = rawUserFromInput }
-            if config.password == nil { config.password = rawPassFromInput }
-        }
+        // URLComponents.user and .password automatically decode percent-encoded values (Vapor approach)
         if (config.user == nil || config.password == nil),
-           let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) {
-            if config.user == nil { config.user = comps.percentEncodedUser }
-            if config.password == nil { config.password = comps.percentEncodedPassword }
+           let comps = URLComponents(url: url, resolvingAgainstBaseURL: true) {
+            if config.user == nil { config.user = comps.user }
+            if config.password == nil { config.password = comps.password }
         }
 
         // Socket protocol handling (scheme == socket)

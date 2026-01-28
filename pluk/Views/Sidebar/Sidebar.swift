@@ -106,7 +106,7 @@ struct NavigationSidebar: View {
 //                    }
                     
                     Button {
-                        let connectionURI = instance.connection.connectionUri
+                        let connectionURI = instance.connection.copyableConnectionUri
                         let pasteboard = NSPasteboard.general
                         pasteboard.clearContents()
                         pasteboard.setString(connectionURI, forType: .string)

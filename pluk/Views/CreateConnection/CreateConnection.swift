@@ -750,32 +750,11 @@ struct CreateConnectionForm: View {
     }
 
     private func parsePostgresURI(_ uriString: String) {
-        guard let url = URL(string: uriString) else { return }
+        guard let url = URL(string: uriString),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
 
-        hostname = url.host ?? ""
-        port = url.port?.description ?? ""
-        username = url.user ?? ""
-        password = url.password ?? ""
+        parseURIComponents(components, url: url)
 
-        // Parse database from path
-        let path = url.path
-        if !path.isEmpty && path != "/" {
-            defaultDatabase = String(path.dropFirst())  // Remove leading "/"
-        }
-
-        // Parse SSL mode from query parameters
-        if let query = url.query {
-            let queryItems =
-                URLComponents(string: "?\(query)")?.queryItems ?? []
-            for item in queryItems {
-                if item.name.lowercased() == "sslmode" {
-                    sslMode = item.value ?? "prefer"
-                    break
-                }
-            }
-        }
-
-        // Set default values if empty
         if hostname.isEmpty { hostname = "localhost" }
         if port.isEmpty { port = "5432" }
         if username.isEmpty { username = "postgres" }
@@ -783,35 +762,31 @@ struct CreateConnectionForm: View {
     }
 
     private func parseMySQLURI(_ uriString: String) {
-        guard let url = URL(string: uriString) else { return }
-        
-        hostname = url.host ?? ""
-        port = url.port?.description ?? ""
-        username = url.user ?? ""
-        password = url.password ?? ""
-        
-        // Parse database from path
-        let path = url.path
-        if !path.isEmpty && path != "/" {
-            defaultDatabase = String(path.dropFirst())
-        }
-        
-        // Parse SSL mode (optional) from query parameters
-        if let query = url.query {
-            let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
-            for item in queryItems {
-                if item.name.lowercased() == "sslmode" {
-                    sslMode = item.value ?? "prefer"
-                    break
-                }
-            }
-        }
-        
-        // Fill defaults for MySQL
+        guard let url = URL(string: uriString),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
+
+        parseURIComponents(components, url: url)
+
         if hostname.isEmpty { hostname = "127.0.0.1" }
         if port.isEmpty { port = "3306" }
         if username.isEmpty { username = "root" }
         if sslMode.isEmpty { sslMode = "prefer" }
+    }
+
+    private func parseURIComponents(_ components: URLComponents, url: URL) {
+        hostname = components.host ?? ""
+        port = components.port?.description ?? ""
+        username = components.user ?? ""
+        password = components.password ?? ""
+
+        let path = url.path
+        if !path.isEmpty && path != "/" {
+            defaultDatabase = String(path.dropFirst())
+        }
+
+        if let sslModeItem = components.queryItems?.first(where: { $0.name.lowercased() == "sslmode" }) {
+            sslMode = sslModeItem.value ?? "prefer"
+        }
     }
 
     private func constructPostgresURI() -> String {

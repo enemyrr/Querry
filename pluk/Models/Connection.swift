@@ -264,18 +264,17 @@ final class Connection {
         
         // Fallback to legacy URI construction (backward compatibility)
         if let database = defaultDatabase, !database.isEmpty {
-            return "\(String(describing: url))/\(database)"
+            return "\(url ?? "")/\(database)"
         } else {
             return url ?? ""
         }
     }
     
-    private func constructURIFromFields() -> String {
+    private func constructURIFromFields(encodeCredentials: Bool = true) -> String {
         guard let hostname = hostname, let port = port, let username = username else {
             return url ?? ""
         }
-        
-        // Decide scheme without using URLComponents to avoid percent-encoding
+
         let scheme: String
         switch databaseType {
         case .postgres, .supabase, .convex, .sqlite:
@@ -285,31 +284,53 @@ final class Connection {
         case .mongodb:
             scheme = "mongodb"
         }
-        
+
         let resolvedHost = hostname.isEmpty ? "localhost" : hostname
         let resolvedPort = Int(port) ?? (databaseType == .mysql ? 3306 : 5432)
-        
+
         var uri = "\(scheme)://"
         if !username.isEmpty {
-            uri += username
+            if encodeCredentials {
+                uri += username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? username
+            } else {
+                uri += username
+            }
             if let pwd = password, !pwd.isEmpty {
-                uri += ":\(pwd)"
+                if encodeCredentials {
+                    uri += ":\(pwd.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? pwd)"
+                } else {
+                    uri += ":\(pwd)"
+                }
             }
             uri += "@"
         }
-        
+
         uri += "\(resolvedHost):\(resolvedPort)"
-        
+
         if let database = defaultDatabase, !database.isEmpty {
-            uri += "/\(database)"
+            let encodedDatabase = database.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? database
+            uri += "/\(encodeCredentials ? encodedDatabase : database)"
         }
-        
+
         if (databaseType == .postgres || databaseType == .supabase || databaseType == .convex),
            let sslMode = sslMode {
             uri += "?sslmode=\(sslMode)"
         }
-        
+
         return uri
+    }
+
+    /// Returns a readable connection URI for display/copy purposes (no percent-encoding)
+    var copyableConnectionUri: String {
+        if databaseType == .convex {
+            return password ?? ""
+        }
+        if let hostname = hostname, !hostname.isEmpty,
+           let port = port, !port.isEmpty,
+           let username = username, !username.isEmpty {
+            return constructURIFromFields(encodeCredentials: false)
+        }
+        return url ?? ""
     }
     
     // Helper method to check if connection uses new field-based approach
