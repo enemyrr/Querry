@@ -24,6 +24,7 @@ struct ContentModeActionBar: View {
     let onNewRecord: () -> Void
     let onOpenAISearch: () -> Void
     let onDebounceLoadingChange: (Bool) -> Void
+    let onDiscardChanges: () -> Void
     let databaseType: DatabaseType?
 
     @State private var debounceTask: Task<Void, Never>?
@@ -151,8 +152,7 @@ struct ContentModeActionBar: View {
                     )
 
                     Button(action: {
-                        modificationTracker.resetAllModifications(of: .update, .insert)
-                        NotificationCenter.default.post(name: .tableReloadData, object: nil, userInfo: ["tableName": tableName])
+                        onDiscardChanges()
                     }) {
                         Text("Discard")
                     }

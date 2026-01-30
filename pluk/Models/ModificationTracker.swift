@@ -91,7 +91,7 @@ struct RowModification {
     
     // Public computed properties
     var modifiedRowCount: Int {
-        return rowModifications.values.filter { $0.hasModifications }.count
+        return rowModifications.values.filter { $0.hasModifications || $0.type == .insert }.count
     }
     
     var allModifications: [RowModification] {

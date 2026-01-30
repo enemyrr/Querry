@@ -168,6 +168,9 @@ struct TableListView: View {
                     onNewRecord: {
                         handleNewRecord()
                     },
+                    onDiscardChanges: {
+                        handleDiscardChanges()
+                    },
                     databaseType: instance.databaseType,
                     currentQueryResult: currentQueryResult,
                     schema: cachedSchema,
@@ -220,6 +223,9 @@ struct TableListView: View {
                 userInfo: ["tableName": tableName]
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .didRequestPaste)) { _ in
+            handlePasteRows()
+        }
         .alert(
             "Operation Failed",
             isPresented: $showingErrorAlert,
@@ -249,6 +255,12 @@ struct TableListView: View {
     private func showError(_ error: Error) {
         currentError = error
         showingErrorAlert = true
+    }
+
+    // MARK: - View State Helpers
+    private func forceViewStateRefresh(with result: QueryResult, schema: DatabaseSchemaResult) {
+        viewState = .loading
+        viewState = .loaded(result, schema)
     }
     
     // MARK: - Save Schema Modifications
@@ -411,10 +423,10 @@ struct TableListView: View {
     
     private func handleNewRecord() {
         guard let schema = cachedSchema, let currentResult = cachedDocuments else { return }
-        
+
         var newRawRow = [String: Any]()
         var newProcessedRow = [String: QueryRowInfo]()
-        
+
         for column in schema.columns {
             newRawRow[column.columnName] = nil
             newProcessedRow[column.columnName] = QueryRowInfo(
@@ -423,16 +435,16 @@ struct TableListView: View {
                 format: column.formatType
             )
         }
-        
+
         let newIndex = currentResult.rawRows.count
         modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: newRawRow)
-        
+
         var updatedRawRows = currentResult.rawRows
         updatedRawRows.append(newRawRow)
-        
+
         var updatedProcessedRows = currentResult.rows
         updatedProcessedRows.append(newProcessedRow)
-        
+
         // Always use schema to populate columns for consistency
         let columnsFromSchema = schema.columns.enumerated().map { (index, schemaColumn) in
             QueryColumnInfo(
@@ -442,21 +454,206 @@ struct TableListView: View {
                 index: index
             )
         }
-        
+
         let updatedResult = QueryResult(
             columns: columnsFromSchema,
             rows: updatedProcessedRows,
             totalCount: currentResult.totalCount + 1,
             rawRows: updatedRawRows
         )
-        
+
         cachedDocuments = updatedResult
-        
+
         if let updatedDocuments = cachedDocuments, let currentSchema = cachedSchema {
             viewState = .loaded(updatedDocuments, currentSchema)
         }
-        
+
         needsToSelectLastRow = true
+    }
+
+    private func handlePasteRows() {
+        guard let schema = cachedSchema, let currentResult = cachedDocuments else { return }
+        guard let clipboardString = NSPasteboard.general.string(forType: .string),
+              !clipboardString.isEmpty else { return }
+
+        let parsedRows = parseClipboardContent(clipboardString, schema: schema)
+        guard !parsedRows.isEmpty else { return }
+
+        var updatedRawRows = currentResult.rawRows
+        var updatedProcessedRows = currentResult.rows
+
+        for rowData in parsedRows {
+            let newIndex = updatedRawRows.count
+
+            // Convert [String: Any?] to [String: Any] for modificationTracker
+            var rawRow: [String: Any] = [:]
+            var processedRow = [String: QueryRowInfo]()
+
+            for column in schema.columns {
+                let value = rowData[column.columnName] ?? nil
+
+                if let v = value {
+                    rawRow[column.columnName] = v
+                }
+
+                processedRow[column.columnName] = QueryRowInfo(
+                    value: value,
+                    dataType: column.dataType,
+                    format: column.formatType
+                )
+            }
+
+            modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: rawRow)
+            updatedRawRows.append(rawRow)
+            updatedProcessedRows.append(processedRow)
+        }
+
+        let columnsFromSchema = schema.columns.enumerated().map { (index, schemaColumn) in
+            QueryColumnInfo(
+                name: schemaColumn.columnName,
+                dataType: schemaColumn.dataType,
+                format: schemaColumn.formatType,
+                index: index
+            )
+        }
+
+        let updatedResult = QueryResult(
+            columns: columnsFromSchema,
+            rows: updatedProcessedRows,
+            totalCount: currentResult.totalCount + parsedRows.count,
+            rawRows: updatedRawRows
+        )
+
+        cachedDocuments = updatedResult
+
+        if let currentSchema = cachedSchema {
+            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
+        }
+
+        needsToSelectLastRow = true
+        debugLog("✅ Pasted \(parsedRows.count) row(s)")
+    }
+
+    private func handleDiscardChanges() {
+        // Reset flag to prevent auto-edit after discard
+        needsToSelectLastRow = false
+
+        guard let currentResult = cachedDocuments else {
+            modificationTracker.resetAllModifications(of: .update, .insert)
+            return
+        }
+
+        // Get indices of insert rows (sorted in descending order to remove from end first)
+        let insertIndices = modificationTracker.allModifications
+            .filter { $0.type == .insert }
+            .map { $0.rowIndex }
+            .sorted(by: >)
+
+        // Remove insert rows from cached data
+        var updatedRawRows = currentResult.rawRows
+        var updatedProcessedRows = currentResult.rows
+
+        for index in insertIndices where index < updatedRawRows.count && index < updatedProcessedRows.count {
+            updatedRawRows.remove(at: index)
+            updatedProcessedRows.remove(at: index)
+        }
+
+        modificationTracker.resetAllModifications(of: .update, .insert)
+
+        let updatedResult = QueryResult(
+            columns: currentResult.columns,
+            rows: updatedProcessedRows,
+            totalCount: currentResult.totalCount - insertIndices.count,
+            rawRows: updatedRawRows
+        )
+
+        cachedDocuments = updatedResult
+
+        if let currentSchema = cachedSchema {
+            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
+        }
+
+        NotificationCenter.default.post(
+            name: .tableReloadData,
+            object: nil,
+            userInfo: ["tableName": selectedTab.name]
+        )
+
+        debugLog("✅ Discarded changes, removed \(insertIndices.count) inserted row(s)")
+    }
+
+    private func parseClipboardContent(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]] {
+        // Try JSON first
+        if let jsonRows = parseJSONClipboard(content, schema: schema), !jsonRows.isEmpty {
+            return jsonRows
+        }
+        // Fall back to TSV
+        return parseTSVClipboard(content, schema: schema)
+    }
+
+    private func parseJSONClipboard(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]]? {
+        guard let data = content.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+
+        let jsonArray: [[String: Any]]
+        if let array = json as? [[String: Any]] {
+            jsonArray = array
+        } else if let single = json as? [String: Any] {
+            jsonArray = [single]
+        } else {
+            return nil
+        }
+
+        var result: [[String: Any?]] = []
+
+        for jsonRow in jsonArray {
+            var rowData: [String: Any?] = [:]
+            for column in schema.columns {
+                if let value = jsonRow[column.columnName] {
+                    if value is NSNull {
+                        rowData[column.columnName] = nil
+                    } else {
+                        rowData[column.columnName] = value
+                    }
+                } else {
+                    rowData[column.columnName] = nil
+                }
+            }
+            result.append(rowData)
+        }
+
+        return result
+    }
+
+    private func parseTSVClipboard(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]] {
+        let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return [] }
+
+        let columns = schema.columns
+        var result: [[String: Any?]] = []
+
+        for line in lines {
+            let values = line.components(separatedBy: "\t")
+            var rowData: [String: Any?] = [:]
+
+            for (index, column) in columns.enumerated() {
+                if index < values.count {
+                    let value = values[index]
+                    if value.isEmpty || value.uppercased() == "NULL" {
+                        rowData[column.columnName] = nil
+                    } else {
+                        rowData[column.columnName] = value
+                    }
+                } else {
+                    rowData[column.columnName] = nil
+                }
+            }
+            result.append(rowData)
+        }
+
+        return result
     }
 
     private func handleNewField() {

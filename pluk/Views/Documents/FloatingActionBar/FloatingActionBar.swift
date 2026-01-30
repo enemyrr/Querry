@@ -18,6 +18,7 @@ struct FloatingActionBar: View {
     let onLoadDocuments: (_ filter: String?) -> Void
     let onCommitModifications: () -> Void
     let onNewRecord: () -> Void
+    let onDiscardChanges: () -> Void
     let databaseType: DatabaseType?
 
     // Add current query result as direct parameter to preserve data during loading
@@ -147,6 +148,7 @@ struct FloatingActionBar: View {
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
                             },
+                            onDiscardChanges: onDiscardChanges,
                             databaseType: databaseType
                         )
                     case .schema:
@@ -235,6 +237,7 @@ struct FloatingActionBar: View {
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
                             },
+                            onDiscardChanges: onDiscardChanges,
                             databaseType: databaseType
                         )
                     case .schema:

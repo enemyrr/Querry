@@ -71,6 +71,9 @@ struct DocumentList: View {
                     onNewRecord: {
                         //                            handleNewRecord()
                     },
+                    onDiscardChanges: {
+                        // No-op for document view
+                    },
                     databaseType: instance.databaseType,
                     currentQueryResult: currentQueryResult,
                     schema: nil,

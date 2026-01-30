@@ -60,6 +60,16 @@ class CustomTableView: NSTableView {
             return
         }
 
+        // Check for Cmd+V (paste)
+        if event.modifierFlags.contains(.command) && event.keyCode == 9 {
+            NotificationCenter.default.post(
+                name: .didRequestPaste,
+                object: self,
+                userInfo: ["tableView": self]
+            )
+            return
+        }
+
         // Check for Cmd+Z (undo)
         if event.modifierFlags.contains(.command) && event.keyCode == 6 {
             if let undoHandler = undoHandler, undoHandler() {

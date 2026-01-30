@@ -563,6 +563,8 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     
     // New method that includes tracking information
     func configure(queryRowInfo: QueryRowInfo?, columnInfo: QueryColumnInfo, rowIndex: Int, modificationTracker: TableModificationTracker?, constraintInfo: ConstraintInfo? = nil, tableName: String = "", shouldHighlight: Bool = false, isReadOnly: Bool = false) {
+        createBorderViewIfNeeded()
+
         // Store tracking information
         self.rowIndex = rowIndex
         self.columnName = columnInfo.name
@@ -578,20 +580,25 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
             self.isMarkedForDeletion = false
         }
         
+        // Check if this row is a new insert row
+        let isInsertRow = modificationTracker?.getRowModification(for: rowIndex)?.type == .insert
+
         // Check if this cell has existing modifications
         if let tracker = modificationTracker,
            let cellMod = tracker.getCellModification(rowIndex: rowIndex, columnName: columnInfo.name) {
             // Use the modified value instead of the original
             textField.stringValue = cellMod.newValue
             originalValue = cellMod.originalValue
-            isModified = cellMod.hasChanged
-            
+            // For insert rows, always show as modified; otherwise check if value changed
+            isModified = isInsertRow || cellMod.hasChanged
+
             // Ensure the modification appearance is applied immediately
             updateModificationAppearance()
         } else {
-            // Configure normally and ensure no modification appearance
+            // Configure normally
             configure(queryRowInfo: queryRowInfo, columnInfo: columnInfo)
-            isModified = false
+            // For insert rows without cell modifications, still show as modified
+            isModified = isInsertRow
             updateModificationAppearance()
         }
         
