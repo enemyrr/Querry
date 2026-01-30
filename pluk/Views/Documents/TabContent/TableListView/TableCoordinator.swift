@@ -67,6 +67,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private weak var deleteMenuItem: NSMenuItem?
     private weak var addRowMenuItem: NSMenuItem?
     private weak var refreshMenuItem: NSMenuItem?
+    private weak var copyRowsAsMenuItem: NSMenuItem?
     
     // Real-time change highlighting
     var highlightedFields: Set<String> = []
@@ -593,7 +594,50 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         deleteItem.target = self
         menu.addItem(deleteItem)
         self.deleteMenuItem = deleteItem
-        
+
+        // Separator
+        menu.addItem(NSMenuItem.separator())
+
+        // Copy Rows As submenu
+        let copyRowsAsItem = NSMenuItem(title: "Copy Rows As", action: nil, keyEquivalent: "")
+        let copyRowsSubmenu = NSMenu()
+
+        let plainTextItem = NSMenuItem(title: "Plain Text", action: #selector(copyRowsAsPlainText), keyEquivalent: "")
+        plainTextItem.target = self
+        copyRowsSubmenu.addItem(plainTextItem)
+
+        let jsonItem = NSMenuItem(title: "JSON", action: #selector(copyRowsAsJSON), keyEquivalent: "")
+        jsonItem.target = self
+        copyRowsSubmenu.addItem(jsonItem)
+
+        let htmlItem = NSMenuItem(title: "HTML", action: #selector(copyRowsAsHTML), keyEquivalent: "")
+        htmlItem.target = self
+        copyRowsSubmenu.addItem(htmlItem)
+
+        let markdownItem = NSMenuItem(title: "Markdown Table", action: #selector(copyRowsAsMarkdown), keyEquivalent: "")
+        markdownItem.target = self
+        copyRowsSubmenu.addItem(markdownItem)
+
+        copyRowsSubmenu.addItem(NSMenuItem.separator())
+
+        let csvItem = NSMenuItem(title: "CSV", action: #selector(copyRowsAsCSV), keyEquivalent: "")
+        csvItem.target = self
+        copyRowsSubmenu.addItem(csvItem)
+
+        let csvHeaderItem = NSMenuItem(title: "CSV with Header", action: #selector(copyRowsAsCSVWithHeader), keyEquivalent: "")
+        csvHeaderItem.target = self
+        copyRowsSubmenu.addItem(csvHeaderItem)
+
+        copyRowsSubmenu.addItem(NSMenuItem.separator())
+
+        let insertItem = NSMenuItem(title: "INSERT Statement", action: #selector(copyRowsAsInsertStatement), keyEquivalent: "")
+        insertItem.target = self
+        copyRowsSubmenu.addItem(insertItem)
+
+        copyRowsAsItem.submenu = copyRowsSubmenu
+        menu.addItem(copyRowsAsItem)
+        self.copyRowsAsMenuItem = copyRowsAsItem
+
         menu.delegate = self
         menu.autoenablesItems = false
         tableView.menu = menu
@@ -1014,34 +1058,42 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         let hasValidRow = rightClickedRow >= 0
         let hasValidCell = hasValidRow && rightClickedColumn >= 0
         let hasData = totalCount > 0
-        
+        let hasSelectedRows = !tableView.selectedRowIndexes.isEmpty
+
         debugLog("Menu validation - rightClickedRow: \(rightClickedRow), rightClickedColumn: \(rightClickedColumn), hasValidRow: \(hasValidRow), hasValidCell: \(hasValidCell), hasData: \(hasData)")
-        
+
         // Update using stored references
         editMenuItem?.isEnabled = hasValidCell
         deleteMenuItem?.isEnabled = hasValidRow && hasData
         addRowMenuItem?.isEnabled = true
         refreshMenuItem?.isEnabled = true
-        
+        copyRowsAsMenuItem?.isEnabled = hasSelectedRows && hasData
+
         // Also update via loop as backup
         for item in menu.items {
-            guard let action = item.action else { continue }
-            
+            guard let action = item.action else {
+                // Handle "Copy Rows As" submenu (has no action, only submenu)
+                if item.title == "Copy Rows As" {
+                    item.isEnabled = hasSelectedRows && hasData
+                }
+                continue
+            }
+
             switch action {
             case #selector(editItem):
                 item.isEnabled = hasValidCell
                 debugLog("Edit item enabled: \(item.isEnabled)")
-                
+
             case #selector(deleteItem):
                 item.isEnabled = hasValidRow && hasData
                 debugLog("Delete item enabled: \(item.isEnabled)")
-                
+
             case #selector(addRow):
                 item.isEnabled = true
-                
+
             case #selector(refreshCurrentTable):
                 item.isEnabled = true
-                
+
             default:
                 break
             }
