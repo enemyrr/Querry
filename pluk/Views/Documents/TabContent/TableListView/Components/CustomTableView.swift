@@ -48,18 +48,30 @@ class CustomTableView: NSTableView {
     
     // MARK: - Keyboard Navigation
     override func keyDown(with event: NSEvent) {
+        // Check for Cmd+C (copy)
+        if event.modifierFlags.contains(.command) && event.keyCode == 8 {
+            if !selectedRowIndexes.isEmpty {
+                NotificationCenter.default.post(
+                    name: .didRequestCopy,
+                    object: self,
+                    userInfo: ["tableView": self]
+                )
+            }
+            return
+        }
+
         // Check for Cmd+Z (undo)
-        if event.modifierFlags.contains(.command) && event.keyCode == 6 { // 'z' key
+        if event.modifierFlags.contains(.command) && event.keyCode == 6 {
             if let undoHandler = undoHandler, undoHandler() {
                 return
             }
         }
-        
+
         // Handle navigation keys
         if handleKeyboardNavigation(with: event) {
             return
         }
-        
+
         // Let the superclass handle other key events
         super.keyDown(with: event)
     }

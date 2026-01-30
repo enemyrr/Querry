@@ -2,6 +2,7 @@ import Foundation
 
 extension Notification.Name {
     static let didRequestDelete = Notification.Name("didRequestDelete")
+    static let didRequestCopy = Notification.Name("didRequestCopy")
     static let markRowAsDeleted = Notification.Name("markRowAsDeleted")
     static let foreignKeyNavigationRequested = Notification.Name("ForeignKeyNavigationRequested")
     

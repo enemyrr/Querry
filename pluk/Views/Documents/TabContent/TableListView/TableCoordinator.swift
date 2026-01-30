@@ -103,6 +103,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleTableReloadData(notification:)), name: .tableReloadData, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCopyKey(notification:)), name: .didRequestCopy, object: nil)
     }
     
     @objc private func handleTableReloadData(notification: Notification) {
@@ -117,7 +118,12 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             self?.tableView.reloadData()
         }
     }
-    
+
+    @objc private func handleCopyKey(notification: Notification) {
+        guard notification.userInfo?["tableView"] as? CustomTableView === tableView else { return }
+        copyRowsAsPlainText()
+    }
+
     @objc private func handleDeleteKey(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let rows = userInfo["rows"] as? IndexSet,
