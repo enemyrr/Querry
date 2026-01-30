@@ -19,7 +19,7 @@ struct DatabaseHeader: View {
     @State private var selectedSchema: String = ""
     @State private var selectedDatabase: String = ""
     @State private var isLoadingSchemas: Bool = false
-    @State private var showNotImplementedAlert = false
+    @State private var showCreateSchemaPopover = false
     @State private var showCreateDatabaseSheet = false
     @Binding var isLoadingCollections: Bool
 
@@ -41,8 +41,10 @@ struct DatabaseHeader: View {
                             selectedSchema: $selectedSchema,
                             isSchemaHovering: $isSchemaHovering,
                             showCreateDatabasePopover: $showCreateDatabaseSheet,
+                            showCreateSchemaPopover: $showCreateSchemaPopover,
                             onSchemaChange: handleSchemaSelection,
                             onDatabaseChange: handleDatabaseSelection,
+                            onSchemaCreated: handleSchemaCreated,
                             truncatedText: truncatedText
                         )
                     }
@@ -86,11 +88,6 @@ struct DatabaseHeader: View {
                 isLoadingCollections = false
             }
         }
-        .alert("Coming Soon", isPresented: $showNotImplementedAlert) {
-            Button("OK") { }
-        } message: {
-            Text("Creating new schema is coming soon")
-        }
     }
     
     private func loadAvailableSchemas() {
@@ -125,7 +122,7 @@ struct DatabaseHeader: View {
         }
 
         switch databaseType {
-        case .postgres, .convex, .mysql:
+        case .postgres, .supabase, .convex, .mysql:
             let schemas = try await instance.databaseService.getInformationSchema()
             return schemas.map { $0.name }
         default:
@@ -142,18 +139,7 @@ struct DatabaseHeader: View {
     }
     
     private func handleSchemaSelection(_ schema: String) {
-        if schema == "__NEW_SCHEMA__" {
-            showNotImplementedAlert = true
-            // Reset selection to previous valid schema
-            if let currentSchema = instance.databaseService.currentSchema,
-               availableSchemas.contains(currentSchema) {
-                selectedSchema = currentSchema
-            } else {
-                selectedSchema = availableSchemas.contains("public") ? "public" : (availableSchemas.first ?? "")
-            }
-        } else {
-            instance.databaseService.setCurrentSchema(schema)
-        }
+        instance.databaseService.setCurrentSchema(schema)
     }
 
     private func handleDatabaseSelection(_ databaseName: String) {
@@ -170,6 +156,12 @@ struct DatabaseHeader: View {
                 }
             }
         }
+    }
+
+    private func handleSchemaCreated(_ schemaName: String) {
+        loadAvailableSchemas()
+        selectedSchema = schemaName
+        instance.databaseService.setCurrentSchema(schemaName)
     }
 }
 
@@ -460,8 +452,10 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
     @Binding var selectedSchema: String
     @Binding var isSchemaHovering: Bool
     @Binding var showCreateDatabasePopover: Bool
+    @Binding var showCreateSchemaPopover: Bool
     let onSchemaChange: (String) -> Void
     let onDatabaseChange: (String) -> Void
+    let onSchemaCreated: (String) -> Void
     let truncatedText: (String, CGFloat) -> TruncatedTextView
 
     private var supportsCreateDatabase: Bool {
@@ -528,9 +522,12 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                 Divider()
 
                 Button("New Schema...") {
-                    selectedSchema = "__NEW_SCHEMA__"
-                    onSchemaChange("__NEW_SCHEMA__")
+                    showCreateSchemaPopover = true
                 }
+            }
+            .popover(isPresented: $showCreateSchemaPopover) {
+                CreateSchemaForm(onCreated: onSchemaCreated)
+                    .environment(instance)
             }
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.05)) {

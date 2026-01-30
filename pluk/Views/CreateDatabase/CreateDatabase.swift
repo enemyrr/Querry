@@ -443,6 +443,169 @@ struct CreateDatabaseForm: View {
     }
 }
 
+// MARK: - CreateSchemaForm
+
+struct CreateSchemaForm: View {
+    @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.dismiss) var dismiss
+
+    var onCreated: ((String) -> Void)?
+
+    @State private var name = ""
+    @State private var nameError: String?
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+    @State private var showErrorAlert = false
+
+    private var isFormValid: Bool {
+        !name.isEmpty && nameError == nil
+    }
+
+    private var supportsOperation: Bool {
+        instance.databaseType == .postgres || instance.databaseType == .supabase
+    }
+
+    private var unsupportedMessage: String {
+        switch instance.databaseType {
+        case .mysql:
+            return "MySQL uses databases instead of schemas. Create a new database to organize your tables."
+        case .sqlite:
+            return "SQLite does not support schemas."
+        case .mongodb:
+            return "MongoDB does not support schemas."
+        case .convex:
+            return "Convex schemas are managed through the Convex dashboard."
+        default:
+            return "Schema creation is not supported for this database type"
+        }
+    }
+
+    private static let reservedSchemaNames = ["pg_catalog", "information_schema", "pg_toast", "pg_temp"]
+
+    private func validateName(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.isEmpty {
+            return "Schema name cannot be empty"
+        }
+
+        if trimmed.count > 63 {
+            return "Schema name cannot exceed 63 characters"
+        }
+
+        guard let firstChar = trimmed.first,
+              firstChar.isLetter || firstChar == "_" else {
+            return "Schema name must start with a letter or underscore"
+        }
+
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+        if trimmed.unicodeScalars.contains(where: { !allowedCharacters.contains($0) }) {
+            return "Schema name can only contain letters, digits, and underscores"
+        }
+
+        if Self.reservedSchemaNames.contains(trimmed.lowercased()) {
+            return "'\(trimmed)' is a reserved schema name"
+        }
+
+        return nil
+    }
+
+    private func create() {
+        guard !isSubmitting else { return }
+
+        errorMessage = nil
+        isSubmitting = true
+
+        Task {
+            do {
+                try await instance.databaseService.createSchema(named: name)
+                let createdName = name
+
+                await MainActor.run {
+                    isSubmitting = false
+                    onCreated?(createdName)
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Create Schema")
+                .font(.system(size: 13, weight: .semibold))
+
+            if supportsOperation {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Schema name", text: $name)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .disabled(isSubmitting)
+                        .onChange(of: name) { _, newValue in
+                            nameError = validateName(newValue)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(.controlColor).opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(.separator, lineWidth: 1)
+                        )
+                        .clipShape(.rect(cornerRadius: 8))
+
+                    if let nameError {
+                        Text(nameError)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Button(action: create) {
+                    Group {
+                        if isSubmitting {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Create Schema")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                }
+                .buttonStyle(CreateButtonStyle())
+                .disabled(!isFormValid || isSubmitting)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+
+                    Text(unsupportedMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+            }
+        }
+        .padding(20)
+        .frame(width: 280)
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
+        .disabled(isSubmitting)
+    }
+}
+
 // MARK: - SegmentTextButton
 
 private struct SegmentTextButton: View {

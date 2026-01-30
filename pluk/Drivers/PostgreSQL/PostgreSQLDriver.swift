@@ -2083,6 +2083,22 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to create database: \(error.localizedDescription)", query: sql)
         }
     }
+
+    func createSchema(named schemaName: String, options: CreateSchemaOptions) async throws {
+        let connection = try await ensureConnected()
+
+        let sanitizedName = schemaName.replacing("\"", with: "\"\"")
+        let sql = "CREATE SCHEMA \"\(sanitizedName)\""
+
+        do {
+            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            debugLog("✓ Created schema \(schemaName)")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error, query: sql)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to create schema: \(error.localizedDescription)", query: sql)
+        }
+    }
 }
 
 // MARK: - Utility Extensions

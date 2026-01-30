@@ -32,6 +32,16 @@ struct CreateDatabaseOptions {
     static let `default` = CreateDatabaseOptions()
 }
 
+struct CreateSchemaOptions {
+    let authorization: String?
+
+    init(authorization: String? = nil) {
+        self.authorization = authorization
+    }
+
+    static let `default` = CreateSchemaOptions()
+}
+
 struct QueryResult {
     let columns: [QueryColumnInfo]
     let rows: [[String: QueryRowInfo]]
@@ -101,6 +111,7 @@ protocol DatabaseDriver {
 
     // Database management
     func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws
+    func createSchema(named schemaName: String, options: CreateSchemaOptions) async throws
     
     // Collection operations
     func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
@@ -226,6 +237,11 @@ extension DatabaseDriver {
     // Default implementation for createDatabase - throws not implemented
     func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
         throw DatabaseError.notImplemented("Creating databases is not supported for this database type")
+    }
+
+    // Default implementation for createSchema - throws not implemented
+    func createSchema(named schemaName: String, options: CreateSchemaOptions) async throws {
+        throw DatabaseError.notImplemented("Creating schemas is not supported for this database type")
     }
 
     // MARK: - Default Schema Modification Implementations

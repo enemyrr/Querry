@@ -411,6 +411,15 @@ import SwiftUI
         }
     }
 
+    func createSchema(named schemaName: String, options: CreateSchemaOptions = .default) async throws {
+        guard let driver = activeDriver else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+
+        try await driver.createSchema(named: schemaName, options: options)
+        clearCache()
+    }
+
     // MARK: - Collection Management
     func createCollection(named collectionName: String) async throws {
         guard let driver = activeDriver else {
