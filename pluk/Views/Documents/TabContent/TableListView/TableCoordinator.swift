@@ -67,6 +67,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private weak var addRowMenuItem: NSMenuItem?
     private weak var refreshMenuItem: NSMenuItem?
     private weak var quickLookMenuItem: NSMenuItem?
+    private weak var copyMenuItem: NSMenuItem?
     private weak var copyRowsAsMenuItem: NSMenuItem?
     
     // Real-time change highlighting
@@ -592,6 +593,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         // Separator
         menu.addItem(NSMenuItem.separator())
 
+        // Copy menu item (plain text copy with Cmd+C shortcut)
+        let copyItem = NSMenuItem(title: "Copy", action: #selector(copyRowsAsPlainText), keyEquivalent: "c")
+        copyItem.keyEquivalentModifierMask = [.command]
+        copyItem.target = self
+        menu.addItem(copyItem)
+        self.copyMenuItem = copyItem
+
         // Copy Rows As submenu
         let copyRowsAsItem = NSMenuItem(title: "Copy Rows As", action: nil, keyEquivalent: "")
         let copyRowsSubmenu = NSMenu()
@@ -1062,6 +1070,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         addRowMenuItem?.isEnabled = true
         refreshMenuItem?.isEnabled = true
         quickLookMenuItem?.isEnabled = hasValidCell
+        copyMenuItem?.isEnabled = hasSelectedRows && hasData
         copyRowsAsMenuItem?.isEnabled = hasSelectedRows && hasData
 
         // Also update via loop as backup

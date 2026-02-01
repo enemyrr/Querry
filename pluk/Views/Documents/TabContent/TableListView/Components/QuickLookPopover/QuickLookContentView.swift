@@ -90,6 +90,10 @@ struct QuickLookContentView: View {
                 }
                 return .ignored
             }
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color(.separatorColor))
+            }
             .background(Color(.controlColor).opacity(0.3))
             .clipShape(.rect(cornerRadius: 12))
     }
