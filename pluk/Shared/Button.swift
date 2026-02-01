@@ -852,8 +852,9 @@ private struct CompactMenuButtonStyle: ButtonStyle {
 private struct CompactPrimaryButtonStyle: ButtonStyle {
     static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
@@ -862,7 +863,7 @@ private struct CompactPrimaryButtonStyle: ButtonStyle {
             .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .fill(isEnabled ? Self.buttonColor : colorScheme == .dark ? Color.white.opacity(0.1) : Color(.separatorColor).opacity(0.4))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
             .opacity(configuration.isPressed ? 0.8 : 1.0)

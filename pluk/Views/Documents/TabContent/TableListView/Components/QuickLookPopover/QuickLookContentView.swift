@@ -14,6 +14,7 @@ struct QuickLookContentView: View {
     let onSave: (String) -> Void
     let onDismiss: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var editedContent: String
     @State private var hasChanges = false
     @FocusState private var isTextEditorFocused: Bool
@@ -91,11 +92,14 @@ struct QuickLookContentView: View {
                 return .ignored
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color(.separatorColor))
+                if colorScheme == .dark {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color(.separatorColor))
+                }
             }
-            .background(Color(.controlColor).opacity(0.3))
+            .background(colorScheme == .dark ? Color(.controlColor).opacity(0.3) : Color(.white).opacity(0.6))
             .clipShape(.rect(cornerRadius: 12))
+            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
     }
 
     private var footerView: some View {
