@@ -28,27 +28,18 @@ extension TableCoordinator {
     }
     
     @objc func editItem() {
-        // Get the currently selected cell (which was updated by right-click)
-        guard let currentCell = tableView.getCurrentSelectedCell() else {
+        guard let currentCell = tableView.getCurrentSelectedCell(),
+              currentCell.row >= 0,
+              currentCell.column >= 0 else {
             return
         }
-        
-        let row = currentCell.row
-        let column = currentCell.column
-        
-        guard row >= 0 && column >= 0 else {
-            return
-        }
-        
-        tableView.enterEditModeForCell(row: row, column: column)
+
+        tableView.enterEditModeForCell(row: currentCell.row, column: currentCell.column)
     }
     
     @objc func deleteItem() {
         let selectedRows = tableView.selectedRowIndexes
-
-        guard !selectedRows.isEmpty else {
-            return
-        }
+        guard !selectedRows.isEmpty else { return }
 
         NotificationCenter.default.post(
             name: .didRequestDelete,
@@ -58,18 +49,13 @@ extension TableCoordinator {
     }
 
     @objc func quickLookItem() {
-        guard let currentCell = tableView.getCurrentSelectedCell() else {
+        guard let currentCell = tableView.getCurrentSelectedCell(),
+              currentCell.row >= 0,
+              currentCell.column >= 0 else {
             return
         }
 
-        let row = currentCell.row
-        let column = currentCell.column
-
-        guard row >= 0 && column >= 0 else {
-            return
-        }
-
-        showQuickLook(row: row, column: column)
+        showQuickLook(row: currentCell.row, column: currentCell.column)
     }
 
     @objc func handleQuickLookRequest(notification: Notification) {
@@ -334,149 +320,91 @@ extension TableCoordinator {
     }
 
     private func getRowValue(_ rowData: [String: QueryRowInfo], columnName: String) -> String {
-        if let queryRowInfo = rowData[columnName] {
-            return formatValue(queryRowInfo.value)
-        }
-        return "NULL"
+        guard let queryRowInfo = rowData[columnName] else { return "NULL" }
+        return formatValue(queryRowInfo.value)
     }
 
     private func getRawValueForSQL(_ rowData: [String: QueryRowInfo], columnName: String) -> String {
-        if let queryRowInfo = rowData[columnName] {
-            return formatValueForSQL(queryRowInfo.value)
-        }
-        return "NULL"
+        guard let queryRowInfo = rowData[columnName] else { return "NULL" }
+        return formatValueForSQL(queryRowInfo.value)
     }
 
     private func getRawValueForJSON(_ rowData: [String: QueryRowInfo], columnName: String) -> Any {
-        if let queryRowInfo = rowData[columnName] {
-            return convertToJSONSafeValue(queryRowInfo.value)
-        }
-        return NSNull()
+        guard let queryRowInfo = rowData[columnName] else { return NSNull() }
+        return convertToJSONSafeValue(queryRowInfo.value)
     }
 
     private func formatValue(_ value: Any?) -> String {
-        guard let value = value else { return "NULL" }
+        guard let value, !(value is NSNull) else { return "NULL" }
 
-        if value is NSNull {
-            return "NULL"
+        switch value {
+        case let string as String:
+            return string
+        case let number as NSNumber:
+            return number.stringValue
+        case let bool as Bool:
+            return bool ? "true" : "false"
+        case let date as Date:
+            return ISO8601DateFormatter().string(from: date)
+        case let data as Data:
+            return data.base64EncodedString()
+        default:
+            return String(describing: value)
         }
-
-        if let stringValue = value as? String {
-            return stringValue
-        }
-
-        if let numberValue = value as? NSNumber {
-            return numberValue.stringValue
-        }
-
-        if let boolValue = value as? Bool {
-            return boolValue ? "true" : "false"
-        }
-
-        if let dateValue = value as? Date {
-            return ISO8601DateFormatter().string(from: dateValue)
-        }
-
-        if let dataValue = value as? Data {
-            return dataValue.base64EncodedString()
-        }
-
-        return String(describing: value)
     }
 
     private func convertToJSONSafeValue(_ value: Any?) -> Any {
-        guard let value = value else { return NSNull() }
+        guard let value, !(value is NSNull) else { return NSNull() }
 
-        if value is NSNull {
-            return NSNull()
+        switch value {
+        case let string as String:
+            return string
+        case let number as NSNumber:
+            return number
+        case let bool as Bool:
+            return bool
+        case let int as Int:
+            return int
+        case let double as Double:
+            return double
+        case let date as Date:
+            return ISO8601DateFormatter().string(from: date)
+        case let data as Data:
+            return data.base64EncodedString()
+        case let uuid as UUID:
+            return uuid.uuidString
+        case let array as [Any]:
+            return array.map { convertToJSONSafeValue($0) }
+        case let dict as [String: Any]:
+            return dict.mapValues { convertToJSONSafeValue($0) }
+        default:
+            return String(describing: value)
         }
-
-        if let stringValue = value as? String {
-            return stringValue
-        }
-
-        if let numberValue = value as? NSNumber {
-            return numberValue
-        }
-
-        if let boolValue = value as? Bool {
-            return boolValue
-        }
-
-        if let intValue = value as? Int {
-            return intValue
-        }
-
-        if let doubleValue = value as? Double {
-            return doubleValue
-        }
-
-        if let dateValue = value as? Date {
-            return ISO8601DateFormatter().string(from: dateValue)
-        }
-
-        if let dataValue = value as? Data {
-            return dataValue.base64EncodedString()
-        }
-
-        if let uuidValue = value as? UUID {
-            return uuidValue.uuidString
-        }
-
-        if let arrayValue = value as? [Any] {
-            return arrayValue.map { convertToJSONSafeValue($0) }
-        }
-
-        if let dictValue = value as? [String: Any] {
-            var safeDict: [String: Any] = [:]
-            for (key, val) in dictValue {
-                safeDict[key] = convertToJSONSafeValue(val)
-            }
-            return safeDict
-        }
-
-        return String(describing: value)
     }
 
     private func formatValueForSQL(_ value: Any?) -> String {
-        guard let value = value else { return "NULL" }
+        guard let value, !(value is NSNull) else { return "NULL" }
 
-        if value is NSNull {
-            return "NULL"
+        switch value {
+        case let string as String:
+            return "'\(escapeSQL(string))'"
+        case let number as NSNumber where CFGetTypeID(number) == CFBooleanGetTypeID():
+            return number.boolValue ? "TRUE" : "FALSE"
+        case let number as NSNumber:
+            return number.stringValue
+        case let bool as Bool:
+            return bool ? "TRUE" : "FALSE"
+        case let int as Int:
+            return String(int)
+        case let double as Double:
+            return String(double)
+        case let date as Date:
+            return "'\(ISO8601DateFormatter().string(from: date))'"
+        case let data as Data:
+            return "'\(data.base64EncodedString())'"
+        default:
+            return "'\(escapeSQL(String(describing: value)))'"
         }
-
-        if let stringValue = value as? String {
-            return "'\(escapeSQL(stringValue))'"
-        }
-
-        if let numberValue = value as? NSNumber {
-            if CFGetTypeID(numberValue) == CFBooleanGetTypeID() {
-                return numberValue.boolValue ? "TRUE" : "FALSE"
-            }
-            return numberValue.stringValue
-        }
-
-        if let boolValue = value as? Bool {
-            return boolValue ? "TRUE" : "FALSE"
-        }
-
-        if let intValue = value as? Int {
-            return String(intValue)
-        }
-
-        if let doubleValue = value as? Double {
-            return String(doubleValue)
-        }
-
-        if let dateValue = value as? Date {
-            return "'\(ISO8601DateFormatter().string(from: dateValue))'"
-        }
-
-        if let dataValue = value as? Data {
-            return "'\(dataValue.base64EncodedString())'"
-        }
-
-        return "'\(escapeSQL(String(describing: value)))'"
     }
 
     private func escapeCSV(_ value: String) -> String {

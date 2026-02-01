@@ -23,9 +23,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private var knownColumns: Set<String> = []
     public var needsToSelectLastRow = false
     
-    // Sorting state
-    private var sortColumn: String? = nil
-    private var sortAscending: Bool = true
+    private var sortColumn: String?
+    private var sortAscending = true
     
     // Callback for database-level sorting
     var onSort: ((String, Bool) -> Void)?
@@ -109,14 +108,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     @objc private func handleTableReloadData(notification: Notification) {
-        // Only reload if it targets this specific table instance (by tableName) if provided
         if let userInfo = notification.userInfo,
            let targetTableName = userInfo["tableName"] as? String,
            !targetTableName.isEmpty,
            targetTableName != self.tableName {
             return
         }
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             self?.tableView.reloadData()
         }
     }
@@ -173,15 +171,11 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             return
         }
 
-        // Defer the navigation callback to the next run loop iteration
-        // This prevents state modification during the mouse event handling cycle
-        // which can cause AttributeGraph cycles in SwiftUI
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             self?.onForeignKeyNavigation?(referencedTable, referencedColumn, currentValue)
         }
     }
 
-    
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -193,25 +187,19 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     func didUndoModification(rowIndex: Int, columnName: String, newValue: String) {
         debugLog("✅ Did undo modification: Row \(rowIndex), Column \(columnName) → \(newValue)")
-        
-        // Update the UI to reflect the undo
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Find the cell view and update its value
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
             if let cellView = self.findCellView(rowIndex: rowIndex, columnName: columnName) {
                 debugLog("🔍 Updating cell view for undo - Row: \(rowIndex), Column: \(columnName), New Value: '\(newValue)'")
                 cellView.resetModificationState()
-                
-                // Force a refresh of the cell's appearance
                 cellView.needsDisplay = true
                 cellView.needsLayout = true
             } else {
                 debugLog("⚠️ Could not find cell view for Row: \(rowIndex), Column: \(columnName)")
             }
-            
-            // Note: We might not need to reload the entire row since we're updating the cell directly
-            // But keep it as a fallback for now
+
             if rowIndex < self.tableView.numberOfRows {
                 let rowIndexSet = IndexSet(integer: rowIndex)
                 self.tableView.reloadData(forRowIndexes: rowIndexSet, columnIndexes: IndexSet(integersIn: 0..<self.tableView.numberOfColumns))
@@ -254,14 +242,11 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             self.highlightedFields = fields
             self.highlightedRows = rows
             
-            // Only refresh the affected cells rather than the entire table
-            DispatchQueue.main.async {
-                // If we have specific rows to update, only reload those
+            Task { @MainActor in
                 if !rows.isEmpty {
                     let indexSet = IndexSet(rows)
                     self.tableView.reloadData(forRowIndexes: indexSet, columnIndexes: IndexSet(0..<self.tableView.numberOfColumns))
                 } else if fieldsChanged {
-                    // If only fields changed but no specific rows, reload all data
                     self.tableView.reloadData()
                 }
             }
@@ -303,30 +288,24 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         }
         
         
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Validate previous selection
-            if let previousSelectedRow = previousSelectedRow {
-                if previousSelectedRow >= self.totalCount {
-                    // The previously selected row no longer exists. Clear selection.
-                    debugLog("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
-                    self.tableView.clearAllSelection()
-                }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            if let previousSelectedRow, previousSelectedRow >= self.totalCount {
+                debugLog("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
+                self.tableView.clearAllSelection()
             }
-            
-            // Check if table structure changed (columns added/removed/changed)
+
             if newColumnCount != oldColumnCount {
                 self.rebuildTableStructure()
             } else {
                 self.tableView.reloadData()
             }
-            
+
             if self.needsToSelectLastRow {
                 self.scrollToBottomAndSelectFirstCell()
             }
-            
-            // Recalculate column widths if data changed significantly
+
             if let queryResult = self.queryResult {
                 self.recalculateColumnWidthsIfNeeded(queryResult: queryResult)
             }
@@ -402,22 +381,18 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     func scrollToBottomAndSelectFirstCell() {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.needsToSelectLastRow = false
             let numberOfRows = self.tableView.numberOfRows
-            if numberOfRows > 0 {
-                let lastRowIndex = numberOfRows - 1
-                self.tableView.scrollRowToVisible(lastRowIndex)
-                
-                // Select the first cell of the last row
-                let firstColumnIndex = 0 // Assuming there's always at least one column
-                if self.tableView.numberOfColumns > firstColumnIndex {
-                    // Make the table view the first responder to show the selection and allow editing
-                    self.tableView.window?.makeFirstResponder(self.tableView)
-                    // Start editing the cell
-                    self.tableView.editColumn(firstColumnIndex, row: lastRowIndex, with: nil, select: true)
-                    self.tableView.selectCell(row: lastRowIndex, column: firstColumnIndex)
-                }
+            guard numberOfRows > 0 else { return }
+
+            let lastRowIndex = numberOfRows - 1
+            self.tableView.scrollRowToVisible(lastRowIndex)
+
+            if self.tableView.numberOfColumns > 0 {
+                self.tableView.window?.makeFirstResponder(self.tableView)
+                self.tableView.editColumn(0, row: lastRowIndex, with: nil, select: true)
+                self.tableView.selectCell(row: lastRowIndex, column: 0)
             }
         }
     }
@@ -1134,10 +1109,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func tableViewSelectionDidChange(_ notification: Notification) {
         let selectedRow = tableView.selectedRow
 
-        // Defer state updates to avoid modifying state during SwiftUI view update cycle
-        // This prevents AttributeGraph cycle warnings
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
 
             if selectedRow >= 0, let queryResult = self.queryResult, selectedRow < queryResult.rows.count {
                 let rowData = queryResult.rows[selectedRow]

@@ -33,14 +33,14 @@ struct QuickLookContentView: View {
         _editedContent = State(initialValue: Self.prettyPrintJSON(content))
     }
 
-    private var isJSON: Bool {
-        Self.looksLikeJSON(editedContent)
-    }
-
     private static func looksLikeJSON(_ content: String) -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed.hasPrefix("{") && trimmed.hasSuffix("}")) ||
                (trimmed.hasPrefix("[") && trimmed.hasSuffix("]"))
+    }
+
+    private var isJSON: Bool {
+        Self.looksLikeJSON(editedContent)
     }
 
     private static func prettyPrintJSON(_ string: String) -> String {
@@ -91,10 +91,6 @@ struct QuickLookContentView: View {
                 return .ignored
             }
             .background(Color(.controlColor).opacity(0.3))
-//            .overlay(
-//                RoundedRectangle(cornerRadius: 12)
-//                    .stroke(.separator, lineWidth: 1)
-//            )
             .clipShape(.rect(cornerRadius: 12))
     }
 
