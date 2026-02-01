@@ -73,6 +73,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     // Real-time change highlighting
     var highlightedFields: Set<String> = []
     var highlightedRows: Set<Int> = []
+
+    // Sidebar animation state (skip expensive operations during animation)
+    private var isSidebarAnimating = false
     
     init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "", onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil) {
         self.schema = schema
@@ -106,6 +109,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         NotificationCenter.default.addObserver(self, selector: #selector(handleTableReloadData(notification:)), name: .tableReloadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleQuickLookRequest(notification:)), name: .cellQuickLookRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCopyKey(notification:)), name: .didRequestCopy, object: nil)
+
+        // Sidebar animation observers for performance optimization
+        NotificationCenter.default.addObserver(self, selector: #selector(sidebarAnimationWillStart(_:)), name: .sidebarAnimationWillStart, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(sidebarAnimationDidEnd(_:)), name: .sidebarAnimationDidEnd, object: nil)
     }
     
     @objc private func handleTableReloadData(notification: Notification) {
@@ -115,9 +122,19 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
            targetTableName != self.tableName {
             return
         }
+        // Skip reload during sidebar animation to avoid layout thrashing
+        if isSidebarAnimating { return }
         Task { @MainActor [weak self] in
             self?.tableView.reloadData()
         }
+    }
+
+    @objc private func sidebarAnimationWillStart(_ notification: Notification) {
+        isSidebarAnimating = true
+    }
+
+    @objc private func sidebarAnimationDidEnd(_ notification: Notification) {
+        isSidebarAnimating = false
     }
 
     @objc private func handleCopyKey(notification: Notification) {

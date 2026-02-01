@@ -180,6 +180,12 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             isCollapsing = false
             sidebarVisibilityBinding?.wrappedValue = true
 
+            // Enable rasterization on right content to avoid live layout during animation
+            enableContentRasterization()
+
+            // Notify that animation is starting (for table performance optimization)
+            NotificationCenter.default.post(name: .sidebarAnimationWillStart, object: splitView?.window)
+
             animateSidebarPosition(from: 0, to: expandWidth, collapsing: false)
         }
 
@@ -188,6 +194,12 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             isFadeAnimating = true
             isCollapsing = true
             leftHost.wantsLayer = true
+
+            // Enable rasterization on right content to avoid live layout during animation
+            enableContentRasterization()
+
+            // Notify that animation is starting (for table performance optimization)
+            NotificationCenter.default.post(name: .sidebarAnimationWillStart, object: splitView?.window)
 
             // Fade out using Core Animation directly (more efficient)
             let fadeAnim = CABasicAnimation(keyPath: "opacity")
@@ -255,6 +267,20 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             animationTimer = nil
         }
 
+        private func enableContentRasterization() {
+            guard let rightHost = rightHost else { return }
+            rightHost.wantsLayer = true
+            rightHost.layer?.shouldRasterize = true
+            rightHost.layer?.rasterizationScale = NSScreen.main?.backingScaleFactor ?? 2.0
+            rightHost.layerContentsRedrawPolicy = .onSetNeedsDisplay
+        }
+
+        private func disableContentRasterization() {
+            guard let rightHost = rightHost else { return }
+            rightHost.layer?.shouldRasterize = false
+            rightHost.layerContentsRedrawPolicy = .duringViewResize
+        }
+
         private func finishAnimation() {
             stopAnimation()
             isAnimating = false
@@ -268,6 +294,12 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
                 leftHost?.layer?.removeAnimation(forKey: "fade")
                 leftHost?.alphaValue = 1.0  // Reset for next show
             }
+
+            // Remove rasterization to return to live rendering
+            disableContentRasterization()
+
+            // Notify that animation has ended (for table performance optimization)
+            NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: splitView?.window)
 
             // Call completion handler if set
             animationCompletionHandler?()

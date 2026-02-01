@@ -40,4 +40,8 @@ extension Notification.Name {
 
     /// Quick Look popover
     static let cellQuickLookRequested = Notification.Name("cellQuickLookRequested")
+
+    /// Sidebar animation lifecycle (for performance optimization)
+    static let sidebarAnimationWillStart = Notification.Name("SidebarAnimationWillStart")
+    static let sidebarAnimationDidEnd = Notification.Name("SidebarAnimationDidEnd")
 }
