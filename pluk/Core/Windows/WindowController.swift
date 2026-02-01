@@ -203,8 +203,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = true
 
-        // Set window size constraints to prevent unwanted expansion
-        window.contentMinSize = NSSize(width: 800, height: 600)
+        // Set window size constraints
         window.contentMaxSize = NSSize(width: 1400, height: 1000)
 
         // Manually restore window frame with constraints (avoid autosave which can bypass max size)
@@ -618,6 +617,17 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 // MARK: - NSWindowDelegate
 
 extension WindowController: NSWindowDelegate {
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        // Enforce minimum window size
+        let minWidth: CGFloat = 800
+        let minHeight: CGFloat = 600
+
+        return NSSize(
+            width: max(frameSize.width, minWidth),
+            height: max(frameSize.height, minHeight)
+        )
+    }
+
     func windowDidResize(_ notification: Notification) {
         // Save window frame manually (only if within constraints)
         guard let window = notification.object as? NSWindow else { return }

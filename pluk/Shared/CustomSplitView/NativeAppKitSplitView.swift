@@ -323,7 +323,8 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             if isFixedSidebar {
                 return fixedSidebarWidth // Fixed width
             }
-            return splitView.frame.width - 400 // Leave at least 400px for content
+            // Allow sidebar to take up to half the window width
+            return splitView.frame.width / 2
         }
 
         func splitView(_ splitView: NSSplitView, canCollapseSubview subview: NSView) -> Bool {
@@ -353,6 +354,7 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             let newSize = splitView.frame.size
             let totalWidth = newSize.width
             let totalHeight = newSize.height
+            let dividerWidth = splitView.dividerThickness
 
             if isFixedSidebar {
                 // Fixed sidebar: simple fixed width
@@ -362,30 +364,19 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
                 leftHost.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: totalHeight)
                 rightHost.frame = NSRect(x: sidebarWidth, y: 0, width: contentWidth, height: totalHeight)
             } else {
-                // Priority-based resizing: sidebar has fixed desired width, content gets remaining space
-                let desiredSidebarWidth: CGFloat = {
-                    // If this is initial sizing (no previous size), use last user width or default
-                    if oldSize.width == 0 {
-                        return max(lastUserSidebarWidth, minSidebarWidth)
-                    }
+                // Keep sidebar at its current width, only resize content
+                let currentSidebarWidth = leftHost.frame.width
+                let sidebarWidth = max(minSidebarWidth, currentSidebarWidth)
 
-                    // During resize, maintain current sidebar width and update our tracking
-                    let currentSidebarWidth = leftHost.frame.width
+                // Track user's preferred width
+                if !leftHost.isHidden && sidebarWidth > minSidebarWidth {
+                    lastUserSidebarWidth = sidebarWidth
+                }
 
-                    // Only update lastUserSidebarWidth if sidebar is visible and not at minimum
-                    if !leftHost.isHidden && currentSidebarWidth > minSidebarWidth {
-                        lastUserSidebarWidth = currentSidebarWidth
-                    }
+                let contentWidth = totalWidth - sidebarWidth - dividerWidth
 
-                    return max(minSidebarWidth, min(currentSidebarWidth, totalWidth - 400))
-                }()
-
-                let constrainedSidebarWidth = max(minSidebarWidth, min(desiredSidebarWidth, totalWidth - 400))
-                let contentWidth = totalWidth - constrainedSidebarWidth
-
-                // Apply the frames
-                leftHost.frame = NSRect(x: 0, y: 0, width: constrainedSidebarWidth, height: totalHeight)
-                rightHost.frame = NSRect(x: constrainedSidebarWidth, y: 0, width: contentWidth, height: totalHeight)
+                leftHost.frame = NSRect(x: 0, y: 0, width: sidebarWidth, height: totalHeight)
+                rightHost.frame = NSRect(x: sidebarWidth + dividerWidth, y: 0, width: contentWidth, height: totalHeight)
             }
         }
 
