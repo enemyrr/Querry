@@ -372,27 +372,21 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     // MARK: - Native Sidebar Toggle
 
     @objc func toggleSidebarNatively(_ sender: Any?) {
-        // Find the NSSplitView in the window's view hierarchy and trigger native collapse
-        if let window = self.window,
-           let splitView = findNSSplitView(in: window.contentView) {
+        // Post notification to trigger animated sidebar toggle in NativeAppKitSplitView
+        guard let window = self.window else { return }
 
-            // Use proper NSSplitView collapse/expand behavior
-            if let leftSubview = splitView.arrangedSubviews.first {
-                let isCurrentlyCollapsed = splitView.isSubviewCollapsed(leftSubview)
-
-                if isCurrentlyCollapsed {
-                    // Expand: Set to desired width (delegate will handle proper sizing)
-                    splitView.setPosition(350, ofDividerAt: 0)
-                    // Show environment selector
-                    environmentToolbarItem?.view?.isHidden = false
-                } else {
-                    // Collapse: Set position to 0 to trigger native collapse
-                    splitView.setPosition(0, ofDividerAt: 0)
-                    // Hide environment selector
-                    environmentToolbarItem?.view?.isHidden = true
-                }
-            }
+        // Check current state BEFORE posting notification (since handler runs synchronously)
+        var willBeCollapsed = true
+        if let splitView = findNSSplitView(in: window.contentView),
+           let leftSubview = splitView.arrangedSubviews.first {
+            let isCurrentlyCollapsed = splitView.isSubviewCollapsed(leftSubview) || leftSubview.isHidden
+            willBeCollapsed = !isCurrentlyCollapsed
         }
+
+        NotificationCenter.default.post(name: .toggleLeftSidebar, object: window)
+
+        // Update environment toolbar visibility
+        environmentToolbarItem?.view?.isHidden = willBeCollapsed
     }
 
     private func findNSSplitView(in view: NSView?) -> NSSplitView? {

@@ -49,30 +49,13 @@ struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
             )
             .ignoresSafeArea(.container, edges: .top)
             .background(
-                Group {
-                    if colorScheme == .dark {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(
-                                Color(.black).opacity(0.40)
-                            )
-                            .cornerRadius(16)
-                            .padding([.top], 6)
-                            .padding([.leading], isSidebarVisible ? 44 : 2)
-                            .padding([.horizontal, .bottom], 6)
-                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
-                    } else {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(
-                                Color(.controlBackgroundColor).opacity(0.86)
-                            )
-                            .cornerRadius(16)
-                            .padding([.top], 6)
-                            .padding([.leading], isSidebarVisible ? 44 : 2)
-                            .padding([.horizontal, .bottom], 6)
-                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
-                        
-                    }
-                }
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(colorScheme == .dark ? Color(.black).opacity(0.40) : Color(.controlBackgroundColor).opacity(0.86))
+                    .padding(.top, 6)
+                    .padding(.leading, isSidebarVisible ? 44 : 2)
+                    .padding([.horizontal, .bottom], 6)
+                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
+                    .animation(.linear(duration: 0), value: isSidebarVisible)
             )
             .background(WindowAccessor { win in
                 if hostingWindow !== win { hostingWindow = win }

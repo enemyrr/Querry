@@ -52,6 +52,7 @@ struct TabBar: View {
             .leading,
             !appViewModel.isSidebarVisible ? max(leadingOverlayWidth, 120) : 0
         )
+        .animation(.easeOut(duration: 0.2), value: appViewModel.isSidebarVisible)
         .frame(height: 36)
         .background(
             // Add hidden buttons for Cmd+1 through Cmd+9

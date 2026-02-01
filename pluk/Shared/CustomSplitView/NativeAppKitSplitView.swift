@@ -115,6 +115,11 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
             return
         }
 
+        // Don't interfere with ongoing animations
+        if context.coordinator.isCurrentlyAnimating {
+            return
+        }
+
         if isSidebarVisible {
             if leftHost.isHidden {
                 leftHost.isHidden = false
@@ -137,84 +142,136 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
         var minSidebarWidth: CGFloat = 290
         var lastUserSidebarWidth: CGFloat = 330 // Track user's preferred width
 
+        // Exposed for applyVisibility to check
+        var isCurrentlyAnimating: Bool { isAnimating || isFadeAnimating }
+
         private var isAnimating = false
-        private var animationDisplayLink: CVDisplayLink?
+        private var isFadeAnimating = false
+        private var animationTimer: DispatchSourceTimer?
         private var animationStartTime: CFTimeInterval = 0
         private var animationStartPosition: CGFloat = 0
         private var animationTargetPosition: CGFloat = 0
-        private var animationDuration: CFTimeInterval = 0.3
         private var isCollapsing = false
+
+        // Animation timing
+        private let animationDuration: CFTimeInterval = 0.2
+        private let fadeDuration: CFTimeInterval = 0.08
+
+        private var animationCompletionHandler: (() -> Void)?
 
         // MARK: - Native Sidebar Collapse Methods
 
         func toggleSidebar() {
-            guard let splitView = splitView,
-                  let leftHost = leftHost else { return }
-
-            // Fixed sidebar doesn't support toggling
-            if isFixedSidebar {
-                return
-            }
-
-            // Don't start new animation if one is in progress
-            if isAnimating {
-                return
-            }
+            guard let leftHost else { return }
+            if isFixedSidebar || isAnimating { return }
 
             if leftHost.isHidden {
-                // Show sidebar at user's last preferred width
-                let expandWidth = max(lastUserSidebarWidth, minSidebarWidth)
-                leftHost.isHidden = false
-                sidebarVisibilityBinding?.wrappedValue = true
-                animateSidebarPosition(from: 0, to: expandWidth, collapsing: false)
+                expandSidebar(leftHost)
             } else {
-                // Store current width before hiding
-                lastUserSidebarWidth = leftHost.frame.width
-                animateSidebarPosition(from: leftHost.frame.width, to: 0, collapsing: true)
+                collapseSidebar(leftHost)
             }
         }
 
-        private func animateSidebarPosition(from startPos: CGFloat, to endPos: CGFloat, collapsing: Bool) {
+        private func expandSidebar(_ leftHost: NSView) {
+            let expandWidth = max(lastUserSidebarWidth, minSidebarWidth)
+            leftHost.isHidden = false
+            leftHost.wantsLayer = true
+            leftHost.alphaValue = 1.0
+            isCollapsing = false
+            sidebarVisibilityBinding?.wrappedValue = true
+
+            animateSidebarPosition(from: 0, to: expandWidth, collapsing: false)
+        }
+
+        private func collapseSidebar(_ leftHost: NSView) {
+            lastUserSidebarWidth = leftHost.frame.width
+            isFadeAnimating = true
+            isCollapsing = true
+            leftHost.wantsLayer = true
+
+            // Fade out using Core Animation directly (more efficient)
+            let fadeAnim = CABasicAnimation(keyPath: "opacity")
+            fadeAnim.fromValue = 1.0
+            fadeAnim.toValue = 0.0
+            fadeAnim.duration = fadeDuration
+            fadeAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            fadeAnim.fillMode = .forwards
+            fadeAnim.isRemovedOnCompletion = false
+            leftHost.layer?.add(fadeAnim, forKey: "fade")
+            leftHost.alphaValue = 0.0
+
+            // Start width collapse after 30% of fade (creates overlap)
+            let phase2Delay = fadeDuration * 0.3
+            DispatchQueue.main.asyncAfter(deadline: .now() + phase2Delay) { [weak self] in
+                guard let self else { return }
+                self.isFadeAnimating = false
+                self.sidebarVisibilityBinding?.wrappedValue = false
+                self.animateSidebarPosition(from: self.lastUserSidebarWidth, to: 0, collapsing: true)
+            }
+        }
+
+        private func animateSidebarPosition(from startPos: CGFloat, to endPos: CGFloat, collapsing: Bool, onComplete: (() -> Void)? = nil) {
             isAnimating = true
             isCollapsing = collapsing
             animationStartPosition = startPos
             animationTargetPosition = endPos
             animationStartTime = CACurrentMediaTime()
+            animationCompletionHandler = onComplete
 
-            // Use a timer for the animation since CVDisplayLink requires more setup
-            let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
-                self?.updateAnimation(timer: timer)
+            // Use DispatchSourceTimer for precise timing (better than Timer)
+            stopAnimation()
+            let timer = DispatchSource.makeTimerSource(queue: .main)
+            timer.schedule(deadline: .now(), repeating: .milliseconds(8)) // ~120fps
+            timer.setEventHandler { [weak self] in
+                self?.updateAnimation()
             }
-            RunLoop.main.add(timer, forMode: .common)
+            animationTimer = timer
+            timer.resume()
         }
 
-        private func updateAnimation(timer: Timer) {
+        private func updateAnimation() {
             guard let splitView = splitView else {
-                timer.invalidate()
-                isAnimating = false
+                finishAnimation()
                 return
             }
 
             let elapsed = CACurrentMediaTime() - animationStartTime
-            let progress = min(elapsed / animationDuration, 1.0)
+            let progress = min(1.0, elapsed / animationDuration)
 
-            // Ease-out cubic timing function for smooth deceleration
-            let easedProgress = 1.0 - pow(1.0 - progress, 3.0)
+            // EaseOut curve: 1 - (1 - t)^3 (cubic ease out - fast start, smooth end)
+            let easedProgress = 1.0 - pow(1.0 - progress, 3)
 
             let currentPosition = animationStartPosition + (animationTargetPosition - animationStartPosition) * easedProgress
 
             splitView.setPosition(currentPosition, ofDividerAt: 0)
 
             if progress >= 1.0 {
-                timer.invalidate()
-                isAnimating = false
-
-                // Hide the view after collapse animation completes
-                if isCollapsing {
-                    leftHost?.isHidden = true
-                    sidebarVisibilityBinding?.wrappedValue = false
-                }
+                finishAnimation()
             }
+        }
+
+        private func stopAnimation() {
+            animationTimer?.cancel()
+            animationTimer = nil
+        }
+
+        private func finishAnimation() {
+            stopAnimation()
+            isAnimating = false
+
+            // Ensure final position is exact
+            splitView?.setPosition(animationTargetPosition, ofDividerAt: 0)
+
+            // Hide the view after collapse animation completes
+            if isCollapsing {
+                leftHost?.isHidden = true
+                leftHost?.layer?.removeAnimation(forKey: "fade")
+                leftHost?.alphaValue = 1.0  // Reset for next show
+            }
+
+            // Call completion handler if set
+            animationCompletionHandler?()
+            animationCompletionHandler = nil
         }
 
         // MARK: - NSSplitViewDelegate
@@ -306,6 +363,11 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
                   splitView == self.splitView,
                   let leftHost = leftHost else { return }
 
+            // Don't update binding during animation - we control it explicitly
+            if isCurrentlyAnimating {
+                return
+            }
+
             // Update binding based on actual visibility
             let isVisible = !leftHost.isHidden
             sidebarVisibilityBinding?.wrappedValue = isVisible
@@ -321,6 +383,7 @@ struct NativeAppKitSplitView<Left: View, Right: View>: NSViewRepresentable {
         }
 
         deinit {
+            animationTimer?.cancel()
             NotificationCenter.default.removeObserver(self)
         }
     }

@@ -65,6 +65,7 @@ struct DocumentView: View {
                 .padding([.trailing, .bottom], 12)
                 .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
                 .padding(.top, 40)
+                .animation(.spring(response: 0.35, dampingFraction: 1.0), value: appViewModel.isSidebarVisible)
                
                 .background(
                     // Add hidden for new tab
@@ -114,6 +115,7 @@ struct DocumentView: View {
                 .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
                 .padding(.top, 6)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: appViewModel.isRightSidebarVisible)
+                .animation(.spring(response: 0.35, dampingFraction: 1.0), value: appViewModel.isSidebarVisible)
             }
         }
         .postHogScreenView("DocumentView")

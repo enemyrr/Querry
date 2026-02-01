@@ -9,6 +9,7 @@ import SwiftUI
 struct Sidebar: View {
     @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     @Environment(ConnectionInstance.self) var connectionInstance: ConnectionInstance?
+    @Environment(AppViewModel.self) var appViewModel: AppViewModel
 
     var body: some View {
         HStack(spacing: 0) {
