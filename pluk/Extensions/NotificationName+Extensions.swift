@@ -33,4 +33,7 @@ extension Notification.Name {
     static let schemaAddColumn = Notification.Name("schemaAddColumn")
     static let indexTableRefresh = Notification.Name("indexTableRefresh")
     static let indexAddIndex = Notification.Name("indexAddIndex")
+
+    /// Quick Look popover
+    static let cellQuickLookRequested = Notification.Name("cellQuickLookRequested")
 }

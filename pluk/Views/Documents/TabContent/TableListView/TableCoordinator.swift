@@ -67,6 +67,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private weak var deleteMenuItem: NSMenuItem?
     private weak var addRowMenuItem: NSMenuItem?
     private weak var refreshMenuItem: NSMenuItem?
+    private weak var quickLookMenuItem: NSMenuItem?
     private weak var copyRowsAsMenuItem: NSMenuItem?
     
     // Real-time change highlighting
@@ -103,6 +104,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleTableReloadData(notification:)), name: .tableReloadData, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleQuickLookRequest(notification:)), name: .cellQuickLookRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCopyKey(notification:)), name: .didRequestCopy, object: nil)
     }
     
@@ -164,15 +166,19 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             debugLog("❌ Invalid foreign key navigation notification data")
             return
         }
-        
+
         debugLog("🔗 Handling foreign key navigation to table: \(referencedTable) with value: \(currentValue)")
-        
+
         guard let referencedColumn = constraintInfo.referencedColumns?.first else {
             return
         }
-        
-        // Call the foreign key navigation callback with table name, referenced column, and current value
-        onForeignKeyNavigation?(referencedTable, referencedColumn, currentValue)
+
+        // Defer the navigation callback to the next run loop iteration
+        // This prevents state modification during the mouse event handling cycle
+        // which can cause AttributeGraph cycles in SwiftUI
+        DispatchQueue.main.async { [weak self] in
+            self?.onForeignKeyNavigation?(referencedTable, referencedColumn, currentValue)
+        }
     }
 
     
@@ -590,7 +596,14 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         editItem.target = self
         menu.addItem(editItem)
         self.editMenuItem = editItem
-        
+
+        // Quick Look menu item
+        let quickLookItem = NSMenuItem(title: "Quick Look", action: #selector(quickLookItem), keyEquivalent: "\r")
+        quickLookItem.keyEquivalentModifierMask = [.command]
+        quickLookItem.target = self
+        menu.addItem(quickLookItem)
+        self.quickLookMenuItem = quickLookItem
+
         // Separator
         menu.addItem(NSMenuItem.separator())
         
@@ -1073,6 +1086,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         deleteMenuItem?.isEnabled = hasValidRow && hasData
         addRowMenuItem?.isEnabled = true
         refreshMenuItem?.isEnabled = true
+        quickLookMenuItem?.isEnabled = hasValidCell
         copyRowsAsMenuItem?.isEnabled = hasSelectedRows && hasData
 
         // Also update via loop as backup
@@ -1100,6 +1114,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             case #selector(refreshCurrentTable):
                 item.isEnabled = true
 
+            case #selector(quickLookItem):
+                item.isEnabled = hasValidCell
+                debugLog("Quick Look item enabled: \(item.isEnabled)")
+
             default:
                 break
             }
@@ -1116,19 +1134,25 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func tableViewSelectionDidChange(_ notification: Notification) {
         let selectedRow = tableView.selectedRow
 
-        if selectedRow >= 0, let queryResult = queryResult, selectedRow < queryResult.rows.count {
-            let rowData = queryResult.rows[selectedRow]
-            onRowSelected?(rowData)
-            currentTab?.selectedRowIndex = selectedRow
-            currentTab?.selectedColumnOrder = queryResult.columns.map { $0.name }
-            if selectedRow < queryResult.rawRows.count {
-                currentTab?.selectedRawRowData = queryResult.rawRows[selectedRow]
+        // Defer state updates to avoid modifying state during SwiftUI view update cycle
+        // This prevents AttributeGraph cycle warnings
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            if selectedRow >= 0, let queryResult = self.queryResult, selectedRow < queryResult.rows.count {
+                let rowData = queryResult.rows[selectedRow]
+                self.onRowSelected?(rowData)
+                self.currentTab?.selectedRowIndex = selectedRow
+                self.currentTab?.selectedColumnOrder = queryResult.columns.map { $0.name }
+                if selectedRow < queryResult.rawRows.count {
+                    self.currentTab?.selectedRawRowData = queryResult.rawRows[selectedRow]
+                }
+            } else {
+                self.onRowSelected?(nil)
+                self.currentTab?.selectedRowIndex = nil
+                self.currentTab?.selectedColumnOrder = nil
+                self.currentTab?.selectedRawRowData = nil
             }
-        } else {
-            onRowSelected?(nil)
-            currentTab?.selectedRowIndex = nil
-            currentTab?.selectedColumnOrder = nil
-            currentTab?.selectedRawRowData = nil
         }
     }
 }

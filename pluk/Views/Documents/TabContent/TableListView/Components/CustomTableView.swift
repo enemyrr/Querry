@@ -89,17 +89,29 @@ class CustomTableView: NSTableView {
     private func handleKeyboardNavigation(with event: NSEvent) -> Bool {
         let keyCode = event.keyCode
         let currentRow = selectedRow
-        
+
+        // Handle Cmd+Enter for Quick Look
+        if event.modifierFlags.contains(.command) && keyCode == 36 {
+            if let cellLocation = currentCellLocation, cellLocation.column >= 0 {
+                NotificationCenter.default.post(
+                    name: .cellQuickLookRequested,
+                    object: self,
+                    userInfo: ["row": cellLocation.row, "column": cellLocation.column, "tableView": self]
+                )
+                return true
+            }
+        }
+
         // Initialize selection if none exists and user presses navigation key
         if currentRow < 0 && (keyCode == 126 || keyCode == 125 || keyCode == 123 || keyCode == 124) {
             selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
             scrollRowToVisible(0)
             return true
         }
-        
+
         var newRow = currentRow
         var handled = false
-        
+
         switch keyCode {
         case 126: // Up arrow
             newRow = max(0, currentRow - 1)

@@ -191,6 +191,10 @@ struct TableListView: View {
         }
 
         .task(id: selectedTab.name) {
+            // Yield first to let the view update complete before modifying state
+            // This prevents AttributeGraph cycles from synchronous state modifications
+            await Task.yield()
+
             // Set default sort order based on database type
             if instance.connection.databaseType == .convex {
                 sortAscending = false // Convex defaults to descending (newest first)

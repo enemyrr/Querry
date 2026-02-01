@@ -57,6 +57,134 @@ extension TableCoordinator {
         )
     }
 
+    @objc func quickLookItem() {
+        guard let currentCell = tableView.getCurrentSelectedCell() else {
+            return
+        }
+
+        let row = currentCell.row
+        let column = currentCell.column
+
+        guard row >= 0 && column >= 0 else {
+            return
+        }
+
+        showQuickLook(row: row, column: column)
+    }
+
+    @objc func handleQuickLookRequest(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let row = userInfo["row"] as? Int,
+              let column = userInfo["column"] as? Int,
+              let notificationTableView = userInfo["tableView"] as? CustomTableView,
+              notificationTableView === self.tableView else {
+            return
+        }
+
+        showQuickLook(row: row, column: column)
+    }
+
+    private func showQuickLook(row: Int, column: Int) {
+        guard let queryResult = queryResult,
+              row < queryResult.rows.count,
+              column < tableView.tableColumns.count else {
+            return
+        }
+
+        let tableColumn = tableView.tableColumns[column]
+        let columnName = tableColumn.identifier.rawValue
+
+        guard let queryRowInfo = queryResult.value(row: row, column: columnName) else {
+            return
+        }
+
+        let columnInfo = queryResult.column(named: columnName)
+        let dataType = columnInfo?.dataType ?? "unknown"
+
+        let originalValue = formatValueForQuickLook(queryRowInfo.value)
+
+        guard let cellView = tableView.view(atColumn: column, row: row, makeIfNecessary: false) else {
+            return
+        }
+
+        let cellRect = cellView.bounds
+
+        Task { @MainActor in
+            QuickLookPopoverController.shared.showQuickLook(
+                for: originalValue,
+                fieldName: columnName,
+                dataType: dataType,
+                relativeTo: cellRect,
+                of: cellView,
+                onSave: { [weak self] newValue in
+                    self?.handleQuickLookSave(
+                        row: row,
+                        columnName: columnName,
+                        dataType: dataType,
+                        originalValue: originalValue,
+                        newValue: newValue
+                    )
+                }
+            )
+        }
+    }
+
+    private func handleQuickLookSave(row: Int, columnName: String, dataType: String, originalValue: String, newValue: String) {
+        guard let tracker = modificationTracker else { return }
+
+        tracker.updateCell(
+            rowIndex: row,
+            columnName: columnName,
+            newValue: newValue,
+            originalValue: originalValue,
+            dataType: dataType
+        )
+
+        tableView.reloadData(
+            forRowIndexes: IndexSet(integer: row),
+            columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns)
+        )
+    }
+
+    private func formatValueForQuickLook(_ value: Any?) -> String {
+        guard let value else { return "NULL" }
+
+        switch value {
+        case let string as String:
+            return string.isEmpty ? "" : prettyPrintJSON(string)
+        case let dict as [String: Any]:
+            return prettyPrintJSON(dict)
+        case let array as [Any]:
+            return prettyPrintJSON(array)
+        default:
+            return String(describing: value)
+        }
+    }
+
+    private func prettyPrintJSON(_ value: Any) -> String {
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            let looksLikeJSON = (trimmed.hasPrefix("{") && trimmed.hasSuffix("}")) ||
+                                (trimmed.hasPrefix("[") && trimmed.hasSuffix("]"))
+            guard looksLikeJSON, let data = string.data(using: .utf8) else {
+                return string
+            }
+            guard let jsonObject = try? JSONSerialization.jsonObject(with: data),
+                  let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
+                  let result = String(data: prettyData, encoding: .utf8) else {
+                return string
+            }
+            return result
+        }
+
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]),
+              let result = String(data: data, encoding: .utf8) else {
+            return String(describing: value)
+        }
+        return result
+    }
+
     // MARK: - Copy Rows As Actions
 
     @objc func copyRowsAsPlainText() {
