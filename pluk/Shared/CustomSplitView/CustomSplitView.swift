@@ -1,86 +1,100 @@
 //
 //  CustomSplitView.swift
-//  Collection
+//  Pluk
 //
-//  Created by Fauzaan on 1/16/25.
-//
+
 import SwiftUI
 
 struct CustomSplitView<SidebarContent: View, DetailContent: View>: View {
-    @Environment(\.currentDatabaseType) private var currentDatabaseType
-    @Environment(SidebarViewModel.self) private var sidebarViewModel
     @Environment(\.colorScheme) private var colorScheme
-    
-    @State private var overlayContentWidth: CGFloat = 0
-    @State private var hostingWindow: NSWindow?
-    
+
     private let sidebarContent: SidebarContent
     private let detailContent: DetailContent
-    private let isFullScreenView: Bool
-    private let connectionInstance: ConnectionInstance?
-    @Binding var isSidebarVisible: Bool
-    
-    init(@ViewBuilder sidebar: () -> SidebarContent,
-         @ViewBuilder detail: () -> DetailContent,
-         isFullScreenView: Bool = false,
-         isSidebarVisible: Binding<Bool>,
-         connectionInstance: ConnectionInstance? = nil
+    private let isFixedSidebar: Bool
+
+    @State private var isSidebarVisible = true
+
+    init(
+        @ViewBuilder sidebar: () -> SidebarContent,
+        @ViewBuilder detail: () -> DetailContent,
+        isFixedSidebar: Bool = false
     ) {
         self.sidebarContent = sidebar()
         self.detailContent = detail()
-        self.isFullScreenView = isFullScreenView
-        _isSidebarVisible = isSidebarVisible
-        self.connectionInstance = connectionInstance
+        self.isFixedSidebar = isFixedSidebar
     }
-    
+
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            NativeAppKitSplitView(
-                left: sidebarContent
-                    .frame(minWidth: isFullScreenView ? 50 : 330)
-                    .ignoresSafeArea(.container, edges: .top),
-                right: detailContent
-                    .environment(\.leadingOverlayWidth, overlayContentWidth)
-                    .ignoresSafeArea(),
-                isSidebarVisible: $isSidebarVisible,
-                isFixedSidebar: isFullScreenView, // HomeView uses fixed sidebar
-                fixedSidebarWidth: 50,
-                minSidebarWidth: 330 // Minimum width for resizable sidebars
+        Group {
+            if isFixedSidebar {
+                FixedSidebarLayout(sidebar: sidebarContent, detail: detailContent)
+            } else {
+                SidebarSplitViewBridge(
+                    sidebar: sidebarContent
+                        .frame(minWidth: 330)
+                        .ignoresSafeArea(.container, edges: .top),
+                    content: detailContent.ignoresSafeArea(),
+                    minSidebarWidth: 330
+                )
+                .ignoresSafeArea(.container, edges: .top)
+            }
+        }
+        .background(
+            BackgroundPanel(
+                colorScheme: colorScheme,
+                leadingPadding: sidebarLeadingPadding,
+                isSidebarVisible: isSidebarVisible
             )
-            .ignoresSafeArea(.container, edges: .top)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(colorScheme == .dark ? Color(.black).opacity(0.40) : Color(.controlBackgroundColor).opacity(0.86))
-                    .padding(.top, 6)
-                    .padding(.leading, isSidebarVisible ? 44 : 2)
-                    .padding([.horizontal, .bottom], 6)
-                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
-                    .animation(.linear(duration: 0), value: isSidebarVisible)
-            )
-            .background(WindowAccessor { win in
-                if hostingWindow !== win { hostingWindow = win }
-            })
+        )
+        .onReceive(NotificationCenter.default.publisher(for: .sidebarAnimationWillStart)) { notification in
+            let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
+            withAnimation(.easeOut(duration: 0.2)) {
+                isSidebarVisible = !isCollapsing
+            }
         }
     }
-    
-    private func toggleSidebar() {
-        isSidebarVisible.toggle()
+
+    private var sidebarLeadingPadding: CGFloat {
+        if isFixedSidebar || isSidebarVisible {
+            return 44
+        }
+        return 2
     }
-    
-    private func currentEnvironmentTitle(_ instance: ConnectionInstance) -> String {
-        instance.connectedDatabase?.name ?? "Select Environment"
-    }
-    
-    private func openEnvironmentInNewTab(instance: ConnectionInstance, database: any DatabaseWrapper) {
-        Task {
-            if let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(from: instance, databaseName: database.name) {
-                // Sidebar change happens immediately - connection happens in background
-                await MainActor.run {
-                    sidebarViewModel.changeActiveSidebarItem(.connection(instanceId))
-                }
-            }
+}
+
+private struct FixedSidebarLayout<Sidebar: View, Detail: View>: View {
+    let sidebar: Sidebar
+    let detail: Detail
+
+    var body: some View {
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: 50)
+                .ignoresSafeArea(.container, edges: .top)
+            detail
+                .ignoresSafeArea()
         }
     }
 }
 
+private struct BackgroundPanel: View {
+    let colorScheme: ColorScheme
+    let leadingPadding: CGFloat
+    let isSidebarVisible: Bool
 
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(backgroundColor)
+            .padding(.top, 6)
+            .padding(.leading, leadingPadding)
+            .padding([.horizontal, .bottom], 6)
+            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 4)
+            .animation(.easeInOut(duration: 0.2), value: isSidebarVisible)
+    }
+
+    private var backgroundColor: Color {
+        colorScheme == .dark
+            ? Color(.black).opacity(0.40)
+            : Color(.controlBackgroundColor).opacity(0.86)
+    }
+}

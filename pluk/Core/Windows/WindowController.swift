@@ -371,32 +371,28 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     // MARK: - Native Sidebar Toggle
 
     @objc func toggleSidebarNatively(_ sender: Any?) {
-        // Post notification to trigger animated sidebar toggle in NativeAppKitSplitView
         guard let window = self.window else { return }
 
-        // Check current state BEFORE posting notification (since handler runs synchronously)
-        var willBeCollapsed = true
-        if let splitView = findNSSplitView(in: window.contentView),
-           let leftSubview = splitView.arrangedSubviews.first {
-            let isCurrentlyCollapsed = splitView.isSubviewCollapsed(leftSubview) || leftSubview.isHidden
-            willBeCollapsed = !isCurrentlyCollapsed
-        }
-
+        // Post notification to trigger sidebar toggle
         NotificationCenter.default.post(name: .toggleLeftSidebar, object: window)
 
-        // Update environment toolbar visibility
-        environmentToolbarItem?.view?.isHidden = willBeCollapsed
+        // Update environment toolbar visibility after a brief delay to let animation start
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            if let controller = self?.findSidebarController(in: window.contentView) {
+                self?.environmentToolbarItem?.view?.isHidden = controller.isCollapsed
+            }
+        }
     }
 
-    private func findNSSplitView(in view: NSView?) -> NSSplitView? {
+    private func findSidebarController(in view: NSView?) -> SidebarSplitViewController? {
         guard let view = view else { return nil }
 
-        if let splitView = view as? NSSplitView {
-            return splitView
+        if let controller = view.nextResponder as? SidebarSplitViewController {
+            return controller
         }
 
         for subview in view.subviews {
-            if let found = findNSSplitView(in: subview) {
+            if let found = findSidebarController(in: subview) {
                 return found
             }
         }
@@ -735,10 +731,7 @@ struct TabAwareMainWindow: View {
     }
 
     private var isHomeTab: Bool {
-        if case .home = tabType {
-            return true
-        }
-        return false
+        tabType == .home
     }
 
     var body: some View {
@@ -767,18 +760,14 @@ struct TabAwareMainWindow: View {
             
             CustomSplitView(
                 sidebar: {
-                    // Sidebar stays the same across all tabs
                     Sidebar()
                         .environment(connectionInstance)
                         .padding(.top, 50)
                 },
                 detail: {
-                    // Only the detail area changes per tab
                     TabSpecificContent(tabType: tabType, connectionInstance: connectionInstance)
                 },
-                isFullScreenView: isHomeTab,
-                isSidebarVisible: $appViewModel.isSidebarVisible,
-                connectionInstance: connectionInstance
+                isFixedSidebar: isHomeTab
             )
             .environment(\.currentDatabaseType, connectionInstance?.connection.databaseType)
         }

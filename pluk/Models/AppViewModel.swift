@@ -2,15 +2,12 @@
 //  AppViewModel.swift
 //  Pluk
 //
-//  Created by Fauzaan on 4/11/25.
-//
 
 import SwiftUI
 import Observation
 
-@Observable final class AppViewModel {
-    var isSidebarVisible = true
-    var isSidebarContentVisible = true
+@MainActor @Observable
+final class AppViewModel {
     var isRightSidebarVisible = false
     var rightSidebarWidth: CGFloat = 300
 }

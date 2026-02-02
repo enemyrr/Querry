@@ -12,28 +12,25 @@ import AppKit
 struct DocumentView: View {
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) var colorScheme
+    @Environment(AppViewModel.self) private var appViewModel
+
     @State private var commandFilter: String = ""
     @State private var isCommandBarVisible: Bool = false
     @State private var eventMonitor: Any?
-    @Environment(AppViewModel.self) private var appViewModel
-    
+    @State private var isSidebarVisible: Bool = true
+
+    private var tabBarTopPadding: CGFloat {
+        if #available(macOS 26, *) { return 0 }
+        return -2
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            if instance.tabs.isEmpty  {
+            if instance.tabs.isEmpty {
                 ZStack {
-                    if colorScheme == .dark {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(
-                                Color(Color(.black).opacity(0.25))
-                            )
-                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
-                    } else {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(
-                                Color(hex: "#FDFDFD")
-                            )
-                            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
-                    }
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(colorScheme == .dark ? Color(.black).opacity(0.25) : Color(hex: "#FDFDFD"))
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
 
                     VStack {
                         Spacer()
@@ -63,9 +60,8 @@ struct DocumentView: View {
                     }
                 }
                 .padding([.trailing, .bottom], 12)
-                .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
+                .padding([.leading], isSidebarVisible ? 2 : 12)
                 .padding(.top, 40)
-                .animation(.spring(response: 0.35, dampingFraction: 1.0), value: appViewModel.isSidebarVisible)
                
                 .background(
                     // Add hidden for new tab
@@ -87,13 +83,7 @@ struct DocumentView: View {
                 }
             } else {
                 TabBar()
-                    .padding(.top, {
-                        if #available(macOS 26, *) {
-                            return 0
-                        } else {
-                            return -2
-                        }
-                    }())
+                    .padding(.top, tabBarTopPadding)
 
                 HStack(spacing: 0) {
                     NSTabViewWrapper()
@@ -105,54 +95,51 @@ struct DocumentView: View {
                             .transition(
                                 .asymmetric(
                                     insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .trailing).combined(with: .opacity)
+                                    removal: .opacity.animation(.easeOut(duration: 0.15))
                                 )
                             )
                             .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.08), radius: 4)
                     }
                 }
                 .padding([.trailing, .bottom], 12)
-                .padding([.leading], appViewModel.isSidebarVisible ? 2 : 12)
+                .padding([.leading], isSidebarVisible ? 2 : 12)
                 .padding(.top, 6)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: appViewModel.isRightSidebarVisible)
-                .animation(.spring(response: 0.35, dampingFraction: 1.0), value: appViewModel.isSidebarVisible)
+                .animation(.spring(duration: 0.25, bounce: 0.15), value: appViewModel.isRightSidebarVisible)
             }
         }
         .postHogScreenView("DocumentView")
         .onReceive(NotificationCenter.default.publisher(for: .toggleRightSidebar)) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            withAnimation(.spring(duration: 0.25, bounce: 0.15)) {
                 appViewModel.isRightSidebarVisible.toggle()
             }
         }
-    }
-    
-    
-    private func setupEventMonitor() {
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
-            switch event.keyCode {
-            case 35: // 'p' key
-                if event.modifierFlags.contains(.command) {
-                    isCommandBarVisible.toggle()
-                    // Clear search text when hiding
-                    if !isCommandBarVisible {
-                        commandFilter = ""
-                    }
-                    return nil // Consume the event
-                }
-                return event // Let it pass through if not Command+P
-
-            case 53: // 'esc' key
-                if isCommandBarVisible {
-                    isCommandBarVisible = false
-                    return nil
-                }
-                return event
-            default:
-                return event // Let other keys pass through
+        .onReceive(NotificationCenter.default.publisher(for: .sidebarAnimationWillStart)) { notification in
+            let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
+            let delay: Double = isCollapsing ? 0.05 : 0
+            withAnimation(.easeOut(duration: 0.2).delay(delay)) {
+                isSidebarVisible = !isCollapsing
             }
         }
     }
-    
+
+    private func setupEventMonitor() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            switch event.keyCode {
+            case 35 where event.modifierFlags.contains(.command):
+                isCommandBarVisible.toggle()
+                if !isCommandBarVisible {
+                    commandFilter = ""
+                }
+                return nil
+            case 53 where isCommandBarVisible:
+                isCommandBarVisible = false
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
     private func removeEventMonitor() {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -160,9 +147,6 @@ struct DocumentView: View {
         }
     }
 }
-
-
-
 
 class TabContentView: NSView {
     let tab: DatabaseTab
@@ -236,10 +220,7 @@ class TabContentView: NSView {
     }
     
     private func setContentView(_ view: NSView) {
-        // Remove existing content view if any
         contentView?.removeFromSuperview()
-
-        // Set new content view
         contentView = view
         addSubview(view)
         view.translatesAutoresizingMaskIntoConstraints = false
@@ -250,8 +231,7 @@ class TabContentView: NSView {
             view.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
-    
-    // Method to update the content when tab data changes
+
     func updateContent() {
         setupView()
     }

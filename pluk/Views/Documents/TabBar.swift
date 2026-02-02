@@ -8,14 +8,33 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+private func getTabIconName(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
+    if tab.type == .sqlEditor {
+        return "terminal"
+    }
+    if databaseType == .mongodb && tab.viewMode == .content {
+        return "text.document"
+    }
+    switch tab.viewMode {
+    case .content:
+        return "tablecells"
+    case .schema:
+        return "square.stack.3d.up"
+    case .definition:
+        return "ellipsis.curlybraces"
+    }
+}
+
 struct TabBar: View {
     @Environment(AppViewModel.self) private var appViewModel
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.leadingOverlayWidth) private var leadingOverlayWidth
+
     @State private var isScrollable = false
     @State private var isHoveringRightSidebar = false
     @State private var draggedIndex: Int?
     @State private var dropInsertionIndex: Int?
+    @State private var isSidebarVisible: Bool = true
 
     var body: some View {
         HStack(spacing: 0) {
@@ -50,9 +69,15 @@ struct TabBar: View {
         }
         .padding(
             .leading,
-            !appViewModel.isSidebarVisible ? max(leadingOverlayWidth, 120) : 0
+            !isSidebarVisible ? max(leadingOverlayWidth, 120) : 0
         )
-        .animation(.easeOut(duration: 0.2), value: appViewModel.isSidebarVisible)
+        .onReceive(NotificationCenter.default.publisher(for: .sidebarAnimationWillStart)) { notification in
+            let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
+            let delay: Double = isCollapsing ? 0.05 : 0
+            withAnimation(.easeOut(duration: 0.2).delay(delay)) {
+                isSidebarVisible = !isCollapsing
+            }
+        }
         .frame(height: 36)
         .background(
             // Add hidden buttons for Cmd+1 through Cmd+9
@@ -214,20 +239,7 @@ struct TabBar: View {
     }
 
     private func tabIcon(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
-        if tab.type == .sqlEditor {
-            return "terminal"
-        }
-        if databaseType == .mongodb && tab.viewMode == .content {
-            return "text.document"
-        }
-        switch tab.viewMode {
-        case .content:
-            return "tablecells"
-        case .schema:
-            return "square.stack.3d.up"
-        case .definition:
-            return "ellipsis.curlybraces"
-        }
+        getTabIconName(for: tab, databaseType: databaseType)
     }
 
     private let tabWidth: CGFloat = 182
@@ -276,7 +288,7 @@ struct TabBar: View {
 
     private var rightSidebarToggle: some View {
         Button(action: {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            withAnimation(.spring(duration: 0.25, bounce: 0.15)) {
                 appViewModel.isRightSidebarVisible.toggle()
             }
         }) {
@@ -303,26 +315,25 @@ struct TabBar: View {
     }
 }
 
-/// A view modifier that applies glass effect on macOS 26+ when hovering or active, otherwise just shows the icon
 struct GlassToggleBackground: ViewModifier {
     let isHovering: Bool
     let isActive: Bool
 
+    private var isHighlighted: Bool { isHovering || isActive }
+
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            if isHovering || isActive {
-                content
-                    .glassEffect(.regular, in: .rect(cornerRadius: 8))
+            if isHighlighted {
+                content.glassEffect(.regular, in: .rect(cornerRadius: 8))
             } else {
                 content
             }
         } else {
-            content
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill((isHovering || isActive) ? Color(.controlColor).opacity(0.8) : Color.clear)
-                        .animation(.easeInOut(duration: 0.15), value: isActive)
-                )
+            content.background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isHighlighted ? Color(.controlColor).opacity(0.8) : Color.clear)
+                    .animation(.easeInOut(duration: 0.15), value: isActive)
+            )
         }
     }
 }
@@ -382,34 +393,20 @@ struct NSTabViewWrapper: NSViewRepresentable {
             for (index, tab) in instance.tabs.enumerated() {
                 let identifier = tab.id.uuidString
                 
+                let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
+                let iconName = getIconName(for: tab, databaseType: instance.connection.databaseType)
+
                 if let existingItem = tabView.tabViewItems.first(where: {
                     ($0.identifier as? String) == identifier
                 }) {
-                    // Update existing tab
-                    let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
                     existingItem.label = tabLabel
-                    existingItem.image = NSImage(
-                        systemSymbolName: getIconName(for: tab, databaseType: instance.connection.databaseType),
-                        accessibilityDescription: nil
-                    )
+                    existingItem.image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)
                 } else {
-                    // Create new tab
                     let tabViewItem = NSTabViewItem(identifier: identifier)
-                    let tabLabel = tab.hasSchemaDeviation ? "\(tab.name)*" : tab.name
                     tabViewItem.label = tabLabel
-                    tabViewItem.image = NSImage(
-                        systemSymbolName: getIconName(for: tab, databaseType: instance.connection.databaseType),
-                        accessibilityDescription: nil
-                    )
-                    
-                    // Create the actual content view for the tab
-                    let tabContentView = TabContentView(
-                        tab: tab,
-                        databaseType: instance.connection.databaseType
-                    )
-                    tabViewItem.view = tabContentView
-                    
-                    // Insert at correct position
+                    tabViewItem.image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)
+                    tabViewItem.view = TabContentView(tab: tab, databaseType: instance.connection.databaseType)
+
                     if index < tabView.numberOfTabViewItems {
                         tabView.insertTabViewItem(tabViewItem, at: index)
                     } else {
@@ -450,40 +447,18 @@ struct NSTabViewWrapper: NSViewRepresentable {
             _ tabView: NSTabView,
             shouldSelect tabViewItem: NSTabViewItem?
         ) -> Bool {
-            return true
+            true
         }
-        
-        // Handle tab closing via context menu or gesture
+
         func tabView(
             _ tabView: NSTabView,
             willSelect tabViewItem: NSTabViewItem?
         ) {
-            // Remove any context menu from tab content view to prevent it from appearing on right-click
-            if let item = tabViewItem {
-                item.view?.menu = nil
-            }
+            tabViewItem?.view?.menu = nil
         }
 
-        // Helper function to get icon name based on tab type and view mode
         private func getIconName(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
-            if tab.type == .sqlEditor {
-                return "terminal"
-            }
-
-            // For MongoDB, use document icon for content mode
-            if databaseType == .mongodb && tab.viewMode == .content {
-                return "text.document"
-            }
-
-            // For other tabs, use icon based on view mode
-            switch tab.viewMode {
-            case .content:
-                return "tablecells"
-            case .schema:
-                return "square.stack.3d.up"
-            case .definition:
-                return "ellipsis.curlybraces"
-            }
+            getTabIconName(for: tab, databaseType: databaseType)
         }
     }
 }
@@ -499,24 +474,14 @@ struct CustomTabButton: View {
     @State private var isHovering = false
 
     private var iconName: String {
-        if tab.type == .sqlEditor {
-            return "terminal"
-        }
+        getTabIconName(for: tab, databaseType: databaseType)
+    }
 
-        // For MongoDB, use document icon for content mode
-        if databaseType == .mongodb && tab.viewMode == .content {
-            return "text.document"
+    private var tabBackgroundColor: Color {
+        if colorScheme == .dark {
+            return Color(.black).opacity(0.40)
         }
-
-        // For other tabs, use icon based on view mode
-        switch tab.viewMode {
-        case .content:
-            return "tablecells"
-        case .schema:
-            return "square.stack.3d.up"
-        case .definition:
-            return "ellipsis.curlybraces"
-        }
+        return isSelected ? Color(.controlBackgroundColor).opacity(0.86) : .clear
     }
 
     var body: some View {
@@ -560,39 +525,18 @@ struct CustomTabButton: View {
         .padding(.leading, 10)
         .padding(.trailing, 12)
         .background(
-            Group {
-                if colorScheme == .dark {
-                    TabShape(isSelected: isSelected)
-                        .fill(
-                            Color(.black).opacity(0.40)
-                        )
-                        .shadow(
-                            color: Color(.sRGBLinear, white: 0, opacity: 0.02),
-                            radius: 4
-                        )
-                } else {
-                    TabShape(isSelected: isSelected)
-                        .fill(
-                            isSelected
-                            ? Color(.controlBackgroundColor).opacity(0.86)
-                            : .clear
-                        )
-                        .shadow(
-                            color: Color(.sRGBLinear, white: 0, opacity: 0.02),
-                            radius: 4
-                        )
-                }
-            }
+            TabShape(isSelected: isSelected)
+                .fill(tabBackgroundColor)
+                .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.02), radius: 4)
         )
         .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(
-                    isHovering ? Color(.controlColor).opacity(0.8) : Color.clear
-                )
+                .fill(isHovering ? Color(.controlColor).opacity(0.8) : Color.clear)
                 .padding(.bottom, 4)
                 .opacity(isSelected ? 0 : 1)
-        ).onHover { hovering in
+        )
+        .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
             }
@@ -655,61 +599,6 @@ struct TabShape: Shape {
             
             // Bottom line to close
             path.addLine(to: CGPoint(x: -curveRadius, y: rect.height))
-        }
-        
-        return path
-    }
-}
-
-// Custom border shape that excludes bottom border for selected tabs
-struct TabBorderShape: Shape {
-    let isSelected: Bool
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        
-        if isSelected {
-            let radius: CGFloat = 10
-            let curveRadius: CGFloat = 10
-            let smoothness: CGFloat = 1
-            
-            // Start from bottom left outward curve
-            path.move(to: CGPoint(x: -curveRadius, y: rect.height))
-            
-            // Bottom left outward curve
-            path.addQuadCurve(
-                to: CGPoint(x: 0, y: rect.height - curveRadius),
-                control: CGPoint(x: -2 * smoothness, y: rect.height)
-            )
-            
-            // Left side line up
-            path.addLine(to: CGPoint(x: 0, y: radius))
-            
-            // Top left rounded corner
-            path.addQuadCurve(
-                to: CGPoint(x: radius, y: 0),
-                control: CGPoint(x: 0, y: 0)
-            )
-            
-            // Top line
-            path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
-            
-            // Top right rounded corner
-            path.addQuadCurve(
-                to: CGPoint(x: rect.width, y: radius),
-                control: CGPoint(x: rect.width, y: 0)
-            )
-            
-            // Right side line down
-            path.addLine(
-                to: CGPoint(x: rect.width, y: rect.height - curveRadius)
-            )
-            
-            // Bottom right outward curve
-            path.addQuadCurve(
-                to: CGPoint(x: rect.width + curveRadius, y: rect.height),
-                control: CGPoint(x: rect.width + 2 * smoothness, y: rect.height)
-            )
         }
         
         return path

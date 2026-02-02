@@ -17,10 +17,6 @@ extension Notification.Name {
     /// Toggle the left sidebar in the main split view
     static let toggleLeftSidebar = Notification.Name("ToggleLeftSidebar")
 
-    /// Hide/show left sidebar content (for phased animation)
-    static let hideSidebarContent = Notification.Name("HideSidebarContent")
-    static let showSidebarContent = Notification.Name("ShowSidebarContent")
-
     /// Toggle the right sidebar (row details)
     static let toggleRightSidebar = Notification.Name("ToggleRightSidebar")
 
@@ -44,4 +40,7 @@ extension Notification.Name {
     /// Sidebar animation lifecycle (for performance optimization)
     static let sidebarAnimationWillStart = Notification.Name("SidebarAnimationWillStart")
     static let sidebarAnimationDidEnd = Notification.Name("SidebarAnimationDidEnd")
+
+    /// Sidebar visibility changed (userInfo contains "isVisible": Bool)
+    static let sidebarVisibilityChanged = Notification.Name("SidebarVisibilityChanged")
 }

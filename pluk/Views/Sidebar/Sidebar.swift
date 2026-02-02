@@ -9,7 +9,6 @@ import SwiftUI
 struct Sidebar: View {
     @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     @Environment(ConnectionInstance.self) var connectionInstance: ConnectionInstance?
-    @Environment(AppViewModel.self) var appViewModel: AppViewModel
 
     var body: some View {
         HStack(spacing: 0) {
@@ -42,13 +41,11 @@ struct NavigationSidebar: View {
         }
     }
 
-
     private var isHomeTabActive: Bool {
-        _ = tabChangeCounter // Force dependency on state change
+        _ = tabChangeCounter
         guard let activeTabType = WindowController.getCurrentActiveTabType() else {
             return true
         }
-
         if case .home = activeTabType {
             return true
         }
@@ -97,15 +94,9 @@ struct NavigationSidebar: View {
                     } label: {
                         Label("Disconnect", systemImage: "xmark.circle.fill")
                     }
-                    
+
                     Divider()
-                    
-//                    Button {
-//                        // Refresh connection action
-//                    } label: {
-//                        Label("Refresh", systemImage: "arrow.clockwise")
-//                    }
-                    
+
                     Button {
                         let connectionURI = instance.connection.copyableConnectionUri
                         let pasteboard = NSPasteboard.general
@@ -120,7 +111,7 @@ struct NavigationSidebar: View {
         .background(.clear)
     }
     
-    var bottomNavigationItems: some View {
+    private var bottomNavigationItems: some View {
         IconButtonWithoutBorder(
             systemName: "exclamationmark.bubble.fill",
             isSelected: false
