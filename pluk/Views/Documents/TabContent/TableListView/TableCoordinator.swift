@@ -9,7 +9,7 @@ import Foundation
 import AppKit
 import Cocoa
 
-class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, NSMenuDelegate {
+class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, RowUndoDelegate, NSMenuDelegate {
     var rows: [[String: Any?]]
     var schema: DatabaseSchemaResult?
     var totalCount: Int
@@ -40,6 +40,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
 
     // Callback for row selection
     var onRowSelected: (([String: QueryRowInfo]?) -> Void)?
+
+    // Callback for undo row insert
+    var onUndoRowInsert: ((Int) -> Void)?
     
     // Persistent storage
     public var tableName: String = ""
@@ -77,7 +80,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     // Sidebar animation state (skip expensive operations during animation)
     private var isSidebarAnimating = false
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "", onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil) {
+    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "", onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil, onUndoRowInsert: ((Int) -> Void)? = nil) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
@@ -90,7 +93,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         self.highlightedRows = highlightedRows
         self.cacheNamespace = cacheNamespace
         self.onRowSelected = onRowSelected
-        
+        self.onUndoRowInsert = onUndoRowInsert
+
         if let queryResult = queryResult {
             self.rows = queryResult.rawRows
             self.totalCount = queryResult.totalCount
@@ -98,11 +102,12 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             self.rows = []
             self.totalCount = 0
         }
-        
+
         super.init()
-        
-        // Set up undo delegate
+
+        // Set up undo delegates
         self.modificationTracker?.undoDelegate = self
+        self.modificationTracker?.rowUndoDelegate = self
         
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
@@ -223,6 +228,16 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
                 self.tableView.reloadData(forRowIndexes: rowIndexSet, columnIndexes: IndexSet(integersIn: 0..<self.tableView.numberOfColumns))
             }
         }
+    }
+
+    // MARK: - RowUndoDelegate
+    func didUndoRowInsert(rowIndex: Int) {
+        debugLog("✅ Did undo row insert at index \(rowIndex)")
+        onUndoRowInsert?(rowIndex)
+    }
+
+    func didUndoRowDelete(rowIndex: Int, rowData: [String: Any]?) {
+        debugLog("✅ Did undo row delete at index \(rowIndex)")
     }
     
     private func findCellView(rowIndex: Int, columnName: String) -> TextCellView? {

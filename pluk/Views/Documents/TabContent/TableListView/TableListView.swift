@@ -120,6 +120,9 @@ struct TableListView: View {
                         highlightedRows: updatedRows,
                         onRowSelected: { rowData in
                             selectedTab.selectedRowData = rowData
+                        },
+                        onUndoRowInsert: { rowIndex in
+                            undoRowInsert(atIndex: rowIndex)
                         }
                     )
                 } else {
@@ -696,22 +699,22 @@ struct TableListView: View {
 
     func deleteNewlyAddedRecord(atIndex: Int) {
         guard let currentResult = cachedDocuments else { return }
-        
+
         // Ensure the index is valid
         guard atIndex >= 0 && atIndex < currentResult.rawRows.count else {
             debugLog("❌ Invalid index for deletion: \(atIndex)")
             return
         }
-        
+
         // Remove from raw rows
         var updatedRawRows = currentResult.rawRows
         modificationTracker.deleteRow(rowIndex: atIndex)
         updatedRawRows.remove(at: atIndex)
-        
+
         // Remove from processed rows
         var updatedProcessedRows = currentResult.rows
         updatedProcessedRows.remove(at: atIndex)
-        
+
         // Create updated result
         let updatedResult = QueryResult(
             columns: currentResult.columns,
@@ -719,16 +722,53 @@ struct TableListView: View {
             totalCount: currentResult.totalCount - 1,
             rawRows: updatedRawRows
         )
-        
+
         // Update cached documents
         cachedDocuments = updatedResult
-        
+
         // Update view state
         if let updatedDocuments = cachedDocuments, let currentSchema = cachedSchema {
             viewState = .loaded(updatedDocuments, currentSchema)
         }
-        
+
         debugLog("✅ Deleted new record at index \(atIndex)")
+    }
+
+    private func undoRowInsert(atIndex: Int) {
+        guard let currentResult = cachedDocuments else { return }
+
+        guard atIndex >= 0 && atIndex < currentResult.rawRows.count else {
+            debugLog("❌ Invalid index for undo row insert: \(atIndex)")
+            return
+        }
+
+        var updatedRawRows = currentResult.rawRows
+        updatedRawRows.remove(at: atIndex)
+
+        var updatedProcessedRows = currentResult.rows
+        updatedProcessedRows.remove(at: atIndex)
+
+        let updatedResult = QueryResult(
+            columns: currentResult.columns,
+            rows: updatedProcessedRows,
+            totalCount: currentResult.totalCount - 1,
+            rawRows: updatedRawRows
+        )
+
+        cachedDocuments = updatedResult
+        needsToSelectLastRow = false
+
+        if let currentSchema = cachedSchema {
+            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
+        }
+
+        NotificationCenter.default.post(
+            name: .tableReloadData,
+            object: nil,
+            userInfo: ["tableName": selectedTab.name]
+        )
+
+        debugLog("✅ Undid row insert at index \(atIndex)")
     }
     
     /// Load documents only if they don't exist in cache or tab has changed

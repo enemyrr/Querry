@@ -29,7 +29,7 @@ struct ModificationHistoryEntry {
     let previousValue: String
     let newValue: String
     let dataType: String
-    
+
     init(rowIndex: Int, columnName: String, previousValue: String, newValue: String, dataType: String) {
         self.timestamp = Date()
         self.rowIndex = rowIndex
@@ -37,6 +37,22 @@ struct ModificationHistoryEntry {
         self.previousValue = previousValue
         self.newValue = newValue
         self.dataType = dataType
+    }
+}
+
+// MARK: - Row History Entry
+struct RowHistoryEntry {
+    let id = UUID()
+    let timestamp: Date
+    let rowIndex: Int
+    let type: RowModificationType
+    let rowData: [String: Any]?
+
+    init(rowIndex: Int, type: RowModificationType, rowData: [String: Any]? = nil) {
+        self.timestamp = Date()
+        self.rowIndex = rowIndex
+        self.type = type
+        self.rowData = rowData
     }
 }
 
@@ -85,9 +101,11 @@ struct RowModification {
 @Observable class TableModificationTracker {
     private var rowModifications: [Int: RowModification] = [:]
     private var modificationHistory: [ModificationHistoryEntry] = []
-    
+    private var rowHistory: [RowHistoryEntry] = []
+
     // Delegate to notify about undo events
     weak var undoDelegate: TableModificationUndoDelegate?
+    weak var rowUndoDelegate: RowUndoDelegate?
     
     // Public computed properties
     var modifiedRowCount: Int {
@@ -111,7 +129,7 @@ struct RowModification {
     }
     
     var canUndo: Bool {
-        return !modificationHistory.isEmpty
+        return !modificationHistory.isEmpty || !rowHistory.isEmpty
     }
     
     var historyCount: Int {
@@ -128,10 +146,13 @@ struct RowModification {
                 columnName: key,
                 originalValue: stringValue,
                 newValue: stringValue,
-                dataType: "" // Data type can be refined later if needed
+                dataType: ""
             )
         }
         rowModifications[rowIndex] = newRow
+
+        let historyEntry = RowHistoryEntry(rowIndex: rowIndex, type: .insert, rowData: initialData)
+        rowHistory.append(historyEntry)
         debugLog("rowModification: \(rowModifications)")
     }
     
@@ -304,41 +325,72 @@ struct RowModification {
     
     // MARK: - Undo Functionality
     func undo() -> Bool {
-        guard let lastEntry = modificationHistory.popLast() else {
+        let lastCellEntry = modificationHistory.last
+        let lastRowEntry = rowHistory.last
+
+        guard lastCellEntry != nil || lastRowEntry != nil else {
             debugLog("❌ No modifications to undo")
             return false
         }
-        
+
+        let shouldUndoRow: Bool
+        if let cellEntry = lastCellEntry, let rowEntry = lastRowEntry {
+            shouldUndoRow = rowEntry.timestamp >= cellEntry.timestamp
+        } else {
+            shouldUndoRow = lastRowEntry != nil
+        }
+
+        if shouldUndoRow, let rowEntry = rowHistory.popLast() {
+            return undoRowOperation(rowEntry)
+        } else if let cellEntry = modificationHistory.popLast() {
+            return undoCellOperation(cellEntry)
+        }
+
+        return false
+    }
+
+    private func undoRowOperation(_ entry: RowHistoryEntry) -> Bool {
+        switch entry.type {
+        case .insert:
+            debugLog("⏪ Undoing row insert at index \(entry.rowIndex)")
+            rowModifications.removeValue(forKey: entry.rowIndex)
+            rowUndoDelegate?.didUndoRowInsert(rowIndex: entry.rowIndex)
+            return true
+        case .delete:
+            debugLog("⏪ Undoing row delete at index \(entry.rowIndex)")
+            rowModifications.removeValue(forKey: entry.rowIndex)
+            rowUndoDelegate?.didUndoRowDelete(rowIndex: entry.rowIndex, rowData: entry.rowData)
+            return true
+        case .update:
+            return false
+        }
+    }
+
+    private func undoCellOperation(_ lastEntry: ModificationHistoryEntry) -> Bool {
         debugLog("⏪ Undoing: Row \(lastEntry.rowIndex), Column \(lastEntry.columnName), \(lastEntry.newValue) → \(lastEntry.previousValue)")
-        
-        // Notify delegate about the undo operation
+
         undoDelegate?.willUndoModification(
             rowIndex: lastEntry.rowIndex,
             columnName: lastEntry.columnName,
             fromValue: lastEntry.newValue,
             toValue: lastEntry.previousValue
         )
-        
-        // Apply the undo by setting the cell back to its previous value
-        // We need to find the original value for this cell
+
         let originalValue = findOriginalValue(rowIndex: lastEntry.rowIndex, columnName: lastEntry.columnName)
-        
+
         if lastEntry.previousValue == originalValue {
-            // Reverting to original value - remove the modification
             if rowModifications[lastEntry.rowIndex] != nil {
                 rowModifications[lastEntry.rowIndex]?.removeCell(columnName: lastEntry.columnName)
-                
-                // Remove the row modification if no changes remain
+
                 if let rowMod = rowModifications[lastEntry.rowIndex], !rowMod.hasModifications {
                     rowModifications.removeValue(forKey: lastEntry.rowIndex)
                 }
             }
         } else {
-            // Reverting to a previous modified value - update the modification
             if rowModifications[lastEntry.rowIndex] == nil {
                 rowModifications[lastEntry.rowIndex] = RowModification(rowIndex: lastEntry.rowIndex, type: .update)
             }
-            
+
             rowModifications[lastEntry.rowIndex]?.updateCell(
                 columnName: lastEntry.columnName,
                 newValue: lastEntry.previousValue,
@@ -346,14 +398,13 @@ struct RowModification {
                 dataType: lastEntry.dataType
             )
         }
-        
-        // Notify delegate that undo is complete
+
         undoDelegate?.didUndoModification(
             rowIndex: lastEntry.rowIndex,
             columnName: lastEntry.columnName,
             newValue: lastEntry.previousValue
         )
-        
+
         return true
     }
     
@@ -384,6 +435,7 @@ struct RowModification {
     
     func clearHistory() {
         modificationHistory.removeAll()
+        rowHistory.removeAll()
         debugLog("🗑️ Cleared modification history")
     }
     
@@ -474,4 +526,10 @@ struct RowModification {
 protocol TableModificationUndoDelegate: AnyObject {
     func willUndoModification(rowIndex: Int, columnName: String, fromValue: String, toValue: String)
     func didUndoModification(rowIndex: Int, columnName: String, newValue: String)
+}
+
+// MARK: - Row Undo Delegate Protocol
+protocol RowUndoDelegate: AnyObject {
+    func didUndoRowInsert(rowIndex: Int)
+    func didUndoRowDelete(rowIndex: Int, rowData: [String: Any]?)
 }

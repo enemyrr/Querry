@@ -21,6 +21,7 @@ struct ContentModeView: View {
     let highlightedFields: Set<String>
     let highlightedRows: Set<Int>
     let onRowSelected: (([String: QueryRowInfo]?) -> Void)?
+    let onUndoRowInsert: ((Int) -> Void)?
 
     var body: some View {
         TableListViewController(
@@ -36,7 +37,8 @@ struct ContentModeView: View {
             onForeignKeyNavigation: onForeignKeyNavigation,
             highlightedFields: highlightedFields,
             highlightedRows: highlightedRows,
-            onRowSelected: onRowSelected
+            onRowSelected: onRowSelected,
+            onUndoRowInsert: onUndoRowInsert
         )
     }
 }

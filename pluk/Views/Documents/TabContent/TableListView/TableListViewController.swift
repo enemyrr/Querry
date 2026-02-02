@@ -22,8 +22,9 @@ struct TableListViewController: NSViewRepresentable {
     let highlightedFields: Set<String>
     let highlightedRows: Set<Int>
     let onRowSelected: (([String: QueryRowInfo]?) -> Void)?
+    let onUndoRowInsert: ((Int) -> Void)?
 
-    init(selectedTab: DatabaseTab? = nil, schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", cacheNamespace: String? = nil, onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, needsToSelectLastRow: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil) {
+    init(selectedTab: DatabaseTab? = nil, schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", cacheNamespace: String? = nil, onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, needsToSelectLastRow: Bool = false, onDeleteNewRow: ((Int) -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil, onUndoRowInsert: ((Int) -> Void)? = nil) {
         self.selectedTab = selectedTab
         self.schema = schema
         self.queryResult = queryResult
@@ -37,10 +38,11 @@ struct TableListViewController: NSViewRepresentable {
         self.highlightedFields = highlightedFields
         self.highlightedRows = highlightedRows
         self.onRowSelected = onRowSelected
+        self.onUndoRowInsert = onUndoRowInsert
     }
     
     func makeCoordinator() -> TableCoordinator {
-        return TableCoordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker, onDeleteNewRow: onDeleteNewRow, onForeignKeyNavigation: onForeignKeyNavigation, highlightedFields: highlightedFields, highlightedRows: highlightedRows, cacheNamespace: cacheNamespace ?? "", onRowSelected: onRowSelected)
+        return TableCoordinator(schema: schema, queryResult: queryResult, tableName: tableName, onSort: onSort, modificationTracker: modificationTracker, onDeleteNewRow: onDeleteNewRow, onForeignKeyNavigation: onForeignKeyNavigation, highlightedFields: highlightedFields, highlightedRows: highlightedRows, cacheNamespace: cacheNamespace ?? "", onRowSelected: onRowSelected, onUndoRowInsert: onUndoRowInsert)
     }
     
     func makeNSView(context: Context) -> NSView {

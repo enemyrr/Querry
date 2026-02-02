@@ -25,6 +25,7 @@ struct TableViewModeContainer: View {
     let highlightedFields: Set<String>
     let highlightedRows: Set<Int>
     let onRowSelected: (([String: QueryRowInfo]?) -> Void)?
+    let onUndoRowInsert: ((Int) -> Void)?
 
     var body: some View {
         Group {
@@ -43,7 +44,8 @@ struct TableViewModeContainer: View {
                     onForeignKeyNavigation: onForeignKeyNavigation,
                     highlightedFields: highlightedFields,
                     highlightedRows: highlightedRows,
-                    onRowSelected: onRowSelected
+                    onRowSelected: onRowSelected,
+                    onUndoRowInsert: onUndoRowInsert
                 )
 
             case .schema:
