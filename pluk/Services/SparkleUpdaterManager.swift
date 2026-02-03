@@ -33,36 +33,24 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
             userDriverDelegate: nil
         )
 
-        // Configure automatic updates
-        if let updater = updaterController?.updater {
-            #if DEBUG
-                // Enable automatic checks in debug too
-                updater.automaticallyChecksForUpdates = true
-                updater.automaticallyDownloadsUpdates = false
-                logger.info("Sparkle updater initialized in DEBUG mode - automatic updates enabled for testing")
-            #else
-                // Enable automatic checking for updates
-                updater.automaticallyChecksForUpdates = true
+        guard let updater = updaterController?.updater else { return }
 
-                // Enable automatic downloading of updates
-                updater.automaticallyDownloadsUpdates = true
+        let autoCheckForUpdates = UserDefaults.standard.object(forKey: "autoCheckForUpdates") as? Bool ?? true
+        updater.automaticallyChecksForUpdates = autoCheckForUpdates
 
-                // Set update check interval to 24 hours
-                updater.updateCheckInterval = 86_400
+        #if DEBUG
+            updater.automaticallyDownloadsUpdates = false
+            logger.info("Sparkle updater initialized in DEBUG mode - auto check: \(autoCheckForUpdates)")
+        #else
+            updater.automaticallyDownloadsUpdates = autoCheckForUpdates
+            updater.updateCheckInterval = 86_400
+            logger.info("Sparkle updater initialized - auto check: \(autoCheckForUpdates)")
+        #endif
 
-                logger.info("Sparkle updater initialized successfully with automatic downloads enabled")
-            #endif
-
-            // Start the updater for both debug and release builds
-            if let controller = updaterController {
-                do {
-                    try controller.updater.start()
-                } catch {
-                    logger.error("Failed to start Sparkle updater: \(error)")
-                }
-            }
-
-            // Note: feedURL configuration happens through delegate methods
+        do {
+            try updater.start()
+        } catch {
+            logger.error("Failed to start Sparkle updater: \(error)")
         }
     }
 
@@ -81,11 +69,11 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
     }
 
     public func checkForUpdates() {
-        guard updaterController != nil else {
+        guard let controller = updaterController else {
             logger.warning("Cannot check for updates: updater not initialized")
             return
         }
-        updaterController?.checkForUpdates(nil)
+        controller.checkForUpdates(nil)
         logger.info("Manual update check initiated")
     }
 

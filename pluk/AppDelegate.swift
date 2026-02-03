@@ -32,25 +32,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let _ = SparkleUpdaterManager.shared
-        // Analytics and crash reporting init
+
+        // Analytics init - check if user has explicitly disabled analytics (defaults to enabled)
+        let sendAnalytics = UserDefaults.standard.object(forKey: "sendAnalytics") as? Bool ?? true
         let POSTHOG_API_KEY = "phc_sUeCOX55NMF1KRMylcacBuRrAdZmOtPLLQE0To9eeSK"
         let POSTHOG_HOST = "https://us.i.posthog.com"
         let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
-        PostHogSDK.shared.setup(config)
-        
+
         #if DEBUG
         config.optOut = true
+        #else
+        config.optOut = !sendAnalytics
         #endif
+
+        PostHogSDK.shared.setup(config)
 
         Task { @MainActor in
             AnalyticsService.shared.setupSuperPropertiesIfNeeded()
         }
 
-        SentrySDK.start { options in
-            options.dsn = "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
-            options.sendDefaultPii = false
-            options.enableUncaughtNSExceptionReporting = true
-            options.debug = false
+        // Check if user has explicitly disabled crash reporting (defaults to enabled)
+        let reportCrashes = UserDefaults.standard.object(forKey: "reportCrashes") as? Bool ?? true
+        if reportCrashes {
+            SentrySDK.start { options in
+                options.dsn = "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
+                options.sendDefaultPii = false
+                options.enableUncaughtNSExceptionReporting = true
+                options.debug = false
+            }
         }
         
         // Ensure the app has a basic main menu and is frontmost
@@ -66,15 +75,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         
+        if #available(macOS 26, *) {
+            configureMenuItemImages()
+        }
+
         // Create the main window using WindowController (which loads TerminalTabsTitlebarVentura.xib)
         let windowController = WindowController(tabType: .home)
         windowController.showWindow(nil)
-        windowController.window?.setContentSize(NSSize(width: 850, height: 950))
-        windowController.window?.center()
-        windowController.window?.makeKeyAndOrderFront(nil)
         
-        // Install Command-[ shortcut in the menu
-        installToggleSidebarMenuShortcut()
+        // Let the WindowController handle sizing through its configureWindow method
+        // It already has logic for saved frames and constraints
+        if let window = windowController.window {
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     // Ensure toolbar items are enabled
@@ -87,21 +100,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     
-    private func installToggleSidebarMenuShortcut() {
-        guard let mainMenu = NSApp.mainMenu else { return }
-
-        // Find and update the existing "Show Sidebar" menu item from XIB
-        if let viewItem = mainMenu.items.first(where: { $0.title == "View" }),
-           let submenu = viewItem.submenu,
-           let sidebarItem = submenu.items.first(where: { $0.title == "Toggle Sidebar" }) {
-            // Update to use Cmd+[ shortcut
-            sidebarItem.keyEquivalent = "["
-            sidebarItem.keyEquivalentModifierMask = [.command]
-            sidebarItem.action = #selector(toggleSidebar(_:))
-            sidebarItem.target = self
-        }
-    }
-
     // Handle the toggleSidebar: action from menu
     @objc func toggleSidebar(_ sender: Any?) {
         if let window = NSApp.keyWindow,
@@ -129,6 +127,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let aboutWindowController = AboutWindowController()
         aboutWindowController.window?.center()
         aboutWindowController.showWindow(nil)
+    }
+
+    // Show Settings window
+    @IBAction func showSettings(_ sender: Any?) {
+        SettingsWindowController.shared.show()
     }
     
     @IBAction func checkForUpdates(_ sender: Any?) {
@@ -169,6 +172,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         break
                     }
                 }
+            }
+        }
+    }
+
+    @available(macOS 26, *)
+    private func configureMenuItemImages() {
+        guard let mainMenu = NSApp.mainMenu else { return }
+
+        let symbolsByTitle: [String: String] = [
+            "Check for Updates…": "arrow.triangle.2.circlepath",
+            "Settings…": "gearshape.fill",
+            "Toggle Row Details": "sidebar.right"
+        ]
+
+        applyMenuItemImages(to: mainMenu, using: symbolsByTitle)
+    }
+
+    @available(macOS 26, *)
+    private func applyMenuItemImages(to menu: NSMenu, using symbolsByTitle: [String: String]) {
+        for item in menu.items {
+            if let symbolName = symbolsByTitle[item.title] {
+                item.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: item.title)
+            }
+            if let submenu = item.submenu {
+                applyMenuItemImages(to: submenu, using: symbolsByTitle)
             }
         }
     }

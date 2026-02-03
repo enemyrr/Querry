@@ -32,7 +32,11 @@
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="VOq-y0-SEH"/>
-                            <menuItem title="Preferences…" keyEquivalent="," id="BOF-NM-1cW"/>
+                            <menuItem title="Settings…" keyEquivalent="," id="BOF-NM-1cW">
+                                <connections>
+                                    <action selector="showSettings:" target="Voe-Tx-rLC" id="pLk-St-1cW"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                             <menuItem title="Services" id="NMo-om-nkz">
                                 <modifierMask key="keyEquivalentModifierMask"/>
@@ -296,7 +300,7 @@
                             </menuItem>
                             <menuItem title="Toggle Sidebar" keyEquivalent="[" id="kIP-vf-haE">
                                 <connections>
-                                    <action selector="toggleSidebar:" target="-1" id="iwa-gc-5KM"/>
+                                    <action selector="toggleSidebar:" target="Voe-Tx-rLC" id="iwa-gc-5KM"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Toggle Row Details" keyEquivalent="]" id="rSD-tg-rD1">
