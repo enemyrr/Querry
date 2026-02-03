@@ -21,7 +21,7 @@ struct GeneralSettingsView: View {
     // @AppStorage("reopenLastWorkspace") private var reopenLastWorkspace = true
 
     // @AppStorage("autoHideTableScrollers") private var autoHideTableScrollers = false
-    // @AppStorage("alternatingRowColors") private var alternatingRowColors = true
+    @AppStorage("alternatingRowColors") private var alternatingRowColors = true
     // @AppStorage("estimateCountThreshold") private var estimateCountThreshold = 500000
     // @AppStorage("showOpenInFinderAfterExport") private var showOpenInFinderAfterExport = true
 
@@ -47,6 +47,7 @@ struct GeneralSettingsView: View {
         Form {
             appearanceSection
             applicationSection
+            tableSection
 
             // MARK: - Future Settings Sections (DO NOT REMOVE - uncomment to enable)
             // tableDataSection
@@ -95,6 +96,12 @@ struct GeneralSettingsView: View {
     }
 
     // MARK: - Active Sections
+
+    private var tableSection: some View {
+        Section("Table") {
+            Toggle("Alternating row colors", isOn: $alternatingRowColors)
+        }
+    }
 
     private var appearanceSection: some View {
         Section {

@@ -174,11 +174,7 @@ class EnumCellView: NSView {
         }
 
         if isModified {
-            let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let modificationColor = isDarkMode
-                ? NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0)
-                : NSColor(red: 0xFF/255.0, green: 0xE5/255.0, blue: 0x99/255.0, alpha: 1.0)
-            layer?.backgroundColor = modificationColor.cgColor
+            layer?.backgroundColor = NSColor.cellModificationColor.cgColor
         } else {
             layer?.backgroundColor = NSColor.clear.cgColor
         }
@@ -188,6 +184,11 @@ class EnumCellView: NSView {
         if rightBorderView == nil || bottomBorderView == nil {
             createBorderView()
         }
+        updateBottomBorderVisibility()
+    }
+
+    private func updateBottomBorderVisibility() {
+        bottomBorderView?.isHidden = TableAppearanceSettings.alternatingRowColors
     }
 
     private func createBorderView() {

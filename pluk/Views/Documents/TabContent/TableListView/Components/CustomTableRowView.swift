@@ -9,6 +9,33 @@ import Foundation
 import AppKit
 
 class CustomTableRowView: NSTableRowView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        TableAppearanceSettings.initialize()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        TableAppearanceSettings.initialize()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if !isSelected && TableAppearanceSettings.alternatingRowColors {
+            guard let tableView = superview as? NSTableView else {
+                super.draw(dirtyRect)
+                return
+            }
+
+            let rowIndex = tableView.row(for: self)
+            if rowIndex % 2 == 1 {
+                NSColor.alternatingRowStripeColor.setFill()
+                bounds.fill()
+            }
+        }
+
+        super.draw(dirtyRect)
+    }
+
     override func drawSelection(in dirtyRect: NSRect) {
         guard let tableView = self.superview as? CustomTableView else {
             // Fallback for non-custom table views
@@ -75,14 +102,12 @@ class CustomTableRowView: NSTableRowView {
     }
     
     private func drawFullRowSelection() {
-        // Subtle row selection color with different colors for light/dark theme
-        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let customColor = isDarkMode
+        let isDarkMode = NSApp.effectiveAppearance.isDarkMode
+        let selectionColor = isDarkMode
             ? NSColor.controlColor.withAlphaComponent(0.08)
             : NSColor.controlAccentColor.withAlphaComponent(0.08)
-        customColor.setFill()
+        selectionColor.setFill()
 
-        // Apply bottom padding to the selection rectangle
         let paddedRect = NSRect(
             x: bounds.origin.x,
             y: bounds.origin.y,

@@ -100,8 +100,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
     private var foreignKeyIconView: NSImageView?
-    
-    // Static reference to track which cell is currently editing
+
     private static weak var currentEditingCell: TextCellView?
     
     public var isSelected: Bool = false
@@ -146,7 +145,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         super.init(frame: frameRect)
         setupTextField()
     }
-    
+
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupTextField()
@@ -332,25 +331,16 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     }
     
     private func updateModificationAppearance() {
-        // Ensure the cell has a layer for background drawing
         if !wantsLayer {
             wantsLayer = true
         }
 
         if isModified {
-            // Set background color on the cell itself to indicate modification
-            // Use different colors for light and dark theme
-            let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let modificationColor = isDarkMode
-                ? NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0)  // Dark theme
-                : NSColor(red: 0xFF/255.0, green: 0xE5/255.0, blue: 0x99/255.0, alpha: 1.0)  // Light theme - lighter yellow/beige
-            layer?.backgroundColor = modificationColor.cgColor
+            layer?.backgroundColor = NSColor.cellModificationColor.cgColor
         } else {
-            // Reset background color when not modified
             layer?.backgroundColor = NSColor.clear.cgColor
         }
-        
-        // Update foreign key icon visibility
+
         updateForeignKeyIcon()
     }
     
@@ -610,6 +600,11 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         if rightBorderView == nil || bottomBorderView == nil {
             createBorderView()
         }
+        updateBottomBorderVisibility()
+    }
+
+    private func updateBottomBorderVisibility() {
+        bottomBorderView?.isHidden = TableAppearanceSettings.alternatingRowColors
     }
     
     private func createBorderView() {
