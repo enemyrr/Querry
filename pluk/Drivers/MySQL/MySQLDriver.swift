@@ -234,7 +234,7 @@ class MySQLDriver: DatabaseDriver {
         
         var collections: [MySQLCollectionWrapper] = []
         for row in rows {
-            if let tableName = row.column("TABLE_NAME")?.string {
+            if let tableName = row.column("TABLE_NAME")?.string ?? row.column("table_name")?.string {
                 collections.append(MySQLCollectionWrapper(
                     id: ObjectIdentifier(NSString(string: tableName)),
                     name: tableName
