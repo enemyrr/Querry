@@ -80,7 +80,7 @@ struct DocumentList: View {
                     schemaModificationTracker: nil,
                     onCommitSchemaModifications: nil
                 )
-                .padding(.bottom, 10)
+                .padding(.bottom, 6)
             }
         }
         .padding(.leading, -6)

@@ -600,45 +600,39 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         if rightBorderView == nil || bottomBorderView == nil {
             createBorderView()
         }
-        updateBottomBorderVisibility()
+        updateBorderVisibility()
     }
 
-    private func updateBottomBorderVisibility() {
-        bottomBorderView?.isHidden = TableAppearanceSettings.alternatingRowColors
+    private func updateBorderVisibility() {
+        let alternatingRowsEnabled = TableAppearanceSettings.alternatingRowColors
+        bottomBorderView?.isHidden = alternatingRowsEnabled
+        rightBorderView?.isHidden = alternatingRowsEnabled
     }
     
     private func createBorderView() {
-        // Right border
         rightBorderView = NSView()
         rightBorderView?.wantsLayer = true
         rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
-        
         addSubview(rightBorderView!)
         rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            rightBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
+            rightBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor),
             rightBorderView!.topAnchor.constraint(equalTo: topAnchor),
             rightBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
             rightBorderView!.widthAnchor.constraint(equalToConstant: 1.0)
         ])
-        
-        // Bottom border
+
         bottomBorderView = NSView()
         bottomBorderView?.wantsLayer = true
         bottomBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
-        
         addSubview(bottomBorderView!)
         bottomBorderView?.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            bottomBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 0),
-            bottomBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor, constant: 0),
-            bottomBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
+            bottomBorderView!.leadingAnchor.constraint(equalTo: leadingAnchor),
+            bottomBorderView!.trailingAnchor.constraint(equalTo: trailingAnchor),
+            bottomBorderView!.bottomAnchor.constraint(equalTo: bottomAnchor),
             bottomBorderView!.heightAnchor.constraint(equalToConstant: 1.0)
         ])
-    }
-    
-    override func layout() {
-        super.layout()
     }
     
     override func viewWillDraw() {

@@ -184,11 +184,13 @@ class EnumCellView: NSView {
         if rightBorderView == nil || bottomBorderView == nil {
             createBorderView()
         }
-        updateBottomBorderVisibility()
+        updateBorderVisibility()
     }
 
-    private func updateBottomBorderVisibility() {
-        bottomBorderView?.isHidden = TableAppearanceSettings.alternatingRowColors
+    private func updateBorderVisibility() {
+        let alternatingRowsEnabled = TableAppearanceSettings.alternatingRowColors
+        bottomBorderView?.isHidden = alternatingRowsEnabled
+        rightBorderView?.isHidden = alternatingRowsEnabled
     }
 
     private func createBorderView() {

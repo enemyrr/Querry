@@ -14,6 +14,12 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     var schema: DatabaseSchemaResult?
     var totalCount: Int
     var queryResult: QueryResult?
+
+    private let paddingRowCount = 3
+
+    func isPaddingRow(_ row: Int) -> Bool {
+        return row >= totalCount
+    }
     
     private let containerView = NSView()
     private let scrollView = NSScrollView()
@@ -509,12 +515,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         scrollView.documentView = tableView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         
-        // FIXED: Use scrollerInsets to keep scrollbars at screen edges
-        // while contentInsets provides the content padding
         scrollView.automaticallyAdjustsContentInsets = false
-        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 100, right: 0)
-        scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: -100, right: 0)
-        
+        scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
         containerView.addSubview(scrollView)
         
         NSLayoutConstraint.activate([
@@ -677,12 +681,18 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         tableView.menu = menu
 
         tableView.rowSizeStyle = .custom
-        
+
         // Table view setup
         tableView.style = .plain
         tableView.backgroundColor = NSColor.clear
         tableView.usesAutomaticRowHeights = false
-        
+
+        // Enable native vertical grid lines when alternating rows is on
+        if TableAppearanceSettings.alternatingRowColors {
+            tableView.gridStyleMask = [.solidVerticalGridLineMask]
+            tableView.gridColor = .separatorColor
+        }
+
         // Remove intercell spacing to eliminate padding between columns
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         
@@ -833,7 +843,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     // MARK: - NSTableViewDataSource
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return self.totalCount
+        return totalCount + paddingRowCount
     }
     
     
@@ -945,13 +955,23 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         return 28
     }
-    
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        return !isPaddingRow(row)
+    }
+
     // MARK: - NSTableViewDelegate
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard let tableColumn = tableColumn,
-              let queryResult = queryResult else {
-            return nil
+        guard let tableColumn = tableColumn else { return nil }
+
+        // Return empty view for padding rows
+        if isPaddingRow(row) {
+            let emptyView = NSView()
+            emptyView.wantsLayer = false
+            return emptyView
         }
+
+        guard let queryResult = queryResult else { return nil }
 
         let columnName = tableColumn.identifier.rawValue
         guard let queryRowInfo = queryResult.value(row: row, column: columnName) else {

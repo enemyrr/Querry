@@ -189,7 +189,7 @@ struct TableListView: View {
                         handleNewField()
                     }
                 )
-                .padding(.bottom, 10)
+                .padding(.bottom, 6)
             }
         }
 

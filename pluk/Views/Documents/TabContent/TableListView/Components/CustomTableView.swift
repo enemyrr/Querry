@@ -11,6 +11,111 @@ import AppKit
 class CustomTableView: NSTableView {
     // Handler for undo operations
     var undoHandler: (() -> Bool)?
+
+    // MARK: - Grid Line Drawing
+
+    override func drawGrid(inClipRect clipRect: NSRect) {
+        super.drawGrid(inClipRect: clipRect)
+
+        // Draw right border for last column (native grid only draws between columns)
+        guard TableAppearanceSettings.alternatingRowColors,
+              numberOfColumns > 0 else { return }
+
+        let lastColumnRect = rect(ofColumn: numberOfColumns - 1)
+        let lineX = floor(lastColumnRect.maxX) + 0.5
+
+        if lineX >= clipRect.minX && lineX <= clipRect.maxX {
+            gridColor.setStroke()
+            let line = NSBezierPath()
+            line.move(to: NSPoint(x: lineX, y: clipRect.minY))
+            line.line(to: NSPoint(x: lineX, y: clipRect.maxY))
+            line.lineWidth = 1.0
+            line.stroke()
+        }
+    }
+
+    // MARK: - Alternating Row Background Drawing
+
+    override func drawBackground(inClipRect clipRect: NSRect) {
+        super.drawBackground(inClipRect: clipRect)
+
+        guard TableAppearanceSettings.alternatingRowColors else { return }
+
+        drawAlternatingRowsAbove(clipRect: clipRect)
+        drawAlternatingRowsBelow(clipRect: clipRect)
+    }
+
+    private func drawAlternatingRowsAbove(clipRect: NSRect) {
+        guard clipRect.minX >= 0 && clipRect.width <= bounds.width + 10 else { return }
+
+        let visibleRows = rows(in: visibleRect)
+        guard visibleRows.location != NSNotFound, visibleRows.location > 0 || visibleRect.minY < 0 else { return }
+
+        let firstVisibleRow = max(0, visibleRows.location)
+        let topOfFirstRow = rect(ofRow: firstVisibleRow).minY
+        guard clipRect.minY < topOfFirstRow else { return }
+
+        let rowHeight = self.rowHeight
+        var rowIndex = firstVisibleRow - 1
+        var rowY = topOfFirstRow - rowHeight
+
+        // Align to first odd row (stripes are on odd indices)
+        if rowIndex % 2 == 0 {
+            rowIndex -= 1
+            rowY -= rowHeight
+        }
+
+        guard rowY + rowHeight > clipRect.minY else { return }
+
+        NSColor.alternatingRowStripeColor.setFill()
+
+        while rowY + rowHeight > clipRect.minY && rowIndex >= 0 {
+            let stripeMinY = max(rowY, clipRect.minY)
+            let stripeMaxY = min(rowY + rowHeight, clipRect.maxY)
+            if stripeMaxY > stripeMinY {
+                NSRect(x: clipRect.minX, y: stripeMinY, width: clipRect.width, height: stripeMaxY - stripeMinY).fill()
+            }
+            rowY -= rowHeight * 2
+            rowIndex -= 2
+        }
+    }
+
+    private func drawAlternatingRowsBelow(clipRect: NSRect) {
+        let totalRows = numberOfRows
+        guard totalRows > 0 else { return }
+        guard clipRect.minX >= 0 && clipRect.width <= bounds.width + 10 else { return }
+
+        let rowHeight = self.rowHeight > 0 ? self.rowHeight : 24
+        let contentEndY = rect(ofRow: totalRows - 1).maxY
+        guard clipRect.maxY > contentEndY else { return }
+
+        let effectiveMinY = max(clipRect.minY, contentEndY)
+        let effectiveMaxY = clipRect.maxY
+        guard effectiveMaxY > effectiveMinY else { return }
+
+        // Calculate starting row index and Y position
+        let rowsFromContent = Int(floor((effectiveMinY - contentEndY) / rowHeight))
+        let rowIndex = totalRows + rowsFromContent
+        var rowY = contentEndY + CGFloat(rowsFromContent) * rowHeight
+
+        // Align to first odd row (stripes are on odd indices)
+        if rowIndex % 2 == 0 {
+            rowY += rowHeight
+        }
+
+        guard rowY < effectiveMaxY else { return }
+
+        NSColor.alternatingRowStripeColor.setFill()
+
+        while rowY < effectiveMaxY {
+            let stripeMinY = max(rowY, clipRect.minY)
+            let stripeMaxY = min(rowY + rowHeight, clipRect.maxY)
+            if stripeMaxY > stripeMinY {
+                NSRect(x: clipRect.minX, y: stripeMinY, width: clipRect.width, height: stripeMaxY - stripeMinY).fill()
+            }
+            rowY += rowHeight * 2
+        }
+    }
     
     // Delegate for cell-level selection events
     weak var cellSelectionDelegate: TableViewCellSelectionDelegate?
@@ -29,10 +134,6 @@ class CustomTableView: NSTableView {
         let column = (clickedCol >= 0 && clickedCol < numberOfColumns) ? clickedCol : -1
         
         return (selectedRow, column)
-    }
-    
-    override func awakeFromNib() {
-        super.awakeFromNib()
     }
     
     // MARK: - Action-Target Pattern for Click Detection
@@ -402,3 +503,4 @@ class CustomTableView: NSTableView {
 protocol TableViewCellSelectionDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, didSelectCellAt row: Int, column: Int)
 }
+
