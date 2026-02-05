@@ -8,7 +8,7 @@
         <item>
             <title>Pluk 0.0.1 Beta 27</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg</link>
-            <sparkle:version>285</sparkle:version>
+            <sparkle:version>286</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.27</sparkle:shortVersionString>
             <description><![CDATA[
                 <h2>Pluk 0.0.1 Beta 27</h2><div>Pluk v0.0.1-beta.27 is a polish-heavy release focused on the small upgrades to the features you use every day when working with data.
@@ -34,7 +34,7 @@ We’ve also shipped some small but mighty fixes:
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg"
                 length="50312739"
                 type="application/octet-stream"
-                sparkle:edSignature="0gu8r9nKuHP6LxYbNfhBfLMyE0297Vuv2vYab+2EZkc47uc2uGnZjmvA+R8KMyinXjvjk+HftzU4ie4GHnddDw=="
+                sparkle:edSignature="XSATHZNjW6pBmiysG75XdCo7egM5xy7i6vTTmBJD7NnKyfypwskFXd9P/NL7/dCTuHVSMkJ4lUu6d4TjwaZRAw=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
