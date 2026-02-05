@@ -31,6 +31,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Restore user's appearance preference before creating windows
+        if let appearance = UserDefaults.standard.object(forKey: "appearance") as? Int {
+            NSApp.appearance = switch appearance {
+            case 1: NSAppearance(named: .aqua)
+            case 2: NSAppearance(named: .darkAqua)
+            default: nil
+            }
+        }
+
         let _ = SparkleUpdaterManager.shared
 
         // Analytics init - check if user has explicitly disabled analytics (defaults to enabled)
