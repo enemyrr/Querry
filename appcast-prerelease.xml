@@ -6,6 +6,39 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 27</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg</link>
+            <sparkle:version>285</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.27</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 27</h2><div>Pluk v0.0.1-beta.27 is a polish-heavy release focused on the small upgrades to the features you use every day when working with data.
+<ul>
+<li><strong>Create schemas for Postgres</strong> Set up schemas directly from Pluk instead of bouncing to another tool. (<a href="https://github.com/pluk-inc/Pluk/issues/48">#48</a>)</li>
+<li><strong>Copy Rows As…</strong> Copy selected rows in multiple formats so you can paste into docs, PRs, or scripts without cleanup. (<a href="https://github.com/pluk-inc/Pluk/issues/49">#49</a>)</li>
+<li><strong>Paste rows with ⌘V.</strong> Table pasting now behaves like you expect in a data grid workflow. (<a href="https://github.com/pluk-inc/Pluk/issues/50">#50</a>)</li>
+<li><strong>QuickLook-style cell editor.</strong> Edit large cell values in a focused view instead of fighting tiny cells. (<a href="https://github.com/pluk-inc/Pluk/issues/51">#51</a>)</li>
+<li><strong>Keyboard shortcuts support.</strong> More actions are reachable without leaving the keyboard. (<a href="https://github.com/pluk-inc/Pluk/issues/15">#15</a>)</li>
+<li><strong>Theme preferences.</strong> Basic theme controls to shape your Pluk setup. (<a href="https://github.com/pluk-inc/Pluk/issues/24">#24</a>)</li>
+<li><strong>Striped table rows.</strong> Easier scanning for wide datasets. (<a href="https://github.com/pluk-inc/Pluk/issues/18">#18</a>)</li>
+</ul>
+We’ve also shipped some small but mighty fixes:
+<ul>
+<li><strong>Undo works after paste.</strong> ⌘Z correctly undoes pasted rows. (<a href="https://github.com/pluk-inc/Pluk/issues/52">#52</a>)</li>
+<li><strong>MySQL/MariaDB tables list correctly in the sidebar.</strong> Connections now reflect the real schema. (<a href="https://github.com/pluk-inc/Pluk/issues/56">#56</a>)</li>
+<li><strong>Better table readability.</strong> Cell text is vertically centered again. (<a href="https://github.com/pluk-inc/Pluk/issues/57">#57</a>)</li>
+<li><strong>Quit on last window close.</strong> Optional behavior for “close means quit”. (<a href="https://github.com/pluk-inc/Pluk/issues/54">#54</a>)</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Thu, 05 Feb 2026 06:11:24 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg"
+                length="50314731"
+                type="application/octet-stream"
+                sparkle:edSignature="0gu8r9nKuHP6LxYbNfhBfLMyE0297Vuv2vYab+2EZkc47uc2uGnZjmvA+R8KMyinXjvjk+HftzU4ie4GHnddDw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 26</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.26.dmg</link>
             <sparkle:version>284</sparkle:version>
