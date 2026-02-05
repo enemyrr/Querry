@@ -2,6 +2,25 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.27] – 2026-02-05
+
+Pluk v0.0.1-beta.27 is a polish-heavy release focused on the small upgrades to the features you use every day when working with data.
+
+- **Create schemas for Postgres** Set up schemas directly from Pluk instead of bouncing to another tool. ([#48](https://github.com/pluk-inc/Pluk/issues/48))
+- **Copy Rows As…** Copy selected rows in multiple formats so you can paste into docs, PRs, or scripts without cleanup. ([#49](https://github.com/pluk-inc/Pluk/issues/49))
+- **Paste rows with ⌘V.** Table pasting now behaves like you expect in a data grid workflow. ([#50](https://github.com/pluk-inc/Pluk/issues/50))
+- **QuickLook-style cell editor.** Edit large cell values in a focused view instead of fighting tiny cells. ([#51](https://github.com/pluk-inc/Pluk/issues/51))
+- **Keyboard shortcuts support.** More actions are reachable without leaving the keyboard. ([#15](https://github.com/pluk-inc/Pluk/issues/15))
+- **Theme preferences.** Basic theme controls to shape your Pluk setup. ([#24](https://github.com/pluk-inc/Pluk/issues/24))
+- **Striped table rows.** Easier scanning for wide datasets. ([#18](https://github.com/pluk-inc/Pluk/issues/18))
+
+We’ve also shipped some small but mighty fixes:
+
+- **Undo works after paste.** ⌘Z correctly undoes pasted rows. ([#52](https://github.com/pluk-inc/Pluk/issues/52))
+- **MySQL/MariaDB tables list correctly in the sidebar.** Connections now reflect the real schema. ([#56](https://github.com/pluk-inc/Pluk/issues/56))
+- **Better table readability.** Cell text is vertically centered again. ([#57](https://github.com/pluk-inc/Pluk/issues/57))
+- **Quit on last window close.** Optional behavior for “close means quit”. ([#54](https://github.com/pluk-inc/Pluk/issues/54))
+
 ## [0.0.1-beta.26] – 2026-01-29
 
 This release focuses on workflow polish: you can create databases without leaving Pluk, your tabs finally behave like a proper browser, and connection strings are much more resilient.
