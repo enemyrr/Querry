@@ -29,10 +29,10 @@ We’ve also shipped some small but mighty fixes:
 <li><strong>Quit on last window close.</strong> Optional behavior for “close means quit”. (<a href="https://github.com/pluk-inc/Pluk/issues/54">#54</a>)</li>
 </ul></div>
             ]]></description>
-            <pubDate>Thu, 05 Feb 2026 06:53:17 +0000</pubDate>
+            <pubDate>Thu, 05 Feb 2026 07:29:55 +0000</pubDate>
             <enclosure 
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg"
-                length="50312246"
+                length="50312739"
                 type="application/octet-stream"
                 sparkle:edSignature="0gu8r9nKuHP6LxYbNfhBfLMyE0297Vuv2vYab+2EZkc47uc2uGnZjmvA+R8KMyinXjvjk+HftzU4ie4GHnddDw=="
             />
