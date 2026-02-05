@@ -10,7 +10,7 @@ import AppKit
 
 // MARK: - Custom NSTextFieldCell with internal padding
 class PaddedTextFieldCell: NSTextFieldCell {
-    let textPadding: NSEdgeInsets = NSEdgeInsets(top: 2, left: 8, bottom: 2, right: 8)
+    let textPadding: NSEdgeInsets = NSEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
     
     override init(textCell string: String) {
         super.init(textCell: string)
@@ -41,35 +41,26 @@ class PaddedTextFieldCell: NSTextFieldCell {
     
     override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
         var paddedRect = rect
-        paddedRect.origin.x += textPadding.left
+        paddedRect.origin.x += textPadding.left - 2
         paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right)
+        paddedRect.size.width -= (textPadding.left + textPadding.right) - 4
         paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-        
+
         super.edit(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, event: event)
     }
-    
+
     override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
         var paddedRect = rect
         paddedRect.origin.x += textPadding.left - 2
         paddedRect.origin.y += textPadding.top
-        paddedRect.size.width -= (textPadding.left + textPadding.right) + 2
+        paddedRect.size.width -= (textPadding.left + textPadding.right) - 4
         paddedRect.size.height -= (textPadding.top + textPadding.bottom)
-        
+
         super.select(withFrame: paddedRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
     }
     
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-        var paddedRect = titleRect(forBounds: cellFrame)
-        
-        // Check if we're in edit mode but not active
-        if let textField = controlView as? NSTextField,
-           textField.isEditable && textField.window?.firstResponder != textField {
-            
-            paddedRect.origin.x -= 2
-            paddedRect.size.width += 2  // Compensate width to maintain right edge
-        }
-        
+        let paddedRect = titleRect(forBounds: cellFrame)
         super.drawInterior(withFrame: paddedRect, in: controlView)
     }
 }
