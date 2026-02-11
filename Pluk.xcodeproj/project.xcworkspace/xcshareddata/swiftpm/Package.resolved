@@ -1,5 +1,5 @@
 {
-  "originHash" : "b3cd6d6a519ceb0670a83ab9c7822469b8c815378b19ef243745a13f202425e3",
+  "originHash" : "db98b52bd17d3ea6bfbd8f4554269270fe8ec5c062a71b7a5ae2e9b40c5c92e9",
   "pins" : [
     {
       "identity" : "aiproxyswift",
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa.git",
       "state" : {
-        "revision" : "930b78a63f47549c81e6e63c9172584f7d3dfdd6",
-        "version" : "8.52.1"
+        "revision" : "16cd512711375fa73f25ae5e373f596bdf4251ae",
+        "version" : "8.58.0"
       }
     },
     {

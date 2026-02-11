@@ -22,8 +22,19 @@ enum TableAppearanceSettings {
         }
     }()
 
+    private static let appearanceObserver: NSObjectProtocol = {
+        NotificationCenter.default.addObserver(
+            forName: .appAppearanceDidChange,
+            object: nil,
+            queue: .main
+        ) { _ in
+            NotificationCenter.default.post(name: .tableReloadData, object: nil)
+        }
+    }()
+
     static func initialize() {
         _ = observer
+        _ = appearanceObserver
     }
 }
 
@@ -35,20 +46,18 @@ extension NSAppearance {
 
 extension NSColor {
     static var cellModificationColor: NSColor {
-        let isDarkMode = NSApp.effectiveAppearance.isDarkMode
-        if isDarkMode {
-            return NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0)
-        } else {
-            return NSColor(red: 0xFF/255.0, green: 0xE5/255.0, blue: 0x99/255.0, alpha: 1.0)
+        NSColor(name: nil) { appearance in
+            appearance.isDarkMode
+                ? NSColor(red: 0x7C/255.0, green: 0x59/255.0, blue: 0x2C/255.0, alpha: 1.0)
+                : NSColor(red: 0xFF/255.0, green: 0xE5/255.0, blue: 0x99/255.0, alpha: 1.0)
         }
     }
 
     static var alternatingRowStripeColor: NSColor {
-        let isDarkMode = NSApp.effectiveAppearance.isDarkMode
-        if isDarkMode {
-            return NSColor.white.withAlphaComponent(0.02)
-        } else {
-            return NSColor.black.withAlphaComponent(0.02)
+        NSColor(name: nil) { appearance in
+            appearance.isDarkMode
+                ? NSColor.white.withAlphaComponent(0.02)
+                : NSColor.black.withAlphaComponent(0.02)
         }
     }
 }

@@ -12,6 +12,11 @@ class CustomTableView: NSTableView {
     // Handler for undo operations
     var undoHandler: (() -> Bool)?
 
+    override var focusRingType: NSFocusRingType {
+        get { .none }
+        set {}
+    }
+
     // MARK: - Grid Line Drawing
 
     override func drawGrid(inClipRect clipRect: NSRect) {

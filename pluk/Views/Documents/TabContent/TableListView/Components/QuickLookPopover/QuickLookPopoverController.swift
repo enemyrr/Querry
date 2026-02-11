@@ -1,12 +1,4 @@
-//
-//  QuickLookPopoverController.swift
-//  Pluk
-//
-//  Created by Claude on 1/29/26.
-//
-
 import AppKit
-import SwiftUI
 
 @MainActor
 final class QuickLookPopoverController {
@@ -27,12 +19,10 @@ final class QuickLookPopoverController {
         closePopover()
 
         let popover = NSPopover()
-        popover.behavior = .semitransient
+        popover.behavior = .transient
         popover.animates = true
 
-        let contentView = QuickLookContentView(
-            fieldName: fieldName,
-            dataType: dataType,
+        let viewController = QuickLookViewController(
             content: content,
             onSave: onSave,
             onDismiss: { [weak self] in
@@ -40,8 +30,7 @@ final class QuickLookPopoverController {
             }
         )
 
-        let hostingController = NSHostingController(rootView: contentView)
-        popover.contentViewController = hostingController
+        popover.contentViewController = viewController
 
         popover.show(relativeTo: positioningRect, of: positioningView, preferredEdge: .maxY)
 

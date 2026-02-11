@@ -9,6 +9,11 @@ import Foundation
 import AppKit
 
 class CustomTableRowView: NSTableRowView {
+    override var isEmphasized: Bool {
+        get { false }
+        set { }
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         TableAppearanceSettings.initialize()

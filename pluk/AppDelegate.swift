@@ -14,7 +14,9 @@ import OSLog
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
-    
+
+    private var systemAppearanceObservation: NSKeyValueObservation?
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Connection.self,
@@ -88,6 +90,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             configureMenuItemImages()
         }
 
+        systemAppearanceObservation = NSApp.observe(\.effectiveAppearance) { _, _ in
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .appAppearanceDidChange, object: nil)
+            }
+        }
+
         // Create the main window using WindowController (which loads TerminalTabsTitlebarVentura.xib)
         let windowController = WindowController(tabType: .home)
         windowController.showWindow(nil)
@@ -122,13 +130,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.post(name: .toggleRightSidebar, object: nil)
     }
 
-    // Validate menu items to keep them enabled
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleSidebar(_:)) ||
-           menuItem.action == #selector(toggleRightSidebar(_:)) {
-            return true
-        }
-        return true
+        true
     }
 
     // Show custom About window

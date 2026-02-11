@@ -131,7 +131,6 @@ struct XMarkButtonStyle: ButtonStyle {
     }
 }
 
-
 struct TabBarButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     
@@ -402,7 +401,7 @@ struct FilterSubmitButtonStyle: ButtonStyle {
             .lineLimit(1)
             .padding(.vertical, 6)
             .padding(.horizontal, 12)
-            .foregroundColor(isEnabled ? Color(.textBackgroundColor) : .secondary)
+            .foregroundColor(.secondary)
             .background(
                 // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 6)
@@ -605,7 +604,6 @@ struct SchemaDropdownStyle: ButtonStyle {
     }
 }
 
-
 struct OutlineButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
@@ -658,7 +656,6 @@ struct OutlineSecondaryButtonStyle: ButtonStyle {
         }
     }
 }
-
 
 struct DistructiveButtonStyleText: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
@@ -986,10 +983,11 @@ struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
             .font(.callout)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)
+            .foregroundColor(isEnabled ? .black : .secondary)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isEnabled ? Self.buttonColor : Color.white.opacity(0.1))
+                    .fill(isEnabled ? Self.buttonColor : Color(.disabledControlTextColor).opacity(0.1))
+                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
                     .opacity(isHovering ? 0.8 : 1.0)
             )
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
@@ -997,12 +995,6 @@ struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
                     isHovering = hovering
-                }
-                
-                if hovering {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.pop()
                 }
             }
     }
@@ -1014,7 +1006,7 @@ struct AICommandPromptSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, 8)
-            .padding(.vertical, 2)
+            .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(
@@ -1189,4 +1181,3 @@ extension Button {
         self.buttonStyle(FileChangeButtonStyle())
     }
 }
-

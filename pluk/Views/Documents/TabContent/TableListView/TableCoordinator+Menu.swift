@@ -93,7 +93,7 @@ extension TableCoordinator {
             return
         }
 
-        let cellRect = cellView.bounds
+        let cellRect = NSRect(x: 0, y: 0, width: cellView.bounds.width, height: 0)
 
         Task { @MainActor in
             QuickLookPopoverController.shared.showQuickLook(
@@ -416,7 +416,7 @@ extension TableCoordinator {
     }
 
     private func escapeSQL(_ value: String) -> String {
-        return value.replacing("'", with: "''")
+        value.replacing("'", with: "''")
     }
 
     private func escapeHTML(_ value: String) -> String {

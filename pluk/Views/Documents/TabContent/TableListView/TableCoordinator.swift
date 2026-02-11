@@ -1,13 +1,4 @@
-//
-//  TableCoordinator.swift
-//  Pluk
-//
-//  Created by Fauzaan on 7/10/25.
-//
-
-import Foundation
 import AppKit
-import Cocoa
 
 class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, RowUndoDelegate, NSMenuDelegate {
     var rows: [[String: Any?]]
@@ -32,28 +23,14 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private var sortColumn: String?
     private var sortAscending = true
     
-    // Callback for database-level sorting
     var onSort: ((String, Bool) -> Void)?
-    
-    // Callback for deleting new rows
     var onDeleteNewRow: ((Int) -> Void)?
-    
-    // Callback for refreshing table data
     var onRefresh: (() -> Void)?
-    
-    // Callback for foreign key navigation
-    var onForeignKeyNavigation: ((String, String, String) -> Void)? // (tableName, columnName, value)
-
-    // Callback for row selection
+    var onForeignKeyNavigation: ((String, String, String) -> Void)?
     var onRowSelected: (([String: QueryRowInfo]?) -> Void)?
-
-    // Callback for undo row insert
     var onUndoRowInsert: ((Int) -> Void)?
-    
-    // Persistent storage
-    public var tableName: String = ""
 
-    // New: Cache namespacing to disambiguate across connections
+    public var tableName: String = ""
     private let cacheNamespace: String
     
     private enum CellIdentifier {
@@ -64,13 +41,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         static let enumCell = NSUserInterfaceItemIdentifier("EnumCell")
     }
     
-    // Store modification tracker reference
     weak var modificationTracker: TableModificationTracker?
-
-    // Reference to current tab for per-tab selection state
     weak var currentTab: DatabaseTab?
 
-    // Menu item references for validation
     private weak var editMenuItem: NSMenuItem?
     private weak var deleteMenuItem: NSMenuItem?
     private weak var addRowMenuItem: NSMenuItem?
@@ -79,14 +52,25 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private weak var copyMenuItem: NSMenuItem?
     private weak var copyRowsAsMenuItem: NSMenuItem?
     
-    // Real-time change highlighting
     var highlightedFields: Set<String> = []
     var highlightedRows: Set<Int> = []
-
-    // Sidebar animation state (skip expensive operations during animation)
     private var isSidebarAnimating = false
     
-    init(schema: DatabaseSchemaResult? = nil, queryResult: QueryResult?, tableName: String = "", onSort: ((String, Bool) -> Void)? = nil, modificationTracker: TableModificationTracker? = nil, onDeleteNewRow: ((Int) -> Void)? = nil, onRefresh: (() -> Void)? = nil, onForeignKeyNavigation: ((String, String, String) -> Void)? = nil, highlightedFields: Set<String> = [], highlightedRows: Set<Int> = [], cacheNamespace: String = "", onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil, onUndoRowInsert: ((Int) -> Void)? = nil) {
+    init(
+        schema: DatabaseSchemaResult? = nil,
+        queryResult: QueryResult?,
+        tableName: String = "",
+        onSort: ((String, Bool) -> Void)? = nil,
+        modificationTracker: TableModificationTracker? = nil,
+        onDeleteNewRow: ((Int) -> Void)? = nil,
+        onRefresh: (() -> Void)? = nil,
+        onForeignKeyNavigation: ((String, String, String) -> Void)? = nil,
+        highlightedFields: Set<String> = [],
+        highlightedRows: Set<Int> = [],
+        cacheNamespace: String = "",
+        onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil,
+        onUndoRowInsert: ((Int) -> Void)? = nil
+    ) {
         self.schema = schema
         self.queryResult = queryResult
         self.tableName = tableName
@@ -111,7 +95,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
 
         super.init()
 
-        // Set up undo delegates
         self.modificationTracker?.undoDelegate = self
         self.modificationTracker?.rowUndoDelegate = self
         
@@ -133,8 +116,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
            targetTableName != self.tableName {
             return
         }
-        // Skip reload during sidebar animation to avoid layout thrashing
-        if isSidebarAnimating { return }
+        guard !isSidebarAnimating else { return }
         Task { @MainActor [weak self] in
             self?.tableView.reloadData()
         }
@@ -259,11 +241,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     @objc private func handleUndo() -> Bool {
-        guard let modificationTracker = modificationTracker else { return false }
+        guard let modificationTracker else { return false }
         return modificationTracker.undo()
     }
-    
-    
+
     func setupTableView() -> NSView {
         setupUI()
         setupTable()
@@ -273,40 +254,32 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     // MARK: - Real-time Change Highlighting
     
     func updateHighlighting(fields: Set<String>, rows: Set<Int>) {
-        // Only update and reload if highlighting actually changed
-        let fieldsChanged = self.highlightedFields != fields
-        let rowsChanged = self.highlightedRows != rows
-        
-        if fieldsChanged || rowsChanged {
-            self.highlightedFields = fields
-            self.highlightedRows = rows
-            
-            Task { @MainActor in
-                if !rows.isEmpty {
-                    let indexSet = IndexSet(rows)
-                    self.tableView.reloadData(forRowIndexes: indexSet, columnIndexes: IndexSet(0..<self.tableView.numberOfColumns))
-                } else if fieldsChanged {
-                    self.tableView.reloadData()
-                }
+        let fieldsChanged = highlightedFields != fields
+        let rowsChanged = highlightedRows != rows
+        guard fieldsChanged || rowsChanged else { return }
+
+        highlightedFields = fields
+        highlightedRows = rows
+
+        Task { @MainActor in
+            if !rows.isEmpty {
+                self.tableView.reloadData(forRowIndexes: IndexSet(rows), columnIndexes: IndexSet(0..<self.tableView.numberOfColumns))
+            } else if fieldsChanged {
+                self.tableView.reloadData()
             }
         }
     }
     
     func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
-        // Get the current selection BEFORE updating the data
         let previousSelectedRow = self.tableView.getCurrentSelectedCell()?.row
-        
-        let oldRowCount = self.totalCount
-        
-        // Calculate old column count (prioritize QueryResult columns over schema)
+
         let oldColumnCount: Int
         if let currentQueryResult = self.queryResult, !currentQueryResult.columns.isEmpty {
             oldColumnCount = currentQueryResult.columns.count
         } else {
             oldColumnCount = self.schema?.columns.count ?? 0
         }
-        
-        // Update ALL references
+
         self.queryResult = newQueryResult
         self.schema = newSchema
         
@@ -318,15 +291,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             self.totalCount = 0
         }
         
-        // Calculate new column count (prioritize QueryResult columns over schema)
         let newColumnCount: Int
         if let newQueryResult = newQueryResult, !newQueryResult.columns.isEmpty {
             newColumnCount = newQueryResult.columns.count
         } else {
             newColumnCount = newSchema?.columns.count ?? 0
         }
-        
-        
+
         Task { @MainActor [weak self] in
             guard let self else { return }
 
@@ -369,34 +340,20 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     
     private func sortTableData(by columnTitle: String) {
-        // 3-state sorting: ascending → descending → none
         if sortColumn == columnTitle {
             if sortAscending {
-                // Current: ascending → Next: descending
                 sortAscending = false
-                debugLog("🔽 Sorting \(columnTitle) DESCENDING")
             } else {
-                // Current: descending → Next: none (reset sort)
                 sortColumn = nil
-                sortAscending = true // Reset to default for next time
-                debugLog("🚫 Clearing sort for \(columnTitle)")
+                sortAscending = true
             }
         } else {
-            // Different column clicked → Start with ascending
             sortColumn = columnTitle
             sortAscending = true
-            debugLog("🔼 Sorting \(columnTitle) ASCENDING")
         }
-        // Update table headers to show sort indicators
+
         updateTableHeaders()
-        
-        // Trigger database-level sorting via callback
-        if let sortColumn = sortColumn {
-            onSort?(sortColumn, sortAscending)
-        } else {
-            // No sorting - pass empty string or special value to indicate no sort
-            onSort?("", true) // You might want to modify the callback signature to handle this better
-        }
+        onSort?(sortColumn ?? "", sortAscending)
     }
     
     private func updateTableHeaders() {
@@ -495,7 +452,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         tableView.doubleAction = #selector(tableViewDoubleClick(_:))
     }
     
-    @objc func tableViewDoubleClick(_ sender:AnyObject) {
+    @objc func tableViewDoubleClick(_ sender: AnyObject) {
         if let cellLocation = tableView.getCurrentSelectedCell() {
             tableView.enterEditModeForCell(row: cellLocation.row, column: cellLocation.column)
         }
@@ -503,24 +460,30 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     private func setupUI() {
         containerView.wantsLayer = true
-        
-        // Scroll view setup
+
+        tableView.style = .plain
+        tableView.rowSizeStyle = .custom
+        tableView.backgroundColor = NSColor.clear
+        tableView.usesAutomaticRowHeights = false
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
         scrollView.backgroundColor = NSColor.clear
-        
+        scrollView.focusRingType = .none
+
         scrollView.documentView = tableView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
         containerView.addSubview(scrollView)
-        
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
@@ -530,26 +493,20 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     private func setupTable() {
-        // Use QueryResult columns if available (for raw queries), otherwise fall back to schema
         let columnsToUse: [(name: String, dataType: String?)]
-        
+
         if let queryResult = queryResult, !queryResult.columns.isEmpty {
-            // Use columns from QueryResult (handles raw queries with different column structure)
             columnsToUse = queryResult.columns.map { ($0.name, $0.dataType) }
         } else if let schema = schema {
-            // Fall back to schema columns for standard table queries
             columnsToUse = schema.columns.map { ($0.columnName, $0.dataType) }
         } else {
-            // No columns available
             return
         }
-        
-        // Calculate optimal widths for initial setup
+
         if let queryResult = queryResult {
             preCalculateOptimalColumnWidths(for: columnsToUse, queryResult: queryResult)
         }
 
-        // Create columns with optimal widths
         for columnInfo in columnsToUse {
             createColumn(
                 identifier: columnInfo.name,
@@ -559,77 +516,62 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             )
         }
         
-        // Enable column resizing and auto-save
         tableView.allowsColumnResizing = true
         tableView.allowsColumnReordering = true
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
 
-        // Use NSTableView's built-in autosave with connection-specific namespace
         let autosaveName = "\(cacheNamespace.isEmpty ? "global" : cacheNamespace)_\(tableName)"
         tableView.autosaveName = autosaveName
         tableView.autosaveTableColumns = true
 
-        // Enable column selection only
         tableView.allowsColumnSelection = true
         tableView.allowsMultipleSelection = true
         tableView.allowsEmptySelection = true
 
-        // Set data source and delegate
         tableView.dataSource = self
         tableView.delegate = self
-        
-        // Set up undo handler for keyboard shortcuts
+
         tableView.undoHandler = { [weak self] in
-            return self?.handleUndo() ?? false
+            self?.handleUndo() ?? false
         }
-        
-        /// Setup right click:
+
         let menu = NSMenu()
-        
-        // Refresh menu item
+
         let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshCurrentTable), keyEquivalent: "r")
         refreshItem.keyEquivalentModifierMask = [.command]
         refreshItem.target = self
         menu.addItem(refreshItem)
         self.refreshMenuItem = refreshItem
-        
-        // Separator
-        menu.addItem(NSMenuItem.separator())
-        
-        // Add row menu item
+
+        menu.addItem(.separator())
+
         let addRowItem = NSMenuItem(title: "Add Row", action: #selector(addRow), keyEquivalent: "i")
         addRowItem.keyEquivalentModifierMask = [.command]
         addRowItem.target = self
         menu.addItem(addRowItem)
         self.addRowMenuItem = addRowItem
-        
-        // Edit menu item
+
         let editItem = NSMenuItem(title: "Edit", action: #selector(editItem), keyEquivalent: "\r")
         editItem.target = self
         menu.addItem(editItem)
         self.editMenuItem = editItem
 
-        // Quick Look menu item
         let quickLookItem = NSMenuItem(title: "Quick Look", action: #selector(quickLookItem), keyEquivalent: "\r")
         quickLookItem.keyEquivalentModifierMask = [.command]
         quickLookItem.target = self
         menu.addItem(quickLookItem)
         self.quickLookMenuItem = quickLookItem
 
-        // Separator
-        menu.addItem(NSMenuItem.separator())
-        
-        // Delete menu item
+        menu.addItem(.separator())
+
         let deleteItem = NSMenuItem(title: "Delete", action: #selector(deleteItem), keyEquivalent: "\u{8}")
         deleteItem.keyEquivalentModifierMask = []
         deleteItem.target = self
         menu.addItem(deleteItem)
         self.deleteMenuItem = deleteItem
 
-        // Separator
-        menu.addItem(NSMenuItem.separator())
+        menu.addItem(.separator())
 
-        // Copy menu item (plain text copy with Cmd+C shortcut)
         let copyItem = NSMenuItem(title: "Copy", action: #selector(copyRowsAsPlainText), keyEquivalent: "c")
         copyItem.keyEquivalentModifierMask = [.command]
         copyItem.target = self
@@ -656,7 +598,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         markdownItem.target = self
         copyRowsSubmenu.addItem(markdownItem)
 
-        copyRowsSubmenu.addItem(NSMenuItem.separator())
+        copyRowsSubmenu.addItem(.separator())
 
         let csvItem = NSMenuItem(title: "CSV", action: #selector(copyRowsAsCSV), keyEquivalent: "")
         csvItem.target = self
@@ -666,7 +608,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         csvHeaderItem.target = self
         copyRowsSubmenu.addItem(csvHeaderItem)
 
-        copyRowsSubmenu.addItem(NSMenuItem.separator())
+        copyRowsSubmenu.addItem(.separator())
 
         let insertItem = NSMenuItem(title: "INSERT Statement", action: #selector(copyRowsAsInsertStatement), keyEquivalent: "")
         insertItem.target = self
@@ -680,23 +622,11 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         menu.autoenablesItems = false
         tableView.menu = menu
 
-        tableView.rowSizeStyle = .custom
-
-        // Table view setup
-        tableView.style = .plain
-        tableView.backgroundColor = NSColor.clear
-        tableView.usesAutomaticRowHeights = false
-
-        // Enable native vertical grid lines when alternating rows is on
         if TableAppearanceSettings.alternatingRowColors {
             tableView.gridStyleMask = [.solidVerticalGridLineMask]
             tableView.gridColor = .separatorColor
         }
 
-        // Remove intercell spacing to eliminate padding between columns
-        tableView.intercellSpacing = NSSize(width: 0, height: 0)
-        
-        // Create custom header view
         let customHeaderView = CustomTableHeaderView(frame: NSRect(x: 0, y: 0, width: tableView.bounds.width, height: 32))
 
         let visualEffectView = NSVisualEffectView()
@@ -716,19 +646,14 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     
     private func rebuildTableStructure() {
-        // When rebuilding, clear cache
         columnWidthCache.removeAll()
         knownColumns.removeAll()
 
-        // Remove all existing columns
-        while tableView.tableColumns.count > 0 {
+        while !tableView.tableColumns.isEmpty {
             tableView.removeTableColumn(tableView.tableColumns[0])
         }
 
-        // Rebuild columns based on current data
         setupTable()
-
-        // Reload all data
         tableView.reloadData()
     }
     
@@ -802,7 +727,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     private func recalculateColumnWidthsIfNeeded(queryResult: QueryResult) {
-        // Get current columns
         let columnsToProcess: [(name: String, dataType: String?)]
         if !queryResult.columns.isEmpty {
             columnsToProcess = queryResult.columns.map { ($0.name, $0.dataType) }
@@ -812,20 +736,16 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             return
         }
 
-        // Only recalculate for new columns that don't have cached widths
         let currentColumnNames = Set(columnsToProcess.map { $0.name })
         let newColumns = currentColumnNames.subtracting(knownColumns)
 
-        // Find columns that need width calculation
         let columnsNeedingCalculation = columnsToProcess.filter { columnInfo in
-            let columnName = columnInfo.name
-            return newColumns.contains(columnName) && columnWidthCache[columnName] == nil
+            newColumns.contains(columnInfo.name) && columnWidthCache[columnInfo.name] == nil
         }
 
         if !columnsNeedingCalculation.isEmpty {
             preCalculateOptimalColumnWidths(for: columnsNeedingCalculation, queryResult: queryResult)
 
-            // Apply new widths only to newly calculated columns
             for tableColumn in tableView.tableColumns {
                 let columnId = tableColumn.identifier.rawValue
                 if columnsNeedingCalculation.contains(where: { $0.name == columnId }),
@@ -837,7 +757,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             }
         }
 
-        // Always update knownColumns to current state
         knownColumns = currentColumnNames
     }
     
@@ -847,17 +766,12 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     
-    // Row view recycling
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        // Try to reuse existing row view
-        var rowView = tableView.makeView(withIdentifier: CellIdentifier.rowView, owner: self) as? CustomTableRowView
-        
-        if rowView == nil {
-            // Create new row view if none available for reuse
-            rowView = CustomTableRowView()
-            rowView?.identifier = CellIdentifier.rowView
+        if let rowView = tableView.makeView(withIdentifier: CellIdentifier.rowView, owner: self) as? CustomTableRowView {
+            return rowView
         }
-        
+        let rowView = CustomTableRowView()
+        rowView.identifier = CellIdentifier.rowView
         return rowView
     }
 
@@ -1071,52 +985,23 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     private func getCellIdentifier(for dataType: String) -> NSUserInterfaceItemIdentifier {
-        switch dataType {
-        case "text":
-            return CellIdentifier.textCell
-        case "interger":
-            return CellIdentifier.textCell
-            //            case .datetime, .timestamp:
-            //                return CellIdentifier.dateCell
-            //            case .boolean:
-            //                return CellIdentifier.booleanCell
-        default:
-            return CellIdentifier.textCell
-        }
+        CellIdentifier.textCell
     }
-    
-    
+
     private func createCellView(for dataType: String) -> TextCellView {
-        switch dataType {
-        case "text":
-            return TextCellView()
-        case "interger":
-            return TextCellView()
-            //            case .datetime, .timestamp:
-            //                return DateCellView()
-            //            case .boolean:
-            //                return BooleanCellView()
-        default:
-            return TextCellView()
-        }
+        TextCellView()
     }
     
     
     // MARK: - NSMenuDelegate
     
     func menuNeedsUpdate(_ menu: NSMenu) {
-        // Use actual right-click location for menu validation
         let rightClickLocation = tableView.getRightClickedCell()
-        let rightClickedRow = rightClickLocation.row
-        let rightClickedColumn = rightClickLocation.column
-        let hasValidRow = rightClickedRow >= 0
-        let hasValidCell = hasValidRow && rightClickedColumn >= 0
+        let hasValidRow = rightClickLocation.row >= 0
+        let hasValidCell = hasValidRow && rightClickLocation.column >= 0
         let hasData = totalCount > 0
         let hasSelectedRows = !tableView.selectedRowIndexes.isEmpty
 
-        debugLog("Menu validation - rightClickedRow: \(rightClickedRow), rightClickedColumn: \(rightClickedColumn), hasValidRow: \(hasValidRow), hasValidCell: \(hasValidCell), hasData: \(hasData)")
-
-        // Update using stored references
         editMenuItem?.isEnabled = hasValidCell
         deleteMenuItem?.isEnabled = hasValidRow && hasData
         addRowMenuItem?.isEnabled = true
@@ -1124,44 +1009,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         quickLookMenuItem?.isEnabled = hasValidCell
         copyMenuItem?.isEnabled = hasSelectedRows && hasData
         copyRowsAsMenuItem?.isEnabled = hasSelectedRows && hasData
-
-        // Also update via loop as backup
-        for item in menu.items {
-            guard let action = item.action else {
-                // Handle "Copy Rows As" submenu (has no action, only submenu)
-                if item.title == "Copy Rows As" {
-                    item.isEnabled = hasSelectedRows && hasData
-                }
-                continue
-            }
-
-            switch action {
-            case #selector(editItem):
-                item.isEnabled = hasValidCell
-                debugLog("Edit item enabled: \(item.isEnabled)")
-
-            case #selector(deleteItem):
-                item.isEnabled = hasValidRow && hasData
-                debugLog("Delete item enabled: \(item.isEnabled)")
-
-            case #selector(addRow):
-                item.isEnabled = true
-
-            case #selector(refreshCurrentTable):
-                item.isEnabled = true
-
-            case #selector(quickLookItem):
-                item.isEnabled = hasValidCell
-                debugLog("Quick Look item enabled: \(item.isEnabled)")
-
-            default:
-                break
-            }
-        }
     }
     
     func menuWillOpen(_ menu: NSMenu) {
-        debugLog("Menu will open - calling menuNeedsUpdate")
         menuNeedsUpdate(menu)
     }
 

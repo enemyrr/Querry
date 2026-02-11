@@ -2,6 +2,26 @@ import AppKit
 import SwiftUI
 
 extension NSView {
+    /// Adds a subview, pins all four edges to this view, and optionally positions it relative to another sibling.
+    func addSubviewPinningEdges(
+        _ subview: NSView,
+        positioned place: NSWindow.OrderingMode? = nil,
+        relativeTo otherView: NSView? = nil
+    ) {
+        subview.translatesAutoresizingMaskIntoConstraints = false
+        if let place {
+            addSubview(subview, positioned: place, relativeTo: otherView)
+        } else {
+            addSubview(subview)
+        }
+        NSLayoutConstraint.activate([
+            subview.topAnchor.constraint(equalTo: topAnchor),
+            subview.leadingAnchor.constraint(equalTo: leadingAnchor),
+            subview.trailingAnchor.constraint(equalTo: trailingAnchor),
+            subview.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
     /// Returns true if this view is currently in the responder chain
     var isInResponderChain: Bool {
         var responder = window?.firstResponder
@@ -195,11 +215,11 @@ extension NSView {
 			if let bgColor = layer?.backgroundColor {
 				let color = NSColor(cgColor: bgColor)
 				if let rgb = color?.usingColorSpace(.deviceRGB) {
-					properties.append(String(format: "bg:rgba(%.0f,%.0f,%.0f,%.2f)", 
-						rgb.redComponent * 255, 
-						rgb.greenComponent * 255, 
-						rgb.blueComponent * 255, 
-						rgb.alphaComponent))
+					let r = Int(rgb.redComponent * 255)
+					let g = Int(rgb.greenComponent * 255)
+					let b = Int(rgb.blueComponent * 255)
+					let a = Double(rgb.alphaComponent).formatted(.number.precision(.fractionLength(2)))
+					properties.append("bg:rgba(\(r),\(g),\(b),\(a))")
 				} else {
 					properties.append("bg:\(bgColor)")
 				}

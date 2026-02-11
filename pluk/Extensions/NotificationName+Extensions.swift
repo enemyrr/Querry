@@ -37,6 +37,9 @@ extension Notification.Name {
     /// Quick Look popover
     static let cellQuickLookRequested = Notification.Name("cellQuickLookRequested")
 
+    /// App appearance changed (posted by AppDelegate KVO, hierarchy-independent)
+    static let appAppearanceDidChange = Notification.Name("appAppearanceDidChange")
+
     /// Sidebar animation lifecycle (for performance optimization)
     static let sidebarAnimationWillStart = Notification.Name("SidebarAnimationWillStart")
     static let sidebarAnimationDidEnd = Notification.Name("SidebarAnimationDidEnd")

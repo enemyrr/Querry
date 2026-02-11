@@ -1,8 +1,3 @@
-//
-//  SidebarSplitViewController.swift
-//  Pluk
-//
-
 import AppKit
 
 // MARK: - Hover Divider Split View
@@ -10,6 +5,7 @@ import AppKit
 final class HoverDividerSplitView: NSSplitView {
     private var isDividerVisible = false
     private var trackingArea: NSTrackingArea?
+    private var showDividerTask: Task<Void, Never>?
     var isSidebarCollapsed = false
 
     override var dividerThickness: CGFloat { isSidebarCollapsed ? 0 : 2 }
@@ -53,23 +49,37 @@ final class HoverDividerSplitView: NSSplitView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        isDividerVisible = false
-        needsDisplay = true
+        hideDivider()
     }
 
     private func updateDividerVisibility(for event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
         let dividerRect = getDividerRect()
+        let hoverZone = dividerRect.insetBy(dx: -10, dy: 0)
+        let shouldShow = hoverZone.contains(location)
 
-        let threshold: CGFloat = 10
-        let expandedDividerRect = dividerRect.insetBy(dx: -threshold, dy: 0)
+        if shouldShow == isDividerVisible && showDividerTask == nil { return }
 
-        let shouldShowDivider = expandedDividerRect.contains(location)
-
-        if shouldShowDivider != isDividerVisible {
-            isDividerVisible = shouldShowDivider
-            needsDisplay = true
+        if shouldShow {
+            guard showDividerTask == nil else { return }
+            showDividerTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(150))
+                guard let self, !Task.isCancelled else { return }
+                showDividerTask = nil
+                isDividerVisible = true
+                needsDisplay = true
+            }
+        } else {
+            hideDivider()
         }
+    }
+
+    private func hideDivider() {
+        showDividerTask?.cancel()
+        showDividerTask = nil
+        guard isDividerVisible else { return }
+        isDividerVisible = false
+        needsDisplay = true
     }
 
     private func getDividerRect() -> NSRect {
@@ -225,25 +235,39 @@ final class SidebarSplitViewController: NSSplitViewController {
         isAnimating = true
         isProgrammaticCollapse = collapsed
 
+        let sidebarView = sidebarItem.viewController.view
+
         if let hoverSplitView = splitView as? HoverDividerSplitView {
             hoverSplitView.isSidebarCollapsed = collapsed
             hoverSplitView.needsDisplay = true
         }
 
-        NotificationCenter.default.post(
-            name: .sidebarAnimationWillStart,
-            object: view.window,
-            userInfo: ["isCollapsing": collapsed]
-        )
+        if !collapsed {
+            sidebarView.alphaValue = 0
+        }
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.1
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.allowsImplicitAnimation = true
+
+            NotificationCenter.default.post(
+                name: .sidebarAnimationWillStart,
+                object: self.view.window,
+                userInfo: ["isCollapsing": collapsed]
+            )
+
+            sidebarView.animator().alphaValue = collapsed ? 0 : 1
             sidebarItem.animator().isCollapsed = collapsed
         } completionHandler: { [weak self] in
             guard let self else { return }
             isAnimating = false
             isProgrammaticCollapse = false
+
+            if !collapsed {
+                sidebarView.alphaValue = 1
+            }
+
             postVisibilityChange(isVisible: !collapsed)
             NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: view.window)
 

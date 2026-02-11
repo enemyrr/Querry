@@ -11,7 +11,12 @@ import AppKit
 // MARK: - Custom NSTextField that handles Escape key via cancelOperation
 class EditableTextField: NSTextField {
     weak var cellView: TextCellView?
-    
+
+    // Size is fully determined by parent cell constraints — skip expensive CoreText measurement
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         // Check for Cmd+Z
         if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "z" {
@@ -100,6 +105,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
     private var foreignKeyIconView: NSImageView?
+    private var lastPlaceholderString: String?
 
     private static weak var currentEditingCell: TextCellView?
     
@@ -163,6 +169,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     override func prepareForReuse() {
         if isEditing { exitEditMode() }
         isModified = false
+        lastPlaceholderString = nil
         // Clear static references
         if TextCellView.currentEditingCell === self {
             TextCellView.currentEditingCell = nil
@@ -636,17 +643,16 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     }
     
     override func viewWillDraw() {
-        let textColor: NSColor = .textColor
-        let placeholderColor: NSColor = .placeholderTextColor
-        
-        self.textField.textColor = textColor
-        if let currentPlaceholder = self.textField.placeholderString, !currentPlaceholder.isEmpty {
-            self.textField.placeholderAttributedString = NSAttributedString(
-                string: currentPlaceholder,
-                attributes: [.foregroundColor: placeholderColor]
-            )
+        let currentPlaceholder = self.textField.placeholderString
+        if currentPlaceholder != lastPlaceholderString {
+            lastPlaceholderString = currentPlaceholder
+            if let placeholder = currentPlaceholder, !placeholder.isEmpty {
+                self.textField.placeholderAttributedString = NSAttributedString(
+                    string: placeholder,
+                    attributes: [.foregroundColor: NSColor.placeholderTextColor]
+                )
+            }
         }
-        
         super.viewWillDraw()
     }
 }

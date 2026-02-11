@@ -1,32 +1,21 @@
-import Cocoa
+import AppKit
 
-/// Titlebar tabs for macOS 13 to 15.
 class TitlebarTabsVenturaTerminalWindow: NSWindow {
+
+    private weak var tabBarMouseTarget: NSView?
 
     override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
         super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
-
-        // Apply transparency immediately for programmatically created windows
         titlebarAppearsTransparent = true
-
-        // Set up fullscreen notifications
         setupFullscreenNotifications()
     }
-    // NSWindow functions:
     var titlebarContainer: NSView? {
-        // If we aren't fullscreen then the titlebar container is part of our window.
         if !styleMask.contains(.fullScreen) {
             return contentView?.firstViewFromRoot(withClassName: "NSTitlebarContainerView")
         }
 
-        // If we are fullscreen, the titlebar container view is part of a separate
-        // "fullscreen window", we need to find the window and then get the view.
         for window in NSApplication.shared.windows {
-            // This is the private window class that contains the toolbar
             guard window.className == "NSToolbarFullScreenWindow" else { continue }
-
-            // The parent will match our window. This is used to filter the correct
-            // fullscreen window if we have multiple.
             guard window.parent == self else { continue }
 
             return window.contentView?.firstViewFromRoot(withClassName: "NSTitlebarContainerView")
@@ -36,24 +25,16 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
     }
 
     // MARK: NSWindow
+
     override func awakeFromNib() {
         super.awakeFromNib()
-
-        // Apply transparency immediately
         titlebarAppearsTransparent = true
-        // Set up fullscreen notifications
         setupFullscreenNotifications()
-
-        // Ensure titlebar visibility is applied on mount
         updateTitlebarVisibility()
     }
 
-    // Override to prevent tab bar from ever being shown
-    override func toggleTabBar(_ sender: Any?) {
-        // Do nothing - we never want to show the native tab bar
-    }
+    override func toggleTabBar(_ sender: Any?) {}
 
-    // Override to validate the tab bar menu item (always disabled)
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(toggleTabBar(_:)) {
             return false
@@ -94,11 +75,9 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
     // MARK: - Titlebar Tabs
 
     private func updateTitlebarVisibility() {
-        // Hide titlebar in non-fullscreen mode
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         titlebarSeparatorStyle = .none
-        // Extend content view to cover titlebar area
         if let contentView = contentView {
             let windowFrame = frame
             let newContentFrame = NSRect(
@@ -111,44 +90,33 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
     }
 
-    override func toggleFullScreen(_ sender: Any?) {
-        super.toggleFullScreen(sender)
-    }
-
     @objc func windowWillEnterFullScreen(_ notification: Notification) {
-        // Prepare titlebar transparency for fullscreen
         updateFullscreenTitlebarTransparency()
     }
 
     @objc func windowDidEnterFullScreen(_ notification: Notification) {
-        // Apply fullscreen titlebar transparency
         updateFullscreenTitlebarTransparency()
     }
 
     @objc func windowWillExitFullScreen(_ notification: Notification) {
-        // Reset titlebar transparency for windowed mode
         updateTitlebarVisibility()
     }
 
     @objc func windowDidExitFullScreen(_ notification: Notification) {
-        // Ensure titlebar transparency is reset
         updateTitlebarVisibility()
     }
 
     private func updateFullscreenTitlebarTransparency() {
-        // Make titlebar transparent in fullscreen
         if styleMask.contains(.fullScreen) {
             titlebarAppearsTransparent = true
             backgroundColor = NSColor.clear
             isOpaque = false
 
-            // Also set the fullscreen window's titlebar to be transparent
             self.setFullscreenTitlebarTransparent()
         }
     }
 
     private func setFullscreenTitlebarTransparent() {
-        // Find the fullscreen toolbar window and make its titlebar transparent
         for window in NSApplication.shared.windows {
             guard window.className == "NSToolbarFullScreenWindow" else { continue }
             guard window.parent == self else { continue }
@@ -157,7 +125,6 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             window.backgroundColor = NSColor.clear
             window.isOpaque = false
 
-            // Hide any visual effect views in the fullscreen titlebar
             if let titlebarContainer = window.contentView?.firstViewFromRoot(withClassName: "NSTitlebarContainerView") {
                 for effectView in titlebarContainer.descendants(withClassName: "NSVisualEffectView") {
                     effectView.isHidden = true
@@ -167,50 +134,40 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
     }
 
-    // This is called by macOS for native tabbing in order to add the tab bar. We hook into
-    // this, detect the tab bar being added, and override its behavior.
     override func addTitlebarAccessoryViewController(_ childViewController: NSTitlebarAccessoryViewController) {
         let isTabBar = isTabBar(childViewController)
 
-        if (isTabBar) {
-            // Ensure it has the right layoutAttribute to force it next to our titlebar
+        if isTabBar {
             childViewController.layoutAttribute = .right
-
-            // Update titlebar visibility based on fullscreen state
             updateTitlebarVisibility()
-
-            // Mark the controller for future reference so we can easily find it. Otherwise
-            // the tab bar has no ID by default.
             childViewController.identifier = Self.tabBarIdentifier
         }
 
         super.addTitlebarAccessoryViewController(childViewController)
 
-        // macOS 26+: Hide tab bar views that block toolbar clicks
         if #available(macOS 26, *), isTabBar {
-            // Try multiple times with delays since system may recreate views
             hideTabBarAccessoryClipViews()
 
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.hideTabBarAccessoryClipViews()
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(100))
                 self?.hideTabBarAccessoryClipViews()
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(300))
                 self?.hideTabBarAccessoryClipViews()
             }
         }
     }
 
-    /// Hide NSTitlebarAccessoryClipView views that contain tab bars (macOS 26+)
     @available(macOS 26, *)
     private func hideTabBarAccessoryClipViews() {
         guard let titlebarContainer = titlebarContainer else { return }
 
-        // Hide all clip views containing tab bars
         for clipView in titlebarContainer.descendants(withClassName: "NSTitlebarAccessoryClipView") {
             if clipView.firstDescendant(withClassName: "NSTabBar") != nil {
                 clipView.isHidden = true
@@ -219,14 +176,12 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             }
         }
 
-        // Also hide NSTabBar directly
         for tabBar in titlebarContainer.descendants(withClassName: "NSTabBar") {
             tabBar.isHidden = true
             tabBar.frame = .zero
             tabBar.alphaValue = 0
         }
 
-        // Hide any accessory views that might contain tabs
         for accessoryView in titlebarAccessoryViewControllers {
             if accessoryView.identifier == Self.tabBarIdentifier {
                 accessoryView.view.isHidden = true
@@ -238,38 +193,134 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     // MARK: Tab Bar
 
-    /// This identifier is attached to the tab bar view controller when we detect it being
-    /// added.
     static let tabBarIdentifier: NSUserInterfaceItemIdentifier = .init("_plukTabBar")
 
-
-    /// Returns true if there is a tab bar visible on this window.
     var hasTabBar: Bool {
         contentView?.firstViewFromRoot(withClassName: "NSTabBar") != nil
     }
 
     func isTabBar(_ childViewController: NSTitlebarAccessoryViewController) -> Bool {
         if childViewController.identifier == nil {
-            // The good case
             if childViewController.view.contains(className: "NSTabBar") {
                 return true
             }
 
-            // When a new window is attached to an existing tab group, AppKit adds
-            // an empty NSView as an accessory view and adds the tab bar later. If
-            // we're at the bottom and are a single NSView we assume its a tab bar.
-            if childViewController.layoutAttribute == .bottom &&
-                childViewController.view.className == "NSView" &&
-                childViewController.view.subviews.isEmpty {
+            if childViewController.layoutAttribute == .bottom,
+               childViewController.view.className == "NSView",
+               childViewController.view.subviews.isEmpty {
                 return true
             }
 
             return false
         }
 
-        // View controllers should be tagged with this as soon as possible to
-        // increase our accuracy. We do this manually.
         return childViewController.identifier == Self.tabBarIdentifier
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            tabBarMouseTarget = nil
+            if let target = tabBarHitTarget(for: event) {
+                tabBarMouseTarget = target
+                target.mouseDown(with: event)
+                return
+            }
+        case .leftMouseDragged:
+            if let target = tabBarMouseTarget {
+                target.mouseDragged(with: event)
+                return
+            }
+        case .leftMouseUp:
+            if let target = tabBarMouseTarget {
+                tabBarMouseTarget = nil
+                target.mouseUp(with: event)
+                return
+            }
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
+
+    private func tabBarHitTarget(for event: NSEvent) -> NSView? {
+        guard let contentView = contentView else { return nil }
+
+        let locationInWindow = event.locationInWindow
+
+        let point: NSPoint
+        if let themeFrame = contentView.superview {
+            point = themeFrame.convert(locationInWindow, from: nil)
+        } else {
+            point = locationInWindow
+        }
+
+        let hitView = contentView.hitTest(point)
+
+        if hitView == nil {
+            return findTabBarTarget(at: locationInWindow, in: contentView)
+        }
+
+        guard let hitView else { return nil }
+
+        if hitView is NSControl {
+            var isInsideTabBarScrollView = false
+            var c: NSView? = hitView
+            while let v = c {
+                if v is DraggableTabNSView { isInsideTabBarScrollView = true; break }
+                if v is TabBarView { break }
+                c = v.superview
+            }
+            if !isInsideTabBarScrollView {
+                return nil
+            }
+            return hitView
+        }
+
+        var current: NSView? = hitView
+        var foundTabBar = false
+        while let view = current {
+            if view is DraggableTabNSView {
+                return view
+            }
+            if view is TabBarView { foundTabBar = true }
+            current = view.superview
+        }
+
+        if foundTabBar {
+            return findTabBarTarget(at: locationInWindow, in: contentView)
+        }
+        return nil
+    }
+
+    private func findTabBarTarget(at locationInWindow: NSPoint, in view: NSView) -> NSView? {
+        // Walk the view hierarchy to find DraggableTabNSViews and check close buttons
+        func walk(_ v: NSView) -> NSView? {
+            if let draggable = v as? DraggableTabNSView {
+                let localPoint = draggable.convert(locationInWindow, from: nil)
+                if draggable.bounds.contains(localPoint) {
+                    // Check if the close button is at this point
+                    for sub in draggable.subviews {
+                        for child in sub.subviews {
+                            if let btn = child as? NSButton, !btn.isHidden {
+                                let btnLocal = btn.convert(locationInWindow, from: nil)
+                                if btn.bounds.contains(btnLocal) {
+                                    return btn
+                                }
+                            }
+                        }
+                    }
+                    return draggable
+                }
+                return nil
+            }
+            for sub in v.subviews {
+                if let result = walk(sub) { return result }
+            }
+            return nil
+        }
+
+        return walk(view)
     }
 
     deinit {

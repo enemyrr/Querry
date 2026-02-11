@@ -152,10 +152,14 @@ struct GeneralSettingsView: View {
     }
 
     private func applyAppearance(_ value: Int) {
-        NSApp.appearance = switch value {
+        let newAppearance: NSAppearance? = switch value {
         case 1: NSAppearance(named: .aqua)
         case 2: NSAppearance(named: .darkAqua)
         default: nil
+        }
+        NSApp.appearance = newAppearance
+        for window in NSApp.windows {
+            window.appearance = newAppearance
         }
     }
 
