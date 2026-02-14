@@ -247,18 +247,13 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         item.view = hostingView
         item.label = "Sidebar"
         item.paletteLabel = "Sidebar"
-        item.toolTip = "Toggle Sidebar"
+        item.toolTip = nil
 
         return item
     }
 
-    @ViewBuilder
     private func sidebarToggleContent(_ buttonView: SidebarToggleButtonView) -> some View {
-        if #available(macOS 26.0, *) {
-            buttonView.padding(6).glassEffect().padding(.top, toolbarItemTopPadding)
-        } else {
-            buttonView.padding(.top, toolbarItemTopPadding)
-        }
+        buttonView.padding(.top, toolbarItemTopPadding)
     }
 
     private func makeEnvironmentItem(identifier: NSToolbarItem.Identifier) -> NSToolbarItem? {
@@ -563,6 +558,7 @@ private struct SidebarToggleButtonView: View {
                 )
         }
         .buttonStyle(.borderless)
+        .customHelp("Toggle Sidebar", shortcut: .init(modifiers: [.command], key: "["))
         .onHover { hovering in
             isHovering = hovering
         }

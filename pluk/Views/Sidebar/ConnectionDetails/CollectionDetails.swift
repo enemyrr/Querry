@@ -126,7 +126,7 @@ struct SidebarViewModeToggle: View {
                     viewMode = .tables
                 }
             }
-            .help("Tables")
+            .customHelp("Tables")
 
             SegmentIconButton(
                 icon: "clock.arrow.circlepath",
@@ -137,7 +137,7 @@ struct SidebarViewModeToggle: View {
                     viewMode = .history
                 }
             }
-            .help("Query History")
+            .customHelp("Query History")
             .contextMenu {
                 Button {
                     showAdvancedHistory = true

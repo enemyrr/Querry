@@ -81,7 +81,7 @@ final class TableContentViewController: NSViewController {
         let root = NSView()
         root.wantsLayer = true
         root.autoresizingMask = [.width, .height]
-        root.layer?.cornerRadius = 8
+        root.layer?.cornerRadius = 10
         root.layer?.masksToBounds = true
         self.view = root
 
@@ -175,18 +175,20 @@ final class TableContentViewController: NSViewController {
             height: filterHeight
         )
 
+        let contentHeight = bounds.height - filterHeight
+
         contentArea.frame = NSRect(
             x: 0,
             y: 0,
             width: bounds.width,
-            height: bounds.height - filterHeight
+            height: contentHeight
         )
 
         floatingBarHostingView.frame = NSRect(
             x: 0,
             y: 0,
             width: bounds.width,
-            height: floatingBarHostingView.fittingSize.height
+            height: contentHeight
         )
     }
 
@@ -453,61 +455,59 @@ private struct FloatingBarContainer: View {
     @Bindable var tab: DatabaseTab
 
     var body: some View {
-        VStack {
-            Spacer()
-            FloatingActionBar(
-                viewState: dataController.viewState,
-                tableName: tab.name,
-                tabViewMode: $tab.viewMode,
-                modificationTracker: dataController.modificationTracker,
-                isProcessingUpdates: dataController.isProcessingUpdates,
-                onRefresh: { currentPage, itemsPerPage, fetchSchema in
-                    Task {
-                        dataController.skipNextRealtimeEvent = true
-                        await dataController.loadOrSubscribe(
-                            forceFetch: true,
-                            fetchSchema: fetchSchema,
-                            page: currentPage,
-                            limit: itemsPerPage,
-                            filter: dataController.currentActiveFilter
-                        )
-                    }
-                },
-                onLoadDocuments: { filter in
-                    Task {
-                        dataController.skipNextRealtimeEvent = true
-                        await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
-                    }
-                },
-                onCommitModifications: {
-                    Task {
-                        dataController.isProcessingUpdates = true
-                        await dataController.commitModifications()
-                        dataController.isProcessingUpdates = false
-                    }
-                },
-                onNewRecord: {
-                    dataController.handleNewRecord()
-                },
-                onDiscardChanges: {
-                    dataController.handleDiscardChanges()
-                },
-                databaseType: dataController.instance.databaseType,
-                currentQueryResult: dataController.currentQueryResult,
-                schema: dataController.cachedSchema,
-                schemaModificationTracker: dataController.schemaModificationTracker,
-                onCommitSchemaModifications: {
-                    Task {
-                        dataController.isProcessingSchemaUpdates = true
-                        await dataController.commitSchemaModifications()
-                        dataController.isProcessingSchemaUpdates = false
-                    }
-                },
-                onNewField: {
-                    dataController.handleNewField()
+        FloatingActionBar(
+            viewState: dataController.viewState,
+            tableName: tab.name,
+            tabViewMode: $tab.viewMode,
+            modificationTracker: dataController.modificationTracker,
+            isProcessingUpdates: dataController.isProcessingUpdates,
+            onRefresh: { currentPage, itemsPerPage, fetchSchema in
+                Task {
+                    dataController.skipNextRealtimeEvent = true
+                    await dataController.loadOrSubscribe(
+                        forceFetch: true,
+                        fetchSchema: fetchSchema,
+                        page: currentPage,
+                        limit: itemsPerPage,
+                        filter: dataController.currentActiveFilter
+                    )
                 }
-            )
-            .padding(.bottom, 6)
-        }
+            },
+            onLoadDocuments: { filter in
+                Task {
+                    dataController.skipNextRealtimeEvent = true
+                    await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
+                }
+            },
+            onCommitModifications: {
+                Task {
+                    dataController.isProcessingUpdates = true
+                    await dataController.commitModifications()
+                    dataController.isProcessingUpdates = false
+                }
+            },
+            onNewRecord: {
+                dataController.handleNewRecord()
+            },
+            onDiscardChanges: {
+                dataController.handleDiscardChanges()
+            },
+            databaseType: dataController.instance.databaseType,
+            currentQueryResult: dataController.currentQueryResult,
+            schema: dataController.cachedSchema,
+            schemaModificationTracker: dataController.schemaModificationTracker,
+            onCommitSchemaModifications: {
+                Task {
+                    dataController.isProcessingSchemaUpdates = true
+                    await dataController.commitSchemaModifications()
+                    dataController.isProcessingSchemaUpdates = false
+                }
+            },
+            onNewField: {
+                dataController.handleNewField()
+            }
+        )
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
 }

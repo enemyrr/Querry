@@ -80,13 +80,13 @@ final class TabBarView: NSView {
         prevButton = makeNavButton(symbolName: "chevron.left")
         prevButton.target = self
         prevButton.action = #selector(prevTabAction)
-        prevButton.toolTip = "Previous tab (⇧⌘[)"
+        prevButton.installCustomTooltip("Previous Tab", shortcut: .init(modifiers: [.shift, .command], key: "["))
         addSubview(prevButton)
 
         nextButton = makeNavButton(symbolName: "chevron.right")
         nextButton.target = self
         nextButton.action = #selector(nextTabAction)
-        nextButton.toolTip = "Next tab (⇧⌘])"
+        nextButton.installCustomTooltip("Next Tab", shortcut: .init(modifiers: [.shift, .command], key: "]"))
         addSubview(nextButton)
 
         scrollView = NonDraggingScrollView()
@@ -109,14 +109,14 @@ final class TabBarView: NSView {
         newTabButton = makeNavButton(symbolName: "plus", fontSize: 12)
         newTabButton.target = self
         newTabButton.action = #selector(newTabAction)
-        newTabButton.toolTip = "New Tab (⌘T)"
+        newTabButton.installCustomTooltip("New Tab", shortcut: .init(modifiers: [.command], key: "T"))
         newTabButton.isHidden = true
         addSubview(newTabButton)
 
         sidebarToggleButton = makeNavButton(symbolName: "sidebar.right")
         sidebarToggleButton.target = self
         sidebarToggleButton.action = #selector(toggleSidebarAction)
-        sidebarToggleButton.toolTip = "Toggle Row Details (⌘])"
+        sidebarToggleButton.installCustomTooltip("Toggle Row Details", shortcut: .init(modifiers: [.command], key: "]"))
         addSubview(sidebarToggleButton)
 
         prevHoverLayer = makeHoverLayer()
@@ -320,6 +320,7 @@ final class TabBarView: NSView {
             databaseType: instance.connection.databaseType,
             onClose: { [weak self] in
                 self?.instance.removeTab(tab)
+                self?.syncTabs()
             }
         )
         tabButton.frame = NSRect(x: 0, y: 0, width: tabWidth, height: tabHeight)
@@ -640,6 +641,7 @@ final class TabBarView: NSView {
                 case "w":
                     guard let selectedTab = instance.selectedTab else { return event }
                     instance.removeTab(selectedTab)
+                    self.syncTabs()
                     return nil
                 case "t" where instance.databaseType?.supportsQueryEditor == true:
                     instance.createSQLEditorTab()
@@ -836,13 +838,17 @@ final class TabButtonView: NSView {
         hoverBackgroundLayer = CALayer()
         hoverBackgroundLayer.cornerRadius = 8
         hoverBackgroundLayer.opacity = 0
+        hoverBackgroundLayer.shadowColor = NSColor.black.cgColor
+        hoverBackgroundLayer.shadowOpacity = 0.08
+        hoverBackgroundLayer.shadowRadius = 3
+        hoverBackgroundLayer.shadowOffset = .zero
         layer?.addSublayer(hoverBackgroundLayer)
 
         iconView = NSImageView()
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.imageScaling = .scaleProportionallyDown
         iconView.contentTintColor = .secondaryLabelColor
-        iconView.symbolConfiguration = .init(pointSize: 20, weight: .regular)
+        iconView.symbolConfiguration = .init(pointSize: 13, weight: .regular)
         addSubview(iconView)
 
         titleLabel = NSTextField(labelWithString: "")
@@ -864,7 +870,7 @@ final class TabButtonView: NSView {
         closeButton.isBordered = false
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close tab")
         closeButton.imagePosition = .imageOnly
-        closeButton.symbolConfiguration = .init(pointSize: 13, weight: .medium)
+        closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
         closeButton.target = self
         closeButton.action = #selector(closeAction)
         closeButton.translatesAutoresizingMaskIntoConstraints = false
@@ -887,7 +893,7 @@ final class TabButtonView: NSView {
             deviationLabel.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
 
             closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            closeButton.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -2),
+            closeButton.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
             closeButton.widthAnchor.constraint(equalToConstant: 22),
             closeButton.heightAnchor.constraint(equalToConstant: 18),
         ])

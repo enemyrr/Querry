@@ -379,16 +379,15 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func scrollToBottomAndSelectFirstCell() {
         Task { @MainActor in
             self.needsToSelectLastRow = false
-            let numberOfRows = self.tableView.numberOfRows
-            guard numberOfRows > 0 else { return }
+            guard self.totalCount > 0 else { return }
 
-            let lastRowIndex = numberOfRows - 1
-            self.tableView.scrollRowToVisible(lastRowIndex)
+            let lastDataRowIndex = self.totalCount - 1
+            self.tableView.scrollRowToVisible(self.tableView.numberOfRows - 1)
 
             if self.tableView.numberOfColumns > 0 {
                 self.tableView.window?.makeFirstResponder(self.tableView)
-                self.tableView.editColumn(0, row: lastRowIndex, with: nil, select: true)
-                self.tableView.selectCell(row: lastRowIndex, column: 0)
+                self.tableView.editColumn(0, row: lastDataRowIndex, with: nil, select: true)
+                self.tableView.selectCell(row: lastDataRowIndex, column: 0)
             }
         }
     }

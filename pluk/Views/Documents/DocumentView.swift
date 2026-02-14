@@ -30,7 +30,7 @@ class TabContentView: NSView {
     private func setupView() {
         wantsLayer = true
 
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 10
 
         if tab.type == .canvas {
             setupCanvasView()

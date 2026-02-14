@@ -65,7 +65,7 @@ struct DatabaseHeader: View {
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .help("Schema Visualizer")
+                    .customHelp("Schema Visualizer")
                 }
             }
         }

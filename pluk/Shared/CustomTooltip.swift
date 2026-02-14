@@ -558,6 +558,82 @@ struct CustomTooltip: ViewModifier {
     }
 }
 
+// MARK: - NSView Extension for AppKit Tooltip Support
+
+private class TooltipHoverTracker: NSResponder {
+    static var associatedKey: UInt8 = 0
+
+    let text: String
+    let shortcut: KeyboardShortcut?
+    let position: TooltipPosition
+    let delay: TimeInterval
+    let spacing: CGFloat
+    weak var owner: NSView?
+
+    init(text: String, shortcut: KeyboardShortcut?, position: TooltipPosition, delay: TimeInterval, spacing: CGFloat, owner: NSView) {
+        self.text = text
+        self.shortcut = shortcut
+        self.position = position
+        self.delay = delay
+        self.spacing = spacing
+        self.owner = owner
+        super.init()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard let owner else { return }
+        Task { @MainActor in
+            TooltipCoordinator.shared.scheduleTooltip(
+                text: self.text,
+                relativeTo: owner,
+                position: self.position,
+                alignment: nil,
+                spacing: self.spacing,
+                shortcut: self.shortcut,
+                delay: self.delay
+            )
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard let owner else { return }
+        Task { @MainActor in
+            TooltipCoordinator.shared.hideTooltip(for: owner)
+        }
+    }
+}
+
+extension NSView {
+    func installCustomTooltip(
+        _ text: String,
+        shortcut: KeyboardShortcut? = nil,
+        position: TooltipPosition = .bottom,
+        delay: TimeInterval = 1.5,
+        spacing: CGFloat = 8
+    ) {
+        toolTip = nil
+        let tracker = TooltipHoverTracker(
+            text: text,
+            shortcut: shortcut,
+            position: position,
+            delay: delay,
+            spacing: spacing,
+            owner: self
+        )
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: tracker,
+            userInfo: nil
+        ))
+        objc_setAssociatedObject(self, &TooltipHoverTracker.associatedKey, tracker, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+}
+
 // MARK: - SwiftUI Extensions (Backward Compatible)
 extension View {
     func customHelp(

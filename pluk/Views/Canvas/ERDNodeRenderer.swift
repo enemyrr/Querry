@@ -149,7 +149,7 @@ struct ERDNodeRenderer {
             } else if column.isForeignKey {
                 drawCachedSymbolCentered("link", color: accent, centerY: rowRect.midY, x: iconX, size: iconSymbolSize, in: context)
             }
-            let xOffset = iconX + 16
+            let xOffset = iconX + 22
 
             let colNameColor = isDark ? colNameColorDark : colNameColorLight
             let colNameAttrs: [NSAttributedString.Key: Any] = [

@@ -14,7 +14,9 @@
       "Bash(./scripts/build.sh --configuration Debug)",
       "Bash(sqlite3 \"/Users/fauzaan/Library/Containers/doc.pluk/Data/Library/Application Support/default.store\" \"SELECT name FROM sqlite_master WHERE type=''table'';\")",
       "Read(//Users/fauzaan/Library/Containers/doc.pluk/Data/Library/Application Support/**)",
-      "Bash(sqlite3 \"/Users/fauzaan/Library/Containers/doc.pluk/Data/Library/Application Support/default.store\" \"SELECT ZNAME, datetime(ZLASTOPENEDAT + 978307200, ''unixepoch'') as last_opened FROM ZCONNECTION ORDER BY ZLASTOPENEDAT DESC LIMIT 5;\")"
+      "Bash(sqlite3 \"/Users/fauzaan/Library/Containers/doc.pluk/Data/Library/Application Support/default.store\" \"SELECT ZNAME, datetime(ZLASTOPENEDAT + 978307200, ''unixepoch'') as last_opened FROM ZCONNECTION ORDER BY ZLASTOPENEDAT DESC LIMIT 5;\")",
+      "Bash(git add:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": [],

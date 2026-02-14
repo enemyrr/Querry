@@ -25,6 +25,10 @@ final class DocumentViewController: NSViewController {
     private var isUpdatingTabs = false
     private var isAnimatingRightSidebar = false
 
+    private var barHeight: CGFloat {
+        if #available(macOS 26, *) { 46 } else { 44 }
+    }
+
     private var contentLeadingConstraint: NSLayoutConstraint?
     private var rightSidebarWidthConstraint: NSLayoutConstraint?
     private var tabViewTrailingToSidebar: NSLayoutConstraint?
@@ -114,7 +118,7 @@ final class DocumentViewController: NSViewController {
 
         tabViewContainer = NSView()
         tabViewContainer.wantsLayer = true
-        tabViewContainer.layer?.cornerRadius = 8
+        tabViewContainer.layer?.cornerRadius = 10
         tabViewContainer.shadow = makeShadow()
         tabViewContainer.translatesAutoresizingMaskIntoConstraints = false
 
@@ -130,7 +134,7 @@ final class DocumentViewController: NSViewController {
             bar.topAnchor.constraint(equalTo: view.topAnchor),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 44),
+            bar.heightAnchor.constraint(equalToConstant: barHeight),
 
             contentContainer.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 6),
             contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
@@ -183,7 +187,7 @@ final class DocumentViewController: NSViewController {
         contentLeadingConstraint = leading
 
         NSLayoutConstraint.activate([
-            emptyView.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            emptyView.topAnchor.constraint(equalTo: view.topAnchor, constant: 52),
             leading,
             emptyView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             emptyView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
@@ -206,6 +210,8 @@ final class DocumentViewController: NSViewController {
             vc.removeFromParent()
         }
         tabContentControllers.removeAll()
+
+        view.window?.isMovable = true
     }
 
     private func removeEmptyState() {
@@ -325,7 +331,7 @@ final class DocumentViewController: NSViewController {
     private func makeTabContentView(for tab: DatabaseTab) -> NSView {
         let dbType = instance.connection.databaseType
 
-        if tab.type != .sqlEditor, [.postgres, .sqlite, .mysql, .convex].contains(dbType) {
+        if tab.type != .sqlEditor, tab.type != .canvas, [.postgres, .sqlite, .mysql, .convex].contains(dbType) {
             let tableVC = TableContentViewController(
                 tab: tab,
                 instance: instance,
@@ -339,10 +345,10 @@ final class DocumentViewController: NSViewController {
             return tableVC.view
         }
 
-        return TabContentView(tab: tab, databaseType: dbType) { [weak self] view in
+        return TabContentView(tab: tab, databaseType: dbType, environmentInjector: { [weak self] view in
             guard let self else { return AnyView(view) }
             return AnyView(injectEnvironments(view))
-        }
+        }, instance: instance)
     }
 
     private func syncInitialSidebarState() {
@@ -529,16 +535,18 @@ private final class EmptyDocumentStateView: NSView {
     }
 
     private func setupAppearance() {
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 10
 
         let s = NSShadow()
-        s.shadowColor = NSColor(white: 0, alpha: 0.05)
+        s.shadowColor = NSColor.black.withAlphaComponent(0.08)
         s.shadowBlurRadius = 4
         s.shadowOffset = .zero
         shadow = s
 
         updateBackgroundColor()
     }
+
+    override var mouseDownCanMoveWindow: Bool { true }
 
     override func updateLayer() {
         updateBackgroundColor()
