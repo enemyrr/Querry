@@ -245,7 +245,7 @@ final class Connection {
         // Note: Password will be stored in keychain after model is saved and persistentModelID is available
         if let password = password, !password.isEmpty {
             // Store password temporarily to be moved to keychain after save
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.password = password
             }
         }
