@@ -59,6 +59,7 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .onChange(of: appearance) { _, newValue in
             applyAppearance(newValue)
+            AnalyticsService.shared.updateAppearanceSuperProperty()
         }
         .onChange(of: autoCheckForUpdates) { _, newValue in
             SparkleUpdaterManager.shared.updaterController?.updater.automaticallyChecksForUpdates = newValue

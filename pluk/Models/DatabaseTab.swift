@@ -93,6 +93,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         case schema
         case indexes
         case sqlEditor
+        case canvas
     }
 
     enum ViewMode: Int, Equatable, Codable {

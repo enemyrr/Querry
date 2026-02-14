@@ -2,6 +2,7 @@ import AppKit
 
 func getTabIconName(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
     guard tab.type != .sqlEditor else { return "terminal" }
+    guard tab.type != .canvas else { return "rectangle.connected.to.line.below" }
 
     switch tab.viewMode {
     case .content:
@@ -448,4 +449,3 @@ class DraggableTabNSView: NSView, NSDraggingSource {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool { true }
 }
-

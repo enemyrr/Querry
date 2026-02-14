@@ -26,6 +26,11 @@ This file provides guidance to AI coding agents when working with code in this r
 - Create PRs on the private repo: `pluk-inc/app-pluk`
 - Link PRs to issues using `Fixes pluk-inc/Pluk#<issue-number>`
 
+## GitHub GraphQL API
+- Never use deprecated Projects (classic) fields: `projectCards`, `ProjectCard`, `ProjectColumn`
+- Always use ProjectsV2 API: `projectItems`, `ProjectV2Item`, `ProjectV2ItemFieldValue`
+- Reference: https://docs.github.com/en/graphql/reference/objects#projectv2
+
 ## Development Commands
 
 ### Building

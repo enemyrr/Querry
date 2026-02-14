@@ -12,13 +12,10 @@ import MongoKitten
 struct DatabaseHeader: View {
     @Environment(ConnectionInstance.self) private var instance
     var viewModel: SidebarViewModel
-    @Environment(\.colorScheme) var colorScheme
-    @State private var isDatabaseHovering = false
     @State private var isSchemaHovering = false
     @State private var availableSchemas: [String] = []
     @State private var selectedSchema: String = ""
     @State private var selectedDatabase: String = ""
-    @State private var isLoadingSchemas: Bool = false
     @State private var showCreateSchemaPopover = false
     @State private var showCreateDatabaseSheet = false
     @Binding var isLoadingCollections: Bool
@@ -52,12 +49,23 @@ struct DatabaseHeader: View {
                 
                 Spacer()
                 
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     if isLoadingCollections {
                         ProgressView()
                             .controlSize(.mini)
-                            .padding(.trailing, 14)
                     }
+
+                    Button {
+                        instance.createCanvasTab()
+                    } label: {
+                        Image(systemName: "rectangle.connected.to.line.below")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, height: 20)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Schema Visualizer")
                 }
             }
         }
@@ -92,23 +100,15 @@ struct DatabaseHeader: View {
     
     private func loadAvailableSchemas() {
         Task {
-            await MainActor.run {
-                isLoadingSchemas = true
-            }
-            
             do {
                 let schemas = try await fetchSchemas()
-                await MainActor.run {
-                    availableSchemas = schemas
-                    if selectedSchema.isEmpty || !schemas.contains(selectedSchema) {
-                        // For Convex, default to "app", for others default to "public"
-                        if instance.databaseType == .convex {
-                            selectedSchema = schemas.contains("app") ? "app" : (schemas.first ?? "")
-                        } else {
-                            selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
-                        }
+                availableSchemas = schemas
+                if selectedSchema.isEmpty || !schemas.contains(selectedSchema) {
+                    if instance.databaseType == .convex {
+                        selectedSchema = schemas.contains("app") ? "app" : (schemas.first ?? "")
+                    } else {
+                        selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
                     }
-                    isLoadingSchemas = false
                 }
             } catch {
                 debugLog("Failed to load schemas: \(error)")
@@ -184,17 +184,17 @@ struct DatabaseSchemaItem: View {
         HStack(spacing: 4) {
             Text(text)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
             
             if showChevronRight {
                 Image(systemName: "chevron.right")
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else if isHovering {
                 Image(systemName: "chevron.compact.up.chevron.compact.down")
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .opacity(0.7)
             }
         }
@@ -220,7 +220,7 @@ struct SearchInput: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.gray)
+                .foregroundStyle(.gray)
                 .font(.system(size: 14))
 
             TextField("Search", text: Binding(
@@ -230,7 +230,7 @@ struct SearchInput: View {
             .focused($isSearchFocused)
             .textFieldStyle(.plain)
             .font(.system(size: 14))
-            .foregroundColor(Color(.textColor))
+            .foregroundStyle(Color(.textColor))
             .onExitCommand {
                 if viewModel.searchText.isEmpty {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -244,7 +244,7 @@ struct SearchInput: View {
             if !viewModel.searchText.isEmpty {
                 Button(action: { viewModel.searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
+                        .foregroundStyle(.gray)
                         .font(.system(size: 12))
                 }
                 .buttonStyle(.plain)

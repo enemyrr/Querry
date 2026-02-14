@@ -301,6 +301,21 @@ import AIProxy
 
         selectedTab = newTab
     }
+
+    func createCanvasTab() {
+        if let existingTab = tabs.first(where: { $0.type == .canvas }) {
+            selectedTab = existingTab
+            return
+        }
+
+        let newTab = DatabaseTab(
+            name: "Schema Visualizer",
+            type: .canvas,
+            queryState: .idle
+        )
+        tabs.append(newTab)
+        selectedTab = newTab
+    }
     
     func removeTab(_ tab: DatabaseTab) {
         guard !tabs.isEmpty else { return }

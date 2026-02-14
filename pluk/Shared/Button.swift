@@ -193,6 +193,7 @@ struct NewTabButtonStyle: ButtonStyle {
                 .foregroundStyle(.secondary)
         }
         .padding(padding)
+        .contentShape(Rectangle())
         .modifier(NewTabGlassBackground(isHovering: isHovering, isActive: isActive))
         .if(!disableScaleEffect) { view in
             view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)

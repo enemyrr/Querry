@@ -34,6 +34,17 @@ final class AnalyticsService {
                 "app_install_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
             ])
         }
+        updateAppearanceSuperProperty()
+    }
+
+    func updateAppearanceSuperProperty() {
+        let value = UserDefaults.standard.integer(forKey: "appearance")
+        let label = switch value {
+        case 1: "light"
+        case 2: "dark"
+        default: "system"
+        }
+        PostHogSDK.shared.register(["appearance": label])
     }
 
     func updateConnectionSuperProperties(totalConnections: Int, databaseTypes: [String]) {
