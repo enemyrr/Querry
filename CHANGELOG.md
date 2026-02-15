@@ -2,6 +2,13 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.28] – 2026-02-15
+
+Pluk v0.0.1-beta.28 brings a brand new way to understand your database—and makes everything else faster while it's at it.
+
+- **Schema Visualizer** You can now see your entire database structure as an interactive visual diagram. Tables, columns, foreign keys, relationships—all laid out so you can understand how your data connects at a glance. No more mentally mapping table relationships from a list.
+- **Everything feels faster** We've moved large portions of the UI from SwiftUI to AppKit. The result? Noticeably snappier rendering, smoother scrolling, and lower memory usage—especially when you're working with large datasets.
+
 ## [0.0.1-beta.27] – 2026-02-05
 
 Pluk v0.0.1-beta.27 is a polish-heavy release focused on the small upgrades to the features you use every day when working with data.
