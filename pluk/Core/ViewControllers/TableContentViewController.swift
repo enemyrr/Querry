@@ -23,11 +23,14 @@ final class TableContentViewController: NSViewController {
     private var contentArea: NSView!
     private var floatingBarHostingView: NSHostingView<AnyView>?
     private var currentContentView: NSView?
+    private var filterLayoutTask: Task<Void, Never>?
 
     // MARK: - Notification Observers
 
     private var markRowObserver: Any?
     private var pasteObserver: Any?
+    private var toggleFilterBuilderObserver: Any?
+    private var filterBuilderDidCloseObserver: Any?
 
     // MARK: - Init
 
@@ -57,7 +60,8 @@ final class TableContentViewController: NSViewController {
         MainActor.assumeIsolated {
             dataController.cancel()
         }
-        for observer in [markRowObserver, pasteObserver].compactMap({ $0 }) {
+        filterLayoutTask?.cancel()
+        for observer in [markRowObserver, pasteObserver, toggleFilterBuilderObserver, filterBuilderDidCloseObserver].compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
         }
         NotificationCenter.default.removeObserver(self)
@@ -117,6 +121,7 @@ final class TableContentViewController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         dataController.updateFilterConditions()
+        scheduleFilterBarLayout(afterAnimation: true)
         Task {
             await dataController.loadDocumentsIfNeeded()
         }
@@ -124,6 +129,7 @@ final class TableContentViewController: NSViewController {
 
     override func viewWillDisappear() {
         super.viewWillDisappear()
+        filterLayoutTask?.cancel()
         dataController.cancel()
     }
 
@@ -135,7 +141,12 @@ final class TableContentViewController: NSViewController {
     }
 
     private func setupFilterBar() {
-        let filterBar = FilterBarContainer(dataController: dataController)
+        let filterBar = FilterBarContainer(
+            dataController: dataController,
+            onLayoutInvalidated: { [weak self] in
+                self?.scheduleFilterBarLayout(afterAnimation: true)
+            }
+        )
         let wrapped = injectEnvironments(filterBar)
         filterBarHostingView = NSHostingView(rootView: AnyView(wrapped))
     }
@@ -166,7 +177,11 @@ final class TableContentViewController: NSViewController {
         guard let filterBarHostingView, let floatingBarHostingView else { return }
 
         let bounds = view.bounds
-        let filterHeight = filterBarHostingView.fittingSize.height
+        var measurementFrame = filterBarHostingView.frame
+        measurementFrame.size.width = bounds.width
+        filterBarHostingView.frame = measurementFrame
+        filterBarHostingView.layoutSubtreeIfNeeded()
+        let filterHeight = max(0, filterBarHostingView.fittingSize.height.rounded(.up))
 
         filterBarHostingView.frame = NSRect(
             x: 0,
@@ -175,7 +190,7 @@ final class TableContentViewController: NSViewController {
             height: filterHeight
         )
 
-        let contentHeight = bounds.height - filterHeight
+        let contentHeight = max(0, bounds.height - filterHeight)
 
         contentArea.frame = NSRect(
             x: 0,
@@ -215,6 +230,22 @@ final class TableContentViewController: NSViewController {
             Task { @MainActor in
                 self?.dataController.handlePasteRows()
             }
+        }
+
+        toggleFilterBuilderObserver = NotificationCenter.default.addObserver(
+            forName: .toggleFilterBuilder,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.scheduleFilterBarLayout(afterAnimation: true)
+        }
+
+        filterBuilderDidCloseObserver = NotificationCenter.default.addObserver(
+            forName: .filterBuilderDidClose,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.scheduleFilterBarLayout(afterAnimation: true)
         }
     }
 
@@ -338,6 +369,32 @@ final class TableContentViewController: NSViewController {
         observeViewMode()
         observeHighlighting()
         observeErrors()
+        observeFilterConditions()
+    }
+
+    private func scheduleFilterBarLayout(afterAnimation: Bool = false) {
+        filterLayoutTask?.cancel()
+        filterLayoutTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.layoutContentViews()
+            await Task.yield()
+            self.layoutContentViews()
+            if afterAnimation {
+                try? await Task.sleep(for: .milliseconds(250))
+                self.layoutContentViews()
+            }
+        }
+    }
+
+    private func observeFilterConditions() {
+        withObservationTracking {
+            _ = dataController.filterConditions
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.scheduleFilterBarLayout()
+                self?.observeFilterConditions()
+            }
+        }
     }
 
     private func observeViewState() {
@@ -346,10 +403,10 @@ final class TableContentViewController: NSViewController {
             _ = self.dataController.cachedDocuments
             _ = self.dataController.cachedSchema
             _ = self.dataController.needsToSelectLastRow
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
-                self.updateTableFromData()
-                self.observeViewState()
+                self?.updateTableFromData()
+                self?.observeViewState()
             }
         }
     }
@@ -357,8 +414,9 @@ final class TableContentViewController: NSViewController {
     private func observeViewMode() {
         withObservationTracking {
             _ = self.tab.viewMode
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
+                guard let self else { return }
                 self.switchToViewMode(self.tab.viewMode)
                 self.observeViewMode()
             }
@@ -369,8 +427,9 @@ final class TableContentViewController: NSViewController {
         withObservationTracking {
             _ = self.dataController.updatedFields
             _ = self.dataController.updatedRows
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
+                guard let self else { return }
                 self.coordinator?.updateHighlighting(
                     fields: self.dataController.updatedFields,
                     rows: self.dataController.updatedRows
@@ -384,8 +443,9 @@ final class TableContentViewController: NSViewController {
         withObservationTracking {
             _ = self.dataController.showingErrorAlert
             _ = self.dataController.showingViewStateError
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
+                guard let self else { return }
                 if self.dataController.showingErrorAlert, let error = self.dataController.currentError {
                     self.showNSAlert(title: "Operation Failed", message: error.localizedDescription)
                     self.dataController.showingErrorAlert = false
@@ -427,6 +487,7 @@ final class TableContentViewController: NSViewController {
 
 private struct FilterBarContainer: View {
     @Bindable var dataController: TableDataController
+    var onLayoutInvalidated: () -> Void
 
     var body: some View {
         FilterBuilderView(
@@ -445,7 +506,8 @@ private struct FilterBarContainer: View {
                     await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
                 }
             },
-            conditions: $dataController.filterConditions
+            conditions: $dataController.filterConditions,
+            onLayoutInvalidated: onLayoutInvalidated
         )
     }
 }
