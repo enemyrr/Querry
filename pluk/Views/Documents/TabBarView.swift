@@ -870,7 +870,7 @@ final class TabButtonView: NSView {
         closeButton.isBordered = false
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close tab")
         closeButton.imagePosition = .imageOnly
-        closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
+        closeButton.symbolConfiguration = .init(pointSize: 12, weight: .semibold)
         closeButton.target = self
         closeButton.action = #selector(closeAction)
         closeButton.translatesAutoresizingMaskIntoConstraints = false
