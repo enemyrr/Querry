@@ -186,8 +186,10 @@ final class DocumentViewController: NSViewController {
         let leading = emptyView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: isSidebarVisible ? 2 : 14)
         contentLeadingConstraint = leading
 
+        let topInset: CGFloat = if #available(macOS 26, *) { 52 } else { 50 }
+
         NSLayoutConstraint.activate([
-            emptyView.topAnchor.constraint(equalTo: view.topAnchor, constant: 52),
+            emptyView.topAnchor.constraint(equalTo: view.topAnchor, constant: topInset),
             leading,
             emptyView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             emptyView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
