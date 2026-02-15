@@ -27,6 +27,7 @@ extension Notification.Name {
     static let databasesUpdated = Notification.Name("databasesUpdated")
     static let connectedDatabaseChanged = Notification.Name("connectedDatabaseChanged")
     static let toggleFilterBuilder = Notification.Name("ToggleFilterBuilder")
+    static let filterBuilderDidClose = Notification.Name("FilterBuilderDidClose")
 
     /// Schema mode context menu actions
     static let schemaTableRefresh = Notification.Name("schemaTableRefresh")

@@ -14,6 +14,7 @@ struct FilterBuilderView: View {
     var databaseSchema: String?
     var onApplyFilter: (String) -> Void
     @Binding var conditions: [FilterCondition]
+    var onLayoutInvalidated: (() -> Void)? = nil
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var showFilterBuilder: Bool = false
@@ -33,13 +34,15 @@ struct FilterBuilderView: View {
         return conditions.contains { !$0.field.isEmpty && !$0.value.isEmpty }
     }
     
-    private var effectiveShowFilterBuilder: Bool {
-        return showFilterBuilder || shouldShowFilterBuilder
+    private func syncVisibilityFromConditions() {
+        if shouldShowFilterBuilder && !showFilterBuilder {
+            showFilterBuilder = true
+        }
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            if effectiveShowFilterBuilder {
+            if showFilterBuilder {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 28) {
                         // Filter rows with overlay divider
@@ -56,6 +59,7 @@ struct FilterBuilderView: View {
                                             withAnimation(.easeInOut(duration: 0.2)) {
                                                 showFilterBuilder = false
                                             }
+                                            NotificationCenter.default.post(name: .filterBuilderDidClose, object: nil)
                                         }
                                     },
                                     focusedField: $focusedField,
@@ -134,12 +138,25 @@ struct FilterBuilderView: View {
                         conditions[0].field = columns[0].columnName
                     }
                 }
-                .onChange(of: columns) {
+                .onChange(of: columns) { _, _ in
                     if !columns.isEmpty && conditions[0].field.isEmpty {
                         conditions[0].field = columns[0].columnName
                     }
                 }
             }
+        }
+        .onAppear {
+            syncVisibilityFromConditions()
+            onLayoutInvalidated?()
+        }
+        .onChange(of: shouldShowFilterBuilder) { _, _ in
+            syncVisibilityFromConditions()
+        }
+        .onChange(of: showFilterBuilder) { _, _ in
+            onLayoutInvalidated?()
+        }
+        .onChange(of: conditions.count) { _, _ in
+            onLayoutInvalidated?()
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -147,7 +164,8 @@ struct FilterBuilderView: View {
                 
                 // Focus on first field when opening
                 if showFilterBuilder {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(250))
                         focusedField = 0
                     }
                 }
