@@ -6,6 +6,27 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 28</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.28.dmg</link>
+            <sparkle:version>287</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.28</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 28</h2><div>Pluk v0.0.1-beta.28 brings a brand new way to understand your database—and makes everything else faster while it's at it.
+<ul>
+<li><strong>Schema Visualizer</strong> You can now see your entire database structure as an interactive visual diagram. Tables, columns, foreign keys, relationships—all laid out so you can understand how your data connects at a glance. No more mentally mapping table relationships from a list.</li>
+<li><strong>Everything feels faster</strong> We've moved large portions of the UI from SwiftUI to AppKit. The result? Noticeably snappier rendering, smoother scrolling, and lower memory usage—especially when you're working with large datasets.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 15 Feb 2026 12:10:49 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.28.dmg"
+                length="50569031"
+                type="application/octet-stream"
+                sparkle:edSignature="6cpKylT7blLYwLte7deyNbVIMkwejvjhsPyT1zE7Z2MK4CNp/ZSfAkriCGvZvWMqMry8jACVGM0sZ+BErrE9DA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 27</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg</link>
             <sparkle:version>286</sparkle:version>
