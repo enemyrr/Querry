@@ -403,10 +403,10 @@ final class TableContentViewController: NSViewController {
             _ = self.dataController.cachedDocuments
             _ = self.dataController.cachedSchema
             _ = self.dataController.needsToSelectLastRow
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
-                self.updateTableFromData()
-                self.observeViewState()
+                self?.updateTableFromData()
+                self?.observeViewState()
             }
         }
     }
@@ -414,8 +414,9 @@ final class TableContentViewController: NSViewController {
     private func observeViewMode() {
         withObservationTracking {
             _ = self.tab.viewMode
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
+                guard let self else { return }
                 self.switchToViewMode(self.tab.viewMode)
                 self.observeViewMode()
             }
@@ -426,8 +427,9 @@ final class TableContentViewController: NSViewController {
         withObservationTracking {
             _ = self.dataController.updatedFields
             _ = self.dataController.updatedRows
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
+                guard let self else { return }
                 self.coordinator?.updateHighlighting(
                     fields: self.dataController.updatedFields,
                     rows: self.dataController.updatedRows
@@ -441,8 +443,9 @@ final class TableContentViewController: NSViewController {
         withObservationTracking {
             _ = self.dataController.showingErrorAlert
             _ = self.dataController.showingViewStateError
-        } onChange: {
+        } onChange: { [weak self] in
             Task { @MainActor in
+                guard let self else { return }
                 if self.dataController.showingErrorAlert, let error = self.dataController.currentError {
                     self.showNSAlert(title: "Operation Failed", message: error.localizedDescription)
                     self.dataController.showingErrorAlert = false

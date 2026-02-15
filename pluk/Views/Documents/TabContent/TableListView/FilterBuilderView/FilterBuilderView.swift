@@ -1,13 +1,5 @@
-//
-//  Filter.swift
-//  Pluk
-//
-//  Created by Fauzaan on 7/6/25.
-//
-
 import SwiftUI
 
-// MARK: - Main Filter Builder View
 struct FilterBuilderView: View {
     var columns: [DatabaseSchemaInfo]
     var tableName: String
@@ -27,11 +19,11 @@ struct FilterBuilderView: View {
     }
     
     private func generateSQLFilter() -> String {
-        return instance.databaseService.generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
+        instance.databaseService.generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
     }
-    
+
     private var shouldShowFilterBuilder: Bool {
-        return conditions.contains { !$0.field.isEmpty && !$0.value.isEmpty }
+        conditions.contains { !$0.field.isEmpty && !$0.value.isEmpty }
     }
     
     private func syncVisibilityFromConditions() {
@@ -45,7 +37,6 @@ struct FilterBuilderView: View {
             if showFilterBuilder {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 28) {
-                        // Filter rows with overlay divider
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(conditions.indices, id: \.self) { index in
                                 FilterRowView(
@@ -74,18 +65,16 @@ struct FilterBuilderView: View {
                                 .offset(x: 14)
                         }
                         
-                        // Action buttons
                         HStack(spacing: 10) {
-                            Button("Apply", action: {
-                                let sqlFilter = generateSQLFilter()
-                                onApplyFilter(sqlFilter)
-                            })
+                            Button("Apply") {
+                                onApplyFilter(generateSQLFilter())
+                            }
                             .buttonStyle(FilterSubmitButtonStyle())
                             .disabled(!hasValidCondition)
                             .keyboardShortcut(.return, modifiers: [])
                             .transition(.slide)
                             
-                            Button(action: {
+                            Button {
                                 if conditions.count < 8 {
                                     let newCondition = FilterCondition(
                                         conjunction: .and,
@@ -95,20 +84,18 @@ struct FilterBuilderView: View {
                                     )
                                     conditions.append(newCondition)
                                 }
-                            }) {
+                            } label: {
                                 HStack {
-                                    HStack {
-                                        Image(systemName: "plus")
-                                        Text("Add Filter").lineLimit(1)
-                                    }
+                                    Image(systemName: "plus")
+                                    Text("Add Filter").lineLimit(1)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(Color(.separatorColor).opacity(0.5))
-                                .cornerRadius(8)
+                                .clipShape(.rect(cornerRadius: 8))
                                 .fixedSize()
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .buttonStyle(.plain)
                             .disabled(conditions.count >= 8)
                             
                             Button("Clear filters") {
@@ -119,14 +106,11 @@ struct FilterBuilderView: View {
                             .fixedSize()
                         }
                         .background(
-                            // Hidden button for Cmd+Enter shortcut
-                            Button("", action: {
-                                let sqlFilter = generateSQLFilter()
-                                onApplyFilter(sqlFilter)
-                            })
+                            Button("") {
+                                onApplyFilter(generateSQLFilter())
+                            }
                             .keyboardShortcut(.return, modifiers: .command)
                             .hidden()
-                            .opacity(0)
                         )
                         
                     }
@@ -161,8 +145,7 @@ struct FilterBuilderView: View {
         .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 showFilterBuilder.toggle()
-                
-                // Focus on first field when opening
+
                 if showFilterBuilder {
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(250))

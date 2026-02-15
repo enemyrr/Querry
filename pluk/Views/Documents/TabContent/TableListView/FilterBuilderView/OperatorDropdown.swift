@@ -11,44 +11,20 @@ struct OperatorDropdown: View {
     @Binding var selectedOperator: FilterOperator
     
     var body: some View {
-        EnumFloatingDropdown(
-            selection: $selectedOperator,
-            width: 120,
-            itemSymbol: operatorSign
-        )
-    }
-    
-    private func operatorSign(for operator: FilterOperator) -> String {
-            switch `operator` {
-            case .equals:
-                return "="
-            case .notEquals:
-                return "<>"
-            case .greaterThan:
-                return ">"
-            case .greaterThanOrEquals:
-                return ">="
-            case .lessThan:
-                return "<"
-            case .lessThanOrEquals:
-                return "<="
-            case .like:
-                return "~"
-            case .ilike:
-                return "~*"
-            case .notLike:
-                return "!~"
-            case .startsWith:
-                return "^"
-            case .endsWith:
-                return "$"
-            case .isIn:
-                return ""
-            case .isNull:
-                return ""
-            case .isNotNull:
-                return ""
+        Menu {
+            ForEach(FilterOperator.allCases, id: \.self) { filterOperator in
+                Button(filterOperator.rawValue) {
+                    selectedOperator = filterOperator
+                }
             }
-        
+        } label: {
+            Text(selectedOperator.rawValue).lineLimit(1)
+            Spacer()
+            Image(systemName: "chevron.compact.down")
+                .scaleEffect(CGSize(width: 0.7, height: 1.5))
+        }
+        .menuStyle(.button)
+        .buttonStyle(FilterDropdownStyle())
+        .frame(width: 120)
     }
 }
