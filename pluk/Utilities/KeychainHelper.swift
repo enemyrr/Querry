@@ -22,7 +22,6 @@ class KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Pluk",
             kSecAttrAccount as String: connectionId,
-            kSecUseDataProtectionKeychain as String: true,
             kSecValueData as String: data
         ]
 
@@ -40,7 +39,6 @@ class KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Pluk",
             kSecAttrAccount as String: connectionId,
-            kSecUseDataProtectionKeychain as String: true,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -54,33 +52,6 @@ class KeychainHelper {
             return password
         }
 
-        // Migration: try the legacy keychain (without Data Protection)
-        let legacyQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Pluk",
-            kSecAttrAccount as String: connectionId,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var legacyRef: AnyObject?
-        let legacyStatus = SecItemCopyMatching(legacyQuery as CFDictionary, &legacyRef)
-
-        if legacyStatus == errSecSuccess,
-           let data = legacyRef as? Data,
-           let password = String(data: data, encoding: .utf8) {
-            store(password: password, for: connectionId)
-
-            let deleteLegacy: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: "Pluk",
-                kSecAttrAccount as String: connectionId
-            ]
-            SecItemDelete(deleteLegacy as CFDictionary)
-
-            return password
-        }
-
         return nil
     }
 
@@ -90,8 +61,7 @@ class KeychainHelper {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Pluk",
-            kSecAttrAccount as String: connectionId,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrAccount as String: connectionId
         ]
 
         let status = SecItemDelete(query as CFDictionary)
@@ -106,8 +76,7 @@ class KeychainHelper {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Pluk",
-            kSecAttrAccount as String: connectionId,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrAccount as String: connectionId
         ]
 
         let attributes: [String: Any] = [
@@ -130,7 +99,6 @@ class KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Pluk",
             kSecAttrAccount as String: connectionId,
-            kSecUseDataProtectionKeychain as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
 

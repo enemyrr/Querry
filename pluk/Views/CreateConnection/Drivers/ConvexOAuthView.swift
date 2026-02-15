@@ -502,15 +502,20 @@ struct ConvexOAuthView: View {
             hostname: convexProjectWithId,
             port: "8080",
             username: convexTeamName,
-            password: embeddedToken.isEmpty ? nil : embeddedToken,  // Full embedded token with metadata
+            password: nil,
             database: convexProjectName,
             sslMode: nil
         )
-        
+
         modelContext.insert(newConnection)
-        
+
         // Save to get persistentModelID, then store password in keychain
         try? modelContext.save()
+
+        // Store token in keychain explicitly after save (not via deferred Task in init)
+        if !embeddedToken.isEmpty {
+            newConnection.password = embeddedToken
+        }
         
         // Track connection creation event
         PostHogSDK.shared.capture("connection_created", properties: [
