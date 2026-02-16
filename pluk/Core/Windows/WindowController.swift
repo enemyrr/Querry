@@ -499,6 +499,7 @@ extension WindowController: NSWindowDelegate {
             hideTabBarViews(in: window)
         }
         NotificationCenter.default.post(name: .tabDidChange, object: nil)
+
     }
 
     func windowWillClose(_ notification: Notification) {

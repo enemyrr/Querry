@@ -16,8 +16,7 @@ struct DatabaseList: View {
     @State private var loadError: Error?
     @State private var showDatabaseSelector: Bool = false
 
-    // Computed property for filtered collections
-    private var filteredCollections: [any CollectionWrapper]? {
+    private var allCollections: [any CollectionWrapper]? {
         guard
             let connectedDatabase = viewModel.activeConnection?
                 .connectedDatabase
@@ -27,7 +26,6 @@ struct DatabaseList: View {
 
         var collections = instance.collections[connectedDatabase.name] ?? []
 
-        // Apply search filter
         if !viewModel.searchText.isEmpty {
             collections = collections.filter { collection in
                 collection.name.localizedCaseInsensitiveContains(
@@ -36,10 +34,17 @@ struct DatabaseList: View {
             }
         }
 
-        // Apply sorting
         return collections.sorted { first, second in
-            return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
+            first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
         }
+    }
+
+    private var filteredTables: [any CollectionWrapper] {
+        allCollections?.filter { !["function", "procedure"].contains($0.type) } ?? []
+    }
+
+    private var filteredFunctions: [any CollectionWrapper] {
+        allCollections?.filter { ["function", "procedure"].contains($0.type) } ?? []
     }
 
     var body: some View {
@@ -60,20 +65,27 @@ struct DatabaseList: View {
                     description: Text("Unable to connect to the database.")
                 )
             } else {
-                if let filteredCollections = filteredCollections {
+                if allCollections != nil {
                     CollectionsSection(
-                        collections: filteredCollections
+                        collections: filteredTables
                     )
 
+                    if !filteredFunctions.isEmpty {
+                        FunctionsSection(
+                            functions: filteredFunctions
+                        )
+                    }
+
                     if !viewModel.searchText.isEmpty
-                        && filteredCollections.isEmpty
+                        && filteredTables.isEmpty
+                        && filteredFunctions.isEmpty
                     {
                         VStack(spacing: 12) {
                             Image(systemName: "folder.badge.questionmark")
                                 .font(.system(size: 32))
                                 .foregroundColor(.secondary.opacity(0.5))
-                            
-                            Text("No Tables")
+
+                            Text("No Results")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary.opacity(0.7))
                         }
@@ -585,6 +597,180 @@ struct CollectionsSection: View {
         } label: {
             Label("Delete", systemImage: "trash")
                 .frame(minWidth: 150, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Functions Section
+struct FunctionsSection: View {
+    @Environment(ConnectionInstance.self) private var instance
+    let functions: [any CollectionWrapper]
+
+    @State private var isExpanded = true
+    @State private var loadingOid: String?
+    @State private var loadError: Error?
+    @State private var showLoadError = false
+    @State private var showDeleteConfirmation = false
+    @State private var functionToDelete: (any CollectionWrapper)?
+    @State private var deleteError: Error?
+    @State private var showDeleteError = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(isExpanded ? .degrees(90) : .zero)
+
+                    Text("Functions")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Text("\(functions.count)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                ForEach(functions, id: \.name) { function in
+                    functionRow(for: function)
+                }
+            }
+        }
+        .alert("Error", isPresented: $showLoadError, presenting: loadError) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+        .alert("Delete Error", isPresented: $showDeleteError, presenting: deleteError) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+        .confirmationDialog(
+            "Delete \(functionToDelete?.type.capitalized ?? "Function")",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let fn = functionToDelete {
+                    Task { await performDelete(fn) }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                functionToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this \(functionToDelete?.type ?? "function")? This action cannot be undone.")
+        }
+        .dialogSeverity(.critical)
+    }
+
+    @ViewBuilder
+    private func functionRow(for function: any CollectionWrapper) -> some View {
+        let pgWrapper = function as? PostgreSQLCollectionWrapper
+        let isLoading = loadingOid == pgWrapper?.oid
+
+        Button {
+            Task { await openFunction(function) }
+        } label: {
+            HStack(spacing: 6) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 14)
+                } else {
+                    Image(systemName: function.type == "procedure" ? "gearshape" : "f.cursive")
+                        .font(.system(size: 11))
+                        .frame(width: 14)
+                        .opacity(0.7)
+                }
+                Text(function.name)
+                Spacer()
+            }
+        }
+        .buttonStyle(SidebarButtonStyle(isActive: false))
+        .contextMenu {
+            Button {
+                Task { await openFunction(function) }
+            } label: {
+                Label("Open in Editor", systemImage: "arrow.up.forward.square")
+                    .frame(minWidth: 150, alignment: .leading)
+            }
+
+            Divider()
+
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(function.name, forType: .string)
+            } label: {
+                Label("Copy Name", systemImage: "doc.on.clipboard")
+                    .frame(minWidth: 150, alignment: .leading)
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                functionToDelete = function
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+                    .frame(minWidth: 150, alignment: .leading)
+            }
+        }
+    }
+
+    @MainActor
+    private func openFunction(_ function: any CollectionWrapper) async {
+        guard let pgWrapper = function as? PostgreSQLCollectionWrapper,
+              let driver = instance.databaseService.driver as? PostgreSQLDriver else { return }
+
+        loadingOid = pgWrapper.oid
+        defer { loadingOid = nil }
+
+        do {
+            let definition = try await driver.getFunctionDefinition(oid: pgWrapper.oid)
+            instance.createSQLEditorTab(withQuery: definition)
+        } catch {
+            loadError = error
+            showLoadError = true
+        }
+    }
+
+    @MainActor
+    private func performDelete(_ function: any CollectionWrapper) async {
+        guard let pgWrapper = function as? PostgreSQLCollectionWrapper else { return }
+        let schema = pgWrapper.schema ?? "public"
+        let dropSQL: String
+        if let parenIndex = function.name.firstIndex(of: "(") {
+            let baseName = String(function.name[..<parenIndex])
+            let args = String(function.name[parenIndex...])
+            dropSQL = "DROP \(function.type.uppercased()) IF EXISTS \"\(schema)\".\"\(baseName)\"\(args)"
+        } else {
+            dropSQL = "DROP \(function.type.uppercased()) IF EXISTS \"\(schema)\".\"\(function.name)\""
+        }
+
+        do {
+            _ = try await instance.databaseService.executeRawQuery(dropSQL, databaseSchema: schema)
+            try await instance.loadCollectionsForCurrentDatabase(schema: schema)
+            functionToDelete = nil
+        } catch {
+            deleteError = error
+            showDeleteError = true
+            functionToDelete = nil
         }
     }
 }

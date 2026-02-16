@@ -144,10 +144,10 @@ import SwiftUI
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("No active database driver")
         }
-        
+
         try await driver.reconnect()
     }
-    
+
     // MARK: - Real-time Support
     
     var supportsRealTime: Bool {

@@ -228,6 +228,74 @@ public enum PostgreSQLConnectionStringParser {
         )
     }
 
+    /// Parse a PostgreSQL connection string into PostgresClient.Configuration (connection pool)
+    public static func parseClientConfiguration(_ input: String, options: PostgreSQLParseOptions = .init()) throws -> PostgresClient.Configuration {
+        let parsed = try parse(input, options: options)
+
+        guard let host = (parsed.host?.isEmpty == false ? parsed.host : nil) else {
+            throw PostgreSQLConnectionStringParserError.invalidHost
+        }
+
+        let port = parsed.port ?? 5432
+        let username = (parsed.user?.isEmpty == false ? parsed.user : nil) ?? "postgres"
+        let password = (parsed.password?.isEmpty == false ? parsed.password : nil)
+        let database = (parsed.database?.isEmpty == false ? parsed.database : nil) ?? ""
+
+        var tls: PostgresClient.Configuration.TLS = .disable
+
+        if let ssl = parsed.ssl {
+            var enableTLS = ssl.enabled ?? (ssl.mode?.lowercased() != "disable")
+
+            if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+                enableTLS = false
+            }
+
+            if enableTLS {
+                var tlsConfig = TLSConfiguration.makeClientConfiguration()
+
+                if let mode = ssl.mode?.lowercased() {
+                    switch mode {
+                    case "disable":
+                        enableTLS = false
+                    case "prefer":
+                        tlsConfig.certificateVerification = .none
+                    case "require":
+                        if ssl.rejectUnauthorized == false {
+                            tlsConfig.certificateVerification = .none
+                        }
+                    case "verify-ca":
+                        tlsConfig.certificateVerification = .noHostnameVerification
+                    case "verify-full":
+                        tlsConfig.certificateVerification = .fullVerification
+                    case "no-verify":
+                        tlsConfig.certificateVerification = .none
+                    default:
+                        break
+                    }
+                } else if ssl.rejectUnauthorized == false {
+                    tlsConfig.certificateVerification = .none
+                }
+
+                if enableTLS {
+                    if (ssl.mode?.lowercased() == "prefer") || (ssl.rejectUnauthorized == false) {
+                        tls = .prefer(tlsConfig)
+                    } else {
+                        tls = .require(tlsConfig)
+                    }
+                }
+            }
+        }
+
+        return PostgresClient.Configuration(
+            host: host,
+            port: port,
+            username: username,
+            password: password,
+            database: database,
+            tls: tls
+        )
+    }
+
     // MARK: - Helpers
 
     private static func setQueryParam(_ item: URLQueryItem, into config: inout PostgreSQLParsedConfig) {
@@ -357,5 +425,4 @@ public enum PostgreSQLConnectionStringParser {
         return false
     }
 }
-
 

@@ -29,25 +29,18 @@ class MySQLDriver: DatabaseDriver {
     private var currentDatabase: String?
     private var eventLoopGroup: EventLoopGroup?
     private var connectionUri: String?
+    private var reconnectTask: Task<MySQLConnection, any Error>?
     private let logger = Logger(label: "mysql-driver")
     
     typealias Database = MySQLDatabaseWrapper
     typealias Collection = MySQLCollectionWrapper
     
     deinit {
-        // Ensure connection is properly closed before deallocation
         if let connection = connection, !connection.isClosed {
-            // Use a detached task to properly close the connection
-            Task.detached {
-                try? await connection.close().get()
-            }
+            _ = connection.close()
         }
-        
-        // Clean up event loop group
         if let eventLoopGroup = eventLoopGroup {
-            Task.detached {
-                try? await eventLoopGroup.shutdownGracefully()
-            }
+            Task.detached { try? await eventLoopGroup.shutdownGracefully() }
         }
     }
     
@@ -111,11 +104,15 @@ class MySQLDriver: DatabaseDriver {
     }
     
     func reconnect() async throws {
-        guard let connectionUri = self.connectionUri else {
-            throw DatabaseError.configurationError("No connection URI stored for reconnection")
+        if let connection = self.connection, !connection.isClosed {
+            do {
+                _ = try await connection.simpleQuery("SELECT 1").get()
+                return
+            } catch {
+                // Connection looks alive locally but is actually dead — force replace
+            }
         }
-        await disconnect()
-        _ = try await establishConnection(with: connectionUri)
+        _ = try await replaceConnection()
     }
     
     func ping(to connectionUri: String) async throws {
@@ -140,29 +137,63 @@ class MySQLDriver: DatabaseDriver {
     }
     
     private func ensureConnected() async throws -> MySQLConnection {
-        guard let connection = self.connection else {
-            throw DatabaseError.notConnected("Not connected to MySQL database")
+        if let connection = self.connection, !connection.isClosed {
+            return connection
         }
-        
-        if connection.isClosed {
-            do {
-                guard let connectionUri = self.connectionUri else {
-                    throw DatabaseError.configurationError("No connection URI stored for reconnection")
-                }
-                
-                _ = try await establishConnection(with: connectionUri)
-                return self.connection!
-            } catch {
-                throw DatabaseError.connectionFailed("Failed to reconnect to MySQL database: \(error.localizedDescription)")
+
+        return try await replaceConnection()
+    }
+
+    /// Runs a query, retrying once with a fresh connection if the first attempt fails due to a stale connection.
+    private func withConnection<T>(_ body: (MySQLConnection) async throws -> T) async throws -> T {
+        let connection = try await ensureConnected()
+        do {
+            return try await body(connection)
+        } catch {
+            guard !connection.isClosed else { throw error }
+            try? await connection.close().get()
+            let fresh = try await replaceConnection()
+            return try await body(fresh)
+        }
+    }
+
+    private func replaceConnection() async throws -> MySQLConnection {
+        if let reconnectTask = self.reconnectTask {
+            return try await reconnectTask.value
+        }
+
+        guard let connectionUri = self.connectionUri else {
+            throw DatabaseError.configurationError("No connection URI stored for reconnection")
+        }
+
+        let task = Task<MySQLConnection, any Error> {
+            defer { self.reconnectTask = nil }
+
+            if let old = self.connection {
+                if !old.isClosed { try? await old.close().get() }
+                self.connection = nil
             }
+            if let oldGroup = self.eventLoopGroup {
+                self.eventLoopGroup = nil
+                try? await oldGroup.shutdownGracefully()
+            }
+
+            _ = try await establishConnection(with: connectionUri)
+
+            guard let connection = self.connection else {
+                throw DatabaseError.connectionFailed("Failed to reconnect to MySQL database")
+            }
+            return connection
         }
-        
-        return connection
+
+        self.reconnectTask = task
+        return try await task.value
     }
     
+
     func getBuildInfo() async throws -> BuildInfo {
         let connection = try await ensureConnected()
-        
+
         let rows = try await connection.simpleQuery("SELECT VERSION() as version").get()
         var version = "Unknown"
         for row in rows {

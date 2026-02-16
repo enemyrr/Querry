@@ -15,8 +15,6 @@ import AIProxy
 @Observable class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
-    //    var connectedDatabase: (any DatabaseWrapper)?
-
     private var _databaseDriver: (any DatabaseDriver)?
     var databaseService = DatabaseService()
     var queryHistoryService: QueryHistoryService?
@@ -131,10 +129,10 @@ import AIProxy
 
     func reconnect() async throws {
         connectionStatus = .connecting
-        
+
         do {
             try await databaseService.reconnect()
-            
+
             try await Task.sleep(for: .milliseconds(500))
             connectionStatus = .connected
             lastError = nil
@@ -144,6 +142,7 @@ import AIProxy
             throw error
         }
     }
+
     
     func loadDatabases() async {
         do {
@@ -230,25 +229,17 @@ import AIProxy
         guard let driver = _databaseDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
-        do {
-            try await driver.renameCollection(databaseSchema: databaseSchema, from: oldName, to: newName)
-            updateTabName(from: oldName, to: newName)
-        } catch {
-            throw error
-        }
+
+        try await driver.renameCollection(databaseSchema: databaseSchema, from: oldName, to: newName)
+        updateTabName(from: oldName, to: newName)
     }
-    
+
     func createCollection(withName: String) async throws {
         guard let driver = _databaseDriver else {
             throw DatabaseError.operationFailed("No active database connection")
         }
-        
-        do {
-            try await driver.createCollection(named: withName)
-        } catch {
-            throw error
-        }
+
+        try await driver.createCollection(named: withName)
     }
     
     // MARK: - Tab Management
@@ -385,38 +376,6 @@ import AIProxy
         tabs = newTabs
     }
     
-    // MARK: - Pagination Management (direct and simple)
-    
-    func updateCurrentPage(_ page: Int) {
-        //        guard let selectedTabId = selectedTabId,
-        //              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
-        //              page > 0 && page <= tabs[tabIndex].totalPages else { return }
-        //
-        //        tabs[tabIndex].currentPage = page
-    }
-    
-    func updateRowsPerPage(_ count: Int) {
-        //        guard let selectedTabId = selectedTabId,
-        //              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }),
-        //              count > 0 else { return }
-        //
-        //        tabs[tabIndex].rowsPerPage = count
-        //
-        //        // Recalculate pagination
-        //        let totalPages = max(1, Int(ceil(Double(tabs[tabIndex].totalRows) / Double(count))))
-        //        tabs[tabIndex].totalPages = totalPages
-        //        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
-    }
-    
-    func updateTotalRows(_ count: Int) {
-        //        guard let selectedTabId = selectedTabId,
-        //              let tabIndex = tabs.firstIndex(where: { $0.id == selectedTabId }) else { return }
-        //
-        //        tabs[tabIndex].totalRows = count
-        //        let totalPages = max(1, Int(ceil(Double(count) / Double(tabs[tabIndex].rowsPerPage))))
-        //        tabs[tabIndex].totalPages = totalPages
-        //        tabs[tabIndex].currentPage = min(tabs[tabIndex].currentPage, totalPages)
-    }
 }
 
 enum ConnectionStatus: String {

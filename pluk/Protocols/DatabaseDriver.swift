@@ -234,6 +234,7 @@ extension DatabaseDriver {
         // Default implementation does nothing
     }
 
+
     // Default implementation for createDatabase - throws not implemented
     func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
         throw DatabaseError.notImplemented("Creating databases is not supported for this database type")

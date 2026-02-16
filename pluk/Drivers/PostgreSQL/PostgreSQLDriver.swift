@@ -18,23 +18,10 @@ struct PostgreSQLCollectionWrapper: CollectionWrapper {
     let schema: String?
 }
 
-struct PostgreSQLCell {
-    public var dataType: PostgresDataType
-    public var format: PostgresFormat
-    public var columnName: String
-    public var columnIndex: Int
-    public var data: Any
-}
-
 struct PostgreSQLColumnInfo {
     let name: String
     let dataType: PostgresDataType
     let format: PostgresFormat
-    let index: Int
-}
-
-struct PostgreSQLRow {
-    let data: [String: Any] // Column name -> value
     let index: Int
 }
 
@@ -62,27 +49,17 @@ struct PostgreSQLQueryResult {
         return columns.first { $0.name == name }
     }
     
-    //    // Get value for specific row and column
-    //    func value(row: Int, column: String) -> Any? {
-    //        guard row < rows.count else { return nil }
-    //        return rows[row].data[column]
-    //    }
-    
     // Get column info by index
     func column(at index: Int) -> PostgreSQLColumnInfo? {
         guard index >= 0 && index < columns.count else { return nil }
         return columns[index]
     }
     
-    // Get raw cell for lazy decoding - NOW RETURNS PostgresCell
     func rawCell(row: Int, column: String) -> PostgresCell? {
         guard row < rawRows.count else { return nil }
         let randomAccessRow = rawRows[row]
-        
-        // Check if column exists first
         guard randomAccessRow.contains(column) else { return nil }
-        
-        return randomAccessRow[column] // This returns PostgresCell
+        return randomAccessRow[column]
     }
     
     // For compatibility - decode on demand
@@ -112,8 +89,6 @@ struct PostgreSQLQueryResult {
     }
 }
 
-
-
 // MARK: - PostgreSQL Driver
 class PostgreSQLDriver: DatabaseDriver {
     func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
@@ -123,13 +98,13 @@ class PostgreSQLDriver: DatabaseDriver {
     typealias Database = PostgreSQLDatabaseWrapper
     typealias Collection = PostgreSQLCollectionWrapper
     
-    // Store connection and event loop group for proper cleanup
-    private var connection: PostgresConnection?
-    private var eventLoopGroup: MultiThreadedEventLoopGroup?
+    private var client: PostgresClient?
+    private var clientTask: Task<Void, Never>?
     private var isConnected = false
-    
+    private var connectionUri: String?
+
     // Connection configuration
-    private var configuration: PostgresConnection.Configuration?
+    private var clientConfiguration: PostgresClient.Configuration?
     private var databases: [PostgreSQLDatabaseWrapper] = []
     private var schema: [PostgreSQLDatabaseWrapper] = []
     private var collections: [PostgreSQLCollectionWrapper] = []
@@ -229,112 +204,106 @@ class PostgreSQLDriver: DatabaseDriver {
     }
 
     deinit {
-        // Ensure cleanup happens even if disconnect wasn't called explicitly
-        // Capture the resources we need to clean up without capturing self
-        let connection = self.connection
-        let eventLoopGroup = self.eventLoopGroup
-        
-        Task { [connection, eventLoopGroup] in
-            // Clean up the connection
-            if let connection = connection {
-                try? await connection.close()
-            }
-            
-            // Clean up the event loop group
-            if let eventLoopGroup = eventLoopGroup {
-                try? await eventLoopGroup.shutdownGracefully()
-            }
-        }
+        clientTask?.cancel()
     }
     
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
-        let config = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
+        self.connectionUri = connectionUri
+        let config = try PostgreSQLConnectionStringParser.parseClientConfiguration(connectionUri)
         return try await establishConnection(with: config)
     }
-    
-    private func establishConnection(with config: PostgresConnection.Configuration) async throws -> PostgreSQLDatabaseWrapper {
-        self.configuration = config
-        
-        // Create event loop group
-        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        self.eventLoopGroup = eventLoopGroup
-        
+
+    private func establishConnection(with config: PostgresClient.Configuration) async throws -> PostgreSQLDatabaseWrapper {
+        self.clientConfiguration = config
+
+        var poolConfig = config
+        poolConfig.options.minimumConnections = 1
+        poolConfig.options.maximumConnections = 5
+        poolConfig.options.keepAliveBehavior = .init(frequency: .seconds(30))
+        poolConfig.options.additionalStartupParameters = [("application_name", "Pluk")]
+
+        let client = PostgresClient(configuration: poolConfig)
+        self.client = client
+
+        self.clientTask = Task {
+            await client.run()
+        }
+
+        // Verify connectivity eagerly so connection errors surface at connect time
         do {
-            // Create and connect to PostgreSQL
-            let connection = try await PostgresConnection.connect(
-                on: eventLoopGroup.next(),
-                configuration: config,
-                id: 1,
-                logger: Logger(label: "postgres")
-            )
-            
-            self.connection = connection
-            self.isConnected = true
-            
-            return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
+            _ = try await client.query("SELECT 1", logger: Logger(label: "postgres"))
         } catch let error as PSQLError {
+            clientTask?.cancel()
+            clientTask = nil
+            self.client = nil
             throw mapPSQLError(error)
         } catch {
+            clientTask?.cancel()
+            clientTask = nil
+            self.client = nil
             throw DatabaseError.connectionFailed("Failed to establish PostgreSQL connection: \(error.localizedDescription)")
         }
+
+        self.isConnected = true
+        return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
     }
     
     func disconnect() async {
-        await cleanup()
-    }
-    
-    private func cleanup() async {
-        if let connection = self.connection {
-            try? await connection.close()
-            self.connection = nil
-        }
-        
-        if let eventLoopGroup = self.eventLoopGroup {
-            try? await eventLoopGroup.shutdownGracefully()
-            self.eventLoopGroup = nil
-        }
-        
+        clientTask?.cancel()
+        clientTask = nil
+        client = nil
+
         await databaseSchema.removeAll()
-        
+
         self.isConnected = false
     }
     
-    private func ensureConnected() async throws -> PostgresConnection {
-        guard let connection = self.connection else {
-            throw DatabaseError.connectionFailed("Not connected to PostgreSQL database")
+    private func requireClient() throws -> PostgresClient {
+        guard let client = self.client else {
+            throw DatabaseError.connectionFailed("No active connection")
         }
-        
-        if connection.isClosed {
-            do {
-                guard let config = self.configuration else {
-                    throw DatabaseError.configurationError("No active connection configuration")
-                }
-                
-                _ = try await establishConnection(with: config)
-                return self.connection!
-            } catch {
-                throw DatabaseError.connectionFailed("Failed to reconnect to PostgreSQL database")
-            }
-        }
-        
-        return connection
+        return client
     }
-    
-    func reconnect() async throws {
-        await disconnect()
-        if let config = self.configuration {
-            _ = try await establishConnection(with: config)
+
+    /// Runs an async operation with a timeout. Throws if the operation doesn't
+    /// complete within `seconds`. Used to prevent pool lease hangs when the
+    /// server is unreachable.
+    private func withPoolTimeout<T>(
+        seconds: Double = 15,
+        _ operation: @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw DatabaseError.connectionFailed("Unable to reach the database server")
+            }
+            guard let result = try await group.next() else {
+                throw DatabaseError.connectionFailed("Unable to reach the database server")
+            }
+            group.cancelAll()
+            return result
         }
+    }
+
+    /// Executes a query through the pool with a connection timeout guard.
+    @discardableResult
+    private func poolQuery(_ query: PostgresQuery) async throws -> PostgresRowSequence {
+        let client = try requireClient()
+        return try await withPoolTimeout {
+            try await client.query(query, logger: Logger(label: "postgres"))
+        }
+    }
+
+    func reconnect() async throws {
+        try await poolQuery("SELECT 1")
     }
     
     func ping(to connectionUri: String) async throws {
-        // Create a throwaway connection to validate credentials and reachability
         let config = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        defer {
-            let g = eventLoopGroup
-            Task { try? await g.shutdownGracefully() }
-        }
         do {
             let temp = try await PostgresConnection.connect(
                 on: eventLoopGroup.next(),
@@ -343,32 +312,31 @@ class PostgreSQLDriver: DatabaseDriver {
                 logger: Logger(label: "postgres-ping")
             )
             try await temp.close()
+            try await eventLoopGroup.shutdownGracefully()
         } catch let error as PSQLError {
+            try? await eventLoopGroup.shutdownGracefully()
             throw mapPSQLError(error)
         } catch {
+            try? await eventLoopGroup.shutdownGracefully()
             throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
         }
     }
     
     func switchDatabase(to databaseName: String) async throws {
-        guard var config = self.configuration else {
+        guard var config = self.clientConfiguration else {
             throw DatabaseError.configurationError("No active connection configuration")
         }
-        
-        // Update the configuration with the new database name
+
         config.database = databaseName
-        
-        // Disconnect from the current database
+
         await disconnect()
-        
-        // Reconnect to the new database
+
         _ = try await establishConnection(with: config)
     }
-    
+
     func getBuildInfo() async throws -> BuildInfo {
-        let connection = try await ensureConnected()
         do {
-            let rows = try await connection.query("SELECT version()", logger: Logger(label: "postgres"))
+            let rows = try await poolQuery("SELECT version()")
             
             var fullVersionString = "Unknown"
             
@@ -392,12 +360,9 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func listDatabases() async throws -> [PostgreSQLDatabaseWrapper] {
-        let connection = try await ensureConnected()
-        
         do {
-            let rows = try await connection.query(
-                "SELECT datname FROM pg_database WHERE datistemplate = false",
-                logger: Logger(label: "postgres")
+            let rows = try await poolQuery(
+                "SELECT datname FROM pg_database WHERE datistemplate = false"
             )
             
             var databases: [PostgreSQLDatabaseWrapper] = []
@@ -415,10 +380,8 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func listCollections(schema: String? = "public") async throws -> [PostgreSQLCollectionWrapper] {
-        let connection = try await ensureConnected()
-        
         do {
-            let rows = try await connection.query("""
+            let rows = try await poolQuery("""
                            SELECT
                                p.oid::bigint AS oid,
                                p.relname AS table_name,
@@ -434,10 +397,9 @@ class PostgreSQLDriver: DatabaseDriver {
                            WHERE
                                (p.relkind = 'r' OR p.relkind = 'v' OR p.relkind = 'p')
                                AND n.nspname = '\(unescaped: schema ?? "public")'
-                           """,
-                          logger: Logger(label: "postgres")
+                           """
             )
-            
+
             var collections: [PostgreSQLCollectionWrapper] = []
             for try await (oid, tableName, _, type) in rows.decode((Int64, String, String, String).self) {
                 collections.append(PostgreSQLCollectionWrapper(
@@ -448,12 +410,56 @@ class PostgreSQLDriver: DatabaseDriver {
                     schema: schema
                 ))
             }
-            
+
+            let funcRows = try await poolQuery("""
+                SELECT
+                    p.oid::bigint AS oid,
+                    p.proname || '(' || COALESCE(pg_get_function_identity_arguments(p.oid), '') || ')' AS func_name,
+                    CASE p.prokind
+                        WHEN 'f' THEN 'function'
+                        WHEN 'p' THEN 'procedure'
+                        ELSE 'function'
+                    END AS type
+                FROM pg_proc p
+                JOIN pg_namespace n ON p.pronamespace = n.oid
+                WHERE n.nspname = '\(unescaped: schema ?? "public")'
+                    AND p.prokind IN ('f', 'p')
+                ORDER BY p.proname
+                """
+            )
+
+            for try await (oid, funcName, type) in funcRows.decode((Int64, String, String).self) {
+                collections.append(PostgreSQLCollectionWrapper(
+                    id: ObjectIdentifier(NSString(string: "func_\(oid)")),
+                    name: funcName,
+                    oid: oid.description,
+                    type: type,
+                    schema: schema
+                ))
+            }
+
             return collections
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
             throw DatabaseError.operationFailed("Failed to list tables: \(error.localizedDescription)")
+        }
+    }
+
+    func getFunctionDefinition(oid: String) async throws -> String {
+        do {
+            let rows = try await poolQuery(
+                "SELECT pg_get_functiondef(\(unescaped: oid)::oid)"
+            )
+
+            for try await (definition,) in rows.decode((String).self) {
+                return definition
+            }
+            throw DatabaseError.operationFailed("Function definition not found")
+        } catch let error as PSQLError {
+            throw mapPSQLError(error)
+        } catch {
+            throw DatabaseError.operationFailed("Failed to get function definition: \(error.localizedDescription)")
         }
     }
     
@@ -467,9 +473,7 @@ class PostgreSQLDriver: DatabaseDriver {
     
     
     func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
-        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
-        let errorQuery: String? = nil
 
         do {
             let query: PostgresQuery
@@ -500,12 +504,12 @@ class PostgreSQLDriver: DatabaseDriver {
                 query = PostgresQuery(stringLiteral: queryString)
             }
             
-            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            let results = try await poolQuery(query)
             
             // Single-pass processing: build everything in one loop
             var queryColumns: [QueryColumnInfo] = []
             var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = [] // Keep this as [String: Any?] for raw PostgresCell storage
+            var convertedRawRows: [[String: Any?]] = []
             var columnsInitialized = false
             
             for try await row in results {
@@ -524,10 +528,7 @@ class PostgreSQLDriver: DatabaseDriver {
                     columnsInitialized = true
                 }
                 
-                // Convert to random access row for O(1) cell access
                 let randomAccessRow = row.makeRandomAccess()
-                
-                // Process row data in a single pass
                 var processedRowData: [String: QueryRowInfo] = [:]
                 var rawRowData: [String: Any?] = [:]
                 
@@ -535,11 +536,8 @@ class PostgreSQLDriver: DatabaseDriver {
                     let columnName = column.name
                     if randomAccessRow.contains(columnName) {
                         let cell = randomAccessRow[columnName]
-                        
-                        // ✅ Fixed: Store PostgresCell as Any in rawRowData
                         rawRowData[columnName] = cell
-                        
-                        // Convert to QueryRowInfo for processed row
+
                         do {
                             processedRowData[columnName] = try decode(from: cell)
                         } catch {
@@ -564,14 +562,13 @@ class PostgreSQLDriver: DatabaseDriver {
             )
         } catch let error as PSQLError {
             debugLog(String(reflecting: error))
-            throw mapPSQLError(error, query: errorQuery)
+            throw mapPSQLError(error)
         } catch {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
     }
-    
+
     func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
-        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard !document.isEmpty else {
@@ -635,7 +632,7 @@ class PostgreSQLDriver: DatabaseDriver {
             }
             
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
-            try await connection.query(query, logger: Logger(label: "postgres"))
+            try await poolQuery(query)
             
         } catch let error as PSQLError {
             throw mapPSQLError(error)
@@ -645,10 +642,8 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to create document: \(error.localizedDescription)")
         }
     }
-    
-    
+
     func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any], ) async throws {
-        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard !data.isEmpty else {
@@ -692,7 +687,7 @@ class PostgreSQLDriver: DatabaseDriver {
             
             // Execute the update query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
-            try await connection.query(query, logger: Logger(label: "postgres"))
+            try await poolQuery(query)
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch let error as DatabaseError {
@@ -715,7 +710,6 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
-        let connection = try await ensureConnected()
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard let primaryKey = id as? PostgresCell else {
@@ -743,7 +737,7 @@ class PostgreSQLDriver: DatabaseDriver {
             
             // Execute the delete query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
-            try await connection.query(query, logger: Logger(label: "postgres"))
+            try await poolQuery(query)
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
@@ -752,7 +746,15 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
-        let connection = try await ensureConnected()
+        let client = try requireClient()
+        return try await withPoolTimeout {
+            try await client.withConnection { connection in
+                try await self._executeRawQuery(query, connection: connection)
+            }
+        }
+    }
+
+    private func _executeRawQuery(_ query: String, connection: PostgresConnection) async throws -> [QueryResult] {
         let statements = splitSQLStatements(query)
 
         if statements.isEmpty {
@@ -832,37 +834,16 @@ class PostgreSQLDriver: DatabaseDriver {
     
     func createCollection(named collectionName: String) async throws {
         throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
-//        let connection = try await ensureConnected()
-//        let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
-//        
-//        let query = PostgresQuery("""
-//            CREATE TABLE \(sanitizedTableName) (
-//                id SERIAL PRIMARY KEY,
-//                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-//            )
-//        """)
-//        
-//        do {
-//            try await connection.query(query, logger: Logger(label: "postgres"))
-//            // Clear schema cache since we created a new table
-//            await clearSchemaCache(for: collectionName)
-//        } catch let error as PSQLError {
-//            throw mapPSQLError(error)
-//        } catch {
-//            throw DatabaseError.operationFailed("Failed to create table: \(error.localizedDescription)")
-//        }
     }
     
     func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
-        let connection = try await ensureConnected()
         let sanitizedOldName = try validateAndSanitizeIdentifier(oldName, databaseSchema: databaseSchema)
         let sanitizedNewName = try validateAndSanitizeIdentifier(newName, databaseSchema: nil)
         
         let query = PostgresQuery("ALTER TABLE \(unescaped: sanitizedOldName) RENAME TO \(unescaped: sanitizedNewName)")
         
         do {
-            try await connection.query(query, logger: Logger(label: "postgres"))
+            try await poolQuery(query)
             // Clear schema cache for both old and new names
             await clearSchemaCache(for: oldName)
             await clearSchemaCache(for: newName)
@@ -874,13 +855,12 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
-        let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         let query = PostgresQuery("DROP TABLE \(unescaped: sanitizedTableName)")
         
         do {
-            try await connection.query(query, logger: Logger(label: "postgres"))
+            try await poolQuery(query)
             // Clear schema cache since we deleted the table
             await clearSchemaCache(for: collectionName)
         } catch let error as PSQLError {
@@ -893,11 +873,8 @@ class PostgreSQLDriver: DatabaseDriver {
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
         return try await getSchema(for: collectionName, in: schema ?? "public")
     }
-    
-    
+
     func getInformationSchema() async throws -> [InformationSchema] {
-        let connection = try await ensureConnected()
-        
         do {
             let query = PostgresQuery("""
             SELECT schema_name 
@@ -909,7 +886,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 ORDER BY schema_name;
             """)
             
-            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            let results = try await poolQuery(query)
             var schemas: [InformationSchema] = []
             
             for try await (schemaName) in results.decode((String).self) {
@@ -1099,8 +1076,6 @@ class PostgreSQLDriver: DatabaseDriver {
         """
     }
 
-    
-    
     private func buildSchemaPrompt(for collectionName: String, databaseSchema: String?) async -> String {
         do {
             let schemaResult = try await getSchema(for: collectionName)
@@ -1122,9 +1097,8 @@ class PostgreSQLDriver: DatabaseDriver {
             return "No schema found for \(collectionName)\n"
         }
     }
-    
-    
-    
+
+
     // MARK: - Schema Cache
     
     /// Efficient composite key for schema caching
@@ -1196,40 +1170,36 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func getDatabaseMetadata() async throws -> [Database] {
-        guard let config = self.configuration else {
+        guard let uri = self.connectionUri else {
             throw DatabaseError.connectionFailed("No configuration available")
         }
-        
-        let connection = try await ensureConnected()
-        
+
         do {
-            // Step 1: Get all database names and sizes in one efficient query
             let databaseQuery = PostgresQuery("""
-                SELECT 
+                SELECT
                     datname AS database_name,
                     pg_size_pretty(pg_database_size(datname)) AS database_size,
                     datallowconn AS allow_connections
-                FROM pg_database 
+                FROM pg_database
                 WHERE datistemplate = false
             """)
-            
-            let results = try await connection.query(databaseQuery, logger: Logger(label: "postgres"))
+
+            let results = try await poolQuery(databaseQuery)
             var databaseList: [(name: String, size: String, allowConn: Bool)] = []
-            
+
             for try await (name, size, allowConn) in results.decode((String, String, Bool).self) {
                 databaseList.append((name: name, size: size, allowConn: allowConn))
             }
-            
-            // Step 2: Get table counts for each database concurrently
+
             let databases = try await withThrowingTaskGroup(of: Database.self, returning: [Database].self) { group in
                 for dbInfo in databaseList {
                     group.addTask {
                         let tableCount = try await self.getTableCountForDatabase(
                             name: dbInfo.name,
-                            config: config,
+                            connectionUri: uri,
                             allowConnections: dbInfo.allowConn
                         )
-                        
+
                         return Database(
                             name: dbInfo.name,
                             size: dbInfo.size,
@@ -1237,16 +1207,15 @@ class PostgreSQLDriver: DatabaseDriver {
                         )
                     }
                 }
-                
+
                 var results: [Database] = []
                 for try await database in group {
                     results.append(database)
                 }
-                
-                // Sort by size (descending) to match the original query order
+
                 return results
             }
-            
+
             return databases.sorted { $0.name < $1.name }
         } catch let error as PSQLError {
             throw mapPSQLError(error)
@@ -1254,52 +1223,48 @@ class PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to get database metadata: \(error.localizedDescription)")
         }
     }
-    
-    private func getTableCountForDatabase(name: String, config: PostgresConnection.Configuration, allowConnections: Bool) async throws -> Int {
-        // Skip databases that don't allow connections
+
+    private func getTableCountForDatabase(name: String, connectionUri: String, allowConnections: Bool) async throws -> Int {
         guard allowConnections else {
             return 0
         }
-        
-        // Create temporary configuration for this database
-        var tempConfig = config
+
+        var tempConfig = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
         tempConfig.database = name
         
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        
+        var tempConnection: PostgresConnection?
+
         do {
-            let tempConnection = try await PostgresConnection.connect(
+            tempConnection = try await PostgresConnection.connect(
                 on: eventLoopGroup.next(),
                 configuration: tempConfig,
-                id: Int.random(in: 1000...9999), // Random ID to avoid conflicts
+                id: Int.random(in: 1000...9999),
                 logger: Logger(label: "postgres-metadata"),
             )
-            
-            // Get table count with optimized query
-            let countQuery = try await tempConnection.query("""
+
+            let countQuery = try await tempConnection!.query("""
                 SELECT COUNT(*)::int as table_count
-                FROM information_schema.tables 
+                FROM information_schema.tables
                 WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
                 AND table_type = 'BASE TABLE'
             """, logger: Logger(label: "postgres-metadata"))
-            
+
             var tableCount = 0
             for try await (count) in countQuery.decode((Int32).self) {
                 tableCount = Int(count)
                 break
             }
-            
-            // Clean up connection
-            try await tempConnection.close()
+
+            try await tempConnection!.close()
             try await eventLoopGroup.shutdownGracefully()
-            
             return tableCount
-            
+
         } catch {
-            // Clean up on error
+            if let conn = tempConnection, !conn.isClosed {
+                try? await conn.close()
+            }
             try? await eventLoopGroup.shutdownGracefully()
-            
-            // Log the error but don't fail the entire operation
             debugLog("Warning: Could not get table count for database '\(name)': \(error.localizedDescription)")
             return 0
         }
@@ -1314,9 +1279,7 @@ class PostgreSQLDriver: DatabaseDriver {
         if !forceFetch, let cachedSchema = await databaseSchema.get(cacheKey) {
             return cachedSchema
         }
-        
-        let connection = try await ensureConnected()
-        
+
         do {
             // Combined query to get both column schema and constraint information in one query
             let combinedQuery = PostgresQuery("""
@@ -1401,7 +1364,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 ORDER BY c.ordinal_position;
             """)
             
-            let results = try await connection.query(combinedQuery, logger: Logger(label: "postgres"))
+            let results = try await poolQuery(combinedQuery)
             var databaseSchemaInfo: [DatabaseSchemaInfo] = []
             
             for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, enumValuesStr, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, comment, constraintName, parentSchema, parentTable, parentColumn, onUpdate, onDelete) in results.decode((
@@ -1505,7 +1468,6 @@ class PostgreSQLDriver: DatabaseDriver {
     }
 
     func getIndexes(for tableName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
-        let connection = try await ensureConnected()
         let schemaName = schema ?? "public"
 
         do {
@@ -1552,7 +1514,7 @@ class PostgreSQLDriver: DatabaseDriver {
                 ORDER BY ix.relname;
             """)
 
-            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            let results = try await poolQuery(query)
             var indexes: [DatabaseIndexInfo] = []
 
             for try await (indexName, idxAlgorithm, isUnique, isPrimary, definition, columnName, condition, include, comment) in results.decode(
@@ -1717,9 +1679,7 @@ class PostgreSQLDriver: DatabaseDriver {
         
         return (setClauses.joined(separator: ", "), values)
     }
-    
-    
-    
+
     private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
         let trimmed = columnName.trimmingCharacters(in: .whitespacesAndNewlines)
         
@@ -1829,15 +1789,13 @@ class PostgreSQLDriver: DatabaseDriver {
     
     // MARK: - Helper methods for foreign keys
     private func getTableOid(schema: String, table: String) async throws -> Int64? {
-        let connection = try await ensureConnected()
-        
         let query = PostgresQuery("""
             SELECT oid FROM pg_class 
             WHERE relname = '\(unescaped: table)' 
             AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '\(unescaped: schema)')
         """)
         
-        let results = try await connection.query(query, logger: Logger(label: "postgres"))
+        let results = try await poolQuery(query)
         
         for try await (oid) in results.decode((Int64).self) {
             return oid
@@ -1861,8 +1819,6 @@ class PostgreSQLDriver: DatabaseDriver {
     
     // MARK: - Helper method to get primary key column
     private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
-        let connection = try await ensureConnected()
-        
         do {
             let query = PostgresQuery("""
                    SELECT a.attname
@@ -1874,7 +1830,7 @@ class PostgreSQLDriver: DatabaseDriver {
                    LIMIT 1
                """)
             
-            let results = try await connection.query(query, logger: Logger(label: "postgres"))
+            let results = try await poolQuery(query)
             
             for try await (columnName) in results.decode((String).self) {
                 return "\"\(columnName)\""  // Return quoted column name
@@ -1896,7 +1852,6 @@ class PostgreSQLDriver: DatabaseDriver {
         schema: String?,
         column: DatabaseSchemaInfo
     ) async throws {
-        let connection = try await ensureConnected()
         let schemaName = schema ?? "public"
 
         // Build the ADD COLUMN SQL statement
@@ -1913,7 +1868,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
 
         do {
-            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: sql))
             debugLog("✓ Added column \(column.columnName) to table \(tableName)")
         } catch let error as PSQLError {
             throw mapPSQLError(error, query: sql)
@@ -1928,7 +1883,6 @@ class PostgreSQLDriver: DatabaseDriver {
         columnName: String,
         newColumn: DatabaseSchemaInfo
     ) async throws {
-        let connection = try await ensureConnected()
         let schemaName = schema ?? "public"
         let qualifiedTableName = try validateAndSanitizeIdentifier(tableName, databaseSchema: schemaName)
 
@@ -1941,31 +1895,31 @@ class PostgreSQLDriver: DatabaseDriver {
             // 0. Rename column if name changed (must be done first)
             if newColumn.columnName != columnName {
                 let renameSQL = "ALTER TABLE \(qualifiedTableName) RENAME COLUMN \"\(columnName)\" TO \"\(newColumn.columnName)\""
-                _ = try await connection.query(PostgresQuery(stringLiteral: renameSQL), logger: Logger(label: "postgres"))
+                _ = try await poolQuery(PostgresQuery(stringLiteral: renameSQL))
                 currentColumnName = newColumn.columnName
                 debugLog("✓ Renamed column \(columnName) to \(newColumn.columnName) in table \(tableName)")
             }
 
             // 1. Change data type if different
             let changeTypeSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" TYPE \(newColumn.dataType)"
-            _ = try await connection.query(PostgresQuery(stringLiteral: changeTypeSQL), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: changeTypeSQL))
 
             // 2. Set or drop NOT NULL constraint
             if newColumn.isNullable == "NO" {
                 let setNotNullSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" SET NOT NULL"
-                _ = try await connection.query(PostgresQuery(stringLiteral: setNotNullSQL), logger: Logger(label: "postgres"))
+                _ = try await poolQuery(PostgresQuery(stringLiteral: setNotNullSQL))
             } else {
                 let dropNotNullSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" DROP NOT NULL"
-                _ = try await connection.query(PostgresQuery(stringLiteral: dropNotNullSQL), logger: Logger(label: "postgres"))
+                _ = try await poolQuery(PostgresQuery(stringLiteral: dropNotNullSQL))
             }
 
             // 3. Set or drop DEFAULT value
             if let defaultValue = newColumn.columnDefault, !defaultValue.trimmingCharacters(in: .whitespaces).isEmpty {
                 let setDefaultSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" SET DEFAULT \(defaultValue)"
-                _ = try await connection.query(PostgresQuery(stringLiteral: setDefaultSQL), logger: Logger(label: "postgres"))
+                _ = try await poolQuery(PostgresQuery(stringLiteral: setDefaultSQL))
             } else {
                 let dropDefaultSQL = "ALTER TABLE \(qualifiedTableName) ALTER COLUMN \"\(currentColumnName)\" DROP DEFAULT"
-                _ = try await connection.query(PostgresQuery(stringLiteral: dropDefaultSQL), logger: Logger(label: "postgres"))
+                _ = try await poolQuery(PostgresQuery(stringLiteral: dropDefaultSQL))
             }
 
             debugLog("✓ Modified column \(currentColumnName) in table \(tableName)")
@@ -1981,13 +1935,12 @@ class PostgreSQLDriver: DatabaseDriver {
         schema: String?,
         columnName: String
     ) async throws {
-        let connection = try await ensureConnected()
         let schemaName = schema ?? "public"
 
         let sql = "ALTER TABLE \(try validateAndSanitizeIdentifier(tableName, databaseSchema: schemaName)) DROP COLUMN \"\(columnName)\""
 
         do {
-            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: sql))
             debugLog("✓ Dropped column \(columnName) from table \(tableName)")
         } catch let error as PSQLError {
             throw mapPSQLError(error, query: sql)
@@ -2001,7 +1954,6 @@ class PostgreSQLDriver: DatabaseDriver {
         schema: String?,
         index: DatabaseIndexInfo
     ) async throws {
-        let connection = try await ensureConnected()
         let schemaName = schema ?? "public"
 
         // Build CREATE INDEX statement
@@ -2033,7 +1985,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
 
         do {
-            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: sql))
             debugLog("✓ Created index \(index.name) on table \(tableName)")
         } catch let error as PSQLError {
             throw mapPSQLError(error, query: sql)
@@ -2047,13 +1999,12 @@ class PostgreSQLDriver: DatabaseDriver {
         tableName: String,
         schema: String?
     ) async throws {
-        let connection = try await ensureConnected()
         let schemaName = schema ?? "public"
 
         let sql = "DROP INDEX IF EXISTS \"\(schemaName)\".\"\(indexName)\""
 
         do {
-            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: sql))
             debugLog("✓ Dropped index \(indexName)")
         } catch let error as PSQLError {
             throw mapPSQLError(error, query: sql)
@@ -2065,8 +2016,6 @@ class PostgreSQLDriver: DatabaseDriver {
     // MARK: - Database Management
 
     func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
-        let connection = try await ensureConnected()
-
         let sanitizedName = databaseName.replacing("\"", with: "\"\"")
         var sql = "CREATE DATABASE \"\(sanitizedName)\""
 
@@ -2075,7 +2024,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
 
         do {
-            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: sql))
             debugLog("✓ Created database \(databaseName)")
         } catch let error as PSQLError {
             throw mapPSQLError(error, query: sql)
@@ -2085,44 +2034,16 @@ class PostgreSQLDriver: DatabaseDriver {
     }
 
     func createSchema(named schemaName: String, options: CreateSchemaOptions) async throws {
-        let connection = try await ensureConnected()
-
         let sanitizedName = schemaName.replacing("\"", with: "\"\"")
         let sql = "CREATE SCHEMA \"\(sanitizedName)\""
 
         do {
-            _ = try await connection.query(PostgresQuery(stringLiteral: sql), logger: Logger(label: "postgres"))
+            _ = try await poolQuery(PostgresQuery(stringLiteral: sql))
             debugLog("✓ Created schema \(schemaName)")
         } catch let error as PSQLError {
             throw mapPSQLError(error, query: sql)
         } catch {
             throw DatabaseError.operationFailed("Failed to create schema: \(error.localizedDescription)", query: sql)
-        }
-    }
-}
-
-// MARK: - Utility Extensions
-
-extension PostgreSQLDriver {
-    /// Helper function to add timeout to async operations
-    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T? {
-        try await withThrowingTaskGroup(of: T?.self) { group in
-            group.addTask {
-                try await operation()
-            }
-            
-            group.addTask {
-                try await Task.sleep(for: .seconds(seconds))
-                return nil
-            }
-            
-            if let result = try await group.next() {
-                group.cancelAll()
-                return result
-            } else {
-                group.cancelAll()
-                return nil
-            }
         }
     }
 }
