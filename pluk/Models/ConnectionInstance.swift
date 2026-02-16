@@ -21,7 +21,7 @@ import AIProxy
     
     // Public getter for database driver (needed by ConnectionService)
     var databaseDriver: (any DatabaseDriver)? {
-        return _databaseDriver
+        _databaseDriver
     }
     
     var connectedDatabase: (any DatabaseWrapper)? {
@@ -143,7 +143,6 @@ import AIProxy
         }
     }
 
-    
     func loadDatabases() async {
         do {
             let databaseList = try await databaseService.listDatabases()
@@ -159,45 +158,17 @@ import AIProxy
         }
     }
     
-    private func loadDatabasesAndCollections() async {
-        guard let driver = _databaseDriver else { return }
-        
-        do {
-            // Load databases
-            let databaseList = try await driver.listDatabases()
-            await MainActor.run {
-                self.databases = databaseList
-            }
-            
-            // Load collections for current database
-            if let currentDb = connectedDatabase {
-                let collectionList = try await driver.listCollections(schema: nil)
-                self.collections[currentDb.name] = collectionList
-            }
-        } catch {
-            lastError = error
-            debugLog("Failed to load databases and collections: \(error)")
-        }
-    }
-    
     func loadCollectionsForCurrentDatabase(schema: String?) async throws {
-        guard let database = connectedDatabase else {
-            return
-        }
-        
-        guard !database.name.isEmpty else {
-              throw DatabaseError.databaseNotSelected
-          }
-        
+        guard let database = connectedDatabase else { return }
+        guard !database.name.isEmpty else { throw DatabaseError.databaseNotSelected }
+
         let databaseName = database.name
-        
+
         do {
             let collectionResult = try await databaseService.listCollections(schema: schema)
-            
             await MainActor.run {
                 self.collections[databaseName] = collectionResult
             }
-            
         } catch {
             await MainActor.run {
                 self.collections[databaseName] = []
@@ -290,6 +261,26 @@ import AIProxy
         newTab.initialQuery = query
         tabs.append(newTab)
 
+        selectedTab = newTab
+    }
+
+    func createFunctionEditorTab(name: String, definition: String, oid: String, schema: String?) {
+        if let existingTab = tabs.first(where: { $0.type == .functionEditor && $0.functionOid == oid }) {
+            selectedTab = existingTab
+            return
+        }
+
+        let newTab = DatabaseTab(
+            name: name,
+            type: .functionEditor,
+            queryState: .idle,
+            databaseSchema: schema
+        )
+        newTab.initialQuery = definition
+        newTab.functionOid = oid
+        newTab.functionSchema = schema
+        newTab.originalFunctionDefinition = definition
+        tabs.append(newTab)
         selectedTab = newTab
     }
 

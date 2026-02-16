@@ -32,6 +32,11 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     // Initial query for SQL Editor tabs (transient, not persisted)
     var initialQuery: String?
 
+    // Function editor metadata (transient, not persisted)
+    var functionOid: String?
+    var functionSchema: String?
+    var originalFunctionDefinition: String?
+
     // CodingKeys to exclude transient properties from Codable
     enum CodingKeys: String, CodingKey {
         case id, name, type, queryState, documents, hasSchemaDeviation
@@ -94,6 +99,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         case indexes
         case sqlEditor
         case canvas
+        case functionEditor
     }
 
     enum ViewMode: Int, Equatable, Codable {
@@ -158,10 +164,8 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     }
     
     static var transferRepresentation: some TransferRepresentation {
-            ProxyRepresentation(exporting: { tab in
-                tab.id.uuidString
-            })
-        }
+        ProxyRepresentation(exporting: \.id.uuidString)
+    }
 }
 
 enum QueryState: Equatable, Codable {

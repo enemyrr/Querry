@@ -67,6 +67,8 @@ class TabContentView: NSView {
         switch tab.type {
         case .sqlEditor:
             rootView = applyEnvironments(SQLEditorView())
+        case .functionEditor:
+            rootView = applyEnvironments(FunctionEditorView())
         case .canvas:
             return
         case .browse, .aggregate, .schema, .indexes:

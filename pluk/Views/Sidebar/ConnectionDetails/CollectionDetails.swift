@@ -85,6 +85,7 @@ struct ConnectionDetailsSidebar: View {
                 }
             }
             .padding(.trailing, -10)
+
         }
         .padding(.top, 4)
         .padding(.leading, 10)

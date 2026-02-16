@@ -1,6 +1,7 @@
 import AppKit
 
 func getTabIconName(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
+    guard tab.type != .functionEditor else { return "f.cursive" }
     guard tab.type != .sqlEditor else { return "terminal" }
     guard tab.type != .canvas else { return "rectangle.connected.to.line.below" }
 

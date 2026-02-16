@@ -333,7 +333,8 @@ final class DocumentViewController: NSViewController {
     private func makeTabContentView(for tab: DatabaseTab) -> NSView {
         let dbType = instance.connection.databaseType
 
-        if tab.type != .sqlEditor, tab.type != .canvas, [.postgres, .sqlite, .mysql, .convex].contains(dbType) {
+        let isTableTab = tab.type == .browse || tab.type == .aggregate || tab.type == .schema || tab.type == .indexes
+        if isTableTab, [.postgres, .sqlite, .mysql, .convex].contains(dbType) {
             let tableVC = TableContentViewController(
                 tab: tab,
                 instance: instance,

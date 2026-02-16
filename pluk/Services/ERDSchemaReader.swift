@@ -5,7 +5,9 @@ struct ERDSchemaReader {
         let databaseService = instance.databaseService
 
         let collections = try await databaseService.listCollections(schema: schema)
-        let tableNames = collections.map { (name: $0.name, schema: $0.schema) }
+        let tableNames = collections
+            .filter { !["function", "procedure"].contains($0.type) }
+            .map { (name: $0.name, schema: $0.schema) }
 
         guard !tableNames.isEmpty else {
             return CanvasDocument()

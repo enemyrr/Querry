@@ -28,7 +28,7 @@ struct DatabaseList: View {
 
         if !viewModel.searchText.isEmpty {
             collections = collections.filter { collection in
-                collection.name.localizedCaseInsensitiveContains(
+                collection.name.localizedStandardContains(
                     viewModel.searchText
                 )
             }
@@ -48,17 +48,12 @@ struct DatabaseList: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                connectionContent
-            }
-        }
+        connectionContent
     }
 
     private var connectionContent: some View {
         VStack(spacing: 0) {
             if instance.connectionStatus == .error {
-                // Show error state
                 ContentUnavailableView(
                     "Connection Failed",
                     systemImage: "wifi.exclamationmark",
@@ -83,11 +78,11 @@ struct DatabaseList: View {
                         VStack(spacing: 12) {
                             Image(systemName: "folder.badge.questionmark")
                                 .font(.system(size: 32))
-                                .foregroundColor(.secondary.opacity(0.5))
+                                .foregroundStyle(.secondary.opacity(0.5))
 
                             Text("No Results")
                                 .font(.system(size: 13))
-                                .foregroundColor(.secondary.opacity(0.7))
+                                .foregroundStyle(.secondary.opacity(0.7))
                         }
                         .padding(.top, 20)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -328,7 +323,7 @@ struct CollectionsSection: View {
         HStack(spacing: 8) {
             Image(systemName: "pencil.line")
                 .opacity(0.7)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .padding(.leading, 4)
                 .padding(.leading, 2)
 
@@ -606,7 +601,8 @@ struct FunctionsSection: View {
     @Environment(ConnectionInstance.self) private var instance
     let functions: [any CollectionWrapper]
 
-    @State private var isExpanded = true
+    @State private var isExpanded = false
+    @State private var isHeaderHovered = false
     @State private var loadingOid: String?
     @State private var loadError: Error?
     @State private var showLoadError = false
@@ -634,15 +630,23 @@ struct FunctionsSection: View {
 
                     Spacer()
 
-                    Text("\(functions.count)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                    if isHeaderHovered {
+                        Text("\(functions.count)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .transition(.opacity)
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHeaderHovered = hovering
+                }
+            }
 
             if isExpanded {
                 ForEach(functions, id: \.name) { function in
@@ -743,7 +747,12 @@ struct FunctionsSection: View {
 
         do {
             let definition = try await driver.getFunctionDefinition(oid: pgWrapper.oid)
-            instance.createSQLEditorTab(withQuery: definition)
+            instance.createFunctionEditorTab(
+                name: function.name,
+                definition: definition,
+                oid: pgWrapper.oid,
+                schema: pgWrapper.schema
+            )
         } catch {
             loadError = error
             showLoadError = true
