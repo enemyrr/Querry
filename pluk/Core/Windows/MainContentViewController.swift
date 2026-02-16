@@ -135,13 +135,13 @@ final class MainContentViewController: NSViewController {
     }
 
     private func setupFixedSidebarLayout() {
-        let sidebarHost = makeSidebarHostingController()
+        let sidebarController = makeSidebarController()
         let contentHost = makeContentController()
 
-        addChild(sidebarHost)
+        addChild(sidebarController)
         addChild(contentHost)
 
-        let sidebarView = sidebarHost.view
+        let sidebarView = sidebarController.view
         let contentView = contentHost.view
 
         sidebarView.translatesAutoresizingMaskIntoConstraints = false
@@ -165,7 +165,7 @@ final class MainContentViewController: NSViewController {
 
     private func setupCollapsibleSidebarLayout() {
         let splitVC = SidebarSplitViewController(
-            sidebarController: makeSidebarHostingController(),
+            sidebarController: makeSidebarController(),
             contentController: makeContentController()
         )
         self.splitViewController = splitVC
@@ -174,10 +174,22 @@ final class MainContentViewController: NSViewController {
         view.addSubviewPinningEdges(splitVC.view)
     }
 
-    // MARK: - Hosting Controllers
+    // MARK: - Sidebar Controllers
 
-    private func makeSidebarHostingController() -> NSViewController {
-        let sidebarView = Sidebar()
+    private func makeNavigationSidebar() -> NavigationSidebarViewController {
+        let navVC = NavigationSidebarViewController()
+        navVC.configure(sidebarViewModel: sidebarViewModel)
+        return navVC
+    }
+
+    private func makeSidebarController() -> NSViewController {
+        let navVC = makeNavigationSidebar()
+        guard !isHome else { return navVC }
+
+        let container = SidebarContainerViewController()
+        container.addChild(navVC)
+
+        let detailsView = ConnectionDetailsSidebar()
             .environment(connectionInstance)
             .environment(sidebarViewModel)
             .environment(tabManager)
@@ -186,16 +198,32 @@ final class MainContentViewController: NSViewController {
             .padding(.top, 50)
             .ignoresSafeArea(.container, edges: .top)
             .modelContainer(modelContainer)
+        let detailsHost = NSHostingController(rootView: AnyView(detailsView))
+        detailsHost.safeAreaRegions = []
+        container.addChild(detailsHost)
 
-        let rootView: AnyView = if isHome {
-            AnyView(sidebarView.frame(width: 50))
-        } else {
-            AnyView(sidebarView.frame(minWidth: 330))
-        }
+        let navView = navVC.view
+        let detailView = detailsHost.view
 
-        let host = NSHostingController(rootView: rootView)
-        host.safeAreaRegions = []
-        return host
+        navView.translatesAutoresizingMaskIntoConstraints = false
+        detailView.translatesAutoresizingMaskIntoConstraints = false
+
+        container.view.addSubview(navView)
+        container.view.addSubview(detailView)
+
+        NSLayoutConstraint.activate([
+            navView.topAnchor.constraint(equalTo: container.view.topAnchor),
+            navView.leadingAnchor.constraint(equalTo: container.view.leadingAnchor),
+            navView.bottomAnchor.constraint(equalTo: container.view.bottomAnchor),
+            navView.widthAnchor.constraint(equalToConstant: 50),
+
+            detailView.topAnchor.constraint(equalTo: container.view.topAnchor),
+            detailView.leadingAnchor.constraint(equalTo: navView.trailingAnchor),
+            detailView.trailingAnchor.constraint(equalTo: container.view.trailingAnchor),
+            detailView.bottomAnchor.constraint(equalTo: container.view.bottomAnchor),
+        ])
+
+        return container
     }
 
     private func makeContentController() -> NSViewController {
@@ -243,6 +271,16 @@ final class MainContentViewController: NSViewController {
             host.safeAreaRegions = []
             return host
         }
+    }
+}
+
+// MARK: - Sidebar Container
+
+private final class SidebarContainerViewController: NSViewController {
+    override func loadView() {
+        let v = NSView()
+        v.wantsLayer = true
+        self.view = v
     }
 }
 

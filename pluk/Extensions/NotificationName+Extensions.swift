@@ -47,4 +47,7 @@ extension Notification.Name {
 
     /// Sidebar visibility changed (userInfo contains "isVisible": Bool)
     static let sidebarVisibilityChanged = Notification.Name("SidebarVisibilityChanged")
+
+    /// Sidebar item registry changed (connection/notebook added or removed)
+    static let sidebarItemsDidChange = Notification.Name("SidebarItemsDidChange")
 }

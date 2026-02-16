@@ -68,6 +68,7 @@ struct HomeView: View {
             }
             .contentMargins(.trailing, 8, for: .scrollIndicators)
             .contentMargins(.bottom, 8, for: .scrollIndicators)
+            .padding(.bottom, 8)
         }
         .frame(
             maxWidth: .infinity,
@@ -149,6 +150,7 @@ struct HomeView: View {
 
     private func handleNotebookOpen(_ notebook: Notebook) {
         notebook.updatedAt = Date()
+        SidebarItemRegistry.shared.addNotebook(id: notebook.id, title: notebook.title)
         WindowController.newTab(tabType: .notebook(notebook.id))
     }
 

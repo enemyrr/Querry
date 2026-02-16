@@ -41,6 +41,7 @@ class ConnectionService {
         let newInstance = ConnectionInstance(connection: connection)
         connectionInstances.append(newInstance)
         activeConnectionInstanceId = newInstance.id
+        SidebarItemRegistry.shared.addConnection(newInstance.id)
 
         return newInstance.id
     }
@@ -53,6 +54,7 @@ class ConnectionService {
             
             // Now remove from the array
             connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
+            SidebarItemRegistry.shared.removeConnection(instanceId)
         }
     }
 

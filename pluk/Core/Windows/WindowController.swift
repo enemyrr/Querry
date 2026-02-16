@@ -111,6 +111,17 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         }
     }
     
+    @MainActor
+    static func closeNotebookWindow(id: UUID) {
+        for window in NSApp.windows where window.isVisible {
+            guard let controller = getController(for: window),
+                  case .notebook(let windowNotebookId) = controller.tabType,
+                  windowNotebookId == id else { continue }
+            window.close()
+            return
+        }
+    }
+
     // MARK: - Instance Properties
 
     let tabType: TabType
@@ -528,6 +539,10 @@ extension WindowController: NSWindowDelegate {
             for tab in tabsToClose {
                 tabManager.closeTab(tab.id)
             }
+        }
+
+        if case .notebook(let notebookId) = tabType {
+            SidebarItemRegistry.shared.removeNotebook(notebookId)
         }
 
         WindowController.unregister(window)

@@ -51,6 +51,7 @@ struct RecentsSection: View {
                     .frame(width: 200)
                 }
             }
+            .padding(.vertical, 6)
         }
     }
 }
@@ -63,15 +64,19 @@ struct RecentCard: View {
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: onTap) {
-            cardContent
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovering = hovering
+        cardContent
+            .contentShape(.rect)
+            .simultaneousGesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        onTap()
+                    }
+            )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovering = hovering
+                }
             }
-        }
     }
 
     private var cardContent: some View {
@@ -108,8 +113,9 @@ struct RecentCard: View {
         .frame(height: 120)
         .background(cardBackground)
         .overlay(cardBorder)
-        .scaleEffect(isHovering ? 0.98 : 1.0)
-        .animation(.easeInOut(duration: 0.1), value: isHovering)
+        .offset(y: isHovering ? -2 : 0)
+        .shadow(color: .black.opacity(isHovering ? 0.12 : 0.05), radius: isHovering ? 8 : 3, y: isHovering ? 4 : 2)
+        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isHovering)
     }
 
     @ViewBuilder
