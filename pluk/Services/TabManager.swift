@@ -139,4 +139,5 @@ struct PlukTab: Identifiable, Equatable {
 enum TabType: Equatable {
     case home
     case connection(UUID)
+    case notebook(UUID)
 }

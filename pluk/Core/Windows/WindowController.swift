@@ -85,6 +85,8 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
                 true
             case (.connection(let existingId), .connection(let targetId)):
                 existingId == targetId
+            case (.notebook(let existingId), .notebook(let targetId)):
+                existingId == targetId
             default:
                 false
             }
@@ -104,6 +106,8 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
                 newTab(tabType: tabType, connectionInstance: connectionInstance)
             }
+        case .notebook:
+            newTab(tabType: tabType)
         }
     }
     
@@ -325,7 +329,20 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             "Home"
         case .connection:
             connectionInstance?.connection.name ?? "Connection"
+        case .notebook(let notebookId):
+            notebookTitle(for: notebookId)
         }
+    }
+
+    private func notebookTitle(for notebookId: UUID) -> String {
+        let container = (NSApp.delegate as? AppDelegate)?.sharedModelContainer
+        if let context = container?.mainContext,
+           let notebook = try? context.fetch(
+               FetchDescriptor<Notebook>(predicate: #Predicate { $0.id == notebookId })
+           ).first {
+            return notebook.title
+        }
+        return "Notebook"
     }
 
     // MARK: - Connection Observation

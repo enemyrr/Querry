@@ -10,66 +10,84 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @Environment(SidebarViewModel.self) private var viewModel
     @Query(sort: \Connection.createdAt, order: .forward)
     private var connections: [Connection]
-    @State private var showDatabaseModal = false
-    @State private var selectedConnectionId: PersistentIdentifier?
+    @Query(sort: \Notebook.updatedAt, order: .reverse)
+    private var notebooks: [Notebook]
     @State private var showCreateSheet = false
     @State private var showConnectionAlert = false
     @State private var pendingConnection: Connection?
-    
+
+    private var allItems: [WorkspaceItem] {
+        let items: [WorkspaceItem] =
+            connections.map { .connection($0) } +
+            notebooks.map { .notebook($0) }
+        return items.sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+    }
+
+    private var recentItems: [WorkspaceItem] {
+        Array(allItems.prefix(8))
+    }
+
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("My Workspace")
-                            .font(.title)
-                            .fontWeight(.semibold)
-                        Text(
-                            "To get started, connect to an existing server or create a new one."
-                        )
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    }
+                Text("My Workspace")
+                    .font(.title)
+                    .fontWeight(.semibold)
+                Text(
+                    "Notebooks, connections, and everything in between."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 20)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 16)
 
-                    Spacer()
-                    CreateConnection(showSheet: $showCreateSheet)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 6)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    RecentsSection(
+                        items: recentItems,
+                        onOpen: handleItemOpen
+                    )
 
-                if connections.isEmpty {
-                    EmptyConnectionsState(showSheet: $showCreateSheet)
-                } else {
-                    ConnectionList(
-                        connections: connections,
-                        selectedConnectionId: $selectedConnectionId,
-                        onSelect: { connection in
-                            selectedConnectionId = connection.persistentModelID
-                        },
-                        onOpen: { connection in
-                            handleConnectionOpen(connection)
-                        }
+                    WorkspaceList(
+                        items: allItems,
+                        onOpenConnection: handleConnectionOpen,
+                        onOpenNotebook: handleNotebookOpen,
+                        onCreateConnection: { showCreateSheet = true },
+                        onCreateNotebook: createAndOpenNotebook
                     )
                 }
-                
-                Spacer()
+                .padding(.horizontal, 28)
+                .padding(.bottom, 28)
             }
-            .padding(.top, 20)
-            .padding(.horizontal, 20)
-            .frame(
-                maxWidth: .infinity,
-                maxHeight: .infinity,
-                alignment: .leading
-            )
-            .padding([.trailing, .bottom], 8)
+            .contentMargins(.trailing, 8, for: .scrollIndicators)
+            .contentMargins(.bottom, 8, for: .scrollIndicators)
         }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .leading
+        )
         .postHogScreenView("HomeView")
-        .alert(pendingConnection != nil ? "\"\(pendingConnection!.name)\" is already connected" : "", isPresented: $showConnectionAlert) {
+        .sheet(isPresented: $showCreateSheet) {
+            ZStack {
+                VisualEffectView(
+                    material: .hudWindow,
+                    blendingMode: .behindWindow
+                )
+                .ignoresSafeArea()
+
+                CreateConnectionForm()
+                    .frame(width: 560)
+            }
+        }
+        .alert("\"\(pendingConnection?.name ?? "")\" is already connected", isPresented: $showConnectionAlert) {
             Button("Continue Current Tab") {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
@@ -107,11 +125,33 @@ struct HomeView: View {
             }
         } message: {
             if let connection = pendingConnection {
-                Text("You’re already connected to \(connection.name) in another tab. Continuing will reuse the existing tab. Want to open a new one instead?")
+                Text("You're already connected to \(connection.name) in another tab. Continuing will reuse the existing tab. Want to open a new one instead?")
             }
         }
     }
-    
+
+    // MARK: - Actions
+
+    private func handleItemOpen(_ item: WorkspaceItem) {
+        switch item {
+        case .connection(let connection):
+            handleConnectionOpen(connection)
+        case .notebook(let notebook):
+            handleNotebookOpen(notebook)
+        }
+    }
+
+    private func createAndOpenNotebook() {
+        let notebook = Notebook()
+        modelContext.insert(notebook)
+        handleNotebookOpen(notebook)
+    }
+
+    private func handleNotebookOpen(_ notebook: Notebook) {
+        notebook.updatedAt = Date()
+        WindowController.newTab(tabType: .notebook(notebook.id))
+    }
+
     private func handleConnectionOpen(_ connection: Connection) {
         let isFirstConnection = connections.count == 1 && ConnectionService.shared.connectionInstances.isEmpty
 
@@ -119,12 +159,9 @@ struct HomeView: View {
             pendingConnection = connection
             showConnectionAlert = true
         } else {
-            // Create connection instance
             let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
-            // Get the connection instance
             if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
-                // Create native tab using Ghostty approach
                 WindowController.newTab(
                     tabType: .connection(instanceId),
                     connectionInstance: connectionInstance
@@ -141,260 +178,18 @@ struct HomeView: View {
     }
 }
 
-struct EmptyConnectionsState: View {
-    @Binding var showSheet: Bool
-    
-    var body: some View {
-        VStack(spacing: 24) {
-            ContentUnavailableView {
-                Label("No Connections", systemImage: "server.rack")
-                    .font(.title2)
-            } description: {
-                Text("Connect your first database to get started with managing your data.")
-            } actions: {
-                Button("Connect") {
-                    showSheet.toggle()
-                }
-                .buttonStyle(OutlineSecondaryButtonStyle())
-            }
-        }
-        .frame(maxWidth: 400)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 40)
-    }
-}
-
-struct ConnectionList: View {
-    let connections: [Connection]
-    @Binding var selectedConnectionId: PersistentIdentifier?
-    let onSelect: (Connection) -> Void
-    let onOpen: (Connection) -> Void
-    
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Name")
-                    .frame(width: 200, alignment: .leading)
-                
-                Spacer()
-                
-                Text("Last Opened")
-                    .frame(width: 120, alignment: .leading)
-                
-                Text("Created")
-                    .frame(width: 120, alignment: .leading)
-            }
-            .foregroundStyle(.secondary)
-            .font(.system(size: 12))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            
-            Divider().padding(.bottom, 6)
-            
-            ScrollView {
-                LazyVStack(spacing: 4) {
-                    ForEach(connections) { connection in
-                        ConnectionListItem(connection: connection, isSelected: connection.persistentModelID == selectedConnectionId, onSelect: self.onSelect, onOpen: self.onOpen)
-                    }
-                }
-                .padding(.bottom, 0)
-            }
-        }
-    }
-}
-
 struct DatabaseTypeIcon: View {
     let databaseType: DatabaseType
-    
-    var body: some View {
-        HStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(databaseType.backgroundColor)
-                .frame(width: 28, height: 28)
-                .overlay(
-                    Image(databaseType.homeIcon)
-                        .resizable()
-                        .frame(width: 18, height: 18)
-                        .aspectRatio(contentMode: .fit)
-                )
-        }
-    }
-}
-
-struct ConnectionListItem: View {
-    let connection: Connection
-    let isSelected: Bool
-    let onSelect: (Connection) -> Void
-    let onOpen: (Connection) -> Void
-    @Environment(\.modelContext) private var modelContext
-    @State private var isHovering = false
-    @State private var showEditSheet = false
-    @State private var showDeleteConfirmation = false
-    @State private var connectionToDelete: Connection?
 
     var body: some View {
-        HStack {
-            HStack(spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            DatabaseTypeIcon(databaseType: connection.databaseType)
-                            
-                            VStack(alignment: .leading) {
-                                Text(connection.name)
-                                    .foregroundStyle(.primary)
-                                
-                                if connection.databaseType == .convex, let hostname = connection.hostname {
-                                    Text("ID: \(hostname)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
-
-                            if let connectionType = connection.environment {
-                                EnvironmentTag(environment: connectionType)
-                            }
-                        }
-                        
-                        
-                        if let displayUrl = connection.displayUrl {
-                            Text(displayUrl)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            }
-            .frame(alignment: .leading)
-            
-            Spacer()
-            
-            Text(
-                Date().timeIntervalSince(connection.lastOpenedAt) < 60
-                ? "a moment ago"
-                : connection.lastOpenedAt.formatted(.relative(presentation: .named))
+        RoundedRectangle(cornerRadius: 8)
+            .fill(databaseType.backgroundColor)
+            .frame(width: 28, height: 28)
+            .overlay(
+                Image(databaseType.homeIcon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 18, height: 18)
             )
-            .foregroundStyle(.secondary)
-            .frame(width: 120, alignment: .leading)
-            
-            Text(
-                connection.createdAt
-                    .formatted(date: .abbreviated, time: .omitted)
-            )
-            .foregroundStyle(.secondary)
-            .frame(width: 120, alignment: .leading)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(
-                    isSelected || isHovering
-                    ? Color(.separatorColor).opacity(0.5)
-                        : Color.clear
-                )
-                .onTapGesture {
-                    onSelect(connection)
-                }
-        )
-        .simultaneousGesture(
-            TapGesture(count: 2)
-                .onEnded {
-                    onOpen(connection)
-                    connection.lastOpenedAt = Date()
-                }
-        )
-        .sheet(isPresented: $showEditSheet) {
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-                
-                CreateConnectionForm(connection: connection)
-                    .frame(width: 500)
-            }
-        }
-        .contextMenu {
-            Button {
-                onOpen(connection)
-                connection.lastOpenedAt = Date()
-            } label: {
-                Label("Connect", systemImage: "arrow.up.forward.square")
-            }
-            
-            Divider()
-            
-            Button {
-                showEditSheet.toggle()
-            } label: {
-                Label("Edit", systemImage: "square.and.pencil")
-            }
-            
-            Divider()
-            
-            Button {
-                let connectionURI = connection.copyableConnectionUri
-
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(connectionURI, forType: .string)
-            } label: {
-                Label("Copy connection string", systemImage: "doc.on.doc")
-            }
-            
-            
-            Divider()
-            
-            Button(role: .destructive) {
-                // Store the connection to delete and show confirmation
-                connectionToDelete = connection
-                showDeleteConfirmation = true
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-        .confirmationDialog(
-            "Delete Connection",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                if let connection = connectionToDelete {
-                    let databaseType = connection.databaseType
-
-                    QueryHistoryService.deleteHistoryForConnection(
-                        modelContext: modelContext,
-                        connectionKeychainId: connection.keychainId
-                    )
-                    connection.cleanupKeychain()
-                    modelContext.delete(connection)
-
-                    Task { @MainActor in
-                        AnalyticsService.shared.trackConnectionDeleted(databaseType: databaseType)
-
-                        let remainingConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []
-                        let databaseTypes = Array(Set(remainingConnections.map { $0.databaseType.rawValue }))
-                        AnalyticsService.shared.updateConnectionSuperProperties(
-                            totalConnections: remainingConnections.count,
-                            databaseTypes: databaseTypes
-                        )
-                    }
-                    connectionToDelete = nil
-                }
-            }
-
-            Button("Cancel", role: .cancel) {
-                connectionToDelete = nil
-            }
-        } message: {
-            Text("Are you sure you want to delete this connection? This action cannot be undone.")
-        }
-        .dialogSeverity(.critical)
     }
 }

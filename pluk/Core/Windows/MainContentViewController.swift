@@ -17,7 +17,12 @@ final class MainContentViewController: NSViewController {
     private var tintOverlay: NSView!
     private var backgroundPanel: BackgroundPanelView!
 
-    private var isHome: Bool { tabType == .home }
+    private var isHome: Bool {
+        switch tabType {
+        case .home, .notebook: true
+        case .connection: false
+        }
+    }
 
     init(tabType: TabType, connectionInstance: ConnectionInstance?, modelContainer: ModelContainer) {
         self.tabType = tabType
@@ -226,6 +231,17 @@ final class MainContentViewController: NSViewController {
                 modelContainer: modelContainer
             )
             return docVC
+
+        case .notebook(let notebookId):
+            let stubView = NotebookEditorStubView(notebookId: notebookId)
+                .padding(.top, 50)
+                .environment(appViewModel)
+                .environment(sidebarViewModel)
+                .environment(tabManager)
+                .modelContainer(modelContainer)
+            let host = NSHostingController(rootView: AnyView(stubView))
+            host.safeAreaRegions = []
+            return host
         }
     }
 }
