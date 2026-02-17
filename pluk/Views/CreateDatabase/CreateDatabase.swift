@@ -638,7 +638,7 @@ private struct SegmentTextButton: View {
 // MARK: - CreateButtonStyle
 
 private struct CreateButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {

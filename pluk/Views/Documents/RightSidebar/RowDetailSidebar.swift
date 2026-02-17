@@ -501,7 +501,7 @@ private struct RowActionsMenu: View {
 }
 
 private struct ActionMenuItem: View {
-    static let primaryColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let primaryColor = Color.primaryButton
 
     var icon: String? = nil
     let title: String
@@ -516,7 +516,7 @@ private struct ActionMenuItem: View {
         if isDestructive && isPrimary {
             return isDisabled ? .secondary : .white
         } else if isPrimary {
-            return isDisabled ? .secondary : .black.opacity(0.8)
+            return isDisabled ? .secondary : Color(.textBackgroundColor)
         } else if isDisabled {
             return .secondary
         } else if isDestructive {
@@ -761,5 +761,3 @@ private class ResizeDividerView: NSView {
         }
     }
 }
-
-

@@ -361,7 +361,7 @@ struct DatabaseIcon: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
     
@@ -370,7 +370,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)      // Vertical padding for height
             .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)     // White text color
+            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
                 // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 10)
@@ -393,7 +393,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 }
 
 struct FilterSubmitButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
     
@@ -402,7 +402,7 @@ struct FilterSubmitButtonStyle: ButtonStyle {
             .lineLimit(1)
             .padding(.vertical, 6)
             .padding(.horizontal, 12)
-            .foregroundColor(.secondary)
+            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
                 // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 6)
@@ -425,7 +425,7 @@ struct FilterSubmitButtonStyle: ButtonStyle {
 }
 
 struct ChatSendButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     @State private var isHovering = false
@@ -765,6 +765,7 @@ struct RenameCancelButtonStyle: ButtonStyle {
 
 struct RenameSaveButtonStyle: ButtonStyle {
     let backgroundColor: Color
+    @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     
@@ -776,6 +777,7 @@ struct RenameSaveButtonStyle: ButtonStyle {
         HStack {
             configuration.label
         }
+        .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
         .frame(height: 14)
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
@@ -848,7 +850,7 @@ private struct CompactMenuButtonStyle: ButtonStyle {
 }
 
 private struct CompactPrimaryButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
@@ -858,7 +860,7 @@ private struct CompactPrimaryButtonStyle: ButtonStyle {
             .font(.system(size: 12, weight: .semibold))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .foregroundColor(isEnabled ? .black.opacity(0.8) : .secondary)
+            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isEnabled ? Self.buttonColor : colorScheme == .dark ? Color.white.opacity(0.1) : Color(.separatorColor).opacity(0.4))
@@ -975,7 +977,7 @@ struct ToolbarIconButton: View {
 }
 
 struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
-    static let buttonColor = Color(red: 248/255, green: 148/255, blue: 99/255)
+    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
     
@@ -984,7 +986,7 @@ struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
             .font(.callout)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .foregroundColor(isEnabled ? .black : .secondary)
+            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isEnabled ? Self.buttonColor : Color(.disabledControlTextColor).opacity(0.1))

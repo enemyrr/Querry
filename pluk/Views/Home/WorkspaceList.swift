@@ -7,6 +7,43 @@ import AppKit
 import SwiftData
 import SwiftUI
 
+private enum WorkspaceSortField: CaseIterable {
+    case name
+    case lastViewed
+    case dateCreated
+    case dateUpdated
+
+    var title: String {
+        switch self {
+        case .name: "Name"
+        case .lastViewed: "Last Viewed"
+        case .dateCreated: "Date Created"
+        case .dateUpdated: "Date Updated"
+        }
+    }
+}
+
+private enum WorkspaceSortDirection {
+    case ascending
+    case descending
+
+    var symbol: String {
+        switch self {
+        case .ascending: "↑"
+        case .descending: "↓"
+        }
+    }
+
+    mutating func toggle() {
+        switch self {
+        case .ascending:
+            self = .descending
+        case .descending:
+            self = .ascending
+        }
+    }
+}
+
 struct WorkspaceList: View {
     let items: [WorkspaceItem]
     let onOpenConnection: (Connection) -> Void
@@ -15,8 +52,15 @@ struct WorkspaceList: View {
     let onCreateNotebook: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var notebookToDelete: Notebook?
     @State private var showDeleteNotebook = false
+    @State private var searchText = ""
+    @State private var isSearchVisible = false
+    @State private var selectedSortField: WorkspaceSortField = .dateCreated
+    @State private var sortDirection: WorkspaceSortDirection = .descending
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -24,6 +68,8 @@ struct WorkspaceList: View {
 
             if items.isEmpty {
                 emptyState
+            } else if displayedItems.isEmpty {
+                noResultsState
             } else {
                 listContent
             }
@@ -48,29 +94,171 @@ struct WorkspaceList: View {
         .dialogSeverity(.critical)
     }
 
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var filteredItems: [WorkspaceItem] {
+        guard !normalizedSearchText.isEmpty else { return items }
+
+        return items.filter { item in
+            item.searchTokens.localizedStandardContains(normalizedSearchText)
+        }
+    }
+
+    private var displayedItems: [WorkspaceItem] {
+        filteredItems.sorted(by: shouldPlaceBefore(_:_:))
+    }
+
     private var listHeader: some View {
-        HStack(alignment: .center) {
-            Text("All Items")
+        HStack(alignment: .center, spacing: 4) {
+            Text("Workspace")
                 .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
 
             Spacer()
 
-            Menu {
-                Button(action: onCreateNotebook) {
-                    Label("New Notebook", systemImage: "doc.text")
-                }
-
-                Button(action: onCreateConnection) {
-                    Label("New Connection", systemImage: "server.rack")
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(ActionButtonStyle())
-            .menuIndicator(.hidden)
+            createMenu
+            sortMenu
+            searchControl
         }
+        .overlay {
+            keyboardSearchShortcut
+        }
+    }
+
+    private var keyboardSearchShortcut: some View {
+        Button(action: handleSearchShortcut) {
+            Color.clear
+                .frame(width: 0, height: 0)
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("f", modifiers: [.command])
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var searchToggleAnimation: Animation {
+        if accessibilityReduceMotion {
+            return .linear(duration: 0.01)
+        }
+
+        return .easeOut(duration: 0.16)
+    }
+
+    private var searchControl: some View {
+        HStack(spacing: isSearchVisible ? 6 : 0) {
+            if isSearchVisible {
+                Button(action: handleSearchButtonTap) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 28, height: 28)
+                .contentShape(.rect)
+
+                TextField("Search workspace", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .focused($isSearchFocused)
+                    .onExitCommand(perform: handleSearchExitCommand)
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                        focusSearchField()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Button(action: handleSearchButtonTap) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 28, height: 28)
+                .contentShape(.rect)
+            }
+        }
+        .padding(.leading, isSearchVisible ? 8 : 0)
+        .padding(.trailing, isSearchVisible ? 8 : 0)
+        .background(searchControlFillColor)
+        .clipShape(.rect(cornerRadius: 8))
+        .frame(width: isSearchVisible ? 220 : 28, alignment: .trailing)
+        .frame(height: 28)
+        .animation(searchToggleAnimation, value: isSearchVisible)
+        .onChange(of: isSearchVisible) { _, visible in
+            if visible {
+                focusSearchField()
+            } else {
+                isSearchFocused = false
+            }
+        }
+    }
+
+    private var searchControlFillColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
+    }
+
+    private var createMenu: some View {
+        Menu {
+            Button(action: onCreateNotebook) {
+                Label("New Notebook", systemImage: "doc.text")
+            }
+
+            Button(action: onCreateConnection) {
+                Label("New Connection", systemImage: "server.rack")
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(ActionButtonStyle())
+        .menuIndicator(.hidden)
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Section("Sort By") {
+                ForEach(WorkspaceSortField.allCases, id: \.title) { field in
+                    Button {
+                        handleSortSelection(field)
+                    } label: {
+                        HStack {
+                            if selectedSortField == field {
+                                Image(systemName: "checkmark")
+                            }
+
+                            Text(sortLabel(for: field))
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: sortIconName)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(ActionButtonStyle())
+        .menuIndicator(.hidden)
+    }
+
+    private var noResultsState: some View {
+        ContentUnavailableView {
+            Label("No Results", systemImage: "magnifyingglass")
+                .font(.title2)
+        } description: {
+            Text("No workspace items match \"\(normalizedSearchText)\".")
+        }
+        .frame(maxWidth: 400)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
     }
 
     private var emptyState: some View {
@@ -103,12 +291,13 @@ struct WorkspaceList: View {
             }
             .foregroundStyle(.secondary)
             .font(.system(size: 12))
-            .padding(.vertical, 8)
+            .padding(.top, 2)
+            .padding(.bottom, 10)
 
-            Divider().padding(.bottom, 6)
+            Divider().padding(.bottom, 8)
 
-            LazyVStack(spacing: 4) {
-                ForEach(items) { item in
+            LazyVStack(spacing: 6) {
+                ForEach(displayedItems) { item in
                     switch item {
                     case .connection(let connection):
                         WorkspaceConnectionRow(
@@ -128,6 +317,133 @@ struct WorkspaceList: View {
                 }
             }
         }
+        .padding(.vertical, 4)
+    }
+
+    private func handleSearchButtonTap() {
+        if isSearchVisible {
+            if searchText.isEmpty {
+                withAnimation(searchToggleAnimation) {
+                    isSearchVisible = false
+                }
+                isSearchFocused = false
+            } else {
+                searchText = ""
+                focusSearchField()
+            }
+            return
+        }
+
+        withAnimation(searchToggleAnimation) {
+            isSearchVisible = true
+        }
+    }
+
+    private func handleSearchShortcut() {
+        if !isSearchVisible {
+            withAnimation(searchToggleAnimation) {
+                isSearchVisible = true
+            }
+        }
+
+        focusSearchField()
+    }
+
+    private func handleSearchExitCommand() {
+        if searchText.isEmpty {
+            withAnimation(searchToggleAnimation) {
+                isSearchVisible = false
+            }
+            isSearchFocused = false
+            return
+        }
+
+        searchText = ""
+    }
+
+    private func focusSearchField() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            isSearchFocused = true
+        }
+    }
+
+    private func handleSortSelection(_ field: WorkspaceSortField) {
+        if selectedSortField == field {
+            sortDirection.toggle()
+            return
+        }
+
+        selectedSortField = field
+        sortDirection = .descending
+    }
+
+    private func sortLabel(for field: WorkspaceSortField) -> String {
+        if selectedSortField == field {
+            return "\(field.title) \(sortDirection.symbol)"
+        }
+
+        return field.title
+    }
+
+    private var sortIconName: String {
+        switch sortDirection {
+        case .ascending: "arrow.up"
+        case .descending: "arrow.down"
+        }
+    }
+
+    private func shouldPlaceBefore(_ lhs: WorkspaceItem, _ rhs: WorkspaceItem) -> Bool {
+        switch selectedSortField {
+        case .name:
+            let nameComparison = lhs.name.localizedStandardCompare(rhs.name)
+            if nameComparison == .orderedSame {
+                return lhs.id < rhs.id
+            }
+            return sortDirection == .ascending
+                ? nameComparison == .orderedAscending
+                : nameComparison == .orderedDescending
+        case .lastViewed:
+            return shouldPlaceDateBefore(
+                lhs.lastViewedAt,
+                rhs.lastViewedAt,
+                lhs: lhs,
+                rhs: rhs
+            )
+        case .dateCreated:
+            return shouldPlaceDateBefore(
+                lhs.createdAt,
+                rhs.createdAt,
+                lhs: lhs,
+                rhs: rhs
+            )
+        case .dateUpdated:
+            return shouldPlaceDateBefore(
+                lhs.updatedAt,
+                rhs.updatedAt,
+                lhs: lhs,
+                rhs: rhs
+            )
+        }
+    }
+
+    private func shouldPlaceDateBefore(
+        _ lhsDate: Date,
+        _ rhsDate: Date,
+        lhs: WorkspaceItem,
+        rhs: WorkspaceItem
+    ) -> Bool {
+        if lhsDate == rhsDate {
+            let nameComparison = lhs.name.localizedStandardCompare(rhs.name)
+            if nameComparison == .orderedSame {
+                return lhs.id < rhs.id
+            }
+            return nameComparison == .orderedAscending
+        }
+
+        return sortDirection == .ascending
+            ? lhsDate < rhsDate
+            : lhsDate > rhsDate
     }
 }
 
@@ -179,7 +495,8 @@ struct WorkspaceNotebookRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 120, alignment: .leading)
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
         .contentShape(.rect)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -187,9 +504,10 @@ struct WorkspaceNotebookRow: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isHovering ? Color(.separatorColor).opacity(0.5) : .clear)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isHovering ? Color(.separatorColor).opacity(0.35) : .clear)
         )
+        .padding(.horizontal, -10)
         .simultaneousGesture(
             TapGesture(count: 2)
                 .onEnded {
@@ -266,7 +584,8 @@ struct WorkspaceConnectionRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 120, alignment: .leading)
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
         .contentShape(.rect)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -274,14 +593,14 @@ struct WorkspaceConnectionRow: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isHovering ? Color(.separatorColor).opacity(0.5) : .clear)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isHovering ? Color(.separatorColor).opacity(0.35) : .clear)
         )
+        .padding(.horizontal, -10)
         .simultaneousGesture(
             TapGesture(count: 2)
                 .onEnded {
                     onOpen(connection)
-                    connection.lastOpenedAt = Date()
                 }
         )
         .sheet(isPresented: $showEditSheet) {
@@ -296,7 +615,6 @@ struct WorkspaceConnectionRow: View {
         .contextMenu {
             Button {
                 onOpen(connection)
-                connection.lastOpenedAt = Date()
             } label: {
                 Label("Connect", systemImage: "arrow.up.forward.square")
             }

@@ -23,14 +23,13 @@ struct NotebookStatusTag: View {
 
     var body: some View {
         Text(status.rawValue)
-            .font(.system(size: 10))
-            .fontWeight(.medium)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(status.color)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(status.color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(status.color.opacity(0.75), lineWidth: 1)
             )
     }
 }

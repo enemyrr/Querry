@@ -197,8 +197,8 @@ struct SQLEditorView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .foregroundColor(.black.opacity(0.8) )
-                .background(Color(red: 248/255, green: 148/255, blue: 99/255))
+                .foregroundStyle(Color(.textBackgroundColor))
+                .background(Color.primaryButton)
                 .cornerRadius(8)
                 .fixedSize()
             }
@@ -1024,4 +1024,3 @@ enum SQLEditorViewState: Equatable {
         }
     }
 }
-

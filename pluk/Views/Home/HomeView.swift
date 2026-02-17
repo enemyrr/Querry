@@ -12,7 +12,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SidebarViewModel.self) private var viewModel
-    @Query(sort: \Connection.createdAt, order: .forward)
+    @Query(sort: \Connection.lastOpenedAt, order: .reverse)
     private var connections: [Connection]
     @Query(sort: \Notebook.updatedAt, order: .reverse)
     private var notebooks: [Notebook]
@@ -92,6 +92,7 @@ struct HomeView: View {
             Button("Continue Current Tab") {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
+                    connection.lastOpenedAt = Date()
                     viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
                     Task { @MainActor in
                         AnalyticsService.shared.trackConnectionOpened(
@@ -104,6 +105,7 @@ struct HomeView: View {
             }
             Button("Create New Tab") {
                 if let connection = pendingConnection {
+                    connection.lastOpenedAt = Date()
                     let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
                     if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
@@ -161,6 +163,7 @@ struct HomeView: View {
             pendingConnection = connection
             showConnectionAlert = true
         } else {
+            connection.lastOpenedAt = Date()
             let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
             if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {

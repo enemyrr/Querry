@@ -404,11 +404,7 @@ struct SchemaModeViewHeader: View {
                         }
                         .buttonStyle(
                             RenameSaveButtonStyle(
-                                backgroundColor: Color(
-                                    red: 248 / 255,
-                                    green: 148 / 255,
-                                    blue: 99 / 255
-                                )
+                                backgroundColor: .primaryButton
                             )
                         )
                     } else {
@@ -517,5 +513,4 @@ struct ShemaTableView: View {
         }
     }
 }
-
 

@@ -37,6 +37,20 @@ enum WorkspaceItem: Identifiable {
         }
     }
 
+    var updatedAt: Date {
+        switch self {
+        case .connection(let c): c.updatedAt
+        case .notebook(let n): n.updatedAt
+        }
+    }
+
+    var lastViewedAt: Date {
+        switch self {
+        case .connection(let c): c.lastOpenedAt
+        case .notebook(let n): n.updatedAt
+        }
+    }
+
     var subtitle: String? {
         switch self {
         case .connection(let c):
@@ -53,6 +67,18 @@ enum WorkspaceItem: Identifiable {
         switch self {
         case .connection(let c): c.databaseType.displayName
         case .notebook: "Notebook"
+        }
+    }
+
+    var searchTokens: String {
+        [name, subtitle ?? "", kindLabel, itemTypeKeyword]
+            .joined(separator: " ")
+    }
+
+    private var itemTypeKeyword: String {
+        switch self {
+        case .connection: "connection"
+        case .notebook: "notebook"
         }
     }
 }

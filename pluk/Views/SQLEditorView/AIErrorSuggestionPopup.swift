@@ -87,10 +87,10 @@ struct AIErrorSuggestionPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .medium))
-            .foregroundColor(.white)
+            .foregroundStyle(Color(.textBackgroundColor))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color.blue)
+            .background(Color.primaryButton)
             .cornerRadius(6)
             .opacity(configuration.isPressed ? 0.8 : 1.0)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
