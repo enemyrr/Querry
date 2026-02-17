@@ -77,20 +77,10 @@ class ConnectionService {
     @discardableResult
     func disconnectDBInstance(_ instance: ConnectionInstance) async -> ConnectionStatus {
         guard instance.connectionStatus == .connected else { return .error }
-        
-        // Use the database service for disconnection
+
         await instance.databaseService.disconnect()
         instance.connectionStatus = .disconnected
         return instance.connectionStatus
-        
-        // Fallback to MongoDB-specific disconnection for backward compatibility
-        if let db = instance.database, let cluster = db.pool as? MongoCluster {
-            await cluster.disconnect()
-            instance.connectionStatus = .disconnected
-            return instance.connectionStatus
-        }
-        
-        return .error
     }
     
     func getInstance(_ instanceId: UUID) -> ConnectionInstance? {
@@ -142,27 +132,21 @@ class ConnectionService {
         }
 
         // Set tab title immediately to show the environment being loaded
-        updateTabTitle(for: newId, title: "\(newInstance.connection.name) – \(databaseName)")
+        await updateTabTitle(for: newId, title: "\(newInstance.connection.name) – \(databaseName)")
 
         return newId
     }
     
     // MARK: - Tab Management
     
+    @MainActor
     func updateTabTitle(for instanceId: UUID, title: String) {
-        // Ensure UI operations happen on the main thread
-        DispatchQueue.main.async {
-            // Update the native tab window title
-            let windows = NSApp.windows.filter { $0.isVisible }
-
-            for window in windows {
-                if let windowController = WindowController.getController(for: window),
-                   case .connection(let windowInstanceId) = windowController.tabType,
-                   windowInstanceId == instanceId {
-                    window.title = title
-                    break
-                }
-            }
+        for window in NSApp.windows where window.isVisible {
+            guard let windowController = WindowController.getController(for: window),
+                  case .connection(let windowInstanceId) = windowController.tabType,
+                  windowInstanceId == instanceId else { continue }
+            window.title = title
+            break
         }
     }
     

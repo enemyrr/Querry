@@ -113,10 +113,6 @@ struct WorkspaceList: View {
 
     private var listHeader: some View {
         HStack(alignment: .center, spacing: 4) {
-            Text("Workspace")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
-
             Spacer()
 
             createMenu
@@ -129,7 +125,7 @@ struct WorkspaceList: View {
     }
 
     private var keyboardSearchShortcut: some View {
-        Button(action: handleSearchShortcut) {
+        Button(action: showSearch) {
             Color.clear
                 .frame(width: 0, height: 0)
         }
@@ -177,7 +173,6 @@ struct WorkspaceList: View {
             }
         }
         .padding(.leading, isSearchVisible ? 8 : 0)
-        .padding(.trailing, 0)
         .background(searchControlFillColor)
         .clipShape(.rect(cornerRadius: 8))
         .frame(width: isSearchVisible ? 220 : 28, alignment: .trailing)
@@ -193,7 +188,7 @@ struct WorkspaceList: View {
     }
 
     private var searchToggleButton: some View {
-        Button(action: handleSearchButtonTap) {
+        Button(action: showSearch) {
             ZStack {
                 Rectangle()
                     .fill(.clear)
@@ -256,13 +251,13 @@ struct WorkspaceList: View {
                                 Image(systemName: "checkmark")
                             }
 
-                            Text(sortLabel(for: field))
+                            Text(field.title)
                         }
                     }
                 }
             }
         } label: {
-            Image(systemName: sortIconName)
+            Image(systemName: "arrow.up.arrow.down")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
@@ -341,17 +336,7 @@ struct WorkspaceList: View {
         .padding(.vertical, 4)
     }
 
-    private func handleSearchButtonTap() {
-        if !isSearchVisible {
-            withAnimation(searchToggleAnimation) {
-                isSearchVisible = true
-            }
-        }
-
-        focusSearchField()
-    }
-
-    private func handleSearchShortcut() {
+    private func showSearch() {
         if !isSearchVisible {
             withAnimation(searchToggleAnimation) {
                 isSearchVisible = true
@@ -396,14 +381,6 @@ struct WorkspaceList: View {
 
         selectedSortField = field
         sortDirection = .descending
-    }
-
-    private func sortLabel(for field: WorkspaceSortField) -> String {
-        return field.title
-    }
-
-    private var sortIconName: String {
-        "arrow.up.arrow.down"
     }
 
     private func shouldPlaceBefore(_ lhs: WorkspaceItem, _ rhs: WorkspaceItem) -> Bool {

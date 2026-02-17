@@ -654,14 +654,13 @@ extension SQLEditorView {
             await MainActor.run {
                 aiErrorSuggestion = suggestion
                 isLoadingAISuggestion = false
-                
-                // Show diff in editor - display both queries
                 sqlQuery = formatDiffText(original: originalQueryBeforeSuggestion, suggested: suggestion)
-                
-                // Apply red/green highlighting with a slight delay to ensure text is set
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    applyDiffHighlighting(original: originalQueryBeforeSuggestion, suggested: suggestion)
-                }
+            }
+
+            try? await Task.sleep(for: .milliseconds(100))
+
+            await MainActor.run {
+                applyDiffHighlighting(original: originalQueryBeforeSuggestion, suggested: suggestion)
             }
         } catch {
             await MainActor.run {
@@ -874,40 +873,12 @@ extension SQLEditorView {
     }
     
     private func prettifySQL() {
-        // Don't prettify if we're showing an inline diff
         guard !showingInlineDiff else { return }
-        
+
         let trimmedQuery = sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return }
-        
-        // Determine the SQL dialect based on the database type
-        let dialect: SQLDialect
-        switch instance.connection.databaseType {
-        case .postgres:
-            dialect = .postgresql
-        case .mongodb:
-            dialect = .sqlite // MongoDB uses SQL-like queries, use SQLite as fallback
-        case .mysql:
-            dialect = .mysql
-        case .sqlite:
-            dialect = .sqlite
-        default:
-            dialect = .sqlite // Default fallback
-        }
-        
-        // Configure formatting options
-        let options = SQLFormatOptions(
-            tabWidth: 2,
-            useTabs: false,
-            keywordCase: .upper,
-            dataTypeCase: .upper,
-            functionCase: .upper,
-            linesBetweenQueries: 1
-        )
-        
-        // Format using the SQLFormatter
-        let formattedSQL = SQLFormatter.format(trimmedQuery, dialect: dialect, options: options)
-        sqlQuery = formattedSQL
+
+        sqlQuery = formatSQL(trimmedQuery)
     }
     
     private func addToFavorites() {

@@ -80,16 +80,8 @@ final class NavigationSidebarViewController: NSViewController {
 
     // MARK: - Home Button
 
-    private func makeHomeButton() -> NSView {
-        let button = SidebarIconButton(
-            frame: NSRect(x: 0, y: 0, width: 50, height: 40)
-        )
-        button.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: 50),
-            button.heightAnchor.constraint(equalToConstant: 40),
-        ])
-        button.setIcon(systemName: "house.fill")
+    private func makeHomeButton() -> SidebarIconButton {
+        let button = makeSidebarIconButton(systemName: "house.fill")
         button.target = self
         button.action = #selector(homeButtonTapped)
         button.tag = -1
@@ -103,19 +95,21 @@ final class NavigationSidebarViewController: NSViewController {
 
     // MARK: - Feedback Button
 
-    private func makeFeedbackButton() -> NSView {
-        let button = SidebarIconButton(
-            frame: NSRect(x: 0, y: 0, width: 50, height: 40),
-            style: .borderless
-        )
+    private func makeFeedbackButton() -> SidebarIconButton {
+        let button = makeSidebarIconButton(systemName: "exclamationmark.bubble.fill", style: .borderless)
+        button.target = self
+        button.action = #selector(feedbackButtonTapped(_:))
+        return button
+    }
+
+    private func makeSidebarIconButton(systemName: String, style: SidebarIconButton.Style = .bordered) -> SidebarIconButton {
+        let button = SidebarIconButton(frame: NSRect(x: 0, y: 0, width: 50, height: 40), style: style)
         button.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             button.widthAnchor.constraint(equalToConstant: 50),
             button.heightAnchor.constraint(equalToConstant: 40),
         ])
-        button.setIcon(systemName: "exclamationmark.bubble.fill")
-        button.target = self
-        button.action = #selector(feedbackButtonTapped(_:))
+        button.setIcon(systemName: systemName)
         return button
     }
 
@@ -492,10 +486,9 @@ final class SidebarItemButton: NSControl {
         }
 
         if let icon, let image = NSImage(systemSymbolName: icon, accessibilityDescription: nil) {
-            let sizeConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
-            let colorConfig = NSImage.SymbolConfiguration(paletteColors: [.white])
-            let sized = image.withSymbolConfiguration(sizeConfig) ?? image
-            let configured = sized.withSymbolConfiguration(colorConfig) ?? sized
+            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
+            let configured = image.withSymbolConfiguration(config) ?? image
 
             let imageSize = configured.size
             configured.draw(in: CGRect(

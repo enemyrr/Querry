@@ -27,7 +27,10 @@ final class SidebarItemRegistry: @unchecked Sendable {
     }
 
     func removeNotebook(_ id: UUID) {
-        items.removeAll { $0 == .notebook(id, title: "") }
+        items.removeAll {
+            if case .notebook(let itemId, _) = $0 { return itemId == id }
+            return false
+        }
         postDidChange()
     }
 
