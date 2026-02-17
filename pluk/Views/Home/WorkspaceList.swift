@@ -58,6 +58,7 @@ struct WorkspaceList: View {
     @State private var showDeleteNotebook = false
     @State private var searchText = ""
     @State private var isSearchVisible = false
+    @State private var isSearchIconHovering = false
     @State private var selectedSortField: WorkspaceSortField = .dateCreated
     @State private var sortDirection: WorkspaceSortDirection = .descending
     @FocusState private var isSearchFocused: Bool
@@ -149,15 +150,12 @@ struct WorkspaceList: View {
     private var searchControl: some View {
         HStack(spacing: isSearchVisible ? 6 : 0) {
             if isSearchVisible {
-                Button(action: handleSearchButtonTap) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .frame(width: 28, height: 28)
-                .contentShape(.rect)
-
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 28)
+                    .padding(.leading, -4)
+                
                 TextField("Search workspace", text: $searchText)
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
@@ -175,18 +173,11 @@ struct WorkspaceList: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                Button(action: handleSearchButtonTap) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .frame(width: 28, height: 28)
-                .contentShape(.rect)
+                searchToggleButton
             }
         }
         .padding(.leading, isSearchVisible ? 8 : 0)
-        .padding(.trailing, isSearchVisible ? 8 : 0)
+        .padding(.trailing, 0)
         .background(searchControlFillColor)
         .clipShape(.rect(cornerRadius: 8))
         .frame(width: isSearchVisible ? 220 : 28, alignment: .trailing)
@@ -198,6 +189,36 @@ struct WorkspaceList: View {
             } else {
                 isSearchFocused = false
             }
+        }
+    }
+
+    private var searchToggleButton: some View {
+        Button(action: handleSearchButtonTap) {
+            ZStack {
+                Rectangle()
+                    .fill(.clear)
+
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 28, height: 28)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(
+                    isSearchIconHovering
+                    ? (colorScheme == .dark
+                       ? Color.white.opacity(0.08)
+                       : Color.black.opacity(0.06))
+                    : Color.clear
+                )
+        )
+        .animation(.easeOut(duration: 0.12), value: isSearchIconHovering)
+        .onHover { hovering in
+            isSearchIconHovering = hovering
         }
     }
 
@@ -321,22 +342,13 @@ struct WorkspaceList: View {
     }
 
     private func handleSearchButtonTap() {
-        if isSearchVisible {
-            if searchText.isEmpty {
-                withAnimation(searchToggleAnimation) {
-                    isSearchVisible = false
-                }
-                isSearchFocused = false
-            } else {
-                searchText = ""
-                focusSearchField()
+        if !isSearchVisible {
+            withAnimation(searchToggleAnimation) {
+                isSearchVisible = true
             }
-            return
         }
 
-        withAnimation(searchToggleAnimation) {
-            isSearchVisible = true
-        }
+        focusSearchField()
     }
 
     private func handleSearchShortcut() {
@@ -351,14 +363,22 @@ struct WorkspaceList: View {
 
     private func handleSearchExitCommand() {
         if searchText.isEmpty {
-            withAnimation(searchToggleAnimation) {
-                isSearchVisible = false
-            }
-            isSearchFocused = false
+            collapseSearchField(clearSearchText: false)
             return
         }
 
         searchText = ""
+    }
+
+    private func collapseSearchField(clearSearchText: Bool = true) {
+        if clearSearchText {
+            searchText = ""
+        }
+
+        withAnimation(searchToggleAnimation) {
+            isSearchVisible = false
+        }
+        isSearchFocused = false
     }
 
     private func focusSearchField() {
@@ -379,18 +399,11 @@ struct WorkspaceList: View {
     }
 
     private func sortLabel(for field: WorkspaceSortField) -> String {
-        if selectedSortField == field {
-            return "\(field.title) \(sortDirection.symbol)"
-        }
-
         return field.title
     }
 
     private var sortIconName: String {
-        switch sortDirection {
-        case .ascending: "arrow.up"
-        case .descending: "arrow.down"
-        }
+        "arrow.up.arrow.down"
     }
 
     private func shouldPlaceBefore(_ lhs: WorkspaceItem, _ rhs: WorkspaceItem) -> Bool {
