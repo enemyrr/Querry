@@ -11,7 +11,6 @@ struct AgentPanelView: View {
             chatInput
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
     }
 
     private var header: some View {

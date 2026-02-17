@@ -8,7 +8,8 @@ final class NotebookViewController: NSViewController {
     private let modelContainer: ModelContainer
     private let dataController: NotebookDataController
 
-    private var splitViewController: NSSplitViewController!
+    private var splitViewController: SidebarSplitViewController?
+    private var keyMonitor: Any?
 
     init(notebookId: UUID, modelContainer: ModelContainer) {
         self.notebookId = notebookId
@@ -30,37 +31,44 @@ final class NotebookViewController: NSViewController {
         self.view = root
 
         dataController.load()
-        setupSplitView()
+        setupContent()
     }
 
-    private func setupSplitView() {
-        let leftVC = NotebookDataBrowserController(dataController: dataController)
-        let centerVC = NotebookContentController(dataController: dataController)
-        let rightVC = NotebookAgentController()
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self,
+                  self.view.window == event.window else { return event }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags == .command && event.charactersIgnoringModifiers == "e" {
+                self.dataController.isRightSidebarVisible.toggle()
+                return nil
+            }
+            return event
+        }
+    }
 
-        let leftItem = NSSplitViewItem(viewController: leftVC)
-        leftItem.canCollapse = true
-        leftItem.minimumThickness = 240
-        leftItem.preferredThicknessFraction = 0.2
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
+    }
 
-        let centerItem = NSSplitViewItem(viewController: centerVC)
-        centerItem.minimumThickness = 400
+    private func setupContent() {
+        let sidebarVC = NotebookDataBrowserController(dataController: dataController)
+        let contentVC = NotebookContentController(dataController: dataController)
 
-        let rightItem = NSSplitViewItem(viewController: rightVC)
-        rightItem.canCollapse = true
-        rightItem.minimumThickness = 280
-        rightItem.preferredThicknessFraction = 0.22
+        let splitVC = SidebarSplitViewController(
+            sidebarController: sidebarVC,
+            contentController: contentVC,
+            configuration: .init(minWidth: 240, autosaveName: "NotebookSidebarSplit", startsCollapsed: true)
+        )
+        self.splitViewController = splitVC
 
-        splitViewController = NSSplitViewController()
-        splitViewController.splitViewItems = [leftItem, centerItem, rightItem]
-
-        let splitView = splitViewController.splitView
-        splitView.isVertical = true
-        splitView.dividerStyle = .thin
-        splitView.autosaveName = "NotebookSplitView"
-
-        addChild(splitViewController)
-        let sv = splitViewController.view
+        addChild(splitVC)
+        let sv = splitVC.view
         sv.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(sv)
 

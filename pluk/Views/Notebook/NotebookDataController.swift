@@ -10,6 +10,7 @@ final class NotebookDataController {
 
     private(set) var notebook: Notebook?
     private(set) var connections: [Connection] = []
+    var isRightSidebarVisible = false
 
     var title: String {
         get { notebook?.title ?? "Untitled Notebook" }

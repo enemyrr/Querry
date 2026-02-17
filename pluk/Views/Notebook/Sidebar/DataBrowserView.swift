@@ -22,8 +22,8 @@ struct DataBrowserView: View {
             Spacer()
             addConnectionButton
         }
+        .padding(.top, 50)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
     }
 
     private var header: some View {

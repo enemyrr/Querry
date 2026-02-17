@@ -108,6 +108,7 @@ final class SidebarSplitViewController: NSSplitViewController {
     struct Configuration {
         var minWidth: CGFloat = 330
         var autosaveName: String? = "PlukSidebarSplitView"
+        var startsCollapsed: Bool = false
     }
 
     private var sidebarItem: NSSplitViewItem!
@@ -174,8 +175,9 @@ final class SidebarSplitViewController: NSSplitViewController {
             object: splitView
         )
 
-        // Force sidebar to be expanded on launch (don't restore collapsed state)
-        if sidebarItem.isCollapsed {
+        if configuration.startsCollapsed {
+            sidebarItem.isCollapsed = true
+        } else if sidebarItem.isCollapsed {
             sidebarItem.isCollapsed = false
         }
     }

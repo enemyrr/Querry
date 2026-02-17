@@ -217,12 +217,17 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     // MARK: - Toolbar
 
     private var toolbarIdentifiers: [NSToolbarItem.Identifier] {
-        guard case .connection = tabType else { return [] }
-
-        if connectionInstance?.connection.databaseType == .convex {
-            return [.collapseSidebarItem, .environmentMenuItem]
+        switch tabType {
+        case .connection:
+            if connectionInstance?.connection.databaseType == .convex {
+                return [.collapseSidebarItem, .environmentMenuItem]
+            }
+            return [.collapseSidebarItem]
+        case .notebook:
+            return [.collapseSidebarItem]
+        case .home:
+            return []
         }
-        return [.collapseSidebarItem]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
