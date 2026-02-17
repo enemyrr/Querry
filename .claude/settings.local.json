@@ -17,7 +17,8 @@
       "Bash(sqlite3 \"/Users/fauzaan/Library/Containers/doc.pluk/Data/Library/Application Support/default.store\" \"SELECT ZNAME, datetime(ZLASTOPENEDAT + 978307200, ''unixepoch'') as last_opened FROM ZCONNECTION ORDER BY ZLASTOPENEDAT DESC LIMIT 5;\")",
       "Bash(git add:*)",
       "Bash(find:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:learn.hex.tech)"
     ],
     "deny": [],
     "ask": [],

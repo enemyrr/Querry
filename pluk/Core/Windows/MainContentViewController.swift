@@ -261,15 +261,10 @@ final class MainContentViewController: NSViewController {
             return docVC
 
         case .notebook(let notebookId):
-            let stubView = NotebookEditorStubView(notebookId: notebookId)
-                .padding(.top, 50)
-                .environment(appViewModel)
-                .environment(sidebarViewModel)
-                .environment(tabManager)
-                .modelContainer(modelContainer)
-            let host = NSHostingController(rootView: AnyView(stubView))
-            host.safeAreaRegions = []
-            return host
+            return NotebookViewController(
+                notebookId: notebookId,
+                modelContainer: modelContainer
+            )
         }
     }
 }
