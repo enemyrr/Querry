@@ -2,18 +2,27 @@ import SwiftUI
 
 struct AgentPanelView: View {
     var dataController: NotebookDataController
+    @State private var message = ""
+    @FocusState private var isInputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            AgentHeader(dataController: dataController)
             Spacer()
-            emptyState
-            chatInput
+            AgentEmptyState(message: $message)
+            AgentChatInput(message: $message, isInputFocused: $isInputFocused)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            isInputFocused = true
+        }
     }
+}
 
-    private var header: some View {
+private struct AgentHeader: View {
+    var dataController: NotebookDataController
+
+    var body: some View {
         HStack(spacing: 0) {
             AgentHeaderTextButton(label: "New AI Chat") {
             }
@@ -33,8 +42,12 @@ struct AgentPanelView: View {
         .padding(.top, 12)
         .padding(.bottom, 10)
     }
+}
 
-    private var emptyState: some View {
+private struct AgentEmptyState: View {
+    @Binding var message: String
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             AgentSuggestionRow(icon: "chart.bar.xaxis", label: "Build a chart") {
                 message = "Build a chart"
@@ -50,22 +63,31 @@ struct AgentPanelView: View {
         .padding(.horizontal, 10)
         .padding(.bottom, 10)
     }
+}
 
-    @State private var message = ""
-    @FocusState private var isInputFocused: Bool
+private struct AgentChatInput: View {
+    @Binding var message: String
+    var isInputFocused: FocusState<Bool>.Binding
 
-    private var chatInput: some View {
-        VStack(spacing: 6) {
-            HStack {
-                TextField("Ask data question...", text: $message)
-                    .textFieldStyle(.plain)
+    var body: some View {
+        VStack(spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                if message.isEmpty {
+                    Text("Ask data question...")
+                        .font(.title3)
+                        .foregroundStyle(.placeholder)
+                        .padding(.leading, 8)
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $message)
                     .font(.title3)
-                    .focused($isInputFocused)
-                    .onSubmit {
-                    }
-                    .padding(.leading, 8)
+                    .scrollContentBackground(.hidden)
+                    .focused(isInputFocused)
+                    .padding(.leading, 4)
+                    .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 160)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
 
             HStack(alignment: .bottom, spacing: 8) {
                 Spacer()
@@ -83,7 +105,7 @@ struct AgentPanelView: View {
         .padding(.top, 10)
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .circular)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(.background)
                 .strokeBorder(.separator.opacity(0.5), lineWidth: 1)
                 .shadow(color: .black.opacity(0.03), radius: 1, y: 1)
@@ -147,8 +169,7 @@ private struct AgentSuggestionRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 8)
+            .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(

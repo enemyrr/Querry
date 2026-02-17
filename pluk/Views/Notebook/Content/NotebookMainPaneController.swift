@@ -71,6 +71,11 @@ final class NotebookMainPaneController: NSViewController {
         mainContentView.layer?.cornerRadius = radius
     }
 
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        view.window?.makeFirstResponder(nil)
+    }
+
     // MARK: - Setup
 
     private func addHostingView<V: View>(_ rootView: V) -> NSHostingView<AnyView> {
