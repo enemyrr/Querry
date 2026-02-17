@@ -24,7 +24,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
         inspectorItem = NSSplitViewItem(viewController: inspectorController)
         inspectorItem.canCollapse = true
         inspectorItem.isCollapsed = true
-        inspectorItem.minimumThickness = 250
+        inspectorItem.minimumThickness = 350
         inspectorItem.maximumThickness = 450
         inspectorItem.holdingPriority = .defaultLow + 1
 
@@ -131,12 +131,9 @@ final class NotebookInnerSplitController: NSSplitViewController {
     }
 
     private func syncCollapseState() {
-        let shouldBeVisible = dataController.isRightSidebarVisible
-        let isCurrentlyCollapsed = inspectorItem.isCollapsed
-
-        if shouldBeVisible && isCurrentlyCollapsed {
+        if dataController.isRightSidebarVisible {
             expand()
-        } else if !shouldBeVisible && !isCurrentlyCollapsed {
+        } else {
             collapse()
         }
     }

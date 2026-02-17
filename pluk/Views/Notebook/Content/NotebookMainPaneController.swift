@@ -73,28 +73,26 @@ final class NotebookMainPaneController: NSViewController {
 
     // MARK: - Setup
 
-    private func setupHeader() {
-        let headerView = NotebookHeaderView(dataController: dataController)
-        let hosting = NSHostingView(rootView: AnyView(headerView))
+    private func addHostingView<V: View>(_ rootView: V) -> NSHostingView<AnyView> {
+        let hosting = NSHostingView(rootView: AnyView(rootView))
         hosting.translatesAutoresizingMaskIntoConstraints = false
         mainContentView.addSubview(hosting)
-        headerHostingView = hosting
+        return hosting
+    }
+
+    private func setupHeader() {
+        headerHostingView = addHostingView(NotebookHeaderView(dataController: dataController))
+        headerHostingView?.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
     private func setupToolbar() {
-        let toolbarView = NotebookToolbar(dataController: dataController)
-        let hosting = NSHostingView(rootView: AnyView(toolbarView))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        mainContentView.addSubview(hosting)
-        toolbarHostingView = hosting
+        toolbarHostingView = addHostingView(NotebookToolbar(dataController: dataController))
+        toolbarHostingView?.setContentCompressionResistancePriority(.required, for: .horizontal)
+        toolbarHostingView?.setContentHuggingPriority(.required, for: .horizontal)
     }
 
     private func setupEmptyState() {
-        let emptyView = NotebookEmptyStateView(dataController: dataController)
-        let hosting = NSHostingView(rootView: AnyView(emptyView))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        mainContentView.addSubview(hosting)
-        emptyStateHostingView = hosting
+        emptyStateHostingView = addHostingView(NotebookEmptyStateView(dataController: dataController))
     }
 
     private func setupConstraints() {

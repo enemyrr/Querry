@@ -1,19 +1,14 @@
 import AppKit
 import SwiftData
-import SwiftUI
 
 final class NotebookViewController: NSViewController {
 
-    private let notebookId: UUID
-    private let modelContainer: ModelContainer
     private let dataController: NotebookDataController
 
     private var splitViewController: SidebarSplitViewController?
     private var keyMonitor: Any?
 
     init(notebookId: UUID, modelContainer: ModelContainer) {
-        self.notebookId = notebookId
-        self.modelContainer = modelContainer
         self.dataController = NotebookDataController(
             notebookId: notebookId,
             modelContainer: modelContainer
@@ -68,15 +63,15 @@ final class NotebookViewController: NSViewController {
         self.splitViewController = splitVC
 
         addChild(splitVC)
-        let sv = splitVC.view
-        sv.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(sv)
+        let splitView = splitVC.view
+        splitView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(splitView)
 
         NSLayoutConstraint.activate([
-            sv.topAnchor.constraint(equalTo: view.topAnchor),
-            sv.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            sv.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            sv.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            splitView.topAnchor.constraint(equalTo: view.topAnchor),
+            splitView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }
 }

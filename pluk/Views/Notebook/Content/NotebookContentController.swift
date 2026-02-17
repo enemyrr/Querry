@@ -1,5 +1,4 @@
 import AppKit
-import Observation
 import SwiftUI
 
 final class NotebookContentController: NSViewController {
@@ -15,6 +14,10 @@ final class NotebookContentController: NSViewController {
     private var containerTrailingConstraint: NSLayoutConstraint?
     private var containerBottomConstraint: NSLayoutConstraint?
     private var isLeftSidebarVisible = false
+
+    private var topInset: CGFloat {
+        if #available(macOS 26, *) { 52 } else { 50 }
+    }
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -57,7 +60,7 @@ final class NotebookContentController: NSViewController {
 
     private func setupInnerSplit() {
         let mainPane = NotebookMainPaneController(dataController: dataController)
-        let agentPane = NotebookAgentController()
+        let agentPane = NotebookAgentController(dataController: dataController)
 
         let innerSplit = NotebookInnerSplitController(
             contentController: mainPane,
@@ -67,11 +70,7 @@ final class NotebookContentController: NSViewController {
 
         innerSplit.onCollapseStateChanged = { [weak self] isCollapsing in
             guard let self else { return }
-            let willBeVisible = !isCollapsing
-            let anySidebarOpen = isLeftSidebarVisible || willBeVisible
-            let radius: CGFloat = anySidebarOpen ? 10 : 16
-            mainPaneController?.updateCornerRadius(radius, animated: true)
-            animateContainerInsets(anySidebarOpen: anySidebarOpen)
+            updateLayoutForSidebarState(isRightSidebarOpen: !isCollapsing)
         }
 
         self.innerSplitController = innerSplit
@@ -91,11 +90,9 @@ final class NotebookContentController: NSViewController {
     }
 
     private func setupConstraints() {
-        let topInset: CGFloat = if #available(macOS 26, *) { 52 } else { 50 }
-
         let top = contentContainer.topAnchor.constraint(equalTo: view.topAnchor, constant: topInset - 10)
         let leading = contentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -4)
-        let trailing = contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: 0)
+        let trailing = contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         let bottom = contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2)
         containerTopConstraint = top
         containerLeadingConstraint = leading
@@ -113,16 +110,19 @@ final class NotebookContentController: NSViewController {
         isLeftSidebarVisible = !isCollapsing
 
         let isRightOpen = !(innerSplitController?.isInspectorCollapsed ?? true)
-        let anySidebarOpen = isLeftSidebarVisible || isRightOpen
+        updateLayoutForSidebarState(isRightSidebarOpen: isRightOpen)
+    }
+
+    // MARK: - Layout Updates
+
+    private func updateLayoutForSidebarState(isRightSidebarOpen: Bool) {
+        let anySidebarOpen = isLeftSidebarVisible || isRightSidebarOpen
         let radius: CGFloat = anySidebarOpen ? 10 : 16
         mainPaneController?.updateCornerRadius(radius, animated: true)
         animateContainerInsets(anySidebarOpen: anySidebarOpen)
     }
 
-    // MARK: - Inset Animation
-
     private func animateContainerInsets(anySidebarOpen: Bool) {
-        let topInset: CGFloat = if #available(macOS 26, *) { 52 } else { 50 }
         let topValue: CGFloat = anySidebarOpen ? topInset - 4 : topInset - 10
         let leadingValue: CGFloat = anySidebarOpen ? 2 : -4
         let trailingValue: CGFloat = anySidebarOpen ? -8 : -2
