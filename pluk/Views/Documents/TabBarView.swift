@@ -839,8 +839,8 @@ final class TabButtonView: NSView {
         hoverBackgroundLayer.cornerRadius = 8
         hoverBackgroundLayer.opacity = 0
         hoverBackgroundLayer.shadowColor = NSColor.black.cgColor
-        hoverBackgroundLayer.shadowOpacity = 0.08
-        hoverBackgroundLayer.shadowRadius = 3
+        hoverBackgroundLayer.shadowOpacity = 0.04
+        hoverBackgroundLayer.shadowRadius = 2
         hoverBackgroundLayer.shadowOffset = .zero
         layer?.addSublayer(hoverBackgroundLayer)
 
@@ -924,7 +924,7 @@ final class TabButtonView: NSView {
                 } else {
                     tabShapeLayer.shadowColor = NSColor(white: 0, alpha: 1).cgColor
                     tabShapeLayer.shadowOpacity = 0.05
-                    tabShapeLayer.shadowRadius = 4
+                    tabShapeLayer.shadowRadius = 2
                     tabShapeLayer.shadowOffset = .zero
                 }
             } else {
