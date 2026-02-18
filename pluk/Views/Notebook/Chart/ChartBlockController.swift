@@ -54,7 +54,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
         let text = viewModel.block.title.isEmpty ? "Untitled Chart" : viewModel.block.title
         titleLabel = NSTextField(string: text)
         titleLabel.placeholderString = "Untitled Chart"
-        titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: 11, weight: .medium)
         titleLabel.textColor = .tertiaryLabelColor
         titleLabel.backgroundColor = .clear
         titleLabel.isBordered = false
