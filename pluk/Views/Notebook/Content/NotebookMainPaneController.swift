@@ -6,9 +6,10 @@ final class NotebookMainPaneController: NSViewController {
     private let dataController: NotebookDataController
 
     private var mainContentView: NSView!
-    private var headerHostingView: NSHostingView<AnyView>?
+    private var headerController: NotebookHeaderViewController?
     private var toolbarHostingView: NSHostingView<AnyView>?
     private var emptyStateHostingView: NSHostingView<AnyView>?
+    private var blocksController: NotebookBlocksController?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -56,7 +57,10 @@ final class NotebookMainPaneController: NSViewController {
         setupHeader()
         setupToolbar()
         setupEmptyState()
+        setupBlocksView()
         setupConstraints()
+        updateBlocksVisibility()
+        observeBlocksState()
     }
 
     func updateCornerRadius(_ radius: CGFloat, animated: Bool) {
@@ -86,8 +90,11 @@ final class NotebookMainPaneController: NSViewController {
     }
 
     private func setupHeader() {
-        headerHostingView = addHostingView(NotebookHeaderView(dataController: dataController))
-        headerHostingView?.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let headerVC = NotebookHeaderViewController(dataController: dataController)
+        addChild(headerVC)
+        headerVC.view.translatesAutoresizingMaskIntoConstraints = false
+        mainContentView.addSubview(headerVC.view)
+        headerController = headerVC
     }
 
     private func setupToolbar() {
@@ -100,10 +107,19 @@ final class NotebookMainPaneController: NSViewController {
         emptyStateHostingView = addHostingView(NotebookEmptyStateView(dataController: dataController))
     }
 
+    private func setupBlocksView() {
+        let blocksVC = NotebookBlocksController(dataController: dataController)
+        addChild(blocksVC)
+        blocksVC.view.translatesAutoresizingMaskIntoConstraints = false
+        mainContentView.addSubview(blocksVC.view)
+        blocksController = blocksVC
+    }
+
     private func setupConstraints() {
-        guard let header = headerHostingView,
+        guard let header = headerController?.view,
               let toolbar = toolbarHostingView,
-              let emptyState = emptyStateHostingView else { return }
+              let emptyState = emptyStateHostingView,
+              let blocks = blocksController?.view else { return }
 
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: mainContentView.topAnchor),
@@ -117,7 +133,32 @@ final class NotebookMainPaneController: NSViewController {
             emptyState.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
             emptyState.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
             emptyState.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
+
+            blocks.topAnchor.constraint(equalTo: header.bottomAnchor),
+            blocks.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
+            blocks.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
+            blocks.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
         ])
+    }
+
+    // MARK: - Block State Management
+
+    private func updateBlocksVisibility() {
+        let hasBlocks = dataController.hasBlocks
+        emptyStateHostingView?.isHidden = hasBlocks
+        blocksController?.view.isHidden = !hasBlocks
+    }
+
+    private func observeBlocksState() {
+        withObservationTracking {
+            _ = self.dataController.hasBlocks
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateBlocksVisibility()
+                self.observeBlocksState()
+            }
+        }
     }
 
     // MARK: - Appearance

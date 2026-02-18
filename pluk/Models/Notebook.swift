@@ -13,14 +13,18 @@ enum NotebookStatus: String, Codable, CaseIterable {
     case endorsed = "Endorsed"
     case production = "Production"
 
-    var color: Color {
+    var nsColor: NSColor {
         switch self {
-        case .exploratory: Color(red: 0.58, green: 0.44, blue: 0.72)
-        case .inProgress: Color(red: 0.4, green: 0.56, blue: 0.75)
-        case .approved: Color(red: 0.42, green: 0.65, blue: 0.52)
-        case .endorsed: Color(red: 0.82, green: 0.6, blue: 0.4)
-        case .production: Color(red: 0.75, green: 0.42, blue: 0.42)
+        case .exploratory: NSColor(red: 0.58, green: 0.44, blue: 0.72, alpha: 1)
+        case .inProgress: NSColor(red: 0.4, green: 0.56, blue: 0.75, alpha: 1)
+        case .approved: NSColor(red: 0.42, green: 0.65, blue: 0.52, alpha: 1)
+        case .endorsed: NSColor(red: 0.82, green: 0.6, blue: 0.4, alpha: 1)
+        case .production: NSColor(red: 0.75, green: 0.42, blue: 0.42, alpha: 1)
         }
+    }
+
+    var color: Color {
+        Color(nsColor: nsColor)
     }
 }
 

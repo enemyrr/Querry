@@ -22,6 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Connection.self,
             QueryHistoryEntry.self,
             Notebook.self,
+            NotebookBlock.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

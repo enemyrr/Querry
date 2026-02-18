@@ -27,13 +27,11 @@ struct NotebookToolbar: View {
                 HStack(spacing: 4) {
                     Image(systemName: "bubble.fill")
                         .font(.system(size: 11))
-//                        .foregroundStyle(Color.accentColor)
                     Text("Chat").lineLimit(1)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .background(Color.primary.opacity(0.06))
-//                .foregroundStyle(.secondary)
                 .clipShape(.rect(cornerRadius: 6))
             }
             .buttonStyle(.plain)

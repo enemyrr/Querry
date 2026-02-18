@@ -1,0 +1,937 @@
+import AppKit
+import SwiftUI
+
+final class ChartBlockController: NSViewController, NSTextFieldDelegate {
+
+    let viewModel: ChartBlockViewModel
+    private let dataController: NotebookDataController
+
+    private var titleLabel: NSTextField!
+    private var blockContainer: NSView!
+    private var menuButton: NSButton!
+    private var resizeHandle: NSView!
+    private var blockHeightConstraint: NSLayoutConstraint!
+    private var configController: ChartConfigController?
+
+    init(block: NotebookBlock, dataController: NotebookDataController) {
+        self.dataController = dataController
+        self.viewModel = ChartBlockViewModel(block: block, dataController: dataController)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func loadView() {
+        let wrapper = NSView()
+        wrapper.wantsLayer = true
+        wrapper.translatesAutoresizingMaskIntoConstraints = false
+        self.view = wrapper
+
+        setupTitleLabel()
+        setupBlockContainer()
+        setupMenuButton()
+        setupResizeHandle()
+        setupWrapperConstraints()
+        setupConfigView()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppearanceChange),
+            name: .appAppearanceDidChange,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Layout
+
+    private func setupTitleLabel() {
+        let text = viewModel.block.title.isEmpty ? "Untitled Chart" : viewModel.block.title
+        titleLabel = NSTextField(string: text)
+        titleLabel.placeholderString = "Untitled Chart"
+        titleLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        titleLabel.textColor = .tertiaryLabelColor
+        titleLabel.backgroundColor = .clear
+        titleLabel.isBordered = false
+        titleLabel.isBezeled = false
+        titleLabel.focusRingType = .none
+        titleLabel.isEditable = true
+        titleLabel.delegate = self
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(titleLabel)
+    }
+
+    private func setupBlockContainer() {
+        blockContainer = NSView()
+        blockContainer.wantsLayer = true
+        blockContainer.layer?.cornerRadius = 10
+        blockContainer.layer?.borderWidth = 1
+        blockContainer.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(blockContainer)
+        updateBorderColor()
+    }
+
+    private func setupMenuButton() {
+        menuButton = NSButton(frame: .zero)
+        menuButton.image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Block menu")
+        menuButton.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        menuButton.bezelStyle = .accessoryBar
+        menuButton.isBordered = false
+        menuButton.imagePosition = .imageOnly
+        menuButton.contentTintColor = .tertiaryLabelColor
+        menuButton.translatesAutoresizingMaskIntoConstraints = false
+        menuButton.target = self
+        menuButton.action = #selector(showBlockMenu(_:))
+        view.addSubview(menuButton)
+    }
+
+    private func setupResizeHandle() {
+        resizeHandle = BlockResizeHandle(onDrag: { [weak self] delta in
+            self?.handleResize(delta: delta)
+        })
+        resizeHandle.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(resizeHandle)
+    }
+
+    private func handleResize(delta: CGFloat) {
+        let newHeight = max(280, blockHeightConstraint.constant + delta)
+        blockHeightConstraint.constant = newHeight
+        viewModel.block.blockHeight = newHeight
+        dataController.updateBlock(viewModel.block)
+    }
+
+    private func setupWrapperConstraints() {
+        let savedHeight = max(280, viewModel.block.blockHeight)
+        blockHeightConstraint = blockContainer.heightAnchor.constraint(equalToConstant: savedHeight)
+
+        NSLayoutConstraint.activate([
+            titleLabel.topAnchor.constraint(equalTo: view.topAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
+            titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
+
+            menuButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+            menuButton.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            menuButton.widthAnchor.constraint(equalToConstant: 24),
+            menuButton.heightAnchor.constraint(equalToConstant: 24),
+
+            blockContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+            blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            blockContainer.trailingAnchor.constraint(equalTo: menuButton.leadingAnchor, constant: -4),
+            blockHeightConstraint,
+
+            resizeHandle.topAnchor.constraint(equalTo: blockContainer.bottomAnchor),
+            resizeHandle.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
+            resizeHandle.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
+            resizeHandle.heightAnchor.constraint(equalToConstant: 12),
+            resizeHandle.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+
+    // MARK: - NSTextFieldDelegate
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField, field === titleLabel else { return }
+        viewModel.block.title = field.stringValue
+        dataController.updateBlock(viewModel.block)
+    }
+
+    // MARK: - Block Menu
+
+    @objc private func showBlockMenu(_ sender: NSButton) {
+        let block = viewModel.block
+        let dc = dataController
+        let dismiss = { [weak self] in self?.popover?.performClose(nil) }
+
+        let blockIndex = dc.blocks.firstIndex(where: { $0.id == block.id }) ?? 0
+        let isFirst = blockIndex == 0
+        let isLast = blockIndex == dc.blocks.count - 1
+
+        let popoverVC = BlockMenuPopoverController(
+            canMoveUp: !isFirst,
+            canMoveDown: !isLast,
+            onAddAbove: { dismiss(); dc.insertChartBlock(at: blockIndex) },
+            onAddBelow: { dismiss(); dc.insertChartBlock(at: blockIndex + 1) },
+            onMoveUp: { dismiss(); dc.moveBlockUp(block) },
+            onMoveDown: { dismiss(); dc.moveBlockDown(block) },
+            onDuplicate: { dismiss(); dc.duplicateBlock(block) },
+            onCopy: { [weak self] in dismiss(); self?.copyBlockConfig() },
+            onDelete: { dismiss(); dc.deleteBlock(block) }
+        )
+
+        let pop = NSPopover()
+        pop.contentViewController = popoverVC
+        pop.behavior = .transient
+        pop.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+        self.popover = pop
+    }
+
+    private var popover: NSPopover?
+
+    private func copyBlockConfig() {
+        let json = viewModel.block.configJSON
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(json, forType: .string)
+    }
+
+    // MARK: - Block Styling
+
+    private func updateBorderColor() {
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+            blockContainer.layer?.borderColor = isDark
+                ? NSColor.white.withAlphaComponent(0.1).cgColor
+                : NSColor.black.withAlphaComponent(0.08).cgColor
+        }
+    }
+
+    @objc private func handleAppearanceChange() {
+        updateBorderColor()
+    }
+
+    // MARK: - Content
+
+    private func setupConfigView() {
+        let configVC = ChartConfigController(viewModel: viewModel, connections: dataController.connections)
+        addChild(configVC)
+        configVC.view.translatesAutoresizingMaskIntoConstraints = false
+        blockContainer.addSubview(configVC.view)
+        configController = configVC
+
+        NSLayoutConstraint.activate([
+            configVC.view.topAnchor.constraint(equalTo: blockContainer.topAnchor),
+            configVC.view.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
+            configVC.view.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
+            configVC.view.bottomAnchor.constraint(equalTo: blockContainer.bottomAnchor),
+        ])
+    }
+
+    // MARK: - Cleanup
+
+    func cleanupSession() {
+        Task { await viewModel.cleanup() }
+    }
+}
+
+// MARK: - Source dropdown button
+
+final class SourceDropdownButton: NSView {
+
+    private let connections: [Connection]
+    private let onSelect: (Connection) -> Void
+    private let iconView: NSImageView
+    private let label: NSTextField
+    private let chevron: NSImageView
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+    var isEnabled = true
+
+    init(connections: [Connection], onSelect: @escaping (Connection) -> Void) {
+        self.connections = connections
+        self.onSelect = onSelect
+        self.iconView = NSImageView()
+        self.label = NSTextField(labelWithString: "Select connection")
+        self.chevron = NSImageView()
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        iconView.isHidden = true
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        let chevronImage = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
+        chevron.image = chevronImage
+        chevron.symbolConfiguration = .init(pointSize: 8, weight: .semibold)
+        chevron.contentTintColor = .secondaryLabelColor
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(chevron)
+
+        NSLayoutConstraint.activate([
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 14),
+            iconView.heightAnchor.constraint(equalToConstant: 14),
+
+            label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            chevron.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 4),
+            chevron.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -6),
+            chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 10),
+            chevron.heightAnchor.constraint(equalToConstant: 10),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func updateLabel(_ text: String, iconName: String? = nil) {
+        label.stringValue = text
+        label.textColor = .secondaryLabelColor
+        if let iconName {
+            let img = NSImage(named: iconName)
+            img?.size = NSSize(width: 14, height: 14)
+            iconView.image = img
+            iconView.isHidden = false
+        }
+    }
+
+    // MARK: - Tracking
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard isEnabled else { return }
+        isHovering = true
+        updateHoverBackground()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHoverBackground()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        if popover != nil {
+            popover?.performClose(nil)
+            popover = nil
+            return
+        }
+        showConnectionsPopover()
+    }
+
+    private var popover: NSPopover?
+
+    private func updateHoverBackground() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
+
+    // MARK: - Popover
+
+    private func showConnectionsPopover() {
+        let popoverVC = SourceConnectionsPopoverController(
+            connections: connections
+        ) { [weak self] connection in
+            self?.popover?.performClose(nil)
+            self?.popover = nil
+            self?.onSelect(connection)
+        }
+
+        let pop = NSPopover()
+        pop.contentViewController = popoverVC
+        pop.behavior = .transient
+        pop.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
+        self.popover = pop
+    }
+}
+
+// MARK: - Styled dropdown
+
+final class StyledDropdown: NSView {
+
+    private let placeholder: String
+    private let onSelect: (String) -> Void
+    private let menuVerticalOffset: CGFloat = 6
+    private let label: NSTextField
+    private let chevron: NSImageView
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+    private(set) var items: [String] = []
+    private(set) var selectedTitle: String?
+    var isEnabled = true {
+        didSet { alphaValue = isEnabled ? 1.0 : 0.5 }
+    }
+
+    init(placeholder: String, onSelect: @escaping (String) -> Void) {
+        self.placeholder = placeholder
+        self.onSelect = onSelect
+        self.label = NSTextField(labelWithString: placeholder)
+        self.chevron = NSImageView()
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.borderWidth = 1
+        updateBorderColor()
+
+        NotificationCenter.default.addObserver(self, selector: #selector(appearanceChanged), name: .appAppearanceDidChange, object: nil)
+
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.textColor = .tertiaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        chevron.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
+        chevron.symbolConfiguration = .init(pointSize: 8, weight: .semibold)
+        chevron.contentTintColor = .tertiaryLabelColor
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(chevron)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -4),
+
+            chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 10),
+            chevron.heightAnchor.constraint(equalToConstant: 10),
+
+            heightAnchor.constraint(equalToConstant: 24),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func appearanceChanged() {
+        updateBorderColor()
+    }
+
+    private func updateBorderColor() {
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+            layer?.borderColor = isDark
+                ? NSColor.white.withAlphaComponent(0.1).cgColor
+                : NSColor.black.withAlphaComponent(0.08).cgColor
+        }
+    }
+
+    func setItems(_ newItems: [String]) {
+        items = newItems
+        if let sel = selectedTitle, !newItems.contains(sel) {
+            selectedTitle = nil
+            label.stringValue = placeholder
+            label.textColor = .tertiaryLabelColor
+        }
+    }
+
+    func selectItem(_ title: String) {
+        selectedTitle = title
+        label.stringValue = title
+        label.textColor = .secondaryLabelColor
+    }
+
+    // MARK: - Tracking
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard isEnabled else { return }
+        isHovering = true
+        updateHover()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHover()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled, !items.isEmpty else { return }
+        showMenu()
+    }
+
+    private func updateHover() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
+
+    // MARK: - Menu
+
+    @objc private func menuItemSelected(_ sender: NSMenuItem) {
+        guard let title = sender.representedObject as? String else { return }
+        selectItem(title)
+        onSelect(title)
+    }
+
+    private func truncatedMenuTitle(_ title: String, maxWidth: CGFloat) -> String {
+        let font = NSFont.menuFont(ofSize: 0)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        if title.size(withAttributes: attributes).width <= maxWidth {
+            return title
+        }
+
+        let ellipsis = "…"
+        var lowerBound = 0
+        var upperBound = title.count
+        var bestFit = ellipsis
+
+        while lowerBound <= upperBound {
+            let mid = (lowerBound + upperBound) / 2
+            let prefix = String(title.prefix(mid))
+            let candidate = prefix + ellipsis
+            if candidate.size(withAttributes: attributes).width <= maxWidth {
+                bestFit = candidate
+                lowerBound = mid + 1
+            } else {
+                upperBound = mid - 1
+            }
+        }
+
+        return bestFit
+    }
+
+    private func showMenu() {
+        let menu = NSMenu()
+        menu.minimumWidth = bounds.width
+        let maxTitleWidth = max(80, bounds.width - 34)
+        for item in items {
+            let menuItem = NSMenuItem(
+                title: truncatedMenuTitle(item, maxWidth: maxTitleWidth),
+                action: #selector(menuItemSelected(_:)),
+                keyEquivalent: ""
+            )
+            menuItem.target = self
+            menuItem.representedObject = item
+            menuItem.toolTip = item
+            if item == selectedTitle {
+                menuItem.state = .on
+            }
+            menu.addItem(menuItem)
+        }
+        let baseY = bounds.maxY + 4
+        let adjustedY = isFlipped ? baseY + menuVerticalOffset : baseY - menuVerticalOffset
+        let point = NSPoint(x: 0, y: adjustedY)
+        menu.popUp(positioning: nil, at: point, in: self)
+    }
+}
+
+// MARK: - Source connections popover
+
+private final class SourceConnectionsPopoverController: NSViewController {
+
+    private let connections: [Connection]
+    private let onSelect: (Connection) -> Void
+
+    init(connections: [Connection], onSelect: @escaping (Connection) -> Void) {
+        self.connections = connections
+        self.onSelect = onSelect
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func loadView() {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.edgeInsets = NSEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+
+        for connection in connections {
+            let item = ConnectionMenuItem(connection: connection) { [weak self] in
+                self?.onSelect(connection)
+            }
+            item.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(item)
+            NSLayoutConstraint.activate([
+                item.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
+                item.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+            ])
+        }
+
+        stack.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        self.view = stack
+    }
+}
+
+// MARK: - Connection menu item with icon
+
+private final class ConnectionMenuItem: NSView {
+
+    private let action: () -> Void
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    init(connection: Connection, action: @escaping () -> Void) {
+        self.action = action
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        let iconView = NSImageView()
+        let icon = NSImage(named: connection.databaseType.icon)
+        icon?.size = NSSize(width: 16, height: 16)
+        iconView.image = icon
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+
+        let label = NSTextField(labelWithString: connection.name)
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .labelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
+
+            label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateHoverBackground()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHoverBackground()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        action()
+    }
+
+    private func updateHoverBackground() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
+}
+
+// MARK: - Block menu popover
+
+private final class BlockMenuPopoverController: NSViewController {
+
+    private let canMoveUp: Bool
+    private let canMoveDown: Bool
+    private let onAddAbove: () -> Void
+    private let onAddBelow: () -> Void
+    private let onMoveUp: () -> Void
+    private let onMoveDown: () -> Void
+    private let onDuplicate: () -> Void
+    private let onCopy: () -> Void
+    private let onDelete: () -> Void
+
+    init(
+        canMoveUp: Bool,
+        canMoveDown: Bool,
+        onAddAbove: @escaping () -> Void,
+        onAddBelow: @escaping () -> Void,
+        onMoveUp: @escaping () -> Void,
+        onMoveDown: @escaping () -> Void,
+        onDuplicate: @escaping () -> Void,
+        onCopy: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
+        self.onAddAbove = onAddAbove
+        self.onAddBelow = onAddBelow
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
+        self.onDuplicate = onDuplicate
+        self.onCopy = onCopy
+        self.onDelete = onDelete
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func loadView() {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.edgeInsets = NSEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+
+        addItem(to: stack, title: "Add Above", action: onAddAbove)
+        addItem(to: stack, title: "Add Below", action: onAddBelow)
+        addItem(to: stack, title: "Move Up", action: onMoveUp, enabled: canMoveUp)
+        addItem(to: stack, title: "Move Down", action: onMoveDown, enabled: canMoveDown)
+        addDivider(to: stack)
+        addItem(to: stack, title: "Duplicate", action: onDuplicate)
+        addItem(to: stack, title: "Copy Cell", action: onCopy)
+        addDivider(to: stack)
+        addItem(to: stack, title: "Delete Block", action: onDelete, tint: .systemRed)
+
+        stack.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        self.view = stack
+    }
+
+    private func addItem(to stack: NSStackView, title: String, action: @escaping () -> Void, enabled: Bool = true, tint: NSColor? = nil) {
+        let item = HoverableMenuItem(title: title, tintColor: tint, isEnabled: enabled, action: action)
+        item.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(item)
+        NSLayoutConstraint.activate([
+            item.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
+            item.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+        ])
+    }
+
+    private func addDivider(to stack: NSStackView) {
+        let wrapper = NSView()
+        wrapper.translatesAutoresizingMaskIntoConstraints = false
+
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(divider)
+
+        NSLayoutConstraint.activate([
+            divider.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 10),
+            divider.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -10),
+            divider.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor),
+            wrapper.heightAnchor.constraint(equalToConstant: 9),
+        ])
+
+        stack.addArrangedSubview(wrapper)
+        NSLayoutConstraint.activate([
+            wrapper.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
+            wrapper.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+        ])
+    }
+}
+
+// MARK: - Hoverable menu item
+
+private final class HoverableMenuItem: NSView {
+
+    private let action: () -> Void
+    private let isItemEnabled: Bool
+    private let label: NSTextField
+    private var isHovering = false
+    private var trackingArea: NSTrackingArea?
+
+    init(title: String, tintColor: NSColor?, isEnabled: Bool, action: @escaping () -> Void) {
+        self.action = action
+        self.isItemEnabled = isEnabled
+        self.label = NSTextField(labelWithString: title)
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = tintColor ?? .labelColor
+        label.alphaValue = isEnabled ? 1.0 : 0.3
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateHoverBackground()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHoverBackground()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isItemEnabled else { return }
+        action()
+    }
+
+    private func updateHoverBackground() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
+}
+
+// MARK: - Block resize handle
+
+private final class BlockResizeHandle: NSView {
+
+    private let onDrag: (CGFloat) -> Void
+    private var lastY: CGFloat = 0
+    private var isDragging = false
+    private let indicator = NSView()
+
+    init(onDrag: @escaping (CGFloat) -> Void) {
+        self.onDrag = onDrag
+        super.init(frame: .zero)
+
+        wantsLayer = true
+
+        indicator.wantsLayer = true
+        indicator.layer?.cornerRadius = 1.5
+        indicator.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        indicator.alphaValue = 0
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(indicator)
+
+        NSLayoutConstraint.activate([
+            indicator.centerXAnchor.constraint(equalTo: centerXAnchor),
+            indicator.centerYAnchor.constraint(equalTo: centerYAnchor),
+            indicator.widthAnchor.constraint(equalToConstant: 32),
+            indicator.heightAnchor.constraint(equalToConstant: 3),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .resizeUpDown)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            indicator.animator().alphaValue = 1
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard !isDragging else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            indicator.animator().alphaValue = 0
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        lastY = event.locationInWindow.y
+        isDragging = true
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let currentY = event.locationInWindow.y
+        let delta = lastY - currentY
+        lastY = currentY
+        onDrag(delta)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        isDragging = false
+        if !bounds.contains(convert(event.locationInWindow, from: nil)) {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                indicator.animator().alphaValue = 0
+            }
+        }
+    }
+}

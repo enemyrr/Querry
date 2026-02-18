@@ -10,7 +10,10 @@ final class NotebookDataController {
 
     private(set) var notebook: Notebook?
     private(set) var connections: [Connection] = []
+    private(set) var blocks: [NotebookBlock] = []
     var isRightSidebarVisible = false
+
+    var hasBlocks: Bool { !blocks.isEmpty }
 
     var title: String {
         get { notebook?.title ?? "Untitled Notebook" }
@@ -57,6 +60,73 @@ final class NotebookDataController {
             sortBy: [SortDescriptor(\.lastOpenedAt, order: .reverse)]
         )
         connections = (try? context.fetch(connectionDescriptor)) ?? []
+
+        let blockDescriptor = FetchDescriptor<NotebookBlock>(
+            predicate: #Predicate { $0.notebookId == id },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        blocks = (try? context.fetch(blockDescriptor)) ?? []
+    }
+
+    func addChartBlock() {
+        guard let notebook else { return }
+        let nextOrder = (blocks.map(\.sortOrder).max() ?? -1) + 1
+        let block = NotebookBlock(notebookId: notebook.id, blockType: .chart, sortOrder: nextOrder)
+        modelContainer.mainContext.insert(block)
+        blocks.append(block)
+        save()
+    }
+
+    func insertChartBlock(at index: Int) {
+        guard let notebook else { return }
+        let block = NotebookBlock(notebookId: notebook.id, blockType: .chart, sortOrder: index)
+        modelContainer.mainContext.insert(block)
+        blocks.insert(block, at: index)
+        reindexSortOrders()
+        save()
+    }
+
+    func deleteBlock(_ block: NotebookBlock) {
+        modelContainer.mainContext.delete(block)
+        blocks.removeAll { $0.id == block.id }
+        reindexSortOrders()
+        save()
+    }
+
+    func duplicateBlock(_ block: NotebookBlock) {
+        guard let index = blocks.firstIndex(where: { $0.id == block.id }) else { return }
+        guard let notebook else { return }
+        let newBlock = NotebookBlock(notebookId: notebook.id, blockType: block.blockType, sortOrder: index + 1)
+        newBlock.configJSON = block.configJSON
+        modelContainer.mainContext.insert(newBlock)
+        blocks.insert(newBlock, at: index + 1)
+        reindexSortOrders()
+        save()
+    }
+
+    func moveBlockUp(_ block: NotebookBlock) {
+        guard let index = blocks.firstIndex(where: { $0.id == block.id }), index > 0 else { return }
+        blocks.swapAt(index, index - 1)
+        reindexSortOrders()
+        save()
+    }
+
+    func moveBlockDown(_ block: NotebookBlock) {
+        guard let index = blocks.firstIndex(where: { $0.id == block.id }), index < blocks.count - 1 else { return }
+        blocks.swapAt(index, index + 1)
+        reindexSortOrders()
+        save()
+    }
+
+    func updateBlock(_ block: NotebookBlock) {
+        block.updatedAt = Date()
+        save()
+    }
+
+    private func reindexSortOrders() {
+        for (i, block) in blocks.enumerated() {
+            block.sortOrder = i
+        }
     }
 
     private func save() {

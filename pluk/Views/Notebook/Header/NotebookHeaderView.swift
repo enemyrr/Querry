@@ -1,109 +1,397 @@
-import SwiftUI
+import AppKit
 
-struct NotebookHeaderView: View {
-    @Bindable var dataController: NotebookDataController
+final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate {
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            StatusDropdown(dataController: dataController)
+    private let dataController: NotebookDataController
 
-            TextField("Untitled Notebook", text: $dataController.title)
-                .font(.largeTitle.weight(.bold))
-                .textFieldStyle(.plain)
+    private var statusButton: StatusDropdownButton!
+    private var titleField: NSTextField!
+    private var descriptionField: NSTextField!
 
-            TextField("Add a description...", text: $dataController.descriptionText)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .textFieldStyle(.plain)
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
-        .padding(.bottom, 8)
+    init(dataController: NotebookDataController) {
+        self.dataController = dataController
+        super.init(nibName: nil, bundle: nil)
     }
-}
 
-private struct StatusDropdown: View {
-    @Bindable var dataController: NotebookDataController
-    @State private var isPopoverVisible = false
-    @State private var isHovering = false
-    @Environment(\.colorScheme) private var colorScheme
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
 
-    var body: some View {
-        Button {
-            isPopoverVisible.toggle()
-        } label: {
-            HStack(spacing: 5) {
-                Circle()
-                    .strokeBorder(dataController.status.color, lineWidth: 1.5)
-                    .frame(width: 10, height: 10)
-                Text(dataController.status.rawValue)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isHovering ? subtleHoverFill(colorScheme) : .clear)
-            )
+    override func loadView() {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        self.view = container
+
+        setupStatusButton()
+        setupTitleField()
+        setupDescriptionField()
+        setupConstraints()
+        observeDataController()
+    }
+
+    // MARK: - Setup
+
+    private func setupStatusButton() {
+        statusButton = StatusDropdownButton(dataController: dataController)
+        statusButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(statusButton)
+    }
+
+    private func setupTitleField() {
+        titleField = NSTextField()
+        titleField.stringValue = dataController.title
+        titleField.placeholderString = "Untitled Notebook"
+        titleField.font = .systemFont(ofSize: 26, weight: .bold)
+        titleField.textColor = .labelColor
+        titleField.backgroundColor = .clear
+        titleField.isBordered = false
+        titleField.isBezeled = false
+        titleField.focusRingType = .none
+        titleField.isEditable = true
+        titleField.delegate = self
+        titleField.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(titleField)
+    }
+
+    private func setupDescriptionField() {
+        descriptionField = NSTextField()
+        descriptionField.stringValue = dataController.descriptionText
+        descriptionField.placeholderString = "Add a description..."
+        descriptionField.font = .systemFont(ofSize: 13)
+        descriptionField.textColor = .secondaryLabelColor
+        descriptionField.backgroundColor = .clear
+        descriptionField.isBordered = false
+        descriptionField.isBezeled = false
+        descriptionField.focusRingType = .none
+        descriptionField.isEditable = true
+        descriptionField.delegate = self
+        descriptionField.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(descriptionField)
+    }
+
+    private func setupConstraints() {
+        NSLayoutConstraint.activate([
+            statusButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            statusButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            statusButton.heightAnchor.constraint(equalToConstant: 22),
+
+            titleField.topAnchor.constraint(equalTo: statusButton.bottomAnchor, constant: 8),
+            titleField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            titleField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+
+            descriptionField.topAnchor.constraint(equalTo: titleField.bottomAnchor, constant: 4),
+            descriptionField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            descriptionField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            descriptionField.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
+        ])
+    }
+
+    // MARK: - NSTextFieldDelegate
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField else { return }
+        if field === titleField {
+            dataController.title = field.stringValue
+        } else if field === descriptionField {
+            dataController.descriptionText = field.stringValue
         }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .popover(isPresented: $isPopoverVisible, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(NotebookStatus.allCases, id: \.self) { status in
-                    StatusOptionRow(
-                        status: status,
-                        isSelected: dataController.status == status
-                    ) {
-                        dataController.status = status
-                        isPopoverVisible = false
-                    }
+    }
+
+    // MARK: - Observation
+
+    private func observeDataController() {
+        observeTitle()
+        observeDescription()
+        observeStatus()
+    }
+
+    private func observeTitle() {
+        withObservationTracking {
+            _ = self.dataController.title
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.titleField.currentEditor() == nil {
+                    self.titleField.stringValue = self.dataController.title
                 }
+                self.observeTitle()
             }
-            .padding(6)
-            .frame(width: 180)
+        }
+    }
+
+    private func observeDescription() {
+        withObservationTracking {
+            _ = self.dataController.descriptionText
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.descriptionField.currentEditor() == nil {
+                    self.descriptionField.stringValue = self.dataController.descriptionText
+                }
+                self.observeDescription()
+            }
+        }
+    }
+
+    private func observeStatus() {
+        withObservationTracking {
+            _ = self.dataController.status
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.statusButton.updateStatus(self.dataController.status)
+                self.observeStatus()
+            }
         }
     }
 }
 
-private struct StatusOptionRow: View {
-    let status: NotebookStatus
-    let isSelected: Bool
-    let action: () -> Void
+// MARK: - Status dropdown button
 
-    @State private var isHovering = false
-    @Environment(\.colorScheme) private var colorScheme
+final class StatusDropdownButton: NSView {
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Circle()
-                    .strokeBorder(status.color, lineWidth: 1.5)
-                    .background(Circle().fill(isSelected ? status.color : .clear))
-                    .frame(width: 12, height: 12)
-                Text(status.rawValue)
-                    .font(.body)
-                    .foregroundStyle(isSelected ? .primary : .secondary)
-                Spacer()
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isHovering ? subtleHoverFill(colorScheme) : .clear)
+    private let dataController: NotebookDataController
+    private let dotView: NSView
+    private let label: NSTextField
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+    private var popover: NSPopover?
+
+    init(dataController: NotebookDataController) {
+        self.dataController = dataController
+        self.dotView = NSView()
+        self.label = NSTextField(labelWithString: dataController.status.rawValue)
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        dotView.wantsLayer = true
+        dotView.layer?.cornerRadius = 5
+        dotView.layer?.borderWidth = 1.5
+        dotView.layer?.borderColor = dataController.status.nsColor.cgColor
+        dotView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(dotView)
+
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            dotView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            dotView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            dotView.widthAnchor.constraint(equalToConstant: 10),
+            dotView.heightAnchor.constraint(equalToConstant: 10),
+
+            label.leadingAnchor.constraint(equalTo: dotView.trailingAnchor, constant: 5),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func updateStatus(_ status: NotebookStatus) {
+        label.stringValue = status.rawValue
+        dotView.layer?.borderColor = status.nsColor.cgColor
+    }
+
+    // MARK: - Tracking
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateHoverBackground()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHoverBackground()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if popover != nil {
+            popover?.performClose(nil)
+            popover = nil
+            return
+        }
+        showStatusPopover()
+    }
+
+    private func updateHoverBackground() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
+
+    // MARK: - Popover
+
+    private func showStatusPopover() {
+        let popoverVC = StatusPopoverController(
+            currentStatus: dataController.status
+        ) { [weak self] status in
+            guard let self else { return }
+            self.popover?.performClose(nil)
+            self.popover = nil
+            self.dataController.status = status
+        }
+
+        let pop = NSPopover()
+        pop.contentViewController = popoverVC
+        pop.behavior = .transient
+        pop.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
+        self.popover = pop
+    }
+}
+
+// MARK: - Status popover controller
+
+private final class StatusPopoverController: NSViewController {
+
+    private let currentStatus: NotebookStatus
+    private let onSelect: (NotebookStatus) -> Void
+
+    init(currentStatus: NotebookStatus, onSelect: @escaping (NotebookStatus) -> Void) {
+        self.currentStatus = currentStatus
+        self.onSelect = onSelect
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func loadView() {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.edgeInsets = NSEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
+
+        for status in NotebookStatus.allCases {
+            let item = StatusOptionItem(
+                status: status,
+                isSelected: status == currentStatus,
+                action: { [weak self] in self?.onSelect(status) }
             )
-            .contentShape(.rect)
+            item.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(item)
+            NSLayoutConstraint.activate([
+                item.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
+                item.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+            ])
         }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovering = hovering
-        }
+
+        stack.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        self.view = stack
     }
 }
 
-private func subtleHoverFill(_ colorScheme: ColorScheme) -> Color {
-    colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.04)
+// MARK: - Status option item
+
+private final class StatusOptionItem: NSView {
+
+    private let action: () -> Void
+    private let dotView: NSView
+    private let label: NSTextField
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    init(status: NotebookStatus, isSelected: Bool, action: @escaping () -> Void) {
+        self.action = action
+        self.dotView = NSView()
+        self.label = NSTextField(labelWithString: status.rawValue)
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        dotView.wantsLayer = true
+        dotView.layer?.cornerRadius = 6
+        dotView.layer?.borderWidth = 1.5
+        dotView.layer?.borderColor = status.nsColor.cgColor
+        if isSelected {
+            dotView.layer?.backgroundColor = status.nsColor.cgColor
+        }
+        dotView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(dotView)
+
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = isSelected ? .labelColor : .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            dotView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            dotView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            dotView.widthAnchor.constraint(equalToConstant: 12),
+            dotView.heightAnchor.constraint(equalToConstant: 12),
+
+            label.leadingAnchor.constraint(equalTo: dotView.trailingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateHoverBackground()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHoverBackground()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        action()
+    }
+
+    private func updateHoverBackground() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
 }

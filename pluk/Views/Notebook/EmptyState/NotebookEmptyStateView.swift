@@ -17,9 +17,9 @@ struct NotebookEmptyStateView: View {
                     .foregroundStyle(.secondary)
             }
 
-            connectionChips
+            ConnectionChips(connections: dataController.connections)
 
-            cellTypeToolbar
+            CellTypeToolbar(dataController: dataController)
 
             Spacer()
             Spacer()
@@ -27,8 +27,12 @@ struct NotebookEmptyStateView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
+}
 
-    private var connectionChips: some View {
+private struct ConnectionChips: View {
+    let connections: [Connection]
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Connect your data")
                 .font(.subheadline)
@@ -37,11 +41,11 @@ struct NotebookEmptyStateView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(dataController.connections, id: \.persistentModelID) { connection in
-                        connectionChip(connection)
+                    ForEach(connections, id: \.persistentModelID) { connection in
+                        ConnectionChip(connection: connection)
                     }
 
-                    if dataController.connections.isEmpty {
+                    if connections.isEmpty {
                         Text("No connections yet")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -53,8 +57,12 @@ struct NotebookEmptyStateView: View {
         }
         .frame(maxWidth: 480)
     }
+}
 
-    private func connectionChip(_ connection: Connection) -> some View {
+private struct ConnectionChip: View {
+    let connection: Connection
+
+    var body: some View {
         Button {
         } label: {
             HStack(spacing: 6) {
@@ -73,13 +81,27 @@ struct NotebookEmptyStateView: View {
         }
         .buttonStyle(.plain)
     }
+}
 
-    private var cellTypeToolbar: some View {
+private struct CellTypeToolbar: View {
+    let dataController: NotebookDataController
+
+    var body: some View {
         HStack(spacing: 8) {
             ForEach(NotebookCellType.allCases, id: \.self) { type in
                 CellTypeButton(type: type) {
+                    handleCellType(type)
                 }
             }
+        }
+    }
+
+    private func handleCellType(_ type: NotebookCellType) {
+        switch type {
+        case .chart:
+            dataController.addChartBlock()
+        default:
+            break
         }
     }
 }
