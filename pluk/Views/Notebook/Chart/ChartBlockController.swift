@@ -219,7 +219,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 
 // MARK: - Source dropdown button
 
-final class SourceDropdownButton: NSView {
+final class SourceDropdownButton: NSView, NSPopoverDelegate {
 
     private let connections: [Connection]
     private let onSelect: (Connection) -> Void
@@ -350,10 +350,15 @@ final class SourceDropdownButton: NSView {
         }
 
         let pop = NSPopover()
+        pop.delegate = self
         pop.contentViewController = popoverVC
         pop.behavior = .transient
         pop.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
         self.popover = pop
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        popover = nil
     }
 }
 

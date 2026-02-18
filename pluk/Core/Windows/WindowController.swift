@@ -442,10 +442,19 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
     private func openEnvironmentInNewTab(instance: ConnectionInstance, database: any DatabaseWrapper) {
         Task {
-            if let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(from: instance, databaseName: database.name) {
-                await MainActor.run {
-                    WindowController.switchToTab(.connection(instanceId))
-                }
+            guard let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(from: instance, databaseName: database.name) else { return }
+
+            let tabTitle = "\(instance.connection.name) – \(database.name)"
+            let appliedImmediately = await MainActor.run {
+                WindowController.switchToTab(.connection(instanceId))
+                return ConnectionService.shared.updateTabTitle(for: instanceId, title: tabTitle)
+            }
+
+            guard !appliedImmediately else { return }
+
+            try? await Task.sleep(for: .milliseconds(100))
+            await MainActor.run {
+                _ = ConnectionService.shared.updateTabTitle(for: instanceId, title: tabTitle)
             }
         }
     }
@@ -546,7 +555,16 @@ extension WindowController: NSWindowDelegate {
         }
 
         if case .notebook(let notebookId) = tabType {
-            SidebarItemRegistry.shared.removeNotebook(notebookId)
+            let hasOtherNotebookWindow = NSApp.windows.contains { candidate in
+                guard candidate != window,
+                      let controller = WindowController.getController(for: candidate),
+                      case .notebook(let candidateNotebookId) = controller.tabType else { return false }
+                return candidateNotebookId == notebookId
+            }
+
+            if !hasOtherNotebookWindow {
+                SidebarItemRegistry.shared.removeNotebook(notebookId)
+            }
         }
 
         WindowController.unregister(window)
@@ -630,4 +648,3 @@ struct ConnectionNotFoundView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-

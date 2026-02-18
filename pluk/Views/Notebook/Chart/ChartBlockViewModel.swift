@@ -166,6 +166,9 @@ final class ChartBlockViewModel {
         cfg.xAxisColumn = nil
         cfg.yAxisColumn = nil
         config = cfg
+        schemaResult = nil
+        chartData = []
+        chartError = nil
         isShowingTablePicker = false
         previewResult = nil
         persistConfig()

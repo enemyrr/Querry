@@ -131,23 +131,22 @@ class ConnectionService {
             newInstance.databaseService.connectedDatabase = targetDb
         }
 
-        // Set tab title immediately to show the environment being loaded
-        await updateTabTitle(for: newId, title: "\(newInstance.connection.name) – \(databaseName)")
-
         return newId
     }
     
     // MARK: - Tab Management
     
+    @discardableResult
     @MainActor
-    func updateTabTitle(for instanceId: UUID, title: String) {
-        for window in NSApp.windows where window.isVisible {
+    func updateTabTitle(for instanceId: UUID, title: String) -> Bool {
+        for window in NSApp.windows {
             guard let windowController = WindowController.getController(for: window),
                   case .connection(let windowInstanceId) = windowController.tabType,
                   windowInstanceId == instanceId else { continue }
             window.title = title
-            break
+            return true
         }
+        return false
     }
     
     func closeTab(for instanceId: UUID) async {

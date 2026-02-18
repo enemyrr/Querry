@@ -178,7 +178,7 @@ final class NotebookMainPaneController: NSViewController {
 
     private func makeShadow() -> NSShadow {
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.08)
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.04)
         shadow.shadowBlurRadius = 2
         shadow.shadowOffset = .zero
         return shadow

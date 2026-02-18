@@ -92,7 +92,7 @@ final class NotebookContentController: NSViewController {
     private func setupConstraints() {
         let top = contentContainer.topAnchor.constraint(equalTo: view.topAnchor, constant: topInset - 10)
         let leading = contentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -4)
-        let trailing = contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        let trailing = contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -2)
         let bottom = contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2)
         containerTopConstraint = top
         containerLeadingConstraint = leading

@@ -325,9 +325,9 @@ final class BackgroundPanelView: NSView {
     private func setupLayers() {
         guard let rootLayer = layer else { return }
 
-        shadowLayer.shadowColor = NSColor.black.withAlphaComponent(0.10).cgColor
+        shadowLayer.shadowColor = NSColor.black.withAlphaComponent(0.04).cgColor
         shadowLayer.shadowOpacity = 1.0
-        shadowLayer.shadowRadius = 4
+        shadowLayer.shadowRadius = 2
         shadowLayer.shadowOffset = .zero
         rootLayer.addSublayer(shadowLayer)
 
