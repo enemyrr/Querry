@@ -60,6 +60,17 @@ final class ChartBlockViewModel {
             if !cfg.databaseName.isEmpty {
                 try await session.switchDatabase(to: cfg.databaseName)
             }
+
+            if dbType != .mongodb {
+                let schemas = try await session.getInformationSchema()
+                availableSchemas = schemas
+                let schema = cfg.schemaName ?? schemas.first(where: { $0.name == "public" })?.name ?? schemas.first?.name
+                selectedPickerSchema = schema
+                availableCollections = try await session.listCollections(schema: schema)
+            } else {
+                availableCollections = try await session.listCollections(schema: nil)
+            }
+
             schemaResult = try await session.getSchema(tableName: cfg.tableName, schema: cfg.schemaName)
             if cfg.xAxisColumn != nil && cfg.yAxisColumn != nil {
                 await fetchChartData()
@@ -116,6 +127,17 @@ final class ChartBlockViewModel {
 
     func loadCollections(schema: String?) async {
         selectedPickerSchema = schema
+        schemaResult = nil
+        chartData = []
+        chartError = nil
+        if var cfg = config {
+            cfg.tableName = ""
+            cfg.schemaName = schema
+            cfg.xAxisColumn = nil
+            cfg.yAxisColumn = nil
+            config = cfg
+            persistConfig()
+        }
         do {
             availableCollections = try await session.listCollections(schema: schema)
         } catch {

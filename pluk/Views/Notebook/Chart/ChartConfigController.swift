@@ -19,8 +19,8 @@ final class ChartConfigController: NSViewController {
     private var tableDropdown: StyledDropdown!
     private var schemaDropdown: StyledDropdown!
     private var schemaLabel: NSTextField!
-    private var fieldsLabelTopToSchemaConstraint: NSLayoutConstraint?
-    private var fieldsLabelTopToTableConstraint: NSLayoutConstraint?
+    private var tableLabelTopToSchemaConstraint: NSLayoutConstraint?
+    private var tableLabelTopToConnectionConstraint: NSLayoutConstraint?
     private var collapseButton: HoverIconButton!
     private var expandButton: HoverIconButton!
     private var columnPanelContainer: NSView!
@@ -156,13 +156,13 @@ final class ChartConfigController: NSViewController {
             headerBar.trailingAnchor.constraint(equalTo: rightContainer.trailingAnchor),
 
             expandButton.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
-            expandButton.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 8),
-            expandButton.widthAnchor.constraint(equalToConstant: 22),
-            expandButton.heightAnchor.constraint(equalToConstant: 22),
+            expandButton.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 6),
+            expandButton.widthAnchor.constraint(equalToConstant: 24),
+            expandButton.heightAnchor.constraint(equalToConstant: 24),
 
             headerConnectionDropdown.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
             headerConnectionDropdown.leadingAnchor.constraint(equalTo: expandButton.trailingAnchor, constant: 4),
-            headerConnectionDropdown.heightAnchor.constraint(equalToConstant: 22),
+            headerConnectionDropdown.heightAnchor.constraint(equalToConstant: 24),
 
             headerSpinner.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
             headerSpinner.leadingAnchor.constraint(equalTo: headerConnectionDropdown.trailingAnchor, constant: 6),
@@ -219,7 +219,7 @@ final class ChartConfigController: NSViewController {
         container.addSubview(collapseButton)
 
         let tableLabel = NSTextField(labelWithString: "Table")
-        tableLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        tableLabel.font = .systemFont(ofSize: 11, weight: .medium)
         tableLabel.textColor = .tertiaryLabelColor
         tableLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(tableLabel)
@@ -233,7 +233,7 @@ final class ChartConfigController: NSViewController {
         rebuildTableDropdown()
 
         schemaLabel = NSTextField(labelWithString: "Schema")
-        schemaLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        schemaLabel.font = .systemFont(ofSize: 11, weight: .medium)
         schemaLabel.textColor = .tertiaryLabelColor
         schemaLabel.translatesAutoresizingMaskIntoConstraints = false
         schemaLabel.isHidden = true
@@ -247,7 +247,7 @@ final class ChartConfigController: NSViewController {
         container.addSubview(schemaDropdown)
 
         let fieldsLabel = NSTextField(labelWithString: "Fields")
-        fieldsLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        fieldsLabel.font = .systemFont(ofSize: 11, weight: .medium)
         fieldsLabel.textColor = .tertiaryLabelColor
         fieldsLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(fieldsLabel)
@@ -266,6 +266,7 @@ final class ChartConfigController: NSViewController {
         scrollView.documentView = fieldsDocumentView
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
+        scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: -10)
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(scrollView)
 
@@ -277,47 +278,47 @@ final class ChartConfigController: NSViewController {
             fieldsDocumentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
         ])
 
-        let fieldsTopToSchema = fieldsLabel.topAnchor.constraint(equalTo: schemaDropdown.bottomAnchor, constant: 10)
-        fieldsTopToSchema.isActive = false
-        fieldsLabelTopToSchemaConstraint = fieldsTopToSchema
+        let tableTopToSchema = tableLabel.topAnchor.constraint(equalTo: schemaDropdown.bottomAnchor, constant: 14)
+        tableTopToSchema.isActive = false
+        tableLabelTopToSchemaConstraint = tableTopToSchema
 
-        let fieldsTopToTable = fieldsLabel.topAnchor.constraint(equalTo: tableDropdown.bottomAnchor, constant: 10)
-        fieldsTopToTable.isActive = true
-        fieldsLabelTopToTableConstraint = fieldsTopToTable
+        let tableTopToConnection = tableLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14)
+        tableTopToConnection.isActive = true
+        tableLabelTopToConnectionConstraint = tableTopToConnection
 
         NSLayoutConstraint.activate([
             collapseButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
-            collapseButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
-            collapseButton.widthAnchor.constraint(equalToConstant: 22),
-            collapseButton.heightAnchor.constraint(equalToConstant: 22),
+            collapseButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
+            collapseButton.widthAnchor.constraint(equalToConstant: 24),
+            collapseButton.heightAnchor.constraint(equalToConstant: 24),
 
             connectionDropdown.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
-            connectionDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
+            connectionDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 6),
             connectionDropdown.heightAnchor.constraint(equalToConstant: 24),
 
             connectionSpinner.centerYAnchor.constraint(equalTo: connectionDropdown.centerYAnchor),
             connectionSpinner.leadingAnchor.constraint(equalTo: connectionDropdown.trailingAnchor, constant: 6),
 
-            tableLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14),
-            tableLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
-
-            tableDropdown.topAnchor.constraint(equalTo: tableLabel.bottomAnchor, constant: 4),
-            tableDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            tableDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
-
-            schemaLabel.topAnchor.constraint(equalTo: tableDropdown.bottomAnchor, constant: 14),
+            schemaLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14),
             schemaLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             schemaDropdown.topAnchor.constraint(equalTo: schemaLabel.bottomAnchor, constant: 4),
             schemaDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
             schemaDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
 
+            tableLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
+
+            tableDropdown.topAnchor.constraint(equalTo: tableLabel.bottomAnchor, constant: 4),
+            tableDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
+            tableDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
+
+            fieldsLabel.topAnchor.constraint(equalTo: tableDropdown.bottomAnchor, constant: 10),
             fieldsLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
-            scrollView.topAnchor.constraint(equalTo: fieldsLabel.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: fieldsLabel.bottomAnchor, constant: 4),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
-            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
         ])
 
         rebuildFieldsList()
@@ -360,11 +361,11 @@ final class ChartConfigController: NSViewController {
             if let selected = viewModel.selectedPickerSchema {
                 schemaDropdown.selectItem(selected)
             }
-            fieldsLabelTopToTableConstraint?.isActive = false
-            fieldsLabelTopToSchemaConstraint?.isActive = true
+            tableLabelTopToConnectionConstraint?.isActive = false
+            tableLabelTopToSchemaConstraint?.isActive = true
         } else {
-            fieldsLabelTopToSchemaConstraint?.isActive = false
-            fieldsLabelTopToTableConstraint?.isActive = true
+            tableLabelTopToSchemaConstraint?.isActive = false
+            tableLabelTopToConnectionConstraint?.isActive = true
         }
     }
 
@@ -378,7 +379,7 @@ final class ChartConfigController: NSViewController {
 
         // X-axis
         let xLabel = NSTextField(labelWithString: "X-axis")
-        xLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        xLabel.font = .systemFont(ofSize: 11, weight: .medium)
         xLabel.textColor = .tertiaryLabelColor
         xLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(xLabel)
@@ -391,7 +392,7 @@ final class ChartConfigController: NSViewController {
 
         // Y-axis
         let yLabel = NSTextField(labelWithString: "Y-axis")
-        yLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        yLabel.font = .systemFont(ofSize: 11, weight: .medium)
         yLabel.textColor = .tertiaryLabelColor
         yLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(yLabel)
@@ -403,7 +404,7 @@ final class ChartConfigController: NSViewController {
         container.addSubview(yAxisPopUp)
 
         NSLayoutConstraint.activate([
-            xLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
+            xLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
             xLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             xAxisPopUp.topAnchor.constraint(equalTo: xLabel.bottomAnchor, constant: 4),
@@ -594,7 +595,7 @@ final class ChartConfigController: NSViewController {
             NSLayoutConstraint.activate([
                 row.leadingAnchor.constraint(equalTo: fieldsStackView.leadingAnchor),
                 row.trailingAnchor.constraint(equalTo: fieldsStackView.trailingAnchor),
-                row.heightAnchor.constraint(equalToConstant: 26),
+                row.heightAnchor.constraint(equalToConstant: 30),
             ])
         }
     }
@@ -635,6 +636,8 @@ private final class FieldRowCell: NSTableCellView {
     private let nameLabel = NSTextField(labelWithString: "")
     private let typeLabel = NSTextField(labelWithString: "")
     private var trackingArea: NSTrackingArea?
+    private var boundsObserver: NSObjectProtocol?
+    private weak var observedClipView: NSClipView?
     private var isHovering = false
 
     override init(frame frameRect: NSRect) {
@@ -653,7 +656,7 @@ private final class FieldRowCell: NSTableCellView {
         addSubview(hoverBackground)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.symbolConfiguration = .init(pointSize: 11, weight: .regular)
+        iconView.symbolConfiguration = .init(pointSize: 12, weight: .regular)
         iconView.alphaValue = 0.7
         addSubview(iconView)
 
@@ -663,7 +666,7 @@ private final class FieldRowCell: NSTableCellView {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(nameLabel)
 
-        typeLabel.font = .systemFont(ofSize: 9)
+        typeLabel.font = .systemFont(ofSize: 11)
         typeLabel.textColor = .tertiaryLabelColor
         typeLabel.alignment = .right
         typeLabel.lineBreakMode = .byTruncatingTail
@@ -679,8 +682,8 @@ private final class FieldRowCell: NSTableCellView {
 
             iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 14),
-            iconView.heightAnchor.constraint(equalToConstant: 14),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
 
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
             nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -706,11 +709,12 @@ private final class FieldRowCell: NSTableCellView {
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
             rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
         trackingArea = area
+        syncHoverStateWithMouse()
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -720,6 +724,67 @@ private final class FieldRowCell: NSTableCellView {
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
+        updateHover()
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        updateBoundsObservation()
+        syncHoverStateWithMouse()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateBoundsObservation()
+        syncHoverStateWithMouse()
+        if window == nil {
+            isHovering = false
+            updateHover()
+        }
+    }
+
+    deinit {
+        removeBoundsObservation()
+    }
+
+    private func updateBoundsObservation() {
+        let clipView = enclosingScrollView?.contentView
+        guard observedClipView !== clipView else { return }
+        removeBoundsObservation()
+        guard let clipView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        boundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: nil
+        ) { [weak self] _ in
+            self?.syncHoverStateWithMouse()
+        }
+        observedClipView = clipView
+    }
+
+    private func removeBoundsObservation() {
+        if let boundsObserver {
+            NotificationCenter.default.removeObserver(boundsObserver)
+            self.boundsObserver = nil
+        }
+        observedClipView = nil
+    }
+
+    private func syncHoverStateWithMouse() {
+        guard let window else {
+            if isHovering {
+                isHovering = false
+                updateHover()
+            }
+            return
+        }
+
+        let mouseInWindow = window.mouseLocationOutsideOfEventStream
+        let mouseInView = convert(mouseInWindow, from: nil)
+        let shouldHover = bounds.contains(mouseInView)
+        guard shouldHover != isHovering else { return }
+        isHovering = shouldHover
         updateHover()
     }
 

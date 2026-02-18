@@ -10,20 +10,20 @@ struct BarChartView: View {
                 x: .value("X", point.x),
                 y: .value("Y", point.y)
             )
-            .foregroundStyle(Color.accentColor.gradient)
+            .foregroundStyle(Color.accentColor)
             .clipShape(.rect(cornerRadius: 3))
         }
         .chartXAxis {
             AxisMarks(values: .automatic) {
                 AxisValueLabel()
-                    .font(.caption2)
+                    .font(.caption)
             }
         }
         .chartYAxis {
             AxisMarks(position: .leading) {
                 AxisGridLine()
                 AxisValueLabel()
-                    .font(.caption2)
+                    .font(.caption)
             }
         }
     }

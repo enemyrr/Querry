@@ -54,7 +54,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
         let text = viewModel.block.title.isEmpty ? "Untitled Chart" : viewModel.block.title
         titleLabel = NSTextField(string: text)
         titleLabel.placeholderString = "Untitled Chart"
-        titleLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
         titleLabel.textColor = .tertiaryLabelColor
         titleLabel.backgroundColor = .clear
         titleLabel.isBordered = false
@@ -114,12 +114,12 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
             titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
 
-            menuButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+            menuButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor),
             menuButton.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             menuButton.widthAnchor.constraint(equalToConstant: 24),
             menuButton.heightAnchor.constraint(equalToConstant: 24),
 
-            blockContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+            blockContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
             blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             blockContainer.trailingAnchor.constraint(equalTo: menuButton.leadingAnchor, constant: -4),
             blockHeightConstraint,
@@ -245,7 +245,7 @@ final class SourceDropdownButton: NSView {
         iconView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(iconView)
 
-        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.font = .systemFont(ofSize: 12, weight: .medium)
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -253,7 +253,7 @@ final class SourceDropdownButton: NSView {
 
         let chevronImage = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
         chevron.image = chevronImage
-        chevron.symbolConfiguration = .init(pointSize: 8, weight: .semibold)
+        chevron.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
         chevron.contentTintColor = .secondaryLabelColor
         chevron.translatesAutoresizingMaskIntoConstraints = false
         addSubview(chevron)
@@ -261,8 +261,8 @@ final class SourceDropdownButton: NSView {
         NSLayoutConstraint.activate([
             iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 14),
-            iconView.heightAnchor.constraint(equalToConstant: 14),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
 
             label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -270,8 +270,8 @@ final class SourceDropdownButton: NSView {
             chevron.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 4),
             chevron.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -6),
             chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
-            chevron.widthAnchor.constraint(equalToConstant: 10),
-            chevron.heightAnchor.constraint(equalToConstant: 10),
+            chevron.widthAnchor.constraint(equalToConstant: 12),
+            chevron.heightAnchor.constraint(equalToConstant: 12),
         ])
     }
 
@@ -388,14 +388,14 @@ final class StyledDropdown: NSView {
 
         NotificationCenter.default.addObserver(self, selector: #selector(appearanceChanged), name: .appAppearanceDidChange, object: nil)
 
-        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.font = .systemFont(ofSize: 12, weight: .medium)
         label.textColor = .tertiaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
         chevron.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
-        chevron.symbolConfiguration = .init(pointSize: 8, weight: .semibold)
+        chevron.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
         chevron.contentTintColor = .tertiaryLabelColor
         chevron.translatesAutoresizingMaskIntoConstraints = false
         addSubview(chevron)
@@ -407,10 +407,10 @@ final class StyledDropdown: NSView {
 
             chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
-            chevron.widthAnchor.constraint(equalToConstant: 10),
-            chevron.heightAnchor.constraint(equalToConstant: 10),
+            chevron.widthAnchor.constraint(equalToConstant: 12),
+            chevron.heightAnchor.constraint(equalToConstant: 12),
 
-            heightAnchor.constraint(equalToConstant: 24),
+            heightAnchor.constraint(equalToConstant: 28),
         ])
     }
 
