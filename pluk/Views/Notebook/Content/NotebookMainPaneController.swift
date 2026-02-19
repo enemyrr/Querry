@@ -10,6 +10,8 @@ final class NotebookMainPaneController: NSViewController {
     private var toolbarHostingView: NSHostingView<AnyView>?
     private var emptyStateController: NotebookEmptyStateController?
     private var blocksController: NotebookBlocksController?
+    private var isHeaderCompact = false
+    private var didApplyInitialHeaderState = false
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -113,6 +115,9 @@ final class NotebookMainPaneController: NSViewController {
 
     private func setupBlocksView() {
         let blocksVC = NotebookBlocksController(dataController: dataController)
+        blocksVC.onScrollOffsetChanged = { [weak self] offset in
+            self?.handleBlocksScroll(offset)
+        }
         addChild(blocksVC)
         blocksVC.view.translatesAutoresizingMaskIntoConstraints = false
         mainContentView.addSubview(blocksVC.view)
@@ -151,6 +156,16 @@ final class NotebookMainPaneController: NSViewController {
         let hasBlocks = dataController.hasBlocks
         emptyStateController?.view.isHidden = hasBlocks
         blocksController?.view.isHidden = !hasBlocks
+
+        if !hasBlocks {
+            isHeaderCompact = false
+        }
+
+        headerController?.setCompactMode(
+            hasBlocks && isHeaderCompact,
+            animated: didApplyInitialHeaderState
+        )
+        didApplyInitialHeaderState = true
     }
 
     private func observeBlocksState() {
@@ -162,6 +177,23 @@ final class NotebookMainPaneController: NSViewController {
                 self.updateBlocksVisibility()
                 self.observeBlocksState()
             }
+        }
+    }
+
+    private func handleBlocksScroll(_ offset: CGFloat) {
+        guard dataController.hasBlocks else { return }
+
+        if isHeaderCompact {
+            if offset < 18 {
+                isHeaderCompact = false
+                headerController?.setCompactMode(false, animated: true)
+            }
+            return
+        }
+
+        if offset > 36 {
+            isHeaderCompact = true
+            headerController?.setCompactMode(true, animated: true)
         }
     }
 

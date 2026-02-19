@@ -106,9 +106,7 @@ private struct NotebookActionButton: View {
 
     var body: some View {
         Button {
-            if isEnabled {
-                action()
-            }
+            action()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: type.icon)

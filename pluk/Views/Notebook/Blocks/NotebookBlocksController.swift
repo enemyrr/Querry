@@ -8,10 +8,13 @@ final class NotebookBlocksController: NSViewController {
 
     private let dataController: NotebookDataController
 
+    var onScrollOffsetChanged: ((CGFloat) -> Void)?
+
     private var scrollView: NSScrollView!
     private var stackView: NSStackView!
     private var blockControllers: [UUID: ChartBlockController] = [:]
     private var actionBarView: NotebookActionBarView?
+    private var scrollBoundsObserver: NSObjectProtocol?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -20,6 +23,12 @@ final class NotebookBlocksController: NSViewController {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        if let scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(scrollBoundsObserver)
+        }
     }
 
     override func loadView() {
@@ -55,6 +64,16 @@ final class NotebookBlocksController: NSViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
 
+        let clipView = scrollView.contentView
+        clipView.postsBoundsChangedNotifications = true
+        scrollBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.notifyScrollOffsetChanged()
+        }
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -68,6 +87,8 @@ final class NotebookBlocksController: NSViewController {
 
             documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
         ])
+
+        notifyScrollOffsetChanged()
     }
 
     // MARK: - Block Management
@@ -138,6 +159,8 @@ final class NotebookBlocksController: NSViewController {
                 bar.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
             ])
         }
+
+        notifyScrollOffsetChanged()
     }
 
     // MARK: - Observation
@@ -152,6 +175,11 @@ final class NotebookBlocksController: NSViewController {
                 self.observeBlocks()
             }
         }
+    }
+
+    private func notifyScrollOffsetChanged() {
+        let offset = max(0, scrollView?.contentView.bounds.origin.y ?? 0)
+        onScrollOffsetChanged?(offset)
     }
 
 }

@@ -61,15 +61,7 @@ final class ChartBlockViewModel {
                 try await session.switchDatabase(to: cfg.databaseName)
             }
 
-            if dbType != .mongodb {
-                let schemas = try await session.getInformationSchema()
-                availableSchemas = schemas
-                let schema = cfg.schemaName ?? schemas.first(where: { $0.name == "public" })?.name ?? schemas.first?.name
-                selectedPickerSchema = schema
-                availableCollections = try await session.listCollections(schema: schema)
-            } else {
-                availableCollections = try await session.listCollections(schema: nil)
-            }
+            try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: cfg.schemaName)
 
             schemaResult = try await session.getSchema(tableName: cfg.tableName, schema: cfg.schemaName)
             if cfg.xAxisColumn != nil && cfg.yAxisColumn != nil {
@@ -105,15 +97,7 @@ final class ChartBlockViewModel {
                 try? await session.switchDatabase(to: defaultDb)
             }
 
-            if dbType != .mongodb {
-                let schemas = try await session.getInformationSchema()
-                availableSchemas = schemas
-                let defaultSchema = schemas.first(where: { $0.name == "public" })?.name ?? schemas.first?.name
-                selectedPickerSchema = defaultSchema
-                availableCollections = try await session.listCollections(schema: defaultSchema)
-            } else {
-                availableCollections = try await session.listCollections(schema: nil)
-            }
+            try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: nil)
 
             config = draft
 
@@ -122,6 +106,18 @@ final class ChartBlockViewModel {
             }
         } catch {
             connectionError = error.localizedDescription
+        }
+    }
+
+    private func loadSchemasAndCollections(databaseType: DatabaseType, preferredSchema: String?) async throws {
+        if databaseType != .mongodb {
+            let schemas = try await session.getInformationSchema()
+            availableSchemas = schemas
+            let schema = preferredSchema ?? schemas.first(where: { $0.name == "public" })?.name ?? schemas.first?.name
+            selectedPickerSchema = schema
+            availableCollections = try await session.listCollections(schema: schema)
+        } else {
+            availableCollections = try await session.listCollections(schema: nil)
         }
     }
 

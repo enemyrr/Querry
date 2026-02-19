@@ -132,12 +132,12 @@ private struct ChartFilterPopoverView: View {
     private func applyFilter() {
         guard canApply else { return }
         let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        var filter = existingFilter ?? ChartFilterCondition(field: selectedField, filterOperator: selectedOperator, value: trimmedValue)
-        if existingFilter != nil {
-            filter.field = selectedField
-            filter.filterOperator = selectedOperator
-            filter.value = trimmedValue
-        }
+        let filter = ChartFilterCondition(
+            id: existingFilter?.id ?? UUID(),
+            field: selectedField,
+            filterOperator: selectedOperator,
+            value: trimmedValue
+        )
         onApply(filter)
     }
 }

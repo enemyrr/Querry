@@ -930,14 +930,7 @@ private final class FilterChipView: NSView {
     }
 
     private func updateHover() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 }
 
@@ -1075,14 +1068,7 @@ private final class FilterPillView: NSView {
     }
 
     private func updateHover() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 }
 
@@ -1248,14 +1234,7 @@ private final class FieldRowCell: NSTableCellView {
     }
 
     private func updateHover() {
-        if isHovering {
-            let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            hoverBackground.layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            hoverBackground.layer?.backgroundColor = nil
-        }
+        hoverBackground.applyHoverBackground(isHovering)
     }
 }
 
@@ -1349,14 +1328,7 @@ private final class HoverIconButton: NSView {
     }
 
     private func updateHover() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 }
 

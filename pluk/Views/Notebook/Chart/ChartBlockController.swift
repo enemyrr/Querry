@@ -351,14 +351,7 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
     private var popover: NSPopover?
 
     private func updateHoverBackground() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 
     // MARK: - Popover
@@ -519,14 +512,7 @@ final class StyledDropdown: NSView {
     }
 
     private func updateHover() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 
     // MARK: - Menu
@@ -704,14 +690,7 @@ private final class ConnectionMenuItem: NSView {
     }
 
     private func updateHoverBackground() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 }
 
@@ -877,14 +856,7 @@ private final class HoverableMenuItem: NSView {
     }
 
     private func updateHoverBackground() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
+        applyHoverBackground(isHovering)
     }
 }
 
