@@ -219,7 +219,7 @@ class PostgreSQLDriver: DatabaseDriver {
         var poolConfig = config
         poolConfig.options.minimumConnections = 1
         poolConfig.options.maximumConnections = 5
-        poolConfig.options.keepAliveBehavior = .init(frequency: .seconds(30))
+        poolConfig.options.keepAliveBehavior = nil
         poolConfig.options.additionalStartupParameters = [("application_name", "Pluk")]
 
         let client = PostgresClient(configuration: poolConfig)

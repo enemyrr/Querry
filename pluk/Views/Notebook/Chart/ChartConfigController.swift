@@ -263,6 +263,7 @@ final class ChartConfigController: NSViewController {
         fieldsDocumentView.addSubview(fieldsStackView)
 
         let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
         scrollView.documentView = fieldsDocumentView
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
@@ -285,15 +286,20 @@ final class ChartConfigController: NSViewController {
         let tableTopToConnection = tableLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14)
         tableTopToConnection.isActive = true
         tableLabelTopToConnectionConstraint = tableTopToConnection
+        let collapseSafeTrailingPriority = NSLayoutConstraint.Priority(rawValue: 999)
+        let schemaDropdownTrailing = schemaDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
+        schemaDropdownTrailing.priority = collapseSafeTrailingPriority
+        let tableDropdownTrailing = tableDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
+        tableDropdownTrailing.priority = collapseSafeTrailingPriority
 
         NSLayoutConstraint.activate([
-            collapseButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
-            collapseButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
+            collapseButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            collapseButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
             collapseButton.widthAnchor.constraint(equalToConstant: 24),
             collapseButton.heightAnchor.constraint(equalToConstant: 24),
 
-            connectionDropdown.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
-            connectionDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 6),
+            connectionDropdown.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            connectionDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
             connectionDropdown.heightAnchor.constraint(equalToConstant: 24),
 
             connectionSpinner.centerYAnchor.constraint(equalTo: connectionDropdown.centerYAnchor),
@@ -304,13 +310,13 @@ final class ChartConfigController: NSViewController {
 
             schemaDropdown.topAnchor.constraint(equalTo: schemaLabel.bottomAnchor, constant: 4),
             schemaDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            schemaDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
+            schemaDropdownTrailing,
 
             tableLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             tableDropdown.topAnchor.constraint(equalTo: tableLabel.bottomAnchor, constant: 4),
             tableDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            tableDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
+            tableDropdownTrailing,
 
             fieldsLabel.topAnchor.constraint(equalTo: tableDropdown.bottomAnchor, constant: 10),
             fieldsLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
@@ -376,6 +382,7 @@ final class ChartConfigController: NSViewController {
         container.wantsLayer = true
 
         let hPad: CGFloat = 14
+        let collapseSafeTrailingPriority = NSLayoutConstraint.Priority(rawValue: 999)
 
         // X-axis
         let xLabel = NSTextField(labelWithString: "X-axis")
@@ -402,6 +409,10 @@ final class ChartConfigController: NSViewController {
         }
         yAxisPopUp.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(yAxisPopUp)
+        let xAxisTrailing = xAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
+        xAxisTrailing.priority = collapseSafeTrailingPriority
+        let yAxisTrailing = yAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
+        yAxisTrailing.priority = collapseSafeTrailingPriority
 
         NSLayoutConstraint.activate([
             xLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
@@ -409,14 +420,14 @@ final class ChartConfigController: NSViewController {
 
             xAxisPopUp.topAnchor.constraint(equalTo: xLabel.bottomAnchor, constant: 4),
             xAxisPopUp.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            xAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
+            xAxisTrailing,
 
             yLabel.topAnchor.constraint(equalTo: xAxisPopUp.bottomAnchor, constant: 14),
             yLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             yAxisPopUp.topAnchor.constraint(equalTo: yLabel.bottomAnchor, constant: 4),
             yAxisPopUp.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            yAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
+            yAxisTrailing,
         ])
 
         innerSplitView.addSubview(container)

@@ -232,19 +232,21 @@ final class ChartBlockViewModel {
         chartError = nil
         defer { isLoadingChart = false }
         do {
+            let effectiveLimit = min(cfg.rowLimit, 200)
             let result = try await session.fetchTableData(
                 tableName: cfg.tableName,
                 schema: cfg.schemaName,
-                limit: cfg.rowLimit
+                limit: effectiveLimit
             )
-            chartData = result.rows.compactMap { row in
+            let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
                 guard let xInfo = row[xCol],
                       let yInfo = row[yCol],
-                      let xVal = xInfo.value.map({ "\($0)" }),
+                      let xRaw = xInfo.value,
                       let yRaw = yInfo.value,
                       let yNum = toDouble(yRaw) else { return nil }
-                return ChartDataPoint(x: xVal, y: yNum)
+                return ChartDataPoint(x: String(describing: xRaw), y: yNum)
             }
+            chartData = reduceChartData(points, maxPoints: 160)
         } catch {
             chartError = error.localizedDescription
         }
@@ -286,5 +288,43 @@ final class ChartBlockViewModel {
         case let d as Decimal: return NSDecimalNumber(decimal: d).doubleValue
         default: return nil
         }
+    }
+
+    private func reduceChartData(_ points: [ChartDataPoint], maxPoints: Int) -> [ChartDataPoint] {
+        guard points.count > maxPoints, maxPoints > 1 else { return points }
+
+        var orderedKeys: [String] = []
+        var sumsByKey: [String: Double] = [:]
+
+        for point in points {
+            if sumsByKey[point.x] == nil {
+                orderedKeys.append(point.x)
+            }
+            sumsByKey[point.x, default: 0] += point.y
+        }
+
+        if orderedKeys.count <= maxPoints {
+            return orderedKeys.compactMap { key in
+                guard let total = sumsByKey[key] else { return nil }
+                return ChartDataPoint(x: key, y: total)
+            }
+        }
+
+        return downsample(points: points, maxPoints: maxPoints)
+    }
+
+    private func downsample(points: [ChartDataPoint], maxPoints: Int) -> [ChartDataPoint] {
+        guard points.count > maxPoints, maxPoints > 1 else { return points }
+        let step = Double(points.count - 1) / Double(maxPoints - 1)
+        var reduced: [ChartDataPoint] = []
+        reduced.reserveCapacity(maxPoints)
+
+        for i in 0..<maxPoints {
+            let rawIndex = Int(Double(i) * step)
+            let index = min(max(rawIndex, 0), points.count - 1)
+            reduced.append(points[index])
+        }
+
+        return reduced
     }
 }

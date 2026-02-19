@@ -26,5 +26,8 @@ struct BarChartView: View {
                     .font(.caption)
             }
         }
+        .transaction { transaction in
+            transaction.animation = nil
+        }
     }
 }

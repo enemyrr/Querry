@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 
 enum NotebookCellType: String, CaseIterable {
     case query = "Query"
@@ -17,25 +17,5 @@ enum NotebookCellType: String, CaseIterable {
         case .metric: "number"
         case .parameter: "slider.horizontal.3"
         }
-    }
-}
-
-struct CellTypeButton: View {
-    let type: NotebookCellType
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: type.icon)
-                    .font(.title3)
-                Text(type.rawValue)
-                    .font(.caption)
-            }
-            .frame(width: 72, height: 56)
-            .background(.quinary)
-            .clipShape(.rect(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
     }
 }

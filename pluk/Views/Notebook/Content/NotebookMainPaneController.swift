@@ -8,7 +8,7 @@ final class NotebookMainPaneController: NSViewController {
     private var mainContentView: NSView!
     private var headerController: NotebookHeaderViewController?
     private var toolbarHostingView: NSHostingView<AnyView>?
-    private var emptyStateHostingView: NSHostingView<AnyView>?
+    private var emptyStateController: NotebookEmptyStateController?
     private var blocksController: NotebookBlocksController?
 
     init(dataController: NotebookDataController) {
@@ -104,7 +104,11 @@ final class NotebookMainPaneController: NSViewController {
     }
 
     private func setupEmptyState() {
-        emptyStateHostingView = addHostingView(NotebookEmptyStateView(dataController: dataController))
+        let emptyStateVC = NotebookEmptyStateController(dataController: dataController)
+        addChild(emptyStateVC)
+        emptyStateVC.view.translatesAutoresizingMaskIntoConstraints = false
+        mainContentView.addSubview(emptyStateVC.view)
+        emptyStateController = emptyStateVC
     }
 
     private func setupBlocksView() {
@@ -118,7 +122,7 @@ final class NotebookMainPaneController: NSViewController {
     private func setupConstraints() {
         guard let header = headerController?.view,
               let toolbar = toolbarHostingView,
-              let emptyState = emptyStateHostingView,
+              let emptyState = emptyStateController?.view,
               let blocks = blocksController?.view else { return }
 
         NSLayoutConstraint.activate([
@@ -145,7 +149,7 @@ final class NotebookMainPaneController: NSViewController {
 
     private func updateBlocksVisibility() {
         let hasBlocks = dataController.hasBlocks
-        emptyStateHostingView?.isHidden = hasBlocks
+        emptyStateController?.view.isHidden = hasBlocks
         blocksController?.view.isHidden = !hasBlocks
     }
 

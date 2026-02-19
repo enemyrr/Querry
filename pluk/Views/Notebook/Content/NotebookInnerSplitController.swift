@@ -122,8 +122,9 @@ final class NotebookInnerSplitController: NSSplitViewController {
     private func observeRightSidebar() {
         withObservationTracking {
             _ = self.dataController.isRightSidebarVisible
-        } onChange: {
-            Task { @MainActor in
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.syncCollapseState()
                 self.observeRightSidebar()
             }

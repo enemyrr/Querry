@@ -405,14 +405,24 @@ final class StyledDropdown: NSView {
         chevron.translatesAutoresizingMaskIntoConstraints = false
         addSubview(chevron)
 
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -4),
+        let collapseSafePriority = NSLayoutConstraint.Priority(rawValue: 999)
+        let labelLeading = label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6)
+        labelLeading.priority = collapseSafePriority
+        let labelToChevron = label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -4)
+        labelToChevron.priority = collapseSafePriority
+        let chevronTrailing = chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6)
+        chevronTrailing.priority = collapseSafePriority
+        let chevronWidth = chevron.widthAnchor.constraint(equalToConstant: 12)
+        chevronWidth.priority = collapseSafePriority
 
-            chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+        NSLayoutConstraint.activate([
+            labelLeading,
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            labelToChevron,
+
+            chevronTrailing,
             chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
-            chevron.widthAnchor.constraint(equalToConstant: 12),
+            chevronWidth,
             chevron.heightAnchor.constraint(equalToConstant: 12),
 
             heightAnchor.constraint(equalToConstant: 28),

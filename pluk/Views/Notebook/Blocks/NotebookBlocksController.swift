@@ -11,6 +11,7 @@ final class NotebookBlocksController: NSViewController {
     private var scrollView: NSScrollView!
     private var stackView: NSStackView!
     private var blockControllers: [UUID: ChartBlockController] = [:]
+    private var actionBarView: NotebookActionBarView?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -37,9 +38,9 @@ final class NotebookBlocksController: NSViewController {
         stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
-        stackView.spacing = 12
+        stackView.spacing = 0
         stackView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 24, right: 0)
+        stackView.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 32, right: 0)
 
         let documentView = FlippedView()
         documentView.wantsLayer = true
@@ -88,7 +89,9 @@ final class NotebookBlocksController: NSViewController {
             arrangedView.removeFromSuperview()
         }
 
-        for block in dataController.blocks {
+        let blocks = dataController.blocks
+
+        for (index, block) in blocks.enumerated() {
             let controller: ChartBlockController
             if let existing = blockControllers[block.id] {
                 controller = existing
@@ -104,6 +107,35 @@ final class NotebookBlocksController: NSViewController {
             NSLayoutConstraint.activate([
                 controller.view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
                 controller.view.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
+            ])
+
+            // Add insertion view between blocks (not after the last one)
+            if index < blocks.count - 1 {
+                let insertionView = BlockInsertionView(
+                    insertionIndex: index + 1,
+                    dataController: dataController
+                )
+                insertionView.translatesAutoresizingMaskIntoConstraints = false
+                stackView.addArrangedSubview(insertionView)
+
+                NSLayoutConstraint.activate([
+                    insertionView.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
+                    insertionView.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
+                ])
+            }
+        }
+
+        // Append action bar at the bottom
+        if actionBarView == nil {
+            actionBarView = NotebookActionBarView(dataController: dataController)
+        }
+        if let bar = actionBarView {
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            stackView.addArrangedSubview(bar)
+
+            NSLayoutConstraint.activate([
+                bar.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
+                bar.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
             ])
         }
     }
@@ -121,4 +153,5 @@ final class NotebookBlocksController: NSViewController {
             }
         }
     }
+
 }
