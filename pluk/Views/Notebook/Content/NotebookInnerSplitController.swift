@@ -96,6 +96,8 @@ final class NotebookInnerSplitController: NSSplitViewController {
 
         onCollapseStateChanged?(collapsed)
 
+        NotificationCenter.default.post(name: .notebookChartFreeze, object: view.window)
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -114,6 +116,8 @@ final class NotebookInnerSplitController: NSSplitViewController {
             if let hoverSplitView = splitView as? HoverDividerSplitView {
                 hoverSplitView.isSidebarCollapsed = collapsed
             }
+
+            NotificationCenter.default.post(name: .notebookChartUnfreeze, object: view.window)
         }
     }
 

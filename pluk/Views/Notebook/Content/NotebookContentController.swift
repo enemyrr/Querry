@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 final class NotebookContentController: NSViewController {
 
@@ -110,19 +109,24 @@ final class NotebookContentController: NSViewController {
         isLeftSidebarVisible = !isCollapsing
 
         let isRightOpen = !(innerSplitController?.isInspectorCollapsed ?? true)
-        updateLayoutForSidebarState(isRightSidebarOpen: isRightOpen)
+
+        NotificationCenter.default.post(name: .notebookChartFreeze, object: view.window)
+        updateLayoutForSidebarState(isRightSidebarOpen: isRightOpen) { [weak self] in
+            guard let self else { return }
+            NotificationCenter.default.post(name: .notebookChartUnfreeze, object: self.view.window)
+        }
     }
 
     // MARK: - Layout Updates
 
-    private func updateLayoutForSidebarState(isRightSidebarOpen: Bool) {
+    private func updateLayoutForSidebarState(isRightSidebarOpen: Bool, completion: (() -> Void)? = nil) {
         let anySidebarOpen = isLeftSidebarVisible || isRightSidebarOpen
         let radius: CGFloat = anySidebarOpen ? 10 : 16
         mainPaneController?.updateCornerRadius(radius, animated: true)
-        animateContainerInsets(anySidebarOpen: anySidebarOpen)
+        animateContainerInsets(anySidebarOpen: anySidebarOpen, completion: completion)
     }
 
-    private func animateContainerInsets(anySidebarOpen: Bool) {
+    private func animateContainerInsets(anySidebarOpen: Bool, completion: (() -> Void)? = nil) {
         let topValue: CGFloat = anySidebarOpen ? topInset - 4 : topInset - 10
         let leadingValue: CGFloat = anySidebarOpen ? 2 : -4
         let trailingValue: CGFloat = anySidebarOpen ? -8 : -2
@@ -137,6 +141,8 @@ final class NotebookContentController: NSViewController {
             self.containerTrailingConstraint?.animator().constant = trailingValue
             self.containerBottomConstraint?.animator().constant = bottomValue
             self.view.layoutSubtreeIfNeeded()
+        } completionHandler: {
+            completion?()
         }
     }
 }

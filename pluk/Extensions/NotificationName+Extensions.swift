@@ -45,6 +45,10 @@ extension Notification.Name {
     static let sidebarAnimationWillStart = Notification.Name("SidebarAnimationWillStart")
     static let sidebarAnimationDidEnd = Notification.Name("SidebarAnimationDidEnd")
 
+    /// Notebook chart freeze/unfreeze during sidebar animations
+    static let notebookChartFreeze = Notification.Name("NotebookChartFreeze")
+    static let notebookChartUnfreeze = Notification.Name("NotebookChartUnfreeze")
+
     /// Sidebar visibility changed (userInfo contains "isVisible": Bool)
     static let sidebarVisibilityChanged = Notification.Name("SidebarVisibilityChanged")
 

@@ -12,8 +12,12 @@ final class ChartConfigController: NSViewController {
     private var innerSplitView: NSSplitView!
     private var fieldsStackView: NSStackView!
     private var chartHostingView: NSHostingView<AnyView>?
+    private var chartHostingContainer: NSView?
+    private var snapshotImageView: NSImageView?
+    private var cachedSnapshot: NSImage?
+    private var freezeDepth = 0
+    private var hostingViewConstraints: [NSLayoutConstraint] = []
 
-    // Source selection (in left panel)
     private var connectionDropdown: SourceDropdownButton!
     private var connectionSpinner: NSProgressIndicator!
     private var tableDropdown: StyledDropdown!
@@ -29,7 +33,6 @@ final class ChartConfigController: NSViewController {
     private var headerBar: NSView!
     private var headerHeightConstraint: NSLayoutConstraint!
 
-    // Axis config controls (in center panel)
     private var xAxisPopUp: StyledDropdown!
     private var yAxisPopUp: StyledDropdown!
 
@@ -54,6 +57,23 @@ final class ChartConfigController: NSViewController {
         observeConnecting()
         observeCollections()
         observeSchemas()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleChartFreeze),
+            name: .notebookChartFreeze,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleChartUnfreeze),
+            name: .notebookChartUnfreeze,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewDidAppear() {
@@ -70,7 +90,6 @@ final class ChartConfigController: NSViewController {
     // MARK: - Split View
 
     private func setupSplitView() {
-        // Outer split: [left data panel] | [right side]
         splitView = CollapsibleSplitView()
         splitView.isVertical = true
         splitView.dividerStyle = .thin
@@ -94,7 +113,6 @@ final class ChartConfigController: NSViewController {
         let rightContainer = NSView()
         rightContainer.wantsLayer = true
 
-        // Header bar (holds expand button, connection dropdown when collapsed, future filters)
         headerBar = NSView()
         headerBar.wantsLayer = true
         headerBar.translatesAutoresizingMaskIntoConstraints = false
@@ -142,7 +160,6 @@ final class ChartConfigController: NSViewController {
             headerDivider.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
         ])
 
-        // Inner split: [axis config] | [chart preview]
         innerSplitView = NSSplitView()
         innerSplitView.isVertical = true
         innerSplitView.dividerStyle = .thin
@@ -176,7 +193,6 @@ final class ChartConfigController: NSViewController {
         setupAxisConfigPanel()
         setupChartPanel()
 
-        // Axis config holds its width, chart preview expands
         innerSplitView.setHoldingPriority(.defaultHigh, forSubviewAt: 0)
         innerSplitView.setHoldingPriority(.defaultLow, forSubviewAt: 1)
 
@@ -384,7 +400,6 @@ final class ChartConfigController: NSViewController {
         let hPad: CGFloat = 14
         let collapseSafeTrailingPriority = NSLayoutConstraint.Priority(rawValue: 999)
 
-        // X-axis
         let xLabel = NSTextField(labelWithString: "X-axis")
         xLabel.font = .systemFont(ofSize: 11, weight: .medium)
         xLabel.textColor = .tertiaryLabelColor
@@ -397,7 +412,6 @@ final class ChartConfigController: NSViewController {
         xAxisPopUp.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(xAxisPopUp)
 
-        // Y-axis
         let yLabel = NSTextField(labelWithString: "Y-axis")
         yLabel.font = .systemFont(ofSize: 11, weight: .medium)
         yLabel.textColor = .tertiaryLabelColor
@@ -436,15 +450,10 @@ final class ChartConfigController: NSViewController {
 
     private func rebuildTableDropdown() {
         let collections = viewModel.availableCollections
-        if collections.isEmpty {
-            tableDropdown.setItems([])
-            tableDropdown.isEnabled = false
-        } else {
-            tableDropdown.setItems(collections.map(\.name))
-            tableDropdown.isEnabled = true
-            if let cfg = viewModel.config, !cfg.tableName.isEmpty {
-                tableDropdown.selectItem(cfg.tableName)
-            }
+        tableDropdown.setItems(collections.map(\.name))
+        tableDropdown.isEnabled = !collections.isEmpty
+        if let cfg = viewModel.config, !cfg.tableName.isEmpty {
+            tableDropdown.selectItem(cfg.tableName)
         }
     }
 
@@ -459,16 +468,84 @@ final class ChartConfigController: NSViewController {
         hosting.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(hosting)
         chartHostingView = hosting
+        chartHostingContainer = container
 
-        NSLayoutConstraint.activate([
+        let constraints = [
             hosting.topAnchor.constraint(equalTo: container.topAnchor),
             hosting.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             hosting.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             hosting.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
+        ]
+        NSLayoutConstraint.activate(constraints)
+        hostingViewConstraints = constraints
 
         innerSplitView.addSubview(container)
         container.frame = NSRect(x: Self.centerPanelWidth, y: 0, width: 400, height: 380)
+
+        setupSnapshotOverlay()
+    }
+
+    // MARK: - Chart Snapshot
+
+    private func setupSnapshotOverlay() {
+        let imageView = NSImageView()
+        imageView.imageScaling = .scaleAxesIndependently
+        imageView.isHidden = true
+        imageView.wantsLayer = true
+        snapshotImageView = imageView
+
+        guard let hosting = chartHostingView, let container = hosting.superview else { return }
+        container.addSubview(imageView, positioned: .above, relativeTo: hosting)
+        imageView.frame = hosting.frame
+        imageView.autoresizingMask = [.width, .height]
+    }
+
+    private func cacheChartSnapshot() {
+        guard let hosting = chartHostingView,
+              hosting.bounds.width > 0,
+              hosting.bounds.height > 0 else { return }
+        let bounds = hosting.bounds
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: bounds) else { return }
+        hosting.cacheDisplay(in: bounds, to: rep)
+        let image = NSImage(size: bounds.size)
+        image.addRepresentation(rep)
+        cachedSnapshot = image
+    }
+
+    private func freezeChart() {
+        freezeDepth += 1
+        guard freezeDepth == 1,
+              !viewModel.chartData.isEmpty,
+              !viewModel.isLoadingChart,
+              viewModel.chartError == nil,
+              let imageView = snapshotImageView,
+              let snapshot = cachedSnapshot else { return }
+        imageView.image = snapshot
+        imageView.frame = chartHostingView?.frame ?? imageView.frame
+        imageView.isHidden = false
+        NSLayoutConstraint.deactivate(hostingViewConstraints)
+        chartHostingView?.removeFromSuperview()
+    }
+
+    private func unfreezeChart() {
+        freezeDepth = max(0, freezeDepth - 1)
+        guard freezeDepth == 0 else { return }
+        if let hosting = chartHostingView, let container = chartHostingContainer, hosting.superview == nil {
+            container.addSubview(hosting, positioned: .below, relativeTo: snapshotImageView)
+            NSLayoutConstraint.activate(hostingViewConstraints)
+        }
+        snapshotImageView?.isHidden = true
+        snapshotImageView?.image = nil
+    }
+
+    @objc private func handleChartFreeze(_ notification: Notification) {
+        guard notification.object as? NSWindow == view.window else { return }
+        freezeChart()
+    }
+
+    @objc private func handleChartUnfreeze(_ notification: Notification) {
+        guard notification.object as? NSWindow == view.window else { return }
+        unfreezeChart()
     }
 
     // MARK: - Observation
@@ -501,16 +578,14 @@ final class ChartConfigController: NSViewController {
     private func updateConnectionState() {
         let connecting = viewModel.isConnecting
         connectionDropdown.isEnabled = !connecting
-        if connecting {
-            connectionSpinner.isHidden = false
-            connectionSpinner.startAnimation(nil)
-            headerSpinner.isHidden = false
-            headerSpinner.startAnimation(nil)
-        } else {
-            connectionSpinner.stopAnimation(nil)
-            connectionSpinner.isHidden = true
-            headerSpinner.stopAnimation(nil)
-            headerSpinner.isHidden = true
+
+        for spinner in [connectionSpinner!, headerSpinner!] {
+            spinner.isHidden = !connecting
+            if connecting {
+                spinner.startAnimation(nil)
+            } else {
+                spinner.stopAnimation(nil)
+            }
         }
         if let cfg = viewModel.config, !cfg.connectionName.isEmpty {
             let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
@@ -551,8 +626,22 @@ final class ChartConfigController: NSViewController {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                if !self.viewModel.isLoadingChart,
+                   self.viewModel.chartError == nil,
+                   !self.viewModel.chartData.isEmpty {
+                    self.scheduleSnapshotCache()
+                } else {
+                    self.cachedSnapshot = nil
+                }
                 self.observeChartData()
             }
+        }
+    }
+
+    private func scheduleSnapshotCache() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(50))
+            self?.cacheChartSnapshot()
         }
     }
 
@@ -626,16 +715,8 @@ extension ChartConfigController: NSSplitViewDelegate {
     }
 
     func splitView(_ sv: NSSplitView, canCollapseSubview subview: NSView) -> Bool {
-        if sv === splitView, subview === columnPanelContainer {
-            return true
-        }
-        return false
+        sv === splitView && subview === columnPanelContainer
     }
-
-    func splitView(_ sv: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
-        return proposedMaximumPosition
-    }
-
 }
 
 // MARK: - Field Row Cell (matches sidebar table row style)
@@ -972,11 +1053,9 @@ private struct ChartEmptyStateView: View {
                 drawAxes(context: context, originX: originX, originY: originY, endX: endX, endY: endY)
             }
 
-            // Y-axis label
             yAxisLabel
                 .position(x: axisInset / 2, y: geo.size.height / 2)
 
-            // X-axis label
             xAxisLabel
                 .position(x: (originX + endX) / 2, y: originY + (axisInset / 2) + 2)
 
@@ -1010,32 +1089,29 @@ private struct ChartEmptyStateView: View {
     private func drawAxes(context: GraphicsContext, originX: CGFloat, originY: CGFloat, endX: CGFloat, endY: CGFloat) {
         let axisColor = Color.secondary.opacity(0.3)
         let dashStyle = StrokeStyle(lineWidth: 1, dash: [6, 4])
+        let solidStyle = StrokeStyle(lineWidth: 1)
 
-        // Y-axis
         var yAxis = Path()
         yAxis.move(to: CGPoint(x: originX, y: originY))
         yAxis.addLine(to: CGPoint(x: originX, y: endY))
         context.stroke(yAxis, with: .color(axisColor), style: dashStyle)
 
-        // Y arrow
         var yArrow = Path()
         yArrow.move(to: CGPoint(x: originX - 5, y: endY + 8))
         yArrow.addLine(to: CGPoint(x: originX, y: endY))
         yArrow.addLine(to: CGPoint(x: originX + 5, y: endY + 8))
-        context.stroke(yArrow, with: .color(axisColor), style: StrokeStyle(lineWidth: 1))
+        context.stroke(yArrow, with: .color(axisColor), style: solidStyle)
 
-        // X-axis
         var xAxis = Path()
         xAxis.move(to: CGPoint(x: originX, y: originY))
         xAxis.addLine(to: CGPoint(x: endX, y: originY))
         context.stroke(xAxis, with: .color(axisColor), style: dashStyle)
 
-        // X arrow
         var xArrow = Path()
         xArrow.move(to: CGPoint(x: endX - 8, y: originY - 5))
         xArrow.addLine(to: CGPoint(x: endX, y: originY))
         xArrow.addLine(to: CGPoint(x: endX - 8, y: originY + 5))
-        context.stroke(xArrow, with: .color(axisColor), style: StrokeStyle(lineWidth: 1))
+        context.stroke(xArrow, with: .color(axisColor), style: solidStyle)
     }
 
     // MARK: - Labels
