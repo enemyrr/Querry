@@ -22,6 +22,13 @@ final class NotebookActionBarView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    override var intrinsicContentSize: NSSize {
+        guard let hostingView else { return super.intrinsicContentSize }
+        let topPadding: CGFloat = insertionIndex == nil ? 16 : 0
+        let size = hostingView.fittingSize
+        return NSSize(width: size.width, height: size.height + topPadding)
+    }
+
     private func setupBar() {
         let barContent = NotebookActionBarContent(
             dataController: dataController,
@@ -56,23 +63,9 @@ private struct NotebookActionBarContent: View {
             ForEach(Array(NotebookCellType.allCases.enumerated()), id: \.element) { index, type in
                 let isEnabled = type == .chart
 
-                Button {
-                    if isEnabled {
-                        handleCellType(type)
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: type.icon)
-                            .font(.system(size: 14))
-                            .frame(width: 16, height: 16)
-                        Text(type.rawValue)
-                            .font(.system(size: 12))
-                    }
-                    .contentShape(Rectangle())
+                NotebookActionButton(type: type, isEnabled: isEnabled) {
+                    handleCellType(type)
                 }
-                .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
-                .opacity(isEnabled ? 1.0 : 0.4)
-                .allowsHitTesting(isEnabled)
 
                 if index < NotebookCellType.allCases.count - 1 {
                     Divider()
@@ -86,7 +79,6 @@ private struct NotebookActionBarContent: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
         )
-        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.04), radius: 2)
     }
 
     private func handleCellType(_ type: NotebookCellType) {
@@ -101,5 +93,38 @@ private struct NotebookActionBarContent: View {
             break
         }
         onDidInsert?()
+    }
+}
+
+private struct NotebookActionButton: View {
+    let type: NotebookCellType
+    let isEnabled: Bool
+    let action: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            if isEnabled {
+                action()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: type.icon)
+                    .font(.system(size: 14))
+                    .frame(width: 16, height: 16)
+                Text(type.rawValue)
+                    .font(.system(size: 12))
+            }
+            .foregroundStyle(isHovering ? .primary : .secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+        .opacity(isEnabled ? 1.0 : 0.4)
+        .allowsHitTesting(isEnabled)
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 }

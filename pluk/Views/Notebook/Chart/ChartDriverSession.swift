@@ -33,17 +33,28 @@ actor ChartDriverSession {
         return try await driver.getSchema(for: tableName, schema: schema)
     }
 
-    func fetchTableData(tableName: String, schema: String?, limit: Int) async throws -> QueryResult {
+    func fetchTableData(tableName: String, schema: String?, limit: Int, filters: [ChartFilterCondition] = []) async throws -> QueryResult {
         guard let driver else { throw ChartBlockError.notConnected }
-        return try await driver.findDocuments(
-            in: tableName,
-            databaseSchema: schema,
-            filter: [:],
-            skip: 0,
-            limit: limit,
-            sortBy: nil,
-            ascending: nil
-        )
+
+        let validFilters = filters.filter { !$0.field.isEmpty && ($0.filterOperator.needsValue ? !$0.value.isEmpty : true) }
+
+        if validFilters.isEmpty {
+            return try await driver.findDocuments(
+                in: tableName,
+                databaseSchema: schema,
+                filter: [:],
+                skip: 0,
+                limit: limit,
+                sortBy: nil,
+                ascending: nil
+            )
+        }
+
+        let whereClause = validFilters.map(\.sqlFragment).joined(separator: " AND ")
+        let schemaPrefix = schema.map { "\"\($0)\"." } ?? ""
+        let query = "SELECT * FROM \(schemaPrefix)\"\(tableName)\" WHERE \(whereClause) LIMIT \(limit)"
+        let results = try await driver.executeRawQuery(query, databaseSchema: schema)
+        return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
     }
 
     func getInformationSchema() async throws -> [InformationSchema] {

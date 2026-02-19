@@ -36,6 +36,11 @@ final class ChartConfigController: NSViewController {
     private var xAxisPopUp: StyledDropdown!
     private var yAxisPopUp: StyledDropdown!
 
+    private var filterContainer: NSStackView!
+    private var filterPopover: NSPopover?
+    private var filterLeadingToBarConstraint: NSLayoutConstraint!
+    private var filterLeadingToSpinnerConstraint: NSLayoutConstraint!
+
     init(viewModel: ChartBlockViewModel, connections: [Connection]) {
         self.viewModel = viewModel
         self.connections = connections
@@ -57,6 +62,7 @@ final class ChartConfigController: NSViewController {
         observeConnecting()
         observeCollections()
         observeSchemas()
+        observeFilters()
 
         NotificationCenter.default.addObserver(
             self,
@@ -132,6 +138,8 @@ final class ChartConfigController: NSViewController {
         )
         headerConnectionDropdown.translatesAutoresizingMaskIntoConstraints = false
         headerConnectionDropdown.isHidden = true
+        headerConnectionDropdown.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        headerConnectionDropdown.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         headerBar.addSubview(headerConnectionDropdown)
 
         headerSpinner = NSProgressIndicator()
@@ -145,6 +153,8 @@ final class ChartConfigController: NSViewController {
             let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
             headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
         }
+
+        setupFilterBar()
 
         let headerDivider = NSBox()
         headerDivider.boxType = .separator
@@ -167,6 +177,11 @@ final class ChartConfigController: NSViewController {
         innerSplitView.translatesAutoresizingMaskIntoConstraints = false
         rightContainer.addSubview(innerSplitView)
 
+        filterLeadingToBarConstraint = filterContainer.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 8)
+        filterLeadingToSpinnerConstraint = filterContainer.leadingAnchor.constraint(equalTo: headerSpinner.trailingAnchor, constant: 8)
+        filterLeadingToBarConstraint.isActive = true
+        filterLeadingToSpinnerConstraint.isActive = false
+
         NSLayoutConstraint.activate([
             headerBar.topAnchor.constraint(equalTo: rightContainer.topAnchor),
             headerBar.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
@@ -180,9 +195,13 @@ final class ChartConfigController: NSViewController {
             headerConnectionDropdown.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
             headerConnectionDropdown.leadingAnchor.constraint(equalTo: expandButton.trailingAnchor, constant: 4),
             headerConnectionDropdown.heightAnchor.constraint(equalToConstant: 24),
+            headerConnectionDropdown.widthAnchor.constraint(lessThanOrEqualToConstant: 180),
 
             headerSpinner.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
             headerSpinner.leadingAnchor.constraint(equalTo: headerConnectionDropdown.trailingAnchor, constant: 6),
+
+            filterContainer.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
+            filterContainer.trailingAnchor.constraint(lessThanOrEqualTo: headerBar.trailingAnchor, constant: -8),
 
             innerSplitView.topAnchor.constraint(equalTo: headerBar.bottomAnchor),
             innerSplitView.leadingAnchor.constraint(equalTo: rightContainer.leadingAnchor),
@@ -368,6 +387,14 @@ final class ChartConfigController: NSViewController {
         splitView.needsDisplay = true
         expandButton.isHidden = !isColumnPanelCollapsed
         headerConnectionDropdown.isHidden = !isColumnPanelCollapsed
+
+        if isColumnPanelCollapsed {
+            filterLeadingToBarConstraint.isActive = false
+            filterLeadingToSpinnerConstraint.isActive = true
+        } else {
+            filterLeadingToSpinnerConstraint.isActive = false
+            filterLeadingToBarConstraint.isActive = true
+        }
     }
 
     private func updateSchemaVisibility() {
@@ -548,7 +575,101 @@ final class ChartConfigController: NSViewController {
         unfreezeChart()
     }
 
+    // MARK: - Filter Bar
+
+    private func setupFilterBar() {
+        filterContainer = NSStackView()
+        filterContainer.orientation = .horizontal
+        filterContainer.spacing = 6
+        filterContainer.alignment = .centerY
+        filterContainer.translatesAutoresizingMaskIntoConstraints = false
+        headerBar.addSubview(filterContainer)
+
+        rebuildFilterPills()
+    }
+
+    private func rebuildFilterPills() {
+        guard filterContainer != nil else { return }
+
+        for view in filterContainer.arrangedSubviews {
+            filterContainer.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+
+        let filters = viewModel.config?.filters ?? []
+
+        let addButton = FilterChipView(
+            icon: "line.3.horizontal.decrease",
+            title: filters.isEmpty ? "Add filter" : "\(filters.count)",
+            style: filters.isEmpty ? .plain : .active
+        ) { [weak self] in
+            guard let self, let button = self.filterContainer.arrangedSubviews.first else { return }
+            self.showFilterPopover(relativeTo: button, editing: nil)
+        }
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        filterContainer.addArrangedSubview(addButton)
+
+        for filter in filters {
+            let isValid = viewModel.isFilterFieldValid(filter)
+            let pill = FilterPillView(filter: filter, isValid: isValid, onEdit: { [weak self] pillView in
+                self?.showFilterPopover(relativeTo: pillView, editing: filter)
+            }, onRemove: { [weak self] in
+                self?.viewModel.removeFilter(id: filter.id)
+            })
+            pill.translatesAutoresizingMaskIntoConstraints = false
+            filterContainer.addArrangedSubview(pill)
+        }
+
+        if !filters.isEmpty {
+            let plusButton = FilterChipView(icon: "plus", title: nil, style: .plain) { [weak self] in
+                guard let self, let button = self.filterContainer.arrangedSubviews.last else { return }
+                self.showFilterPopover(relativeTo: button, editing: nil)
+            }
+            plusButton.translatesAutoresizingMaskIntoConstraints = false
+            filterContainer.addArrangedSubview(plusButton)
+        }
+    }
+
+    private func showFilterPopover(relativeTo anchorView: NSView, editing existingFilter: ChartFilterCondition?) {
+        filterPopover?.performClose(nil)
+        filterPopover = nil
+
+        let columns = viewModel.schemaResult?.columns ?? []
+        guard !columns.isEmpty else { return }
+
+        let popoverVC = ChartFilterPopoverController(
+            columns: columns,
+            existingFilter: existingFilter
+        ) { [weak self] filter in
+            self?.filterPopover?.performClose(nil)
+            self?.filterPopover = nil
+            if existingFilter != nil {
+                self?.viewModel.updateFilter(filter)
+            } else {
+                self?.viewModel.addFilter(filter)
+            }
+        }
+
+        let pop = NSPopover()
+        pop.contentViewController = popoverVC
+        pop.behavior = .transient
+        pop.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .maxY)
+        filterPopover = pop
+    }
+
     // MARK: - Observation
+
+    private func observeFilters() {
+        withObservationTracking {
+            _ = self.viewModel.config?.filters.count
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.rebuildFilterPills()
+                self.observeFilters()
+            }
+        }
+    }
 
     private func observeSchema() {
         withObservationTracking {
@@ -558,6 +679,7 @@ final class ChartConfigController: NSViewController {
                 guard let self else { return }
                 self.rebuildFieldsList()
                 self.rebuildAxisPopups()
+                self.rebuildFilterPills()
                 self.observeSchema()
             }
         }
@@ -716,6 +838,243 @@ extension ChartConfigController: NSSplitViewDelegate {
 
     func splitView(_ sv: NSSplitView, canCollapseSubview subview: NSView) -> Bool {
         sv === splitView && subview === columnPanelContainer
+    }
+}
+
+// MARK: - Filter Chip View ("Add filter" / count / "+" button)
+
+private final class FilterChipView: NSView {
+
+    enum Style { case plain, active }
+
+    private let action: () -> Void
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    init(icon: String, title: String?, style: Style, action: @escaping () -> Void) {
+        self.action = action
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        let stack = NSStackView()
+        stack.orientation = .horizontal
+        stack.spacing = 4
+        stack.alignment = .centerY
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+
+        let iconView = NSImageView()
+        iconView.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
+        iconView.symbolConfiguration = .init(pointSize: 11, weight: .medium)
+        iconView.contentTintColor = style == .active ? .controlAccentColor : .secondaryLabelColor
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.setContentHuggingPriority(.required, for: .horizontal)
+        stack.addArrangedSubview(iconView)
+
+        NSLayoutConstraint.activate([
+            iconView.widthAnchor.constraint(equalToConstant: 14),
+            iconView.heightAnchor.constraint(equalToConstant: 14),
+        ])
+
+        if let title {
+            let label = NSTextField(labelWithString: title)
+            label.font = .systemFont(ofSize: 12, weight: .medium)
+            label.textColor = style == .active ? .controlAccentColor : .secondaryLabelColor
+            label.lineBreakMode = .byTruncatingTail
+            label.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(label)
+        }
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateHover()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHover()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        action()
+    }
+
+    private func updateHover() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
+    }
+}
+
+// MARK: - Filter Pill View (applied filter with remove button)
+
+private final class FilterPillView: NSView {
+
+    private let filter: ChartFilterCondition
+    private let isValid: Bool
+    private let onEdit: (NSView) -> Void
+    private let onRemove: () -> Void
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    init(filter: ChartFilterCondition, isValid: Bool = true, onEdit: @escaping (NSView) -> Void, onRemove: @escaping () -> Void) {
+        self.filter = filter
+        self.isValid = isValid
+        self.onEdit = onEdit
+        self.onRemove = onRemove
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.borderWidth = 1
+        updateBorderColor()
+
+        let stack = NSStackView()
+        stack.orientation = .horizontal
+        stack.spacing = 4
+        stack.alignment = .centerY
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+
+        if !isValid {
+            let warningIcon = NSImageView()
+            warningIcon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Invalid field")
+            warningIcon.symbolConfiguration = .init(pointSize: 10, weight: .medium)
+            warningIcon.contentTintColor = .systemOrange
+            warningIcon.translatesAutoresizingMaskIntoConstraints = false
+            warningIcon.setContentHuggingPriority(.required, for: .horizontal)
+            stack.addArrangedSubview(warningIcon)
+            NSLayoutConstraint.activate([
+                warningIcon.widthAnchor.constraint(equalToConstant: 14),
+                warningIcon.heightAnchor.constraint(equalToConstant: 14),
+            ])
+        }
+
+        let label = NSTextField(labelWithString: filter.displaySummary)
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.textColor = isValid ? .secondaryLabelColor : .systemOrange
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        stack.addArrangedSubview(label)
+
+        let closeButton = NSButton()
+        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Remove filter")
+        closeButton.symbolConfiguration = .init(pointSize: 8, weight: .bold)
+        closeButton.bezelStyle = .accessoryBar
+        closeButton.isBordered = false
+        closeButton.contentTintColor = .tertiaryLabelColor
+        closeButton.target = self
+        closeButton.action = #selector(removeClicked)
+        closeButton.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(closeButton)
+
+        NSLayoutConstraint.activate([
+            closeButton.widthAnchor.constraint(equalToConstant: 16),
+            closeButton.heightAnchor.constraint(equalToConstant: 16),
+
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
+
+            label.widthAnchor.constraint(lessThanOrEqualToConstant: 200),
+        ])
+
+        NotificationCenter.default.addObserver(self, selector: #selector(appearanceChanged), name: .appAppearanceDidChange, object: nil)
+
+        if !isValid {
+            installCustomTooltip("Field \"\(filter.field)\" does not exist in current table", position: .top, delay: 0, spacing: 4)
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func removeClicked() {
+        onRemove()
+    }
+
+    @objc private func appearanceChanged() {
+        updateBorderColor()
+    }
+
+    private func updateBorderColor() {
+        if !isValid {
+            layer?.borderColor = NSColor.systemOrange.withAlphaComponent(0.5).cgColor
+            return
+        }
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+            layer?.borderColor = isDark
+                ? NSColor.white.withAlphaComponent(0.12).cgColor
+                : NSColor.black.withAlphaComponent(0.1).cgColor
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateHover()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateHover()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onEdit(self)
+    }
+
+    private func updateHover() {
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        if isHovering {
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.black.withAlphaComponent(0.04).cgColor
+        } else {
+            layer?.backgroundColor = nil
+        }
     }
 }
 

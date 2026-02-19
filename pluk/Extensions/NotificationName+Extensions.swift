@@ -54,4 +54,7 @@ extension Notification.Name {
 
     /// Sidebar item registry changed (connection/notebook added or removed)
     static let sidebarItemsDidChange = Notification.Name("SidebarItemsDidChange")
+
+    /// Notebook block hover (userInfo: "blockIndex": Int, "isHovered": Bool)
+    static let notebookBlockHoverChanged = Notification.Name("NotebookBlockHoverChanged")
 }

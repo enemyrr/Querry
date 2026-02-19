@@ -10,8 +10,11 @@ final class BlockInsertionView: NSView {
     private let leftLine = FadingLineView(fadeLeading: true)
     private let rightLine = FadingLineView(fadeLeading: false)
     private var trackingArea: NSTrackingArea?
+    private var scrollBoundsObserver: NSObjectProtocol?
 
     private var isExpanded = false
+    private var isInsertionHovered = false
+    private var isBlockHovered = false
     private var actionBarView: NSView?
     private var heightConstraint: NSLayoutConstraint!
 
@@ -34,6 +37,13 @@ final class BlockInsertionView: NSView {
             name: .appAppearanceDidChange,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBlockHoverChanged(_:)),
+            name: .notebookBlockHoverChanged,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -41,6 +51,9 @@ final class BlockInsertionView: NSView {
     }
 
     deinit {
+        if let observer = scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -138,6 +151,7 @@ final class BlockInsertionView: NSView {
         actionBarView = nil
 
         heightConstraint.constant = 28
+        updatePlusVisibility(animated: false)
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
@@ -152,28 +166,33 @@ final class BlockInsertionView: NSView {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
         trackingArea = area
+        refreshInsertionHoverState(animated: false)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        setupScrollBoundsObserver()
+        refreshInsertionHoverState(animated: false)
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        setupScrollBoundsObserver()
+        refreshInsertionHoverState(animated: false)
     }
 
     override func mouseEntered(with event: NSEvent) {
-        guard !isExpanded else { return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            plusContentView.animator().alphaValue = 1
-        }
+        setInsertionHovered(true, animated: true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        guard !isExpanded else { return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            plusContentView.animator().alphaValue = 0
-        }
+        setInsertionHovered(false, animated: true)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -190,6 +209,23 @@ final class BlockInsertionView: NSView {
         updatePlusBackground()
     }
 
+    @objc private func handleBlockHoverChanged(_ notification: Notification) {
+        guard !isExpanded,
+              let blockIndex = notification.userInfo?["blockIndex"] as? Int,
+              let isHovered = notification.userInfo?["isHovered"] as? Bool else { return }
+
+        let sourceBlockIndex = insertionIndex - 1
+        if blockIndex == sourceBlockIndex {
+            isBlockHovered = isHovered
+        } else if isHovered {
+            isBlockHovered = false
+        } else {
+            return
+        }
+
+        updatePlusVisibility(animated: true)
+    }
+
     private func updatePlusBackground() {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             let isDark = NSAppearance.currentDrawing().isDarkMode
@@ -197,6 +233,54 @@ final class BlockInsertionView: NSView {
                 ? NSColor.white.withAlphaComponent(0.08).cgColor
                 : NSColor.black.withAlphaComponent(0.06).cgColor
         }
+    }
+
+    private func setupScrollBoundsObserver() {
+        if let observer = scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(observer)
+            scrollBoundsObserver = nil
+        }
+
+        guard let clipView = enclosingScrollView?.contentView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        scrollBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshInsertionHoverState(animated: false)
+        }
+    }
+
+    private func refreshInsertionHoverState(animated: Bool) {
+        guard let window else {
+            setInsertionHovered(false, animated: animated)
+            return
+        }
+
+        let mouseLocation = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setInsertionHovered(bounds.contains(mouseLocation), animated: animated)
+    }
+
+    private func setInsertionHovered(_ hovered: Bool, animated: Bool) {
+        guard hovered != isInsertionHovered else { return }
+        isInsertionHovered = hovered
+        updatePlusVisibility(animated: animated)
+    }
+
+    private func updatePlusVisibility(animated: Bool) {
+        guard !isExpanded else { return }
+
+        let alpha: CGFloat = (isInsertionHovered || isBlockHovered) ? 1 : 0
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                plusContentView.animator().alphaValue = alpha
+            }
+            return
+        }
+
+        plusContentView.alphaValue = alpha
     }
 }
 

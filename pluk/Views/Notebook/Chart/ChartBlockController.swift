@@ -24,7 +24,15 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
     }
 
     override func loadView() {
-        let wrapper = NSView()
+        let wrapper = BlockHoverTrackingView { [weak self] isHovered in
+            guard let self,
+                  let blockIndex = self.dataController.blocks.firstIndex(where: { $0.id == self.viewModel.block.id }) else { return }
+            NotificationCenter.default.post(
+                name: .notebookBlockHoverChanged,
+                object: nil,
+                userInfo: ["blockIndex": blockIndex, "isHovered": isHovered]
+            )
+        }
         wrapper.wantsLayer = true
         wrapper.translatesAutoresizingMaskIntoConstraints = false
         self.view = wrapper
@@ -948,5 +956,96 @@ private final class BlockResizeHandle: NSView {
                 indicator.animator().alphaValue = 0
             }
         }
+    }
+}
+
+// MARK: - Block hover tracking view
+
+private final class BlockHoverTrackingView: NSView {
+
+    private let onHoverChanged: (Bool) -> Void
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false
+    private var scrollBoundsObserver: NSObjectProtocol?
+
+    init(onHoverChanged: @escaping (Bool) -> Void) {
+        self.onHoverChanged = onHoverChanged
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        if let observer = scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        setupScrollBoundsObserver()
+        refreshHoverState()
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        setupScrollBoundsObserver()
+        refreshHoverState()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+        refreshHoverState()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        setHovered(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setHovered(false)
+    }
+
+    private func setupScrollBoundsObserver() {
+        if let observer = scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(observer)
+            scrollBoundsObserver = nil
+        }
+
+        guard let clipView = enclosingScrollView?.contentView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        scrollBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshHoverState()
+        }
+    }
+
+    private func refreshHoverState() {
+        guard let window else {
+            setHovered(false)
+            return
+        }
+
+        let mouseLocation = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setHovered(bounds.contains(mouseLocation))
+    }
+
+    private func setHovered(_ hovered: Bool) {
+        guard hovered != isHovered else { return }
+        isHovered = hovered
+        onHoverChanged(hovered)
     }
 }

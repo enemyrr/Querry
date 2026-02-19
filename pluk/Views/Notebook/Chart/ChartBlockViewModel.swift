@@ -200,6 +200,14 @@ final class ChartBlockViewModel {
         isNumericType(col.dataType)
     }
 
+    var validColumnNames: Set<String> {
+        Set(schemaResult?.columns.map(\.columnName) ?? [])
+    }
+
+    func isFilterFieldValid(_ filter: ChartFilterCondition) -> Bool {
+        validColumnNames.contains(filter.field)
+    }
+
     // MARK: - Axis Config
 
     func setXAxis(_ column: String) {
@@ -219,6 +227,33 @@ final class ChartBlockViewModel {
         Task { await fetchChartData() }
     }
 
+    // MARK: - Filters
+
+    func addFilter(_ filter: ChartFilterCondition) {
+        config?.filters.append(filter)
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
+    func updateFilter(_ filter: ChartFilterCondition) {
+        guard let index = config?.filters.firstIndex(where: { $0.id == filter.id }) else { return }
+        config?.filters[index] = filter
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
+    func removeFilter(id: UUID) {
+        config?.filters.removeAll { $0.id == id }
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
+    func removeAllFilters() {
+        config?.filters.removeAll()
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
     // MARK: - Data Fetching
 
     func fetchChartData() async {
@@ -236,7 +271,8 @@ final class ChartBlockViewModel {
             let result = try await session.fetchTableData(
                 tableName: cfg.tableName,
                 schema: cfg.schemaName,
-                limit: effectiveLimit
+                limit: effectiveLimit,
+                filters: cfg.filters.filter { isFilterFieldValid($0) }
             )
             let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
                 guard let xInfo = row[xCol],

@@ -62,8 +62,8 @@ final class NotebookBlocksController: NSViewController {
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             stackView.topAnchor.constraint(equalTo: documentView.topAnchor),
-            stackView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 16),
-            stackView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -16),
+            stackView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 20),
+            stackView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -20),
             stackView.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
 
             documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
