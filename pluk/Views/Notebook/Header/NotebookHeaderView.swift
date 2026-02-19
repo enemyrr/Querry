@@ -148,7 +148,7 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
 
 // MARK: - Status dropdown button
 
-final class StatusDropdownButton: NSView {
+final class StatusDropdownButton: NSView, NSPopoverDelegate {
 
     private let dataController: NotebookDataController
     private let dotView: NSView
@@ -194,6 +194,10 @@ final class StatusDropdownButton: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    override var acceptsFirstResponder: Bool {
+        true
+    }
+
     func updateStatus(_ status: NotebookStatus) {
         label.stringValue = status.rawValue
         dotView.layer?.borderColor = status.nsColor.cgColor
@@ -224,9 +228,9 @@ final class StatusDropdownButton: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        focusButton()
         if popover != nil {
             popover?.performClose(nil)
-            popover = nil
             return
         }
         showStatusPopover()
@@ -251,15 +255,24 @@ final class StatusDropdownButton: NSView {
         ) { [weak self] status in
             guard let self else { return }
             self.popover?.performClose(nil)
-            self.popover = nil
             self.dataController.status = status
         }
 
         let pop = NSPopover()
+        pop.delegate = self
         pop.contentViewController = popoverVC
         pop.behavior = .transient
         pop.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
         self.popover = pop
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        popover = nil
+    }
+
+    private func focusButton() {
+        guard window?.firstResponder !== self else { return }
+        window?.makeFirstResponder(self)
     }
 }
 

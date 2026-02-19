@@ -248,6 +248,8 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
 
         wantsLayer = true
         layer?.cornerRadius = 6
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         iconView.isHidden = true
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -287,6 +289,15 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
         fatalError("init(coder:) is not supported")
     }
 
+    override var intrinsicContentSize: NSSize {
+        let iconSectionWidth: CGFloat = 20
+        let labelWidth = ceil(label.intrinsicContentSize.width)
+        let chevronSectionWidth: CGFloat = 16
+        let horizontalInsets: CGFloat = 12
+        let width = iconSectionWidth + labelWidth + chevronSectionWidth + horizontalInsets
+        return NSSize(width: width, height: 24)
+    }
+
     func updateLabel(_ text: String, iconName: String? = nil) {
         label.stringValue = text
         label.textColor = .secondaryLabelColor
@@ -295,7 +306,11 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
             img?.size = NSSize(width: 14, height: 14)
             iconView.image = img
             iconView.isHidden = false
+        } else {
+            iconView.image = nil
+            iconView.isHidden = true
         }
+        invalidateIntrinsicContentSize()
     }
 
     // MARK: - Tracking

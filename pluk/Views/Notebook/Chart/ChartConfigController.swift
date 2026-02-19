@@ -39,6 +39,7 @@ final class ChartConfigController: NSViewController {
     private var filterContainer: NSStackView!
     private var filterPopover: NSPopover?
     private var filterLeadingToBarConstraint: NSLayoutConstraint!
+    private var filterLeadingToConnectionConstraint: NSLayoutConstraint!
     private var filterLeadingToSpinnerConstraint: NSLayoutConstraint!
 
     init(viewModel: ChartBlockViewModel, connections: [Connection]) {
@@ -178,8 +179,10 @@ final class ChartConfigController: NSViewController {
         rightContainer.addSubview(innerSplitView)
 
         filterLeadingToBarConstraint = filterContainer.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 8)
-        filterLeadingToSpinnerConstraint = filterContainer.leadingAnchor.constraint(equalTo: headerSpinner.trailingAnchor, constant: 8)
+        filterLeadingToConnectionConstraint = filterContainer.leadingAnchor.constraint(equalTo: headerConnectionDropdown.trailingAnchor)
+        filterLeadingToSpinnerConstraint = filterContainer.leadingAnchor.constraint(equalTo: headerSpinner.trailingAnchor)
         filterLeadingToBarConstraint.isActive = true
+        filterLeadingToConnectionConstraint.isActive = false
         filterLeadingToSpinnerConstraint.isActive = false
 
         NSLayoutConstraint.activate([
@@ -195,7 +198,6 @@ final class ChartConfigController: NSViewController {
             headerConnectionDropdown.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
             headerConnectionDropdown.leadingAnchor.constraint(equalTo: expandButton.trailingAnchor, constant: 4),
             headerConnectionDropdown.heightAnchor.constraint(equalToConstant: 24),
-            headerConnectionDropdown.widthAnchor.constraint(lessThanOrEqualToConstant: 180),
 
             headerSpinner.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
             headerSpinner.leadingAnchor.constraint(equalTo: headerConnectionDropdown.trailingAnchor, constant: 6),
@@ -387,14 +389,7 @@ final class ChartConfigController: NSViewController {
         splitView.needsDisplay = true
         expandButton.isHidden = !isColumnPanelCollapsed
         headerConnectionDropdown.isHidden = !isColumnPanelCollapsed
-
-        if isColumnPanelCollapsed {
-            filterLeadingToBarConstraint.isActive = false
-            filterLeadingToSpinnerConstraint.isActive = true
-        } else {
-            filterLeadingToSpinnerConstraint.isActive = false
-            filterLeadingToBarConstraint.isActive = true
-        }
+        updateFilterLeadingConstraint()
     }
 
     private func updateSchemaVisibility() {
@@ -580,7 +575,6 @@ final class ChartConfigController: NSViewController {
     private func setupFilterBar() {
         filterContainer = NSStackView()
         filterContainer.orientation = .horizontal
-        filterContainer.spacing = 6
         filterContainer.alignment = .centerY
         filterContainer.translatesAutoresizingMaskIntoConstraints = false
         headerBar.addSubview(filterContainer)
@@ -653,7 +647,7 @@ final class ChartConfigController: NSViewController {
         let pop = NSPopover()
         pop.contentViewController = popoverVC
         pop.behavior = .transient
-        pop.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .maxY)
+        pop.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
         filterPopover = pop
     }
 
@@ -714,6 +708,20 @@ final class ChartConfigController: NSViewController {
             connectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
             headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
         }
+        updateFilterLeadingConstraint()
+    }
+
+    private func updateFilterLeadingConstraint() {
+        if isColumnPanelCollapsed {
+            filterLeadingToBarConstraint.isActive = false
+            filterLeadingToConnectionConstraint.isActive = !viewModel.isConnecting
+            filterLeadingToSpinnerConstraint.isActive = viewModel.isConnecting
+            return
+        }
+
+        filterLeadingToConnectionConstraint.isActive = false
+        filterLeadingToSpinnerConstraint.isActive = false
+        filterLeadingToBarConstraint.isActive = true
     }
 
     private func observeCollections() {
