@@ -277,6 +277,19 @@ final class ChartBlockViewModel {
 
     // MARK: - Axis Config
 
+    func setChartType(_ type: ChartBlockConfig.ChartType) {
+        config?.chartType = type
+        persistConfig()
+    }
+
+    func resetAxes() {
+        config?.xAxisColumn = nil
+        config?.yAxisColumn = nil
+        chartData = []
+        chartError = nil
+        persistConfig()
+    }
+
     func setXAxis(_ column: String) {
         config?.xAxisColumn = column
         persistConfig()

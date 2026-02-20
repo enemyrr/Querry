@@ -29,11 +29,33 @@ struct ChartPreviewView: View {
                     yAxisColumn: viewModel.config?.yAxisColumn
                 )
             } else {
-                BarChartView(data: viewModel.chartData)
+                chartView(for: viewModel.config?.chartType ?? .groupedColumn)
                     .padding()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func chartView(for chartType: ChartBlockConfig.ChartType) -> some View {
+        switch chartType {
+        case .groupedColumn, .stackedColumn, .hundredPercentStackedColumn:
+            BarChartView(data: viewModel.chartData)
+        case .groupedBar, .stackedBar, .hundredPercentStackedBar:
+            HorizontalBarChartView(data: viewModel.chartData)
+        case .line:
+            LineChartView(data: viewModel.chartData)
+        case .stackedArea, .hundredPercentStackedArea:
+            AreaChartView(data: viewModel.chartData)
+        case .histogram:
+            HistogramChartView(data: viewModel.chartData)
+        case .scatter:
+            ScatterChartView(data: viewModel.chartData)
+        case .pie:
+            PieChartView(data: viewModel.chartData)
+        case .pivotTable:
+            PivotTablePlaceholderView()
+        }
     }
 }
 

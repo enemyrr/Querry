@@ -495,6 +495,12 @@ final class StyledDropdown: NSView {
         label.textColor = .secondaryLabelColor
     }
 
+    func clearSelection() {
+        selectedTitle = nil
+        label.stringValue = placeholder
+        label.textColor = .tertiaryLabelColor
+    }
+
     // MARK: - Tracking
 
     override func updateTrackingAreas() {

@@ -85,13 +85,65 @@ struct ChartBlockConfig: Codable {
     var tableName: String
     var xAxisColumn: String?
     var yAxisColumn: String?
-    var chartType: ChartType = .bar
+    var chartType: ChartType = .groupedColumn
     var rowLimit: Int = 500
     var filters: [ChartFilterCondition] = []
 
-    enum ChartType: String, Codable {
-        case bar
+    enum ChartType: String, Codable, CaseIterable {
+        // Column (vertical)
+        case groupedColumn = "bar"
+        case stackedColumn
+        case hundredPercentStackedColumn
+
+        // Bar (horizontal)
+        case groupedBar
+        case stackedBar
+        case hundredPercentStackedBar
+
+        // Line & Area
+        case line
+        case stackedArea = "area"
+        case hundredPercentStackedArea
+
+        // Other
+        case histogram
+        case scatter
+        case pie
+
+        // Table
+        case pivotTable
+
+        var displayName: String {
+            switch self {
+            case .groupedColumn: "Grouped column"
+            case .stackedColumn: "Stacked column"
+            case .hundredPercentStackedColumn: "100% Stacked column"
+            case .groupedBar: "Grouped bar"
+            case .stackedBar: "Stacked bar"
+            case .hundredPercentStackedBar: "100% Stacked bar"
+            case .line: "Line"
+            case .stackedArea: "Stacked area"
+            case .hundredPercentStackedArea: "100% Stacked area"
+            case .histogram: "Histogram"
+            case .scatter: "Scatter"
+            case .pie: "Pie"
+            case .pivotTable: "Pivot table"
+            }
+        }
     }
+
+    struct ChartTypeGroup {
+        let title: String
+        let types: [ChartType]
+    }
+
+    static let chartTypeGroups: [ChartTypeGroup] = [
+        ChartTypeGroup(title: "COLUMN", types: [.groupedColumn, .stackedColumn, .hundredPercentStackedColumn]),
+        ChartTypeGroup(title: "BAR", types: [.groupedBar, .stackedBar, .hundredPercentStackedBar]),
+        ChartTypeGroup(title: "LINE & AREA", types: [.line, .stackedArea, .hundredPercentStackedArea]),
+        ChartTypeGroup(title: "OTHER", types: [.histogram, .scatter, .pie]),
+        ChartTypeGroup(title: "TABLE", types: [.pivotTable]),
+    ]
 }
 
 extension NotebookBlock {

@@ -38,6 +38,8 @@ final class ChartConfigController: NSViewController {
     private var headerBar: NSView!
     private var headerHeightConstraint: NSLayoutConstraint!
 
+    private var chartTypeButton: ChartTypePickerButton!
+    private var resetButton: HoverIconButton!
     private var xAxisPopUp: StyledDropdown!
     private var yAxisPopUp: StyledDropdown!
 
@@ -611,6 +613,19 @@ final class ChartConfigController: NSViewController {
         let hPad: CGFloat = 14
         let collapseSafeTrailingPriority = NSLayoutConstraint.Priority(rawValue: 999)
 
+        chartTypeButton = ChartTypePickerButton(
+            initialType: viewModel.config?.chartType ?? .groupedColumn
+        ) { [weak self] type in
+            self?.viewModel.setChartType(type)
+        }
+        chartTypeButton.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(chartTypeButton)
+
+        resetButton = HoverIconButton(symbolName: "arrow.counterclockwise", target: self, action: #selector(clearFields))
+        resetButton.translatesAutoresizingMaskIntoConstraints = false
+        resetButton.toolTip = "Clear fields"
+        container.addSubview(resetButton)
+
         let xLabel = NSTextField(labelWithString: "X-axis")
         xLabel.font = .systemFont(ofSize: 11, weight: .medium)
         xLabel.textColor = .tertiaryLabelColor
@@ -634,13 +649,24 @@ final class ChartConfigController: NSViewController {
         }
         yAxisPopUp.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(yAxisPopUp)
+
+        let resetTrailing = resetButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
+        resetTrailing.priority = collapseSafeTrailingPriority
         let xAxisTrailing = xAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
         xAxisTrailing.priority = collapseSafeTrailingPriority
         let yAxisTrailing = yAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
         yAxisTrailing.priority = collapseSafeTrailingPriority
 
         NSLayoutConstraint.activate([
-            xLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
+            chartTypeButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+            chartTypeButton.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
+
+            resetButton.centerYAnchor.constraint(equalTo: chartTypeButton.centerYAnchor),
+            resetTrailing,
+            resetButton.widthAnchor.constraint(equalToConstant: 24),
+            resetButton.heightAnchor.constraint(equalToConstant: 24),
+
+            xLabel.topAnchor.constraint(equalTo: chartTypeButton.bottomAnchor, constant: 14),
             xLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             xAxisPopUp.topAnchor.constraint(equalTo: xLabel.bottomAnchor, constant: 4),
@@ -657,6 +683,12 @@ final class ChartConfigController: NSViewController {
 
         innerSplitView.addSubview(container)
         container.frame = NSRect(x: 0, y: 0, width: Self.centerPanelWidth, height: 380)
+    }
+
+    @objc private func clearFields() {
+        viewModel.resetAxes()
+        xAxisPopUp.clearSelection()
+        yAxisPopUp.clearSelection()
     }
 
     private func rebuildTableDropdown() {
