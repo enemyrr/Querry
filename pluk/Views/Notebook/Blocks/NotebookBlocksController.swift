@@ -164,6 +164,7 @@ final class NotebookBlocksController: NSViewController {
             actionBarView = NotebookActionBarView(dataController: dataController)
         }
         if let bar = actionBarView {
+            bar.isHidden = true // TODO: temp hide for video
             bar.translatesAutoresizingMaskIntoConstraints = false
             stackView.addArrangedSubview(bar)
 

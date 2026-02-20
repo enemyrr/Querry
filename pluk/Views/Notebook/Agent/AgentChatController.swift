@@ -99,6 +99,7 @@ final class AgentChatController {
         save()
         messages.append(userMessage)
 
+        isStreaming = true
         streamingTask = Task { await performStreaming(chat: chat) }
     }
 
@@ -127,7 +128,6 @@ final class AgentChatController {
     }
 
     private func performStreaming(chat: AgentChat) async {
-        isStreaming = true
         streamingContent = ""
         error = nil
 

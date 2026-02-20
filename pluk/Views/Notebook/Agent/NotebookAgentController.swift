@@ -114,6 +114,7 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         }
         chatInputView.onSend = { [weak self] text in
             self?.chatController.send(text: text)
+            self?.chatInputView.isStreaming = true
         }
         chatInputView.onStop = { [weak self] in
             self?.chatController.cancelStreaming()

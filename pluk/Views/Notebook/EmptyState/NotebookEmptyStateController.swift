@@ -50,6 +50,7 @@ final class NotebookEmptyStateController: NSViewController {
 
         // Action bar
         let actionBar = NotebookActionBarView(dataController: dataController)
+        actionBar.isHidden = true // TODO: temp hide for video
         actionBar.translatesAutoresizingMaskIntoConstraints = false
         containerStack.addArrangedSubview(actionBar)
 

@@ -91,6 +91,7 @@ final class AgentChatInputView: NSView {
     private func setupContainer() {
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = 14
+        containerView.layer?.cornerCurve = .continuous
         containerView.layer?.borderWidth = 0.5
         containerView.layer?.shadowColor = NSColor.black.cgColor
         containerView.layer?.shadowOpacity = 0.03

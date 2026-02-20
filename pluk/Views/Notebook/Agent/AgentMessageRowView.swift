@@ -3,9 +3,11 @@ import AppKit
 final class AgentMessageRowView: NSView {
 
     private let role: AgentMessageRole
-    private let label: NSTextField
+    private let textView: NSTextView
     private var containerView: NSView?
     private var loadingView: TypingIndicatorView?
+    private var textViewHeightConstraint: NSLayoutConstraint?
+    private var textViewWidthConstraint: NSLayoutConstraint?
 
     private static let userBubbleColor = NSColor(name: nil) { appearance in
         if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
@@ -14,11 +16,18 @@ final class AgentMessageRowView: NSView {
         return NSColor(red: 0xB9 / 255.0, green: 0x55 / 255.0, blue: 0x31 / 255.0, alpha: 1.0)
     }
 
+    private static let paragraphStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 4
+        return style
+    }()
+
     init(role: AgentMessageRole, content: String) {
         self.role = role
-        self.label = NSTextField(wrappingLabelWithString: content)
+        self.textView = NSTextView()
         super.init(frame: .zero)
         setupLayout()
+        applyAttributedContent(content)
 
         if role == .assistant && content.isEmpty {
             showLoading()
@@ -44,13 +53,11 @@ final class AgentMessageRowView: NSView {
         if !content.isEmpty {
             hideLoading()
         }
-        label.stringValue = content
-        invalidateIntrinsicContentSize()
-        needsLayout = true
+        applyAttributedContent(content)
     }
 
     private func showLoading() {
-        label.isHidden = true
+        textView.isHidden = true
         let indicator = TypingIndicatorView()
         indicator.translatesAutoresizingMaskIntoConstraints = false
         addSubview(indicator)
@@ -68,39 +75,80 @@ final class AgentMessageRowView: NSView {
         indicator.stopAnimating()
         indicator.removeFromSuperview()
         loadingView = nil
-        label.isHidden = false
+        textView.isHidden = false
+    }
+
+    private func applyAttributedContent(_ text: String) {
+        let color: NSColor = role == .user ? .white : .labelColor
+        let attributed = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                .foregroundColor: color,
+                .paragraphStyle: Self.paragraphStyle,
+            ]
+        )
+        textView.textStorage?.setAttributedString(attributed)
+        invalidateIntrinsicContentSize()
+        recalculateTextSize()
+    }
+
+    private func recalculateTextSize() {
+        guard let textStorage = textView.textStorage,
+              let textContainer = textView.textContainer else { return }
+
+        let maxWidth: CGFloat
+        if role == .user {
+            maxWidth = max(0, bounds.width * 0.80 - 24)
+        } else {
+            maxWidth = textContainer.size.width
+        }
+
+        let boundingRect = textStorage.boundingRect(
+            with: NSSize(width: maxWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        textViewHeightConstraint?.constant = ceil(boundingRect.height)
+        textViewWidthConstraint?.constant = ceil(boundingRect.width)
     }
 
     private func setupLayout() {
-        label.font = .systemFont(ofSize: NSFont.systemFontSize)
-        label.isEditable = false
-        label.isSelectable = true
-        label.isBordered = false
-        label.isBezeled = false
-        label.drawsBackground = false
-        label.lineBreakMode = .byWordWrapping
-        label.maximumNumberOfLines = 0
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.isVerticallyResizable = false
+        textView.isHorizontallyResizable = false
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textView.translatesAutoresizingMaskIntoConstraints = false
+
+        let heightConstraint = textView.heightAnchor.constraint(equalToConstant: 0)
+        heightConstraint.priority = .defaultHigh
+        heightConstraint.isActive = true
+        textViewHeightConstraint = heightConstraint
 
         switch role {
         case .user:
-            label.textColor = .white
-
+            let widthConstraint = textView.widthAnchor.constraint(equalToConstant: 0)
+            widthConstraint.priority = .defaultHigh
+            widthConstraint.isActive = true
+            textViewWidthConstraint = widthConstraint
             let container = NSView()
             container.wantsLayer = true
             container.layer?.cornerRadius = 14
             container.translatesAutoresizingMaskIntoConstraints = false
             addSubview(container)
-            container.addSubview(label)
+            container.addSubview(textView)
             self.containerView = container
             updateUserBubbleColor()
 
             NSLayoutConstraint.activate([
-                label.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
-                label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
-                label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-                label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+                textView.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+                textView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
+                textView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+                textView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
 
                 container.topAnchor.constraint(equalTo: topAnchor),
                 container.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -109,16 +157,24 @@ final class AgentMessageRowView: NSView {
             ])
 
         case .assistant:
-            label.textColor = .labelColor
-            addSubview(label)
+            addSubview(textView)
 
             NSLayoutConstraint.activate([
-                label.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-                label.leadingAnchor.constraint(equalTo: leadingAnchor),
-                label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+                textView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                textView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+                textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                textView.trailingAnchor.constraint(equalTo: trailingAnchor),
             ])
         }
+    }
+
+    override func layout() {
+        super.layout()
+        if role == .user {
+            let maxTextWidth = bounds.width * 0.80 - 24
+            textView.textContainer?.size.width = max(0, maxTextWidth)
+        }
+        recalculateTextSize()
     }
 
     private func updateUserBubbleColor() {
