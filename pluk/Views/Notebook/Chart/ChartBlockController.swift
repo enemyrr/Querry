@@ -319,12 +319,13 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
         trackingArea = area
+        refreshHoverState()
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -349,6 +350,19 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
     }
 
     private var popover: NSPopover?
+
+    private func refreshHoverState() {
+        guard let window else {
+            if isHovering { isHovering = false; updateHoverBackground() }
+            return
+        }
+        let mouseInView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let shouldHover = isEnabled && bounds.contains(mouseInView)
+        if shouldHover != isHovering {
+            isHovering = shouldHover
+            updateHoverBackground()
+        }
+    }
 
     private func updateHoverBackground() {
         applyHoverBackground(isHovering)
@@ -487,12 +501,13 @@ final class StyledDropdown: NSView {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
         trackingArea = area
+        refreshHoverState()
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -509,6 +524,19 @@ final class StyledDropdown: NSView {
     override func mouseDown(with event: NSEvent) {
         guard isEnabled, !items.isEmpty else { return }
         showMenu()
+    }
+
+    private func refreshHoverState() {
+        guard let window else {
+            if isHovering { isHovering = false; updateHover() }
+            return
+        }
+        let mouseInView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let shouldHover = isEnabled && bounds.contains(mouseInView)
+        if shouldHover != isHovering {
+            isHovering = shouldHover
+            updateHover()
+        }
     }
 
     private func updateHover() {
@@ -577,7 +605,7 @@ final class StyledDropdown: NSView {
 
 // MARK: - Source connections popover
 
-private final class SourceConnectionsPopoverController: NSViewController {
+final class SourceConnectionsPopoverController: NSViewController {
 
     private let connections: [Connection]
     private let onSelect: (Connection) -> Void
@@ -619,7 +647,7 @@ private final class SourceConnectionsPopoverController: NSViewController {
 
 // MARK: - Connection menu item with icon
 
-private final class ConnectionMenuItem: NSView {
+final class ConnectionMenuItem: NSView {
 
     private let action: () -> Void
     private var trackingArea: NSTrackingArea?
@@ -667,8 +695,8 @@ private final class ConnectionMenuItem: NSView {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -832,8 +860,8 @@ private final class HoverableMenuItem: NSView {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)

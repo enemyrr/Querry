@@ -27,9 +27,18 @@ This file provides guidance to AI coding agents when working with code in this r
 - Link PRs to issues using `Fixes pluk-inc/Pluk#<issue-number>`
 
 ## GitHub GraphQL API
+
 - Never use deprecated Projects (classic) fields: `projectCards`, `ProjectCard`, `ProjectColumn`
 - Always use ProjectsV2 API: `projectItems`, `ProjectV2Item`, `ProjectV2ItemFieldValue`
 - Reference: https://docs.github.com/en/graphql/reference/objects#projectv2
+
+## AppKit Hover State Rules
+
+- Always use `.inVisibleRect` in NSTrackingArea options — never use `rect: bounds` alone
+- Pattern: `NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)`
+- For views inside scroll views or that can be clipped/hidden, also add a `refreshHoverState()` method that checks
+  `window.mouseLocationOutsideOfEventStream` and call it from `updateTrackingAreas()`
+- Reference implementations: `BlockHoverTrackingView` and `FieldRowCell` in `ChartConfigController.swift`
 
 ## Development Commands
 
@@ -48,12 +57,6 @@ This file provides guidance to AI coding agents when working with code in this r
 # Beta/pre-release build
 IS_PRERELEASE_BUILD=YES ./scripts/build.sh
 ```
-
-### Testing
-
-- Unit tests: `PlukTests` target
-- UI tests: `PlukUITests` target
-- **Note**: Do not attempt to run the Xcode project for testing - manual testing only
 
 ### Version Management
 

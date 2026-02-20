@@ -23,6 +23,10 @@ final class ChartBlockViewModel {
     var previewResult: QueryResult?
     var isLoadingPreview = false
 
+    // Environment/deployment state (Convex)
+    var availableEnvironments: [String] = []
+    var selectedEnvironment: String?
+
     var schemaResult: DatabaseSchemaResult?
 
     // Chart state
@@ -57,6 +61,15 @@ final class ChartBlockViewModel {
               let uri = resolveConnectionUri(cfg) else { return }
         do {
             try await session.connect(databaseType: dbType, uri: uri)
+
+            if Self.environmentCapableTypes.contains(dbType) {
+                let databases = try await session.listDatabases()
+                availableEnvironments = databases.map(\.name)
+                if !cfg.databaseName.isEmpty {
+                    selectedEnvironment = cfg.databaseName
+                }
+            }
+
             if !cfg.databaseName.isEmpty {
                 try await session.switchDatabase(to: cfg.databaseName)
             }
@@ -71,6 +84,8 @@ final class ChartBlockViewModel {
             chartError = error.localizedDescription
         }
     }
+
+    private static let environmentCapableTypes: Set<DatabaseType> = [.convex]
 
     func connectToSource(_ connection: Connection) async {
         isConnecting = true
@@ -93,30 +108,86 @@ final class ChartBlockViewModel {
 
         do {
             try await session.connect(databaseType: dbType, uri: uri)
-            if let defaultDb = connection.defaultDatabase, !defaultDb.isEmpty {
-                try? await session.switchDatabase(to: defaultDb)
-            }
 
-            try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: nil)
+            if Self.environmentCapableTypes.contains(dbType) {
+                let databases = try await session.listDatabases()
+                availableEnvironments = databases.map(\.name)
 
-            config = draft
+                let defaultDb = connection.defaultDatabase ?? ""
+                let envToSelect = availableEnvironments.first(where: { $0 == defaultDb })
+                    ?? availableEnvironments.first
 
-            if let firstTable = availableCollections.first {
-                confirmTableSelection(tableName: firstTable.name)
+                config = draft
+
+                if let env = envToSelect {
+                    try await session.switchDatabase(to: env)
+                    selectedEnvironment = env
+                    config?.databaseName = env
+
+                    try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: nil)
+
+                    if let firstTable = availableCollections.first {
+                        confirmTableSelection(tableName: firstTable.name)
+                    }
+                }
+            } else {
+                if let defaultDb = connection.defaultDatabase, !defaultDb.isEmpty {
+                    try? await session.switchDatabase(to: defaultDb)
+                }
+
+                try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: nil)
+
+                config = draft
+
+                if let firstTable = availableCollections.first {
+                    confirmTableSelection(tableName: firstTable.name)
+                }
             }
         } catch {
             connectionError = error.localizedDescription
         }
     }
 
+    func switchEnvironment(_ environmentName: String) async {
+        selectedEnvironment = environmentName
+        availableCollections = []
+        availableSchemas = []
+        selectedPickerSchema = nil
+        schemaResult = nil
+        chartData = []
+        chartError = nil
+
+        if var cfg = config {
+            cfg.databaseName = environmentName
+            cfg.tableName = ""
+            cfg.schemaName = nil
+            cfg.xAxisColumn = nil
+            cfg.yAxisColumn = nil
+            config = cfg
+            persistConfig()
+        }
+
+        do {
+            try await session.switchDatabase(to: environmentName)
+            let dbType = config.flatMap { DatabaseType(rawValue: $0.databaseType) } ?? .convex
+            try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: nil)
+        } catch {
+            connectionError = error.localizedDescription
+        }
+    }
+
+    private static let schemaCapableTypes: Set<DatabaseType> = [.postgres, .supabase, .convex, .mysql]
+
     private func loadSchemasAndCollections(databaseType: DatabaseType, preferredSchema: String?) async throws {
-        if databaseType != .mongodb {
+        if Self.schemaCapableTypes.contains(databaseType) {
             let schemas = try await session.getInformationSchema()
             availableSchemas = schemas
             let schema = preferredSchema ?? schemas.first(where: { $0.name == "public" })?.name ?? schemas.first?.name
             selectedPickerSchema = schema
             availableCollections = try await session.listCollections(schema: schema)
         } else {
+            availableSchemas = []
+            selectedPickerSchema = nil
             availableCollections = try await session.listCollections(schema: nil)
         }
     }

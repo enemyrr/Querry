@@ -79,7 +79,8 @@ final class NotebookMainPaneController: NSViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        view.window?.makeFirstResponder(nil)
+        guard let window = view.window else { return }
+        window.makeFirstResponder(window)
     }
 
     // MARK: - Setup

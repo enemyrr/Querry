@@ -20,11 +20,16 @@ final class ChartConfigController: NSViewController {
 
     private var connectionDropdown: SourceDropdownButton!
     private var connectionSpinner: NSProgressIndicator!
+    private var environmentDropdown: StyledDropdown!
+    private var environmentLabel: NSTextField!
     private var tableDropdown: StyledDropdown!
     private var schemaDropdown: StyledDropdown!
     private var schemaLabel: NSTextField!
     private var tableLabelTopToSchemaConstraint: NSLayoutConstraint?
+    private var tableLabelTopToEnvironmentConstraint: NSLayoutConstraint?
     private var tableLabelTopToConnectionConstraint: NSLayoutConstraint?
+    private var schemaLabelTopToEnvironmentConstraint: NSLayoutConstraint?
+    private var schemaLabelTopToConnectionConstraint: NSLayoutConstraint?
     private var collapseButton: HoverIconButton!
     private var expandButton: HoverIconButton!
     private var columnPanelContainer: NSView!
@@ -38,6 +43,9 @@ final class ChartConfigController: NSViewController {
 
     private var filterContainer: NSStackView!
     private var filterPopover: NSPopover?
+    private var connectionPickerView: NSView?
+    private var pickerDropdownRef: ConnectionPickerDropdown?
+
     private var filterLeadingToBarConstraint: NSLayoutConstraint!
     private var filterLeadingToConnectionConstraint: NSLayoutConstraint!
     private var filterLeadingToSpinnerConstraint: NSLayoutConstraint!
@@ -58,11 +66,19 @@ final class ChartConfigController: NSViewController {
         self.view = root
 
         setupSplitView()
+
+        if viewModel.config == nil {
+            splitView.isHidden = true
+            setupConnectionPicker()
+        }
+
+        observeConfig()
         observeSchema()
         observeChartData()
         observeConnecting()
         observeCollections()
         observeSchemas()
+        observeEnvironments()
         observeFilters()
 
         NotificationCenter.default.addObserver(
@@ -93,6 +109,85 @@ final class ChartConfigController: NSViewController {
     }
 
     private var didSetInitialDividerPositions = false
+
+    // MARK: - Connection Picker
+
+    private func setupConnectionPicker() {
+        let picker = NSView()
+        picker.wantsLayer = true
+        picker.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(picker)
+
+        NSLayoutConstraint.activate([
+            picker.topAnchor.constraint(equalTo: view.topAnchor),
+            picker.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            picker.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            picker.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+
+        let artwork = NotebookArtworkView()
+        artwork.translatesAutoresizingMaskIntoConstraints = false
+
+        let title = NSTextField(labelWithString: "Start by selecting a data source")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        title.textColor = .labelColor
+        title.alignment = .center
+
+        let pickerDropdown = ConnectionPickerDropdown(
+            connections: connections,
+            onSelect: { [weak self] connection in
+                guard let self else { return }
+                Task { await self.viewModel.connectToSource(connection) }
+            }
+        )
+        pickerDropdown.translatesAutoresizingMaskIntoConstraints = false
+
+        let stack = NSStackView(views: [artwork, title, pickerDropdown])
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 16
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        picker.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            artwork.widthAnchor.constraint(equalToConstant: 80),
+            artwork.heightAnchor.constraint(equalToConstant: 80),
+
+            pickerDropdown.widthAnchor.constraint(equalToConstant: 260),
+
+            stack.centerXAnchor.constraint(equalTo: picker.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: picker.centerYAnchor, constant: -20),
+        ])
+
+        connectionPickerView = picker
+        pickerDropdownRef = pickerDropdown
+    }
+
+    private func dismissConnectionPicker() {
+        guard let picker = connectionPickerView else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            picker.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            picker.removeFromSuperview()
+            self?.connectionPickerView = nil
+            self?.splitView.isHidden = false
+        }
+    }
+
+    private func observeConfig() {
+        withObservationTracking {
+            _ = self.viewModel.config
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.viewModel.config != nil, self.connectionPickerView != nil {
+                    self.dismissConnectionPicker()
+                }
+                self.observeConfig()
+            }
+        }
+    }
 
     // MARK: - Split View
 
@@ -255,6 +350,22 @@ final class ChartConfigController: NSViewController {
         collapseButton.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(collapseButton)
 
+        // Environment dropdown (Convex deployments)
+        environmentLabel = NSTextField(labelWithString: "Environment")
+        environmentLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        environmentLabel.textColor = .tertiaryLabelColor
+        environmentLabel.translatesAutoresizingMaskIntoConstraints = false
+        environmentLabel.isHidden = true
+        container.addSubview(environmentLabel)
+
+        environmentDropdown = StyledDropdown(placeholder: "Select environment") { [weak self] title in
+            Task { await self?.viewModel.switchEnvironment(title) }
+        }
+        environmentDropdown.translatesAutoresizingMaskIntoConstraints = false
+        environmentDropdown.isHidden = true
+        container.addSubview(environmentDropdown)
+        rebuildEnvironmentDropdown()
+
         let tableLabel = NSTextField(labelWithString: "Table")
         tableLabel.font = .systemFont(ofSize: 11, weight: .medium)
         tableLabel.textColor = .tertiaryLabelColor
@@ -316,14 +427,31 @@ final class ChartConfigController: NSViewController {
             fieldsDocumentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
         ])
 
+        // Table label constraint: top anchored to schema dropdown, environment dropdown, or connection dropdown
         let tableTopToSchema = tableLabel.topAnchor.constraint(equalTo: schemaDropdown.bottomAnchor, constant: 14)
         tableTopToSchema.isActive = false
         tableLabelTopToSchemaConstraint = tableTopToSchema
 
+        let tableTopToEnvironment = tableLabel.topAnchor.constraint(equalTo: environmentDropdown.bottomAnchor, constant: 14)
+        tableTopToEnvironment.isActive = false
+        tableLabelTopToEnvironmentConstraint = tableTopToEnvironment
+
         let tableTopToConnection = tableLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14)
         tableTopToConnection.isActive = true
         tableLabelTopToConnectionConstraint = tableTopToConnection
+
+        // Schema label constraint: top anchored to environment dropdown or connection dropdown
+        let schemaTopToEnvironment = schemaLabel.topAnchor.constraint(equalTo: environmentDropdown.bottomAnchor, constant: 14)
+        schemaTopToEnvironment.isActive = false
+        schemaLabelTopToEnvironmentConstraint = schemaTopToEnvironment
+
+        let schemaTopToConnection = schemaLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14)
+        schemaTopToConnection.isActive = true
+        schemaLabelTopToConnectionConstraint = schemaTopToConnection
+
         let collapseSafeTrailingPriority = NSLayoutConstraint.Priority(rawValue: 999)
+        let envDropdownTrailing = environmentDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
+        envDropdownTrailing.priority = collapseSafeTrailingPriority
         let schemaDropdownTrailing = schemaDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
         schemaDropdownTrailing.priority = collapseSafeTrailingPriority
         let tableDropdownTrailing = tableDropdown.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
@@ -342,7 +470,13 @@ final class ChartConfigController: NSViewController {
             connectionSpinner.centerYAnchor.constraint(equalTo: connectionDropdown.centerYAnchor),
             connectionSpinner.leadingAnchor.constraint(equalTo: connectionDropdown.trailingAnchor, constant: 6),
 
-            schemaLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14),
+            environmentLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 14),
+            environmentLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
+
+            environmentDropdown.topAnchor.constraint(equalTo: environmentLabel.bottomAnchor, constant: 4),
+            environmentDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
+            envDropdownTrailing,
+
             schemaLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             schemaDropdown.topAnchor.constraint(equalTo: schemaLabel.bottomAnchor, constant: 4),
@@ -389,6 +523,7 @@ final class ChartConfigController: NSViewController {
         splitView.needsDisplay = true
         expandButton.isHidden = !isColumnPanelCollapsed
         headerConnectionDropdown.isHidden = !isColumnPanelCollapsed
+        updateConnectionState()
         updateFilterLeadingConstraint()
     }
 
@@ -405,10 +540,64 @@ final class ChartConfigController: NSViewController {
             if let selected = viewModel.selectedPickerSchema {
                 schemaDropdown.selectItem(selected)
             }
-            tableLabelTopToConnectionConstraint?.isActive = false
+        }
+
+        updateColumnPanelConstraints()
+    }
+
+    private func updateEnvironmentVisibility() {
+        let environments = viewModel.availableEnvironments
+        let hasEnvironments = !environments.isEmpty
+
+        environmentLabel.isHidden = !hasEnvironments
+        environmentDropdown.isHidden = !hasEnvironments
+
+        if hasEnvironments {
+            environmentDropdown.setItems(environments)
+            if let selected = viewModel.selectedEnvironment {
+                environmentDropdown.selectItem(selected)
+            }
+        }
+
+        updateColumnPanelConstraints()
+    }
+
+    private func rebuildEnvironmentDropdown() {
+        let environments = viewModel.availableEnvironments
+        environmentDropdown.setItems(environments)
+        if let selected = viewModel.selectedEnvironment {
+            environmentDropdown.selectItem(selected)
+        }
+        let hasEnvironments = !environments.isEmpty
+        environmentLabel.isHidden = !hasEnvironments
+        environmentDropdown.isHidden = !hasEnvironments
+    }
+
+    private func updateColumnPanelConstraints() {
+        let hasEnvironments = !viewModel.availableEnvironments.isEmpty
+        let hasSchemas = !viewModel.availableSchemas.isEmpty
+
+        // Deactivate all dynamic constraints
+        tableLabelTopToConnectionConstraint?.isActive = false
+        tableLabelTopToEnvironmentConstraint?.isActive = false
+        tableLabelTopToSchemaConstraint?.isActive = false
+        schemaLabelTopToConnectionConstraint?.isActive = false
+        schemaLabelTopToEnvironmentConstraint?.isActive = false
+
+        if hasSchemas {
+            // Table sits below schema
             tableLabelTopToSchemaConstraint?.isActive = true
+            // Schema sits below environment (if present) or connection
+            if hasEnvironments {
+                schemaLabelTopToEnvironmentConstraint?.isActive = true
+            } else {
+                schemaLabelTopToConnectionConstraint?.isActive = true
+            }
+        } else if hasEnvironments {
+            // No schema, table sits below environment
+            tableLabelTopToEnvironmentConstraint?.isActive = true
         } else {
-            tableLabelTopToSchemaConstraint?.isActive = false
+            // No schema, no environment, table sits below connection
             tableLabelTopToConnectionConstraint?.isActive = true
         }
     }
@@ -695,18 +884,24 @@ final class ChartConfigController: NSViewController {
         let connecting = viewModel.isConnecting
         connectionDropdown.isEnabled = !connecting
 
+        connectionSpinner.isHidden = !connecting || isColumnPanelCollapsed
+        headerSpinner.isHidden = !connecting || !isColumnPanelCollapsed
+
         for spinner in [connectionSpinner!, headerSpinner!] {
-            spinner.isHidden = !connecting
-            if connecting {
+            if !spinner.isHidden {
                 spinner.startAnimation(nil)
             } else {
                 spinner.stopAnimation(nil)
             }
         }
+
         if let cfg = viewModel.config, !cfg.connectionName.isEmpty {
             let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
             connectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
             headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            pickerDropdownRef?.setConnecting(connecting, name: cfg.connectionName, iconName: iconName)
+        } else {
+            pickerDropdownRef?.setConnecting(connecting)
         }
         updateFilterLeadingConstraint()
     }
@@ -744,6 +939,19 @@ final class ChartConfigController: NSViewController {
                 guard let self else { return }
                 self.updateSchemaVisibility()
                 self.observeSchemas()
+            }
+        }
+    }
+
+    private func observeEnvironments() {
+        withObservationTracking {
+            _ = self.viewModel.availableEnvironments.count
+            _ = self.viewModel.selectedEnvironment
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateEnvironmentVisibility()
+                self.observeEnvironments()
             }
         }
     }
@@ -849,664 +1057,3 @@ extension ChartConfigController: NSSplitViewDelegate {
     }
 }
 
-// MARK: - Filter Chip View ("Add filter" / count / "+" button)
-
-private final class FilterChipView: NSView {
-
-    enum Style { case plain, active }
-
-    private let action: () -> Void
-    private var trackingArea: NSTrackingArea?
-    private var isHovering = false
-
-    init(icon: String, title: String?, style: Style, action: @escaping () -> Void) {
-        self.action = action
-        super.init(frame: .zero)
-
-        wantsLayer = true
-        layer?.cornerRadius = 6
-
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.spacing = 4
-        stack.alignment = .centerY
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-
-        let iconView = NSImageView()
-        iconView.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
-        iconView.symbolConfiguration = .init(pointSize: 11, weight: .medium)
-        iconView.contentTintColor = style == .active ? .controlAccentColor : .secondaryLabelColor
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.setContentHuggingPriority(.required, for: .horizontal)
-        stack.addArrangedSubview(iconView)
-
-        NSLayoutConstraint.activate([
-            iconView.widthAnchor.constraint(equalToConstant: 14),
-            iconView.heightAnchor.constraint(equalToConstant: 14),
-        ])
-
-        if let title {
-            let label = NSTextField(labelWithString: title)
-            label.font = .systemFont(ofSize: 12, weight: .medium)
-            label.textColor = style == .active ? .controlAccentColor : .secondaryLabelColor
-            label.lineBreakMode = .byTruncatingTail
-            label.translatesAutoresizingMaskIntoConstraints = false
-            stack.addArrangedSubview(label)
-        }
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let existing = trackingArea { removeTrackingArea(existing) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self)
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-        updateHover()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        updateHover()
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        action()
-    }
-
-    private func updateHover() {
-        applyHoverBackground(isHovering)
-    }
-}
-
-// MARK: - Filter Pill View (applied filter with remove button)
-
-private final class FilterPillView: NSView {
-
-    private let filter: ChartFilterCondition
-    private let isValid: Bool
-    private let onEdit: (NSView) -> Void
-    private let onRemove: () -> Void
-    private var trackingArea: NSTrackingArea?
-    private var isHovering = false
-
-    init(filter: ChartFilterCondition, isValid: Bool = true, onEdit: @escaping (NSView) -> Void, onRemove: @escaping () -> Void) {
-        self.filter = filter
-        self.isValid = isValid
-        self.onEdit = onEdit
-        self.onRemove = onRemove
-        super.init(frame: .zero)
-
-        wantsLayer = true
-        layer?.cornerRadius = 6
-        layer?.borderWidth = 1
-        updateBorderColor()
-
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.spacing = 4
-        stack.alignment = .centerY
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-
-        if !isValid {
-            let warningIcon = NSImageView()
-            warningIcon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Invalid field")
-            warningIcon.symbolConfiguration = .init(pointSize: 10, weight: .medium)
-            warningIcon.contentTintColor = .systemOrange
-            warningIcon.translatesAutoresizingMaskIntoConstraints = false
-            warningIcon.setContentHuggingPriority(.required, for: .horizontal)
-            stack.addArrangedSubview(warningIcon)
-            NSLayoutConstraint.activate([
-                warningIcon.widthAnchor.constraint(equalToConstant: 14),
-                warningIcon.heightAnchor.constraint(equalToConstant: 14),
-            ])
-        }
-
-        let label = NSTextField(labelWithString: filter.displaySummary)
-        label.font = .systemFont(ofSize: 11, weight: .medium)
-        label.textColor = isValid ? .secondaryLabelColor : .systemOrange
-        label.lineBreakMode = .byTruncatingTail
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        stack.addArrangedSubview(label)
-
-        let closeButton = NSButton()
-        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Remove filter")
-        closeButton.symbolConfiguration = .init(pointSize: 8, weight: .bold)
-        closeButton.bezelStyle = .accessoryBar
-        closeButton.isBordered = false
-        closeButton.contentTintColor = .tertiaryLabelColor
-        closeButton.target = self
-        closeButton.action = #selector(removeClicked)
-        closeButton.translatesAutoresizingMaskIntoConstraints = false
-        stack.addArrangedSubview(closeButton)
-
-        NSLayoutConstraint.activate([
-            closeButton.widthAnchor.constraint(equalToConstant: 16),
-            closeButton.heightAnchor.constraint(equalToConstant: 16),
-
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 3),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
-
-            label.widthAnchor.constraint(lessThanOrEqualToConstant: 200),
-        ])
-
-        NotificationCenter.default.addObserver(self, selector: #selector(appearanceChanged), name: .appAppearanceDidChange, object: nil)
-
-        if !isValid {
-            installCustomTooltip("Field \"\(filter.field)\" does not exist in current table", position: .top, delay: 0, spacing: 4)
-        }
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    @objc private func removeClicked() {
-        onRemove()
-    }
-
-    @objc private func appearanceChanged() {
-        updateBorderColor()
-    }
-
-    private func updateBorderColor() {
-        if !isValid {
-            layer?.borderColor = NSColor.systemOrange.withAlphaComponent(0.5).cgColor
-            return
-        }
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let isDark = NSAppearance.currentDrawing().isDarkMode
-            layer?.borderColor = isDark
-                ? NSColor.white.withAlphaComponent(0.12).cgColor
-                : NSColor.black.withAlphaComponent(0.1).cgColor
-        }
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let existing = trackingArea { removeTrackingArea(existing) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self)
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-        updateHover()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        updateHover()
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        onEdit(self)
-    }
-
-    private func updateHover() {
-        applyHoverBackground(isHovering)
-    }
-}
-
-// MARK: - Field Row Cell (matches sidebar table row style)
-
-private final class FieldRowCell: NSTableCellView {
-
-    private let hoverBackground = NSView()
-    private let iconView = NSImageView()
-    private let nameLabel = NSTextField(labelWithString: "")
-    private let typeLabel = NSTextField(labelWithString: "")
-    private var trackingArea: NSTrackingArea?
-    private var boundsObserver: NSObjectProtocol?
-    private weak var observedClipView: NSClipView?
-    private var isHovering = false
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setupViews()
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    private func setupViews() {
-        hoverBackground.wantsLayer = true
-        hoverBackground.layer?.cornerRadius = 6
-        hoverBackground.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(hoverBackground)
-
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.symbolConfiguration = .init(pointSize: 12, weight: .regular)
-        iconView.alphaValue = 0.7
-        addSubview(iconView)
-
-        nameLabel.font = .systemFont(ofSize: 12)
-        nameLabel.textColor = .labelColor
-        nameLabel.lineBreakMode = .byTruncatingTail
-        nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(nameLabel)
-
-        typeLabel.font = .systemFont(ofSize: 11)
-        typeLabel.textColor = .tertiaryLabelColor
-        typeLabel.alignment = .right
-        typeLabel.lineBreakMode = .byTruncatingTail
-        typeLabel.translatesAutoresizingMaskIntoConstraints = false
-        typeLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addSubview(typeLabel)
-
-        NSLayoutConstraint.activate([
-            hoverBackground.topAnchor.constraint(equalTo: topAnchor, constant: 1),
-            hoverBackground.leadingAnchor.constraint(equalTo: leadingAnchor),
-            hoverBackground.trailingAnchor.constraint(equalTo: trailingAnchor),
-            hoverBackground.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
-
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 16),
-            iconView.heightAnchor.constraint(equalToConstant: 16),
-
-            nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
-            nameLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-
-            typeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: nameLabel.trailingAnchor, constant: 4),
-            typeLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            typeLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            typeLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 60),
-        ])
-    }
-
-    func configure(name: String, iconName: String, dataType: String) {
-        nameLabel.stringValue = name
-        iconView.image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)
-        iconView.contentTintColor = .secondaryLabelColor
-        typeLabel.stringValue = dataType.lowercased()
-    }
-
-    // MARK: - Hover
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let existing = trackingArea { removeTrackingArea(existing) }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-            owner: self
-        )
-        addTrackingArea(area)
-        trackingArea = area
-        syncHoverStateWithMouse()
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-        updateHover()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        updateHover()
-    }
-
-    override func viewDidMoveToSuperview() {
-        super.viewDidMoveToSuperview()
-        updateBoundsObservation()
-        syncHoverStateWithMouse()
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        updateBoundsObservation()
-        syncHoverStateWithMouse()
-        if window == nil {
-            isHovering = false
-            updateHover()
-        }
-    }
-
-    deinit {
-        removeBoundsObservation()
-    }
-
-    private func updateBoundsObservation() {
-        let clipView = enclosingScrollView?.contentView
-        guard observedClipView !== clipView else { return }
-        removeBoundsObservation()
-        guard let clipView else { return }
-        clipView.postsBoundsChangedNotifications = true
-        boundsObserver = NotificationCenter.default.addObserver(
-            forName: NSView.boundsDidChangeNotification,
-            object: clipView,
-            queue: nil
-        ) { [weak self] _ in
-            self?.syncHoverStateWithMouse()
-        }
-        observedClipView = clipView
-    }
-
-    private func removeBoundsObservation() {
-        if let boundsObserver {
-            NotificationCenter.default.removeObserver(boundsObserver)
-            self.boundsObserver = nil
-        }
-        observedClipView = nil
-    }
-
-    private func syncHoverStateWithMouse() {
-        guard let window else {
-            if isHovering {
-                isHovering = false
-                updateHover()
-            }
-            return
-        }
-
-        let mouseInWindow = window.mouseLocationOutsideOfEventStream
-        let mouseInView = convert(mouseInWindow, from: nil)
-        let shouldHover = bounds.contains(mouseInView)
-        guard shouldHover != isHovering else { return }
-        isHovering = shouldHover
-        updateHover()
-    }
-
-    private func updateHover() {
-        hoverBackground.applyHoverBackground(isHovering)
-    }
-}
-
-private final class FlippedContentView: NSView {
-    override var isFlipped: Bool { true }
-}
-
-// MARK: - Collapsible Split View
-
-private final class CollapsibleSplitView: NSSplitView {
-    var hideDivider = false
-
-    override var dividerThickness: CGFloat {
-        hideDivider ? 0 : super.dividerThickness
-    }
-
-    override func drawDivider(in rect: NSRect) {
-        if hideDivider { return }
-        super.drawDivider(in: rect)
-    }
-}
-
-// MARK: - Hover Icon Button
-
-private final class HoverIconButton: NSView {
-
-    private let iconView: NSImageView
-    private let action: Selector
-    private weak var target: AnyObject?
-    private var trackingArea: NSTrackingArea?
-    private var isHovering = false
-
-    init(symbolName: String, target: AnyObject, action: Selector) {
-        self.iconView = NSImageView()
-        self.target = target
-        self.action = action
-        super.init(frame: .zero)
-
-        wantsLayer = true
-        layer?.cornerRadius = 6
-
-        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        iconView.symbolConfiguration = .init(pointSize: 11, weight: .medium)
-        iconView.contentTintColor = .tertiaryLabelColor
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(iconView)
-
-        NSLayoutConstraint.activate([
-            iconView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    override var isHidden: Bool {
-        didSet {
-            if isHidden && isHovering {
-                isHovering = false
-                updateHover()
-            }
-        }
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let existing = trackingArea { removeTrackingArea(existing) }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
-            owner: self
-        )
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-        updateHover()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        updateHover()
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        _ = target?.perform(action, with: self)
-    }
-
-    private func updateHover() {
-        applyHoverBackground(isHovering)
-    }
-}
-
-// MARK: - Chart Preview (SwiftUI, embedded via NSHostingView)
-
-private struct ChartPreviewView: View {
-    var viewModel: ChartBlockViewModel
-
-    var body: some View {
-        Group {
-            if viewModel.isLoadingChart {
-                VStack(spacing: 8) {
-                    ProgressView()
-                    Text("Loading chart data...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else if let error = viewModel.chartError {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.title2)
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-            } else if viewModel.chartData.isEmpty {
-                ChartEmptyStateView(
-                    xAxisColumn: viewModel.config?.xAxisColumn,
-                    yAxisColumn: viewModel.config?.yAxisColumn
-                )
-            } else {
-                BarChartView(data: viewModel.chartData)
-                    .padding()
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Chart Empty State
-
-private struct ChartEmptyStateView: View {
-    let xAxisColumn: String?
-    let yAxisColumn: String?
-
-    private let axisInset: CGFloat = 52
-    private let gridSpacing: CGFloat = 28
-
-    var body: some View {
-        GeometryReader { geo in
-            let originX = axisInset
-            let originY = geo.size.height - axisInset
-            let endX = geo.size.width - 12
-            let endY: CGFloat = 12
-
-            Canvas { context, size in
-                drawGrid(context: context, originX: originX, originY: originY, endX: endX, endY: endY)
-                drawAxes(context: context, originX: originX, originY: originY, endX: endX, endY: endY)
-            }
-
-            yAxisLabel
-                .position(x: axisInset / 2, y: geo.size.height / 2)
-
-            xAxisLabel
-                .position(x: (originX + endX) / 2, y: originY + (axisInset / 2) + 2)
-
-        }
-    }
-
-    // MARK: - Grid
-
-    private func drawGrid(context: GraphicsContext, originX: CGFloat, originY: CGFloat, endX: CGFloat, endY: CGFloat) {
-        var gridPath = Path()
-
-        var x = originX + gridSpacing
-        while x < endX {
-            gridPath.move(to: CGPoint(x: x, y: endY))
-            gridPath.addLine(to: CGPoint(x: x, y: originY))
-            x += gridSpacing
-        }
-
-        var y = originY - gridSpacing
-        while y > endY {
-            gridPath.move(to: CGPoint(x: originX, y: y))
-            gridPath.addLine(to: CGPoint(x: endX, y: y))
-            y -= gridSpacing
-        }
-
-        context.stroke(gridPath, with: .color(.secondary.opacity(0.08)), lineWidth: 0.5)
-    }
-
-    // MARK: - Axes
-
-    private func drawAxes(context: GraphicsContext, originX: CGFloat, originY: CGFloat, endX: CGFloat, endY: CGFloat) {
-        let axisColor = Color.secondary.opacity(0.3)
-        let dashStyle = StrokeStyle(lineWidth: 1, dash: [6, 4])
-        let solidStyle = StrokeStyle(lineWidth: 1)
-
-        var yAxis = Path()
-        yAxis.move(to: CGPoint(x: originX, y: originY))
-        yAxis.addLine(to: CGPoint(x: originX, y: endY))
-        context.stroke(yAxis, with: .color(axisColor), style: dashStyle)
-
-        var yArrow = Path()
-        yArrow.move(to: CGPoint(x: originX - 5, y: endY + 8))
-        yArrow.addLine(to: CGPoint(x: originX, y: endY))
-        yArrow.addLine(to: CGPoint(x: originX + 5, y: endY + 8))
-        context.stroke(yArrow, with: .color(axisColor), style: solidStyle)
-
-        var xAxis = Path()
-        xAxis.move(to: CGPoint(x: originX, y: originY))
-        xAxis.addLine(to: CGPoint(x: endX, y: originY))
-        context.stroke(xAxis, with: .color(axisColor), style: dashStyle)
-
-        var xArrow = Path()
-        xArrow.move(to: CGPoint(x: endX - 8, y: originY - 5))
-        xArrow.addLine(to: CGPoint(x: endX, y: originY))
-        xArrow.addLine(to: CGPoint(x: endX - 8, y: originY + 5))
-        context.stroke(xArrow, with: .color(axisColor), style: solidStyle)
-    }
-
-    // MARK: - Labels
-
-    @ViewBuilder
-    private var yAxisLabel: some View {
-        if let col = yAxisColumn {
-            axisTag(col)
-                .rotationEffect(.degrees(-90))
-        } else {
-            Text("No Y-axis")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                        .foregroundStyle(.quaternary)
-                )
-                .rotationEffect(.degrees(-90))
-        }
-    }
-
-    @ViewBuilder
-    private var xAxisLabel: some View {
-        HStack(spacing: 6) {
-            if let col = xAxisColumn {
-                Text("X-axis")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                axisTag(col)
-            } else {
-                Text("No X-axis")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                            .foregroundStyle(.quaternary)
-                    )
-            }
-        }
-    }
-
-    private func axisTag(_ text: String) -> some View {
-        Text(text)
-            .font(.caption2)
-            .fontWeight(.medium)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.quinary)
-            .clipShape(.rect(cornerRadius: 4))
-    }
-
-}
