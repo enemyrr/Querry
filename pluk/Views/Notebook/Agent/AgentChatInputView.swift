@@ -130,16 +130,16 @@ final class AgentChatInputView: NSView {
             containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
 
-            inputTextView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 10),
-            inputTextView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 12),
-            inputTextView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12),
+            inputTextView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16),
+            inputTextView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
+            inputTextView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
 
             placeholderLabel.topAnchor.constraint(equalTo: inputTextView.topAnchor, constant: 0),
             placeholderLabel.leadingAnchor.constraint(equalTo: inputTextView.leadingAnchor),
 
-            sendButton.topAnchor.constraint(equalTo: inputTextView.bottomAnchor, constant: 8),
-            sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
-            sendButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -8),
+            sendButton.topAnchor.constraint(equalTo: inputTextView.bottomAnchor, constant: 10),
+            sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
+            sendButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -10),
         ])
     }
 
