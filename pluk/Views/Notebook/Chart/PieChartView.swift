@@ -12,7 +12,7 @@ struct PieChartView: View {
                 angularInset: 1.5
             )
             .foregroundStyle(by: .value("Category", point.x))
-            .cornerRadius(3)
+            .clipShape(.rect(cornerRadius: 3))
         }
         .chartLegend(position: .bottom, spacing: 8)
         .transaction { transaction in

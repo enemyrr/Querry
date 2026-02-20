@@ -61,7 +61,7 @@ private struct NotebookActionBarContent: View {
     var body: some View {
         HStack(spacing: 5) {
             ForEach(Array(NotebookCellType.allCases.enumerated()), id: \.element) { index, type in
-                let isEnabled = type == .chart
+                let isEnabled = type == .chart || type == .text
 
                 NotebookActionButton(type: type, isEnabled: isEnabled) {
                     handleCellType(type)
@@ -88,6 +88,12 @@ private struct NotebookActionBarContent: View {
                 dataController.insertChartBlock(at: index)
             } else {
                 dataController.addChartBlock()
+            }
+        case .text:
+            if let index = insertionIndex {
+                dataController.insertTextBlock(at: index)
+            } else {
+                dataController.addTextBlock()
             }
         default:
             break

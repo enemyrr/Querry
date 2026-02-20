@@ -738,7 +738,7 @@
 			repositoryURL = "https://github.com/lzell/AIProxySwift";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.75.2;
+				minimumVersion = 0.145.1;
 			};
 		};
 		9A9882FC2E05800B00F74AC3 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {

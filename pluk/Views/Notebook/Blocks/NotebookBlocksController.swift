@@ -12,9 +12,11 @@ final class NotebookBlocksController: NSViewController {
 
     private var scrollView: NSScrollView!
     private var stackView: NSStackView!
-    private var blockControllers: [UUID: ChartBlockController] = [:]
+    private var blockControllers: [UUID: NSViewController] = [:]
     private var actionBarView: NotebookActionBarView?
     private var scrollBoundsObserver: NSObjectProtocol?
+    private var pendingFocusBlockId: UUID?
+    private var initialLoadComplete = false
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -98,7 +100,9 @@ final class NotebookBlocksController: NSViewController {
 
         // Clean up stale controllers
         for (id, controller) in blockControllers where !currentIds.contains(id) {
-            controller.cleanupSession()
+            if let chartController = controller as? ChartBlockController {
+                chartController.cleanupSession()
+            }
             controller.view.removeFromSuperview()
             controller.removeFromParent()
             blockControllers.removeValue(forKey: id)
@@ -113,11 +117,20 @@ final class NotebookBlocksController: NSViewController {
         let blocks = dataController.blocks
 
         for (index, block) in blocks.enumerated() {
-            let controller: ChartBlockController
+            let controller: NSViewController
             if let existing = blockControllers[block.id] {
                 controller = existing
             } else {
-                controller = ChartBlockController(block: block, dataController: dataController)
+                switch block.blockType {
+                case .chart:
+                    controller = ChartBlockController(block: block, dataController: dataController)
+                case .text:
+                    let textController = TextBlockController(block: block, dataController: dataController)
+                    controller = textController
+                    if initialLoadComplete {
+                        pendingFocusBlockId = block.id
+                    }
+                }
                 addChild(controller)
                 blockControllers[block.id] = controller
             }
@@ -161,6 +174,15 @@ final class NotebookBlocksController: NSViewController {
         }
 
         notifyScrollOffsetChanged()
+        initialLoadComplete = true
+
+        // Auto-focus newly created text blocks
+        if let focusId = pendingFocusBlockId, let textController = blockControllers[focusId] as? TextBlockController {
+            pendingFocusBlockId = nil
+            Task { @MainActor in
+                textController.focusEditor()
+            }
+        }
     }
 
     // MARK: - Observation

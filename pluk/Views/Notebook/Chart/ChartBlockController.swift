@@ -331,12 +331,12 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
     override func mouseEntered(with event: NSEvent) {
         guard isEnabled else { return }
         isHovering = true
-        updateHoverBackground()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateHoverBackground()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -353,19 +353,15 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
 
     private func refreshHoverState() {
         guard let window else {
-            if isHovering { isHovering = false; updateHoverBackground() }
+            if isHovering { isHovering = false; applyHoverBackground(false) }
             return
         }
         let mouseInView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
         let shouldHover = isEnabled && bounds.contains(mouseInView)
         if shouldHover != isHovering {
             isHovering = shouldHover
-            updateHoverBackground()
+            applyHoverBackground(isHovering)
         }
-    }
-
-    private func updateHoverBackground() {
-        applyHoverBackground(isHovering)
     }
 
     // MARK: - Popover
@@ -519,12 +515,12 @@ final class StyledDropdown: NSView {
     override func mouseEntered(with event: NSEvent) {
         guard isEnabled else { return }
         isHovering = true
-        updateHover()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateHover()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -534,19 +530,15 @@ final class StyledDropdown: NSView {
 
     private func refreshHoverState() {
         guard let window else {
-            if isHovering { isHovering = false; updateHover() }
+            if isHovering { isHovering = false; applyHoverBackground(false) }
             return
         }
         let mouseInView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
         let shouldHover = isEnabled && bounds.contains(mouseInView)
         if shouldHover != isHovering {
             isHovering = shouldHover
-            updateHover()
+            applyHoverBackground(isHovering)
         }
-    }
-
-    private func updateHover() {
-        applyHoverBackground(isHovering)
     }
 
     // MARK: - Menu
@@ -711,26 +703,22 @@ final class ConnectionMenuItem: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        updateHoverBackground()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateHoverBackground()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseDown(with event: NSEvent) {
         action()
     }
-
-    private func updateHoverBackground() {
-        applyHoverBackground(isHovering)
-    }
 }
 
 // MARK: - Block menu popover
 
-private final class BlockMenuPopoverController: NSViewController {
+final class BlockMenuPopoverController: NSViewController {
 
     private let canMoveUp: Bool
     private let canMoveDown: Bool
@@ -739,7 +727,7 @@ private final class BlockMenuPopoverController: NSViewController {
     private let onMoveUp: () -> Void
     private let onMoveDown: () -> Void
     private let onDuplicate: () -> Void
-    private let onCopy: () -> Void
+    private let onCopy: (() -> Void)?
     private let onDelete: () -> Void
 
     init(
@@ -750,7 +738,7 @@ private final class BlockMenuPopoverController: NSViewController {
         onMoveUp: @escaping () -> Void,
         onMoveDown: @escaping () -> Void,
         onDuplicate: @escaping () -> Void,
-        onCopy: @escaping () -> Void,
+        onCopy: (() -> Void)? = nil,
         onDelete: @escaping () -> Void
     ) {
         self.canMoveUp = canMoveUp
@@ -783,7 +771,9 @@ private final class BlockMenuPopoverController: NSViewController {
         addItem(to: stack, title: "Move Down", action: onMoveDown, enabled: canMoveDown)
         addDivider(to: stack)
         addItem(to: stack, title: "Duplicate", action: onDuplicate)
-        addItem(to: stack, title: "Copy Cell", action: onCopy)
+        if let onCopy {
+            addItem(to: stack, title: "Copy Cell", action: onCopy)
+        }
         addDivider(to: stack)
         addItem(to: stack, title: "Delete Block", action: onDelete, tint: .systemRed)
 
@@ -827,7 +817,7 @@ private final class BlockMenuPopoverController: NSViewController {
 
 // MARK: - Hoverable menu item
 
-private final class HoverableMenuItem: NSView {
+final class HoverableMenuItem: NSView {
 
     private let action: () -> Void
     private let isItemEnabled: Bool
@@ -876,21 +866,17 @@ private final class HoverableMenuItem: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        updateHoverBackground()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateHoverBackground()
+        applyHoverBackground(isHovering)
     }
 
     override func mouseDown(with event: NSEvent) {
         guard isItemEnabled else { return }
         action()
-    }
-
-    private func updateHoverBackground() {
-        applyHoverBackground(isHovering)
     }
 }
 
@@ -936,8 +922,8 @@ private final class BlockResizeHandle: NSView {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
         addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         ))
     }
@@ -982,7 +968,7 @@ private final class BlockResizeHandle: NSView {
 
 // MARK: - Block hover tracking view
 
-private final class BlockHoverTrackingView: NSView {
+final class BlockHoverTrackingView: NSView {
 
     private let onHoverChanged: (Bool) -> Void
     private var trackingArea: NSTrackingArea?

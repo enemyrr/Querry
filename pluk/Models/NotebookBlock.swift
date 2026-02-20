@@ -3,6 +3,7 @@ import Foundation
 
 enum NotebookBlockType: String, Codable {
     case chart
+    case text
 }
 
 @Model
@@ -21,5 +22,14 @@ final class NotebookBlock {
         self.notebookId = notebookId
         self.blockType = blockType
         self.sortOrder = sortOrder
+    }
+
+    var textContent: String {
+        get { blockType == .text ? configJSON : "" }
+        set {
+            guard blockType == .text else { return }
+            configJSON = newValue
+            updatedAt = Date()
+        }
     }
 }

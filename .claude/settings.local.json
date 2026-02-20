@@ -19,7 +19,8 @@
       "Bash(find:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:learn.hex.tech)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(sg:*)"
     ],
     "deny": [],
     "ask": [],

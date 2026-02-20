@@ -31,7 +31,7 @@ struct NotebookToolbar: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(Color.primary.opacity(0.06))
+                .background(Color.primary.opacity(0.04))
                 .clipShape(.rect(cornerRadius: 6))
             }
             .buttonStyle(.plain)

@@ -384,25 +384,23 @@ final class ChartBlockViewModel {
 
     // MARK: - Helpers
 
+    private static let numericTypeKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
+
     private func isNumericType(_ type: String) -> Bool {
         let lower = type.lowercased()
-        return lower.contains("int") || lower.contains("float") ||
-               lower.contains("double") || lower.contains("decimal") ||
-               lower.contains("numeric") || lower.contains("real") ||
-               lower.contains("number") || lower.contains("serial") ||
-               lower.contains("money")
+        return Self.numericTypeKeywords.contains { lower.contains($0) }
     }
 
     private func toDouble(_ value: Any) -> Double? {
         switch value {
-        case let d as Double: return d
-        case let i as Int: return Double(i)
-        case let i as Int64: return Double(i)
-        case let i as Int32: return Double(i)
-        case let f as Float: return Double(f)
-        case let s as String: return Double(s)
-        case let d as Decimal: return NSDecimalNumber(decimal: d).doubleValue
-        default: return nil
+        case let d as Double: d
+        case let i as Int: Double(i)
+        case let i as Int64: Double(i)
+        case let i as Int32: Double(i)
+        case let f as Float: Double(f)
+        case let s as String: Double(s)
+        case let d as Decimal: NSDecimalNumber(decimal: d).doubleValue
+        default: nil
         }
     }
 

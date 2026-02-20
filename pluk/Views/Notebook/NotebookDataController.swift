@@ -69,17 +69,33 @@ final class NotebookDataController {
     }
 
     func addChartBlock() {
+        addBlock(type: .chart)
+    }
+
+    func insertChartBlock(at index: Int) {
+        insertBlock(type: .chart, at: index)
+    }
+
+    func addTextBlock() {
+        addBlock(type: .text)
+    }
+
+    func insertTextBlock(at index: Int) {
+        insertBlock(type: .text, at: index)
+    }
+
+    private func addBlock(type: NotebookBlockType) {
         guard let notebook else { return }
         let nextOrder = (blocks.map(\.sortOrder).max() ?? -1) + 1
-        let block = NotebookBlock(notebookId: notebook.id, blockType: .chart, sortOrder: nextOrder)
+        let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: nextOrder)
         modelContainer.mainContext.insert(block)
         blocks.append(block)
         save()
     }
 
-    func insertChartBlock(at index: Int) {
+    private func insertBlock(type: NotebookBlockType, at index: Int) {
         guard let notebook else { return }
-        let block = NotebookBlock(notebookId: notebook.id, blockType: .chart, sortOrder: index)
+        let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: index)
         modelContainer.mainContext.insert(block)
         blocks.insert(block, at: index)
         reindexSortOrders()
@@ -98,6 +114,7 @@ final class NotebookDataController {
         guard let notebook else { return }
         let newBlock = NotebookBlock(notebookId: notebook.id, blockType: block.blockType, sortOrder: index + 1)
         newBlock.configJSON = block.configJSON
+        newBlock.blockHeight = block.blockHeight
         modelContainer.mainContext.insert(newBlock)
         blocks.insert(newBlock, at: index + 1)
         reindexSortOrders()
