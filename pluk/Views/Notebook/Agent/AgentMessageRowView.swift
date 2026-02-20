@@ -8,6 +8,7 @@ final class AgentMessageRowView: NSView {
     private var loadingView: TypingIndicatorView?
     private var textViewHeightConstraint: NSLayoutConstraint?
     private var textViewWidthConstraint: NSLayoutConstraint?
+    private var markdownContentView: MarkdownContentView?
 
     private static let userBubbleColor = NSColor(name: nil) { appearance in
         if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
@@ -27,7 +28,14 @@ final class AgentMessageRowView: NSView {
         self.textView = NSTextView()
         super.init(frame: .zero)
         setupLayout()
-        applyAttributedContent(content)
+
+        if role == .assistant, let mdView = markdownContentView {
+            if !content.isEmpty {
+                mdView.update(content: content)
+            }
+        } else {
+            applyAttributedContent(content)
+        }
 
         if role == .assistant && content.isEmpty {
             showLoading()
@@ -53,11 +61,21 @@ final class AgentMessageRowView: NSView {
         if !content.isEmpty {
             hideLoading()
         }
-        applyAttributedContent(content)
+        if role == .assistant, let mdView = markdownContentView {
+            mdView.update(content: content)
+        } else {
+            applyAttributedContent(content)
+        }
+        invalidateIntrinsicContentSize()
+        needsLayout = true
     }
 
     private func showLoading() {
-        textView.isHidden = true
+        if role == .assistant, let mdView = markdownContentView {
+            mdView.isHidden = true
+        } else {
+            textView.isHidden = true
+        }
         let indicator = TypingIndicatorView()
         indicator.translatesAutoresizingMaskIntoConstraints = false
         addSubview(indicator)
@@ -75,7 +93,11 @@ final class AgentMessageRowView: NSView {
         indicator.stopAnimating()
         indicator.removeFromSuperview()
         loadingView = nil
-        textView.isHidden = false
+        if role == .assistant, let mdView = markdownContentView {
+            mdView.isHidden = false
+        } else {
+            textView.isHidden = false
+        }
     }
 
     private func applyAttributedContent(_ text: String) {
@@ -157,13 +179,16 @@ final class AgentMessageRowView: NSView {
             ])
 
         case .assistant:
-            addSubview(textView)
+            let mdView = MarkdownContentView()
+            mdView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(mdView)
+            markdownContentView = mdView
 
             NSLayoutConstraint.activate([
-                textView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                textView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-                textView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                textView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+                mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
             ])
         }
     }
@@ -173,8 +198,8 @@ final class AgentMessageRowView: NSView {
         if role == .user {
             let maxTextWidth = bounds.width * 0.80 - 24
             textView.textContainer?.size.width = max(0, maxTextWidth)
+            recalculateTextSize()
         }
-        recalculateTextSize()
     }
 
     private func updateUserBubbleColor() {
