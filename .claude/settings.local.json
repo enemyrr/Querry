@@ -20,7 +20,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:learn.hex.tech)",
       "WebSearch",
-      "Bash(sg:*)"
+      "Bash(sg:*)",
+      "Bash(gh api:*)"
     ],
     "deny": [],
     "ask": [],

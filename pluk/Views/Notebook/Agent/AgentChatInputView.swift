@@ -3,6 +3,7 @@ import AppKit
 final class AgentChatInputView: NSView {
 
     var onSend: (String) -> Void = { _ in }
+    var onStop: () -> Void = {}
 
     private let containerView: NSView
     private let inputTextView: AgentInputTextView
@@ -15,7 +16,16 @@ final class AgentChatInputView: NSView {
             inputTextView.textView.string = newValue
             inputTextView.recalculateHeight()
             placeholderLabel.isHidden = !newValue.isEmpty
-            sendButton.isEnabled = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if !isStreaming {
+                sendButton.isEnabled = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+        }
+    }
+
+    var isStreaming: Bool = false {
+        didSet {
+            sendButton.mode = isStreaming ? .stop : .send
+            sendButton.isEnabled = isStreaming || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -36,16 +46,25 @@ final class AgentChatInputView: NSView {
         inputTextView.onTextChanged = { [weak self] text in
             guard let self else { return }
             self.placeholderLabel.isHidden = !text.isEmpty
-            self.sendButton.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if !self.isStreaming {
+                self.sendButton.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
         }
 
-        sendButton.action = { [weak self] in
+        let sendAction: () -> Void = { [weak self] in
             guard let self else { return }
+            if self.isStreaming {
+                self.onStop()
+                return
+            }
             let message = self.inputTextView.textView.string
             guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             self.onSend(message)
             self.text = ""
         }
+
+        sendButton.action = sendAction
+        inputTextView.onReturn = sendAction
 
         NotificationCenter.default.addObserver(
             self,
@@ -72,7 +91,7 @@ final class AgentChatInputView: NSView {
     private func setupContainer() {
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = 14
-        containerView.layer?.borderWidth = 1
+        containerView.layer?.borderWidth = 0.5
         containerView.layer?.shadowColor = NSColor.black.cgColor
         containerView.layer?.shadowOpacity = 0.03
         containerView.layer?.shadowRadius = 1
@@ -112,15 +131,15 @@ final class AgentChatInputView: NSView {
             containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
 
             inputTextView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 10),
-            inputTextView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 14),
-            inputTextView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
+            inputTextView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 12),
+            inputTextView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12),
 
             placeholderLabel.topAnchor.constraint(equalTo: inputTextView.topAnchor, constant: 0),
             placeholderLabel.leadingAnchor.constraint(equalTo: inputTextView.leadingAnchor),
 
-            sendButton.topAnchor.constraint(equalTo: inputTextView.bottomAnchor, constant: 10),
-            sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
-            sendButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -10),
+            sendButton.topAnchor.constraint(equalTo: inputTextView.bottomAnchor, constant: 8),
+            sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
+            sendButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -8),
         ])
     }
 
@@ -150,6 +169,7 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
 
     let textView: NSTextView
     var onTextChanged: ((String) -> Void)?
+    var onReturn: (() -> Void)?
 
     private var heightConstraint: NSLayoutConstraint!
     private var lastKnownHeight: CGFloat = 0
@@ -237,11 +257,27 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         recalculateHeight()
         onTextChanged?(textView.string)
     }
+
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            let event = NSApp.currentEvent
+            let shiftPressed = event?.modifierFlags.contains(.shift) == true
+            if shiftPressed {
+                textView.insertNewlineIgnoringFieldEditor(nil)
+                return true
+            }
+            onReturn?()
+            return true
+        }
+        return false
+    }
 }
 
 // MARK: - Send Button
 
 private final class AgentSendButton: NSView {
+
+    enum Mode { case send, stop }
 
     var action: () -> Void = {}
 
@@ -249,9 +285,16 @@ private final class AgentSendButton: NSView {
         didSet { updateAppearance() }
     }
 
+    var mode: Mode = .send {
+        didSet { updateIcon() }
+    }
+
     private let iconView: NSImageView
     private var trackingArea: NSTrackingArea?
     private var isHovering = false
+
+    private static let sendConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .bold)
+    private static let stopConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .bold)
 
     private static let primaryButtonColor = NSColor(name: nil) { appearance in
         if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
@@ -261,8 +304,7 @@ private final class AgentSendButton: NSView {
     }
 
     override init(frame: NSRect) {
-        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .bold)
-        let image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: "Send")?.withSymbolConfiguration(config)
+        let image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: "Send")?.withSymbolConfiguration(Self.sendConfig)
         iconView = NSImageView(image: image ?? NSImage())
 
         super.init(frame: frame)
@@ -280,6 +322,17 @@ private final class AgentSendButton: NSView {
         ])
 
         updateAppearance()
+    }
+
+    private func updateIcon() {
+        switch mode {
+        case .send:
+            let image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: "Send")?.withSymbolConfiguration(Self.sendConfig)
+            iconView.image = image ?? NSImage()
+        case .stop:
+            let image = NSImage(systemSymbolName: "stop.fill", accessibilityDescription: "Stop")?.withSymbolConfiguration(Self.stopConfig)
+            iconView.image = image ?? NSImage()
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -305,7 +358,7 @@ private final class AgentSendButton: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        if isEnabled {
+        if isEnabled || mode == .stop {
             isHovering = true
             updateAppearance()
         }
@@ -317,7 +370,7 @@ private final class AgentSendButton: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard isEnabled else { return }
+        guard isEnabled || mode == .stop else { return }
         action()
     }
 
@@ -337,13 +390,10 @@ private final class AgentSendButton: NSView {
     func updateAppearance() {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             let isDark = NSAppearance.currentDrawing().isDarkMode
-            if isEnabled {
+            let showActive = isEnabled || mode == .stop
+            if showActive {
                 layer?.backgroundColor = Self.primaryButtonColor.cgColor
-                if isHovering {
-                    layer?.opacity = 0.8
-                } else {
-                    layer?.opacity = 1.0
-                }
+                layer?.opacity = isHovering ? 0.8 : 1.0
                 iconView.contentTintColor = NSColor.textBackgroundColor
             } else {
                 layer?.backgroundColor = isDark

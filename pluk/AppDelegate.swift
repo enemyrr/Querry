@@ -23,6 +23,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             QueryHistoryEntry.self,
             Notebook.self,
             NotebookBlock.self,
+            AgentChat.self,
+            AgentMessage.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

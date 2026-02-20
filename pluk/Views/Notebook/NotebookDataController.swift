@@ -5,8 +5,8 @@ import SwiftUI
 @MainActor
 final class NotebookDataController {
 
-    private let notebookId: UUID
-    private let modelContainer: ModelContainer
+    let notebookId: UUID
+    let modelContainer: ModelContainer
 
     private(set) var notebook: Notebook?
     private(set) var connections: [Connection] = []

@@ -28,6 +28,14 @@ final class AgentHeaderView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    var dropdownButtonBounds: NSRect {
+        newChatButton.frame
+    }
+
+    func updateTitle(_ text: String) {
+        newChatButton.updateLabel(text)
+    }
+
     private func setupLayout() {
         translatesAutoresizingMaskIntoConstraints = false
 
@@ -42,7 +50,7 @@ final class AgentHeaderView: NSView {
         addSubview(rightStack)
 
         NSLayoutConstraint.activate([
-            newChatButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            newChatButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             newChatButton.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             rightStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
@@ -160,7 +168,7 @@ private final class AgentHeaderIconButton: NSView {
 
 // MARK: - Text Dropdown Button
 
-private final class AgentHeaderTextButton: NSView {
+fileprivate final class AgentHeaderTextButton: NSView {
 
     var action: () -> Void = {}
 
@@ -255,5 +263,9 @@ private final class AgentHeaderTextButton: NSView {
 
     @objc private func handleAppearanceChange() {
         applyHoverBackground(isHovering)
+    }
+
+    func updateLabel(_ text: String) {
+        label.stringValue = text
     }
 }
