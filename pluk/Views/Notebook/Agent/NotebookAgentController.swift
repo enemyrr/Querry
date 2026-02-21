@@ -14,7 +14,8 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         self.dataController = dataController
         self.chatController = AgentChatController(
             notebookId: dataController.notebookId,
-            modelContainer: dataController.modelContainer
+            modelContainer: dataController.modelContainer,
+            notebookDataController: dataController
         )
         super.init(nibName: nil, bundle: nil)
     }
@@ -76,7 +77,10 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
     }
 
     private func setupChatInput() {
-        chatInputView = AgentChatInputView()
+        chatInputView = AgentChatInputView(connections: dataController.connections)
+        chatInputView.onConnectionsChanged = { [weak self] connections in
+            self?.chatController.selectedConnections = connections
+        }
         chatInputView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(chatInputView)
     }

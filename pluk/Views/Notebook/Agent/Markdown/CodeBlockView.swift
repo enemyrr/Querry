@@ -71,8 +71,11 @@ final class CodeBlockView: NSView {
         codeTextField.isBordered = false
         codeTextField.isBezeled = false
         codeTextField.drawsBackground = false
-        codeTextField.lineBreakMode = .byWordWrapping
+        codeTextField.lineBreakMode = .byCharWrapping
         codeTextField.maximumNumberOfLines = 0
+        codeTextField.cell?.wraps = true
+        codeTextField.cell?.isScrollable = false
+        codeTextField.setContentHuggingPriority(.defaultLow, for: .horizontal)
         codeTextField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         codeTextField.translatesAutoresizingMaskIntoConstraints = false
         addSubview(codeTextField)

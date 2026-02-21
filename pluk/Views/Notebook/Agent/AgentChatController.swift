@@ -12,17 +12,20 @@ final class AgentChatController {
     private(set) var isStreaming = false
     private(set) var streamingContent = ""
     private(set) var error: String?
+    private(set) var toolStatusMessage: String?
+
+    var selectedConnections: [Connection] = []
 
     private let notebookId: UUID
     private let modelContainer: ModelContainer
-
-    private static let partialKey = "v2|3fe1f505|AS4tm59nSGxScFCN"
-    private static let serviceURL = "https://api.aiproxy.pro/4c1638f9/2f62a0df"
+    private weak var notebookDataController: NotebookDataController?
+    let engine = NotebookAgentEngine()
     private var streamingTask: Task<Void, Never>?
 
-    init(notebookId: UUID, modelContainer: ModelContainer) {
+    init(notebookId: UUID, modelContainer: ModelContainer, notebookDataController: NotebookDataController) {
         self.notebookId = notebookId
         self.modelContainer = modelContainer
+        self.notebookDataController = notebookDataController
     }
 
     func load() {
@@ -107,7 +110,7 @@ final class AgentChatController {
         messages.append(userMessage)
 
         isStreaming = true
-        streamingTask = Task { await performStreaming(chat: chat) }
+        streamingTask = Task { await performAgentLoop(chat: chat) }
     }
 
     func cancelStreaming() {
@@ -120,6 +123,7 @@ final class AgentChatController {
             messages.append(msg)
         }
         streamingContent = ""
+        toolStatusMessage = nil
         isStreaming = false
     }
 
@@ -136,7 +140,7 @@ final class AgentChatController {
         save()
 
         isStreaming = true
-        streamingTask = Task { await performStreaming(chat: chat) }
+        streamingTask = Task { await performAgentLoop(chat: chat) }
     }
 
     func setFeedback(_ feedback: AgentMessageFeedback?, for messageId: UUID) {
@@ -145,38 +149,70 @@ final class AgentChatController {
         save()
     }
 
-    private func loadMessages(for chat: AgentChat) {
-        let chatId = chat.id
-        let descriptor = FetchDescriptor<AgentMessage>(
-            predicate: #Predicate { $0.chatId == chatId },
-            sortBy: [SortDescriptor(\.createdAt)]
-        )
-        messages = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
-    }
+    // MARK: - Agent Loop
 
-    private func performStreaming(chat: AgentChat) async {
+    private func performAgentLoop(chat: AgentChat) async {
         streamingContent = ""
         error = nil
+        engine.clearPendingCreations()
 
-        let openAIMessages = buildOpenAIMessages()
+        var conversationHistory = buildOpenAIMessages()
+        var accumulatedAssistantText = ""
 
         do {
-            let openAIService = AIProxy.openAIService(
-                partialKey: Self.partialKey,
-                serviceURL: Self.serviceURL
-            )
-            let stream = try await openAIService.streamingChatCompletionRequest(
-                body: .init(
-                    model: "gpt-4.1-mini",
-                    messages: openAIMessages,
-                ),
-                secondsToWait: 60,
-            )
-            for try await chunk in stream {
+            for _ in 0..<8 {
                 guard !Task.isCancelled else { break }
-                if let token = chunk.choices.first?.delta.content {
-                    streamingContent += token
+
+                let round = try await engine.performRound(
+                    messages: conversationHistory,
+                    connections: selectedConnections
+                ) { [weak self] token in
+                    self?.streamingContent += token
                 }
+
+                if round.toolCalls.isEmpty {
+                    accumulatedAssistantText += round.streamedText
+                    break
+                }
+
+                // Build assistant message with tool calls for context
+                let assistantToolCalls = round.toolCalls.map { tc in
+                    OpenAIChatCompletionRequestBody.Message.ToolCall(
+                        id: tc.id,
+                        function: .init(name: tc.name, arguments: tc.arguments)
+                    )
+                }
+                conversationHistory.append(.assistant(
+                    content: round.streamedText.isEmpty ? nil : .text(round.streamedText),
+                    toolCalls: assistantToolCalls
+                ))
+
+                // Execute tool calls
+                for toolCall in round.toolCalls {
+                    guard !Task.isCancelled else { break }
+                    toolStatusMessage = "Running \(toolCall.name)..."
+
+                    let result = await engine.executeToolCall(toolCall, connections: selectedConnections)
+
+                    // Handle any block creations
+                    for creation in engine.pendingBlockCreations {
+                        handleBlockCreation(creation)
+                    }
+                    engine.clearPendingCreations()
+
+                    conversationHistory.append(.tool(
+                        content: .text(result),
+                        toolCallID: toolCall.id
+                    ))
+                }
+
+                // Accumulate any text from tool-call rounds for fallback persistence
+                if !round.streamedText.isEmpty {
+                    accumulatedAssistantText += round.streamedText
+                }
+
+                // Reset streaming content for next round
+                streamingContent = ""
             }
         } catch {
             if !Task.isCancelled {
@@ -187,23 +223,50 @@ final class AgentChatController {
         guard !Task.isCancelled else {
             isStreaming = false
             streamingContent = ""
+            toolStatusMessage = nil
             return
         }
 
-        if !streamingContent.isEmpty {
-            let assistantMessage = AgentMessage(chatId: chat.id, role: .assistant, content: streamingContent)
+        if !accumulatedAssistantText.isEmpty {
+            let assistantMessage = AgentMessage(chatId: chat.id, role: .assistant, content: accumulatedAssistantText)
             modelContainer.mainContext.insert(assistantMessage)
             save()
             messages.append(assistantMessage)
         }
 
         streamingContent = ""
+        toolStatusMessage = nil
         isStreaming = false
     }
 
+    // MARK: - Block Creation
+
+    private func handleBlockCreation(_ request: BlockCreationRequest) {
+        guard let dataController = notebookDataController else { return }
+
+        switch request.kind {
+        case .chart:
+            dataController.addChartBlock()
+            if let block = dataController.blocks.last, let config = request.config {
+                block.title = request.title
+                block.saveChartConfig(config)
+                dataController.updateBlock(block)
+            }
+        case .text:
+            dataController.addTextBlock()
+            if let block = dataController.blocks.last {
+                block.textContent = request.textContent ?? ""
+                dataController.updateBlock(block)
+            }
+        }
+    }
+
+    // MARK: - Message Building
+
     private func buildOpenAIMessages() -> [OpenAIChatCompletionRequestBody.Message] {
+        let systemPrompt = engine.buildSystemPrompt(connections: selectedConnections)
         var result: [OpenAIChatCompletionRequestBody.Message] = [
-            .system(content: .text("You are a helpful general-purpose AI assistant."))
+            .system(content: .text(systemPrompt))
         ]
         for msg in messages {
             switch msg.role {
@@ -214,6 +277,17 @@ final class AgentChatController {
             }
         }
         return result
+    }
+
+    // MARK: - Persistence
+
+    private func loadMessages(for chat: AgentChat) {
+        let chatId = chat.id
+        let descriptor = FetchDescriptor<AgentMessage>(
+            predicate: #Predicate { $0.chatId == chatId },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+        messages = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
     }
 
     private func save() {

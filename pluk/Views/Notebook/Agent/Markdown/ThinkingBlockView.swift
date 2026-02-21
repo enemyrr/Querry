@@ -46,8 +46,11 @@ final class ThinkingBlockView: NSView {
         contentField.isBordered = false
         contentField.isBezeled = false
         contentField.drawsBackground = false
-        contentField.lineBreakMode = .byWordWrapping
+        contentField.lineBreakMode = .byCharWrapping
         contentField.maximumNumberOfLines = 0
+        contentField.cell?.wraps = true
+        contentField.cell?.isScrollable = false
+        contentField.setContentHuggingPriority(.defaultLow, for: .horizontal)
         contentField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         contentField.translatesAutoresizingMaskIntoConstraints = false
         contentField.isHidden = true

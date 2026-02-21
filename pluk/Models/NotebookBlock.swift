@@ -1,11 +1,6 @@
 import SwiftData
 import Foundation
 
-enum NotebookBlockType: String, Codable {
-    case chart
-    case text
-}
-
 @Model
 final class NotebookBlock {
     var id: UUID = UUID()

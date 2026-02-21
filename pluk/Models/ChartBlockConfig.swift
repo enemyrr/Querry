@@ -53,6 +53,14 @@ struct ChartFilterCondition: Codable, Equatable, Identifiable {
         }
     }
 
+    private var looksLikeSQLExpression: Bool {
+        let lower = value.lowercased().trimmingCharacters(in: .whitespaces)
+        let keywords = ["current_date", "current_timestamp", "now()", "interval",
+                        "date(", "datetime(", "curdate()", "date_sub(", "date_add(",
+                        "extract(", "age(", "make_date("]
+        return keywords.contains { lower.contains($0) }
+    }
+
     var sqlFragment: String {
         let escapedField = "\"\(field)\""
         if !filterOperator.needsValue {
@@ -63,6 +71,9 @@ struct ChartFilterCondition: Codable, Equatable, Identifiable {
             let escaped = value.replacing("'", with: "''")
             return "\(escapedField) ILIKE '%\(escaped)%'"
         default:
+            if looksLikeSQLExpression {
+                return "\(escapedField) \(filterOperator.sqlOperator) \(value)"
+            }
             let escaped = value.replacing("'", with: "''")
             return "\(escapedField) \(filterOperator.sqlOperator) '\(escaped)'"
         }

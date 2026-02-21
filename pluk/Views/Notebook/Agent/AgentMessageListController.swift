@@ -25,6 +25,7 @@ final class AgentMessageListController: NSViewController {
         setupScrollView()
         observeMessages()
         observeStreaming()
+        observeToolStatus()
     }
 
     // MARK: - Setup
@@ -35,9 +36,13 @@ final class AgentMessageListController: NSViewController {
         stackView.alignment = .leading
         stackView.spacing = 8
         stackView.edgeInsets = NSEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
+        stackView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stackView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
         let documentView = FlippedView()
+        documentView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        documentView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         documentView.translatesAutoresizingMaskIntoConstraints = false
         documentView.addSubview(stackView)
 
@@ -91,6 +96,20 @@ final class AgentMessageListController: NSViewController {
                 guard let self else { return }
                 self.updateStreamingRow()
                 self.observeStreaming()
+            }
+        }
+    }
+
+    private func observeToolStatus() {
+        withObservationTracking {
+            _ = self.chatController.engine.toolStatusMessage
+            _ = self.chatController.toolStatusMessage
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let status = self.chatController.engine.toolStatusMessage ?? self.chatController.toolStatusMessage
+                self.streamingRow?.updateToolStatus(status)
+                self.observeToolStatus()
             }
         }
     }
@@ -197,6 +216,8 @@ final class AgentMessageListController: NSViewController {
     // MARK: - Helpers
 
     private func addRow(_ row: AgentMessageRowView, animated: Bool = false) {
+        row.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        row.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         row.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(row)
         NSLayoutConstraint.activate([

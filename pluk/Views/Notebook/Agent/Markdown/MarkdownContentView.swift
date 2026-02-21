@@ -87,9 +87,13 @@ final class MarkdownContentView: NSView {
     // MARK: - Setup
 
     private func setupStack() {
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 8
+        stackView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stackView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         stackView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stackView)
 

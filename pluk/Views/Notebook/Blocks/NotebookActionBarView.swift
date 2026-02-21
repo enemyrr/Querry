@@ -61,9 +61,7 @@ private struct NotebookActionBarContent: View {
     var body: some View {
         HStack(spacing: 5) {
             ForEach(Array(NotebookCellType.allCases.enumerated()), id: \.element) { index, type in
-                let isEnabled = type == .chart || type == .text
-
-                NotebookActionButton(type: type, isEnabled: isEnabled) {
+                NotebookActionButton(type: type, isEnabled: type.isEnabled) {
                     handleCellType(type)
                 }
 

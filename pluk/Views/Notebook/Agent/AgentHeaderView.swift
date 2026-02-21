@@ -9,11 +9,13 @@ final class AgentHeaderView: NSView {
     private let newChatButton: AgentHeaderTextButton
     private let composeButton: AgentHeaderIconButton
     private let closeButton: AgentHeaderIconButton
+    private let rightStack: NSStackView
 
     override init(frame: NSRect) {
         newChatButton = AgentHeaderTextButton(label: "New AI Chat")
         composeButton = AgentHeaderIconButton(symbolName: "square.and.pencil", pointSize: 13, weight: .medium, yOffset: -1)
         closeButton = AgentHeaderIconButton(symbolName: "xmark", pointSize: 11, weight: .medium)
+        rightStack = NSStackView(views: [composeButton, closeButton])
 
         super.init(frame: frame)
 
@@ -43,9 +45,12 @@ final class AgentHeaderView: NSView {
     private func setupLayout() {
         translatesAutoresizingMaskIntoConstraints = false
 
-        let rightStack = NSStackView(views: [composeButton, closeButton])
         rightStack.orientation = .horizontal
         rightStack.spacing = 4
+        rightStack.setContentHuggingPriority(.required, for: .horizontal)
+        rightStack.setContentCompressionResistancePriority(.required, for: .horizontal)
+        newChatButton.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        newChatButton.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         newChatButton.translatesAutoresizingMaskIntoConstraints = false
         rightStack.translatesAutoresizingMaskIntoConstraints = false
@@ -56,6 +61,7 @@ final class AgentHeaderView: NSView {
         NSLayoutConstraint.activate([
             newChatButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             newChatButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            newChatButton.trailingAnchor.constraint(lessThanOrEqualTo: rightStack.leadingAnchor, constant: -8),
 
             rightStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             rightStack.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -197,6 +203,12 @@ private final class AgentHeaderTextButton: NSView {
         label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.maximumNumberOfLines = 1
+        label.preferredMaxLayoutWidth = 180
+        label.cell?.wraps = false
+        label.cell?.isScrollable = false
+        label.cell?.truncatesLastVisibleLine = true
 
         let config = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
         let image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?.withSymbolConfiguration(config)
@@ -211,10 +223,22 @@ private final class AgentHeaderTextButton: NSView {
         let stack = NSStackView(views: [label, chevron])
         stack.orientation = .horizontal
         stack.spacing = 4
+        stack.alignment = .centerY
+        stack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        chevron.setContentHuggingPriority(.required, for: .horizontal)
+        chevron.setContentCompressionResistancePriority(.required, for: .horizontal)
+
         NSLayoutConstraint.activate([
+            label.widthAnchor.constraint(lessThanOrEqualToConstant: 180),
+            widthAnchor.constraint(lessThanOrEqualToConstant: 220),
             stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),

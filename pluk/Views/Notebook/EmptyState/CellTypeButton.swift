@@ -18,4 +18,16 @@ enum NotebookCellType: String, CaseIterable {
         case .parameter: "slider.horizontal.3"
         }
     }
+
+    var blockKind: NotebookBlockKind? {
+        switch self {
+        case .chart: .chart
+        case .text: .text
+        default: nil
+        }
+    }
+
+    var isEnabled: Bool {
+        blockKind != nil
+    }
 }

@@ -6,12 +6,21 @@ final class NotebookInnerSplitController: NSSplitViewController {
     private var inspectorItem: NSSplitViewItem!
     private var isProgrammaticCollapse = false
     private var isAnimating = false
+    private var lastExpandedWidth: CGFloat = 350
 
     var onCollapseStateChanged: ((Bool) -> Void)?
 
     var isInspectorCollapsed: Bool { inspectorItem.isCollapsed }
 
     private let dataController: NotebookDataController
+
+    private var minInspectorWidth: CGFloat { inspectorItem.minimumThickness > 0 ? inspectorItem.minimumThickness : 350 }
+    private var maxInspectorWidth: CGFloat {
+        if inspectorItem.maximumThickness <= 0 || inspectorItem.maximumThickness == .greatestFiniteMagnitude {
+            return .greatestFiniteMagnitude
+        }
+        return inspectorItem.maximumThickness
+    }
 
     init(contentController: NSViewController, inspectorController: NSViewController, dataController: NotebookDataController) {
         self.dataController = dataController
@@ -29,6 +38,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
         inspectorItem.holdingPriority = .defaultLow + 1
 
         splitViewItems = [contentItem, inspectorItem]
+        lastExpandedWidth = inspectorItem.minimumThickness
     }
 
     required init?(coder: NSCoder) {
@@ -71,6 +81,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
 
     private func collapse() {
         guard !isAnimating, !inspectorItem.isCollapsed else { return }
+        lastExpandedWidth = clampInspectorWidth(inspectorItem.viewController.view.frame.width)
         animateInspector(collapsed: true)
     }
 
@@ -110,6 +121,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
             isProgrammaticCollapse = false
 
             if !collapsed {
+                setInspectorWidth(lastExpandedWidth)
                 inspectorView.alphaValue = 1
             }
 
@@ -148,6 +160,10 @@ final class NotebookInnerSplitController: NSSplitViewController {
     @objc private func handleSplitViewDidResize(_ notification: Notification) {
         guard !isAnimating else { return }
 
+        if !inspectorItem.isCollapsed {
+            lastExpandedWidth = clampInspectorWidth(inspectorItem.viewController.view.frame.width)
+        }
+
         if let hoverSplitView = splitView as? HoverDividerSplitView {
             hoverSplitView.isSidebarCollapsed = inspectorItem.isCollapsed
         }
@@ -155,5 +171,16 @@ final class NotebookInnerSplitController: NSSplitViewController {
 
     override func splitView(_ splitView: NSSplitView, canCollapseSubview subview: NSView) -> Bool {
         return isProgrammaticCollapse
+    }
+
+    private func clampInspectorWidth(_ width: CGFloat) -> CGFloat {
+        min(max(width, minInspectorWidth), maxInspectorWidth)
+    }
+
+    private func setInspectorWidth(_ width: CGFloat) {
+        guard splitView.arrangedSubviews.count >= 2 else { return }
+        let clampedWidth = clampInspectorWidth(width)
+        let targetPosition = splitView.bounds.width - splitView.dividerThickness - clampedWidth
+        splitView.setPosition(targetPosition, ofDividerAt: 0)
     }
 }

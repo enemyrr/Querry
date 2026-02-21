@@ -108,8 +108,11 @@ extension NSTextField {
         isBordered = false
         isBezeled = false
         drawsBackground = false
-        lineBreakMode = .byWordWrapping
+        lineBreakMode = .byCharWrapping
         maximumNumberOfLines = 0
+        cell?.wraps = true
+        cell?.isScrollable = false
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 }
