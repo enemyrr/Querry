@@ -57,6 +57,44 @@ actor ChartDriverSession {
         return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
     }
 
+    func fetchAggregatedData(
+        tableName: String,
+        schema: String?,
+        dimensions: [String],
+        measures: [(column: String, aggregation: AggregationFunction)],
+        limit: Int,
+        filters: [ChartFilterCondition] = []
+    ) async throws -> QueryResult {
+        guard let driver else { throw ChartBlockError.notConnected }
+
+        let schemaPrefix = schema.map { "\"\($0)\"." } ?? ""
+
+        var selectParts: [String] = dimensions.map { "\"\($0)\"" }
+        for measure in measures {
+            let expr = measure.aggregation.sqlExpression(for: measure.column)
+            let alias = "\(measure.column)\(measure.aggregation.sqlAliasSuffix)"
+            selectParts.append("\(expr) AS \"\(alias)\"")
+        }
+
+        var query = "SELECT \(selectParts.joined(separator: ", ")) FROM \(schemaPrefix)\"\(tableName)\""
+
+        let validFilters = filters.filter { !$0.field.isEmpty && ($0.filterOperator.needsValue ? !$0.value.isEmpty : true) }
+        if !validFilters.isEmpty {
+            let whereClause = validFilters.map(\.sqlFragment).joined(separator: " AND ")
+            query += " WHERE \(whereClause)"
+        }
+
+        if !dimensions.isEmpty {
+            let groupBy = dimensions.map { "\"\($0)\"" }.joined(separator: ", ")
+            query += " GROUP BY \(groupBy) ORDER BY \(groupBy)"
+        }
+
+        query += " LIMIT \(limit)"
+
+        let results = try await driver.executeRawQuery(query, databaseSchema: schema)
+        return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
+    }
+
     func getInformationSchema() async throws -> [InformationSchema] {
         guard let driver else { throw ChartBlockError.notConnected }
         return try await driver.getInformationSchema()

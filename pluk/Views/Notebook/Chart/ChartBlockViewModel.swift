@@ -161,8 +161,8 @@ final class ChartBlockViewModel {
             cfg.databaseName = environmentName
             cfg.tableName = ""
             cfg.schemaName = nil
-            cfg.xAxisColumn = nil
-            cfg.yAxisColumn = nil
+            cfg.fields = [:]
+            cfg.fieldAggregations = [:]
             config = cfg
             persistConfig()
         }
@@ -200,8 +200,8 @@ final class ChartBlockViewModel {
         if var cfg = config {
             cfg.tableName = ""
             cfg.schemaName = schema
-            cfg.xAxisColumn = nil
-            cfg.yAxisColumn = nil
+            cfg.fields = [:]
+            cfg.fieldAggregations = [:]
             config = cfg
             persistConfig()
         }
@@ -230,8 +230,8 @@ final class ChartBlockViewModel {
         guard var cfg = config else { return }
         cfg.tableName = tableName
         cfg.schemaName = selectedPickerSchema
-        cfg.xAxisColumn = nil
-        cfg.yAxisColumn = nil
+        cfg.fields = [:]
+        cfg.fieldAggregations = [:]
         config = cfg
         schemaResult = nil
         chartData = []
@@ -282,24 +282,82 @@ final class ChartBlockViewModel {
         persistConfig()
     }
 
-    func resetAxes() {
-        config?.xAxisColumn = nil
-        config?.yAxisColumn = nil
+    func setFieldColumn(key: String, column: String) {
+        config?.fields[key] = [column]
+        if isMeasureFieldKey(key) {
+            setDefaultAggregation(forField: key, column: column)
+        }
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
+    func addFieldColumn(key: String, column: String) {
+        var current = config?.fields[key] ?? []
+        guard !current.contains(column) else { return }
+        current.append(column)
+        config?.fields[key] = current
+        if isMeasureFieldKey(key) {
+            setDefaultAggregation(forField: key, column: column)
+        }
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
+    func removeFieldColumn(key: String, column: String) {
+        var current = config?.fields[key] ?? []
+        current.removeAll { $0 == column }
+        config?.fields[key] = current.isEmpty ? nil : current
+        var inner = config?.fieldAggregations[key] ?? [:]
+        inner.removeValue(forKey: column)
+        config?.fieldAggregations[key] = inner.isEmpty ? nil : inner
+        persistConfig()
+        triggerFetchIfReady()
+    }
+
+    func resetFields() {
+        config?.fields = [:]
+        config?.fieldAggregations = [:]
         chartData = []
         chartError = nil
         persistConfig()
     }
 
-    func setXAxis(_ column: String) {
-        config?.xAxisColumn = column
+    // MARK: - Aggregation
+
+    func setAggregation(_ agg: AggregationFunction, forField fieldKey: String, column: String) {
+        config?.setAggregation(agg, forField: fieldKey, column: column)
         persistConfig()
         triggerFetchIfReady()
     }
 
+    func resolvedAggregation(forField fieldKey: String, column: String) -> AggregationFunction {
+        if let stored = config?.aggregation(forField: fieldKey, column: column) {
+            return stored
+        }
+        let dataType = schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
+        return AggregationFunction.defaultAggregation(for: dataType)
+    }
+
+    private func isMeasureFieldKey(_ key: String) -> Bool {
+        key == "yAxis" || key == "values"
+    }
+
+    private func setDefaultAggregation(forField fieldKey: String, column: String) {
+        let dataType = schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
+        let defaultAgg = AggregationFunction.defaultAggregation(for: dataType)
+        config?.setAggregation(defaultAgg, forField: fieldKey, column: column)
+    }
+
+    func resetAxes() {
+        resetFields()
+    }
+
+    func setXAxis(_ column: String) {
+        setFieldColumn(key: "xAxis", column: column)
+    }
+
     func setYAxis(_ column: String) {
-        config?.yAxisColumn = column
-        persistConfig()
-        triggerFetchIfReady()
+        setFieldColumn(key: "yAxis", column: column)
     }
 
     private func triggerFetchIfReady() {
@@ -348,21 +406,69 @@ final class ChartBlockViewModel {
         defer { isLoadingChart = false }
         do {
             let effectiveLimit = min(cfg.rowLimit, 200)
-            let result = try await session.fetchTableData(
-                tableName: cfg.tableName,
-                schema: cfg.schemaName,
-                limit: effectiveLimit,
-                filters: cfg.filters.filter { isFilterFieldValid($0) }
-            )
-            let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
-                guard let xInfo = row[xCol],
-                      let yInfo = row[yCol],
-                      let xRaw = xInfo.value,
-                      let yRaw = yInfo.value,
-                      let yNum = toDouble(yRaw) else { return nil }
-                return ChartDataPoint(x: String(describing: xRaw), y: yNum)
+            let validFilters = cfg.filters.filter { isFilterFieldValid($0) }
+
+            let chartType = cfg.chartType
+            let definitions = chartType.fieldDefinitions
+            let measureDefs = definitions.filter(\.isMeasureField)
+            let dimensionDefs = definitions.filter { !$0.isMeasureField }
+
+            var dimensions: [String] = []
+            for def in dimensionDefs {
+                if let cols = cfg.fields[def.key] {
+                    dimensions.append(contentsOf: cols)
+                }
             }
-            chartData = reduceChartData(points, maxPoints: 160)
+
+            var measures: [(column: String, aggregation: AggregationFunction)] = []
+            for def in measureDefs {
+                if let cols = cfg.fields[def.key] {
+                    for col in cols {
+                        let agg = resolvedAggregation(forField: def.key, column: col)
+                        measures.append((column: col, aggregation: agg))
+                    }
+                }
+            }
+
+            let allNone = measures.allSatisfy { $0.aggregation == .none }
+
+            if allNone || measures.isEmpty {
+                let result = try await session.fetchTableData(
+                    tableName: cfg.tableName,
+                    schema: cfg.schemaName,
+                    limit: effectiveLimit,
+                    filters: validFilters
+                )
+                let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
+                    guard let xInfo = row[xCol],
+                          let yInfo = row[yCol],
+                          let xRaw = xInfo.value,
+                          let yRaw = yInfo.value,
+                          let yNum = toDouble(yRaw) else { return nil }
+                    return ChartDataPoint(x: String(describing: xRaw), y: yNum)
+                }
+                chartData = reduceChartData(points, maxPoints: 160)
+            } else {
+                let result = try await session.fetchAggregatedData(
+                    tableName: cfg.tableName,
+                    schema: cfg.schemaName,
+                    dimensions: dimensions,
+                    measures: measures,
+                    limit: effectiveLimit,
+                    filters: validFilters
+                )
+                let firstMeasure = measures.first!
+                let aliasCol = "\(firstMeasure.column)\(firstMeasure.aggregation.sqlAliasSuffix)"
+                let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
+                    guard let xInfo = row[xCol],
+                          let xRaw = xInfo.value else { return nil }
+                    let yInfo = row[aliasCol] ?? row[firstMeasure.column]
+                    guard let yRaw = yInfo?.value,
+                          let yNum = toDouble(yRaw) else { return nil }
+                    return ChartDataPoint(x: String(describing: xRaw), y: yNum)
+                }
+                chartData = reduceChartData(points, maxPoints: 160)
+            }
         } catch {
             chartError = error.localizedDescription
         }

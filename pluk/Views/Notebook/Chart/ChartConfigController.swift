@@ -40,8 +40,7 @@ final class ChartConfigController: NSViewController {
 
     private var chartTypeButton: ChartTypePickerButton!
     private var resetButton: HoverIconButton!
-    private var xAxisPopUp: StyledDropdown!
-    private var yAxisPopUp: StyledDropdown!
+    private var axisFieldsStack: NSStackView!
 
     private var filterContainer: NSStackView!
     private var filterPopover: NSPopover?
@@ -632,6 +631,7 @@ final class ChartConfigController: NSViewController {
             initialType: viewModel.config?.chartType ?? .groupedColumn
         ) { [weak self] type in
             self?.viewModel.setChartType(type)
+            self?.rebuildAxisFields()
         }
         chartTypeButton.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(chartTypeButton)
@@ -641,36 +641,27 @@ final class ChartConfigController: NSViewController {
         resetButton.toolTip = "Clear fields"
         container.addSubview(resetButton)
 
-        let xLabel = NSTextField(labelWithString: "X-axis")
-        xLabel.font = .systemFont(ofSize: 11, weight: .medium)
-        xLabel.textColor = .tertiaryLabelColor
-        xLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(xLabel)
+        axisFieldsStack = NSStackView()
+        axisFieldsStack.orientation = .vertical
+        axisFieldsStack.alignment = .leading
+        axisFieldsStack.spacing = 14
+        axisFieldsStack.translatesAutoresizingMaskIntoConstraints = false
 
-        xAxisPopUp = StyledDropdown(placeholder: "Select column") { [weak self] title in
-            self?.viewModel.setXAxis(title)
-        }
-        xAxisPopUp.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(xAxisPopUp)
+        let axisDocumentView = FlippedContentView()
+        axisDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        axisDocumentView.addSubview(axisFieldsStack)
 
-        let yLabel = NSTextField(labelWithString: "Y-axis")
-        yLabel.font = .systemFont(ofSize: 11, weight: .medium)
-        yLabel.textColor = .tertiaryLabelColor
-        yLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(yLabel)
-
-        yAxisPopUp = StyledDropdown(placeholder: "Select column") { [weak self] title in
-            self?.viewModel.setYAxis(title)
-        }
-        yAxisPopUp.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(yAxisPopUp)
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.documentView = axisDocumentView
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: -10)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(scrollView)
 
         let resetTrailing = resetButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
         resetTrailing.priority = collapseSafeTrailingPriority
-        let xAxisTrailing = xAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
-        xAxisTrailing.priority = collapseSafeTrailingPriority
-        let yAxisTrailing = yAxisPopUp.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2))
-        yAxisTrailing.priority = collapseSafeTrailingPriority
 
         NSLayoutConstraint.activate([
             chartTypeButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
@@ -681,29 +672,27 @@ final class ChartConfigController: NSViewController {
             resetButton.widthAnchor.constraint(equalToConstant: 24),
             resetButton.heightAnchor.constraint(equalToConstant: 24),
 
-            xLabel.topAnchor.constraint(equalTo: chartTypeButton.bottomAnchor, constant: 14),
-            xLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
+            scrollView.topAnchor.constraint(equalTo: chartTypeButton.bottomAnchor, constant: 14),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
 
-            xAxisPopUp.topAnchor.constraint(equalTo: xLabel.bottomAnchor, constant: 4),
-            xAxisPopUp.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            xAxisTrailing,
-
-            yLabel.topAnchor.constraint(equalTo: xAxisPopUp.bottomAnchor, constant: 14),
-            yLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
-
-            yAxisPopUp.topAnchor.constraint(equalTo: yLabel.bottomAnchor, constant: 4),
-            yAxisPopUp.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
-            yAxisTrailing,
+            axisFieldsStack.topAnchor.constraint(equalTo: axisDocumentView.topAnchor),
+            axisFieldsStack.leadingAnchor.constraint(equalTo: axisDocumentView.leadingAnchor),
+            axisFieldsStack.trailingAnchor.constraint(equalTo: axisDocumentView.trailingAnchor),
+            axisFieldsStack.bottomAnchor.constraint(equalTo: axisDocumentView.bottomAnchor),
+            axisDocumentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
         ])
+
+        rebuildAxisFields()
 
         innerSplitView.addSubview(container)
         container.frame = NSRect(x: 0, y: 0, width: Self.centerPanelWidth, height: 380)
     }
 
     @objc private func clearFields() {
-        viewModel.resetAxes()
-        xAxisPopUp.clearSelection()
-        yAxisPopUp.clearSelection()
+        viewModel.resetFields()
+        rebuildAxisFields()
     }
 
     private func rebuildTableDropdown() {
@@ -908,7 +897,7 @@ final class ChartConfigController: NSViewController {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.rebuildFieldsList()
-                self.rebuildAxisPopups()
+                self.rebuildAxisFields()
                 self.rebuildFilterPills()
                 self.observeSchema()
             }
@@ -1030,19 +1019,166 @@ final class ChartConfigController: NSViewController {
         }
     }
 
-    private func rebuildAxisPopups() {
-        guard let schema = viewModel.schemaResult else { return }
-        let allColumns = schema.columns.map(\.columnName)
-        let measureColumns = viewModel.measureColumns.map(\.columnName)
+    private func rebuildAxisFields() {
+        guard axisFieldsStack != nil else { return }
 
-        xAxisPopUp.setItems(allColumns)
-        if let selected = viewModel.config?.xAxisColumn {
-            xAxisPopUp.selectItem(selected)
+        for subview in axisFieldsStack.arrangedSubviews {
+            axisFieldsStack.removeArrangedSubview(subview)
+            subview.removeFromSuperview()
         }
 
-        yAxisPopUp.setItems(measureColumns)
-        if let selected = viewModel.config?.yAxisColumn {
-            yAxisPopUp.selectItem(selected)
+        let chartType = viewModel.config?.chartType ?? .groupedColumn
+        let definitions = chartType.fieldDefinitions
+        let sorted = definitions.sorted { lhs, _ in lhs.cardinality == .single }
+
+        for definition in sorted {
+            let group = NSStackView()
+            group.orientation = .vertical
+            group.alignment = .leading
+            group.spacing = 4
+            group.translatesAutoresizingMaskIntoConstraints = false
+
+            let label = NSTextField(labelWithString: definition.label)
+            label.font = .systemFont(ofSize: 11, weight: .medium)
+            label.textColor = .tertiaryLabelColor
+            group.addArrangedSubview(label)
+
+            let selectedColumns = viewModel.config?.fields[definition.key] ?? []
+            let available = columnsForFilter(definition.columnFilter)
+            let showAgg = definition.isMeasureField
+
+            switch definition.cardinality {
+            case .single:
+                if showAgg, let selected = selectedColumns.first {
+                    let row = NSStackView()
+                    row.orientation = .horizontal
+                    row.spacing = 6
+                    row.translatesAutoresizingMaskIntoConstraints = false
+
+                    let dropdown = StyledDropdown(placeholder: "Select column") { [weak self] title in
+                        self?.viewModel.setFieldColumn(key: definition.key, column: title)
+                        self?.rebuildAxisFields()
+                    }
+                    dropdown.translatesAutoresizingMaskIntoConstraints = false
+                    dropdown.setItems(available)
+                    dropdown.selectItem(selected)
+                    row.addArrangedSubview(dropdown)
+
+                    let aggDropdown = makeAggregationDropdown(forField: definition.key, column: selected)
+                    row.addArrangedSubview(aggDropdown)
+
+                    group.addArrangedSubview(row)
+                    NSLayoutConstraint.activate([
+                        row.leadingAnchor.constraint(equalTo: group.leadingAnchor),
+                        row.trailingAnchor.constraint(equalTo: group.trailingAnchor),
+                        aggDropdown.widthAnchor.constraint(equalToConstant: 90),
+                    ])
+                } else {
+                    let dropdown = StyledDropdown(placeholder: "Select column") { [weak self] title in
+                        self?.viewModel.setFieldColumn(key: definition.key, column: title)
+                        self?.rebuildAxisFields()
+                    }
+                    dropdown.translatesAutoresizingMaskIntoConstraints = false
+                    dropdown.setItems(available)
+                    if let selected = selectedColumns.first {
+                        dropdown.selectItem(selected)
+                    }
+                    group.addArrangedSubview(dropdown)
+
+                    NSLayoutConstraint.activate([
+                        dropdown.leadingAnchor.constraint(equalTo: group.leadingAnchor),
+                        dropdown.trailingAnchor.constraint(equalTo: group.trailingAnchor),
+                    ])
+                }
+
+            case .multiple:
+                for column in selectedColumns {
+                    if showAgg {
+                        let row = NSStackView()
+                        row.orientation = .horizontal
+                        row.spacing = 6
+                        row.translatesAutoresizingMaskIntoConstraints = false
+
+                        let chip = FieldColumnChipView(title: column) { [weak self] in
+                            self?.viewModel.removeFieldColumn(key: definition.key, column: column)
+                            self?.rebuildAxisFields()
+                        }
+                        chip.translatesAutoresizingMaskIntoConstraints = false
+                        row.addArrangedSubview(chip)
+
+                        let aggDropdown = makeAggregationDropdown(forField: definition.key, column: column)
+                        row.addArrangedSubview(aggDropdown)
+
+                        group.addArrangedSubview(row)
+                        NSLayoutConstraint.activate([
+                            row.leadingAnchor.constraint(equalTo: group.leadingAnchor),
+                            row.trailingAnchor.constraint(equalTo: group.trailingAnchor),
+                            aggDropdown.widthAnchor.constraint(equalToConstant: 90),
+                        ])
+                    } else {
+                        let chip = FieldColumnChipView(title: column) { [weak self] in
+                            self?.viewModel.removeFieldColumn(key: definition.key, column: column)
+                            self?.rebuildAxisFields()
+                        }
+                        chip.translatesAutoresizingMaskIntoConstraints = false
+                        group.addArrangedSubview(chip)
+
+                        NSLayoutConstraint.activate([
+                            chip.leadingAnchor.constraint(equalTo: group.leadingAnchor),
+                            chip.trailingAnchor.constraint(equalTo: group.trailingAnchor),
+                        ])
+                    }
+                }
+
+                let remaining = available.filter { !selectedColumns.contains($0) }
+                if !remaining.isEmpty {
+                    let addDropdown = StyledDropdown(placeholder: "Add column") { [weak self] title in
+                        self?.viewModel.addFieldColumn(key: definition.key, column: title)
+                        self?.rebuildAxisFields()
+                    }
+                    addDropdown.translatesAutoresizingMaskIntoConstraints = false
+                    addDropdown.setItems(remaining)
+                    group.addArrangedSubview(addDropdown)
+
+                    NSLayoutConstraint.activate([
+                        addDropdown.leadingAnchor.constraint(equalTo: group.leadingAnchor),
+                        addDropdown.trailingAnchor.constraint(equalTo: group.trailingAnchor),
+                    ])
+                }
+            }
+
+            axisFieldsStack.addArrangedSubview(group)
+
+            NSLayoutConstraint.activate([
+                group.leadingAnchor.constraint(equalTo: axisFieldsStack.leadingAnchor),
+                group.trailingAnchor.constraint(equalTo: axisFieldsStack.trailingAnchor),
+            ])
+        }
+    }
+
+    private func makeAggregationDropdown(forField fieldKey: String, column: String) -> StyledDropdown {
+        let dataType = viewModel.schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
+        let options = AggregationFunction.availableAggregations(for: dataType)
+        let current = viewModel.resolvedAggregation(forField: fieldKey, column: column)
+
+        let dropdown = StyledDropdown(placeholder: "Aggregation") { [weak self] title in
+            guard let agg = options.first(where: { $0.displayName == title }) else { return }
+            self?.viewModel.setAggregation(agg, forField: fieldKey, column: column)
+            self?.rebuildAxisFields()
+        }
+        dropdown.translatesAutoresizingMaskIntoConstraints = false
+        dropdown.setItems(options.map(\.displayName))
+        dropdown.selectItem(current.displayName)
+        return dropdown
+    }
+
+    private func columnsForFilter(_ filter: ChartFieldDefinition.ColumnFilter) -> [String] {
+        guard let schema = viewModel.schemaResult else { return [] }
+        switch filter {
+        case .all:
+            return schema.columns.map(\.columnName)
+        case .numeric:
+            return viewModel.measureColumns.map(\.columnName)
         }
     }
 
@@ -1101,5 +1237,82 @@ extension ChartConfigController: NSSplitViewDelegate {
 
     func splitView(_ sv: NSSplitView, canCollapseSubview subview: NSView) -> Bool {
         sv === splitView && subview === columnPanelContainer
+    }
+}
+
+// MARK: - FieldColumnChipView
+
+final class FieldColumnChipView: NSView {
+
+    private let onRemove: () -> Void
+
+    init(title: String, onRemove: @escaping () -> Void) {
+        self.onRemove = onRemove
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.borderWidth = 1
+
+        NotificationCenter.default.addObserver(self, selector: #selector(appearanceChanged), name: .appAppearanceDidChange, object: nil)
+        updateColors()
+
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        let removeButton = NSButton()
+        removeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Remove")
+        removeButton.symbolConfiguration = .init(pointSize: 8, weight: .semibold)
+        removeButton.contentTintColor = .tertiaryLabelColor
+        removeButton.isBordered = false
+        removeButton.target = self
+        removeButton.action = #selector(removeTapped)
+        removeButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(removeButton)
+
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: 28),
+
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: removeButton.leadingAnchor, constant: -4),
+
+            removeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            removeButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            removeButton.widthAnchor.constraint(equalToConstant: 16),
+            removeButton.heightAnchor.constraint(equalToConstant: 16),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func removeTapped() {
+        onRemove()
+    }
+
+    @objc private func appearanceChanged() {
+        updateColors()
+    }
+
+    private func updateColors() {
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+            layer?.borderColor = isDark
+                ? NSColor.white.withAlphaComponent(0.1).cgColor
+                : NSColor.black.withAlphaComponent(0.08).cgColor
+            layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.04).cgColor
+                : NSColor.black.withAlphaComponent(0.03).cgColor
+        }
     }
 }

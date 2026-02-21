@@ -76,6 +76,97 @@ struct ChartFilterCondition: Codable, Equatable, Identifiable {
     }
 }
 
+struct ChartFieldDefinition {
+    let key: String
+    let label: String
+    let cardinality: Cardinality
+    let columnFilter: ColumnFilter
+
+    var isMeasureField: Bool {
+        key == "yAxis" || key == "values"
+    }
+
+    enum Cardinality {
+        case single
+        case multiple
+    }
+
+    enum ColumnFilter {
+        case all
+        case numeric
+    }
+}
+
+enum AggregationFunction: String, Codable, CaseIterable {
+    case sum
+    case average
+    case count
+    case countDistinct
+    case min
+    case max
+    case none
+
+    var displayName: String {
+        switch self {
+        case .sum: "Sum"
+        case .average: "Average"
+        case .count: "Count"
+        case .countDistinct: "Count distinct"
+        case .min: "Min"
+        case .max: "Max"
+        case .none: "No aggregation"
+        }
+    }
+
+    func sqlExpression(for column: String) -> String {
+        let escaped = "\"\(column)\""
+        switch self {
+        case .sum: return "SUM(\(escaped))"
+        case .average: return "AVG(\(escaped))"
+        case .count: return "COUNT(\(escaped))"
+        case .countDistinct: return "COUNT(DISTINCT \(escaped))"
+        case .min: return "MIN(\(escaped))"
+        case .max: return "MAX(\(escaped))"
+        case .none: return escaped
+        }
+    }
+
+    var sqlAliasSuffix: String {
+        switch self {
+        case .sum: "_sum"
+        case .average: "_avg"
+        case .count: "_count"
+        case .countDistinct: "_count_distinct"
+        case .min: "_min"
+        case .max: "_max"
+        case .none: ""
+        }
+    }
+
+    static func defaultAggregation(for dataType: String) -> AggregationFunction {
+        let lower = dataType.lowercased()
+        let numericKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
+        if numericKeywords.contains(where: { lower.contains($0) }) {
+            return .sum
+        }
+        return .count
+    }
+
+    static func availableAggregations(for dataType: String) -> [AggregationFunction] {
+        let lower = dataType.lowercased()
+        let numericKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
+        let dateKeywords = ["date", "time", "timestamp"]
+
+        if numericKeywords.contains(where: { lower.contains($0) }) {
+            return [.sum, .average, .count, .countDistinct, .min, .max, .none]
+        }
+        if dateKeywords.contains(where: { lower.contains($0) }) {
+            return [.count, .countDistinct, .min, .max, .none]
+        }
+        return [.count, .countDistinct, .none]
+    }
+}
+
 struct ChartBlockConfig: Codable {
     var connectionKeychainId: String
     var connectionName: String
@@ -83,11 +174,118 @@ struct ChartBlockConfig: Codable {
     var databaseName: String
     var schemaName: String?
     var tableName: String
-    var xAxisColumn: String?
-    var yAxisColumn: String?
+    var fields: [String: [String]] = [:]
+    var fieldAggregations: [String: [String: AggregationFunction]] = [:]
     var chartType: ChartType = .groupedColumn
     var rowLimit: Int = 500
     var filters: [ChartFilterCondition] = []
+
+    func aggregation(forField fieldKey: String, column: String) -> AggregationFunction? {
+        fieldAggregations[fieldKey]?[column]
+    }
+
+    mutating func setAggregation(_ agg: AggregationFunction, forField fieldKey: String, column: String) {
+        var inner = fieldAggregations[fieldKey] ?? [:]
+        inner[column] = agg
+        fieldAggregations[fieldKey] = inner
+    }
+
+    var xAxisColumn: String? {
+        get { fields["xAxis"]?.first }
+        set {
+            if let value = newValue {
+                fields["xAxis"] = [value]
+            } else {
+                fields["xAxis"] = nil
+            }
+        }
+    }
+
+    var yAxisColumn: String? {
+        get { fields["yAxis"]?.first }
+        set {
+            if let value = newValue {
+                fields["yAxis"] = [value]
+            } else {
+                fields["yAxis"] = nil
+            }
+        }
+    }
+
+    init(
+        connectionKeychainId: String,
+        connectionName: String,
+        databaseType: String,
+        databaseName: String,
+        schemaName: String? = nil,
+        tableName: String,
+        fields: [String: [String]] = [:],
+        fieldAggregations: [String: [String: AggregationFunction]] = [:],
+        chartType: ChartType = .groupedColumn,
+        rowLimit: Int = 500,
+        filters: [ChartFilterCondition] = []
+    ) {
+        self.connectionKeychainId = connectionKeychainId
+        self.connectionName = connectionName
+        self.databaseType = databaseType
+        self.databaseName = databaseName
+        self.schemaName = schemaName
+        self.tableName = tableName
+        self.fields = fields
+        self.fieldAggregations = fieldAggregations
+        self.chartType = chartType
+        self.rowLimit = rowLimit
+        self.filters = filters
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        connectionKeychainId = try container.decode(String.self, forKey: .connectionKeychainId)
+        connectionName = try container.decode(String.self, forKey: .connectionName)
+        databaseType = try container.decode(String.self, forKey: .databaseType)
+        databaseName = try container.decode(String.self, forKey: .databaseName)
+        schemaName = try container.decodeIfPresent(String.self, forKey: .schemaName)
+        tableName = try container.decode(String.self, forKey: .tableName)
+        chartType = try container.decodeIfPresent(ChartType.self, forKey: .chartType) ?? .groupedColumn
+        rowLimit = try container.decodeIfPresent(Int.self, forKey: .rowLimit) ?? 500
+        filters = try container.decodeIfPresent([ChartFilterCondition].self, forKey: .filters) ?? []
+        fieldAggregations = try container.decodeIfPresent([String: [String: AggregationFunction]].self, forKey: .fieldAggregations) ?? [:]
+
+        if let decoded = try container.decodeIfPresent([String: [String]].self, forKey: .fields) {
+            fields = decoded
+        } else {
+            var migrated: [String: [String]] = [:]
+            if let x = try container.decodeIfPresent(String.self, forKey: .legacyXAxis) {
+                migrated["xAxis"] = [x]
+            }
+            if let y = try container.decodeIfPresent(String.self, forKey: .legacyYAxis) {
+                migrated["yAxis"] = [y]
+            }
+            fields = migrated
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(connectionKeychainId, forKey: .connectionKeychainId)
+        try container.encode(connectionName, forKey: .connectionName)
+        try container.encode(databaseType, forKey: .databaseType)
+        try container.encode(databaseName, forKey: .databaseName)
+        try container.encodeIfPresent(schemaName, forKey: .schemaName)
+        try container.encode(tableName, forKey: .tableName)
+        try container.encode(fields, forKey: .fields)
+        try container.encode(fieldAggregations, forKey: .fieldAggregations)
+        try container.encode(chartType, forKey: .chartType)
+        try container.encode(rowLimit, forKey: .rowLimit)
+        try container.encode(filters, forKey: .filters)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case connectionKeychainId, connectionName, databaseType, databaseName
+        case schemaName, tableName, fields, fieldAggregations, chartType, rowLimit, filters
+        case legacyXAxis = "xAxisColumn"
+        case legacyYAxis = "yAxisColumn"
+    }
 
     enum ChartType: String, Codable, CaseIterable {
         // Column (vertical)
@@ -128,6 +326,51 @@ struct ChartBlockConfig: Codable {
             case .scatter: "Scatter"
             case .pie: "Pie"
             case .pivotTable: "Pivot table"
+            }
+        }
+
+        var fieldDefinitions: [ChartFieldDefinition] {
+            switch self {
+            case .groupedColumn, .stackedColumn, .hundredPercentStackedColumn:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
+                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
+                ]
+            case .groupedBar, .stackedBar, .hundredPercentStackedBar:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
+                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
+                ]
+            case .line:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
+                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
+                ]
+            case .stackedArea, .hundredPercentStackedArea:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
+                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
+                ]
+            case .histogram:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
+                ]
+            case .scatter:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
+                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .single, columnFilter: .all),
+                ]
+            case .pie:
+                return [
+                    ChartFieldDefinition(key: "xAxis", label: "Label", cardinality: .single, columnFilter: .all),
+                    ChartFieldDefinition(key: "yAxis", label: "Size", cardinality: .single, columnFilter: .all),
+                ]
+            case .pivotTable:
+                return [
+                    ChartFieldDefinition(key: "rows", label: "Rows", cardinality: .multiple, columnFilter: .all),
+                    ChartFieldDefinition(key: "columns", label: "Columns", cardinality: .multiple, columnFilter: .all),
+                    ChartFieldDefinition(key: "values", label: "Values", cardinality: .multiple, columnFilter: .all),
+                ]
             }
         }
     }
