@@ -7,6 +7,7 @@ final class AgentChatInputView: NSView {
     var onConnectionsChanged: (([Connection]) -> Void)?
 
     private let containerView: NSView
+    private let chipScrollView: NSScrollView
     private let chipContainerView: NSView
     private let inputTextView: AgentInputTextView
     private let sendButton: AgentSendButton
@@ -21,6 +22,7 @@ final class AgentChatInputView: NSView {
 
     private var inputTopToContainer: NSLayoutConstraint!
     private var inputTopToChips: NSLayoutConstraint!
+    private var chipScrollHeightConstraint: NSLayoutConstraint!
 
     var userMessage: String {
         inputTextView.textView.string
@@ -48,6 +50,7 @@ final class AgentChatInputView: NSView {
     init(connections: [Connection] = []) {
         self.availableConnections = connections
         containerView = NSView()
+        chipScrollView = NSScrollView()
         chipContainerView = NSView()
         inputTextView = AgentInputTextView()
         sendButton = AgentSendButton()
@@ -148,9 +151,19 @@ final class AgentChatInputView: NSView {
     }
 
     private func setupChipContainer() {
-        chipContainerView.translatesAutoresizingMaskIntoConstraints = false
-        chipContainerView.isHidden = true
-        containerView.addSubview(chipContainerView)
+        chipScrollView.drawsBackground = false
+        chipScrollView.contentView.drawsBackground = false
+        chipScrollView.borderType = .noBorder
+        chipScrollView.hasHorizontalScroller = false
+        chipScrollView.hasVerticalScroller = false
+        chipScrollView.horizontalScrollElasticity = .allowed
+        chipScrollView.verticalScrollElasticity = .none
+        chipScrollView.translatesAutoresizingMaskIntoConstraints = false
+        chipScrollView.isHidden = true
+
+        chipContainerView.translatesAutoresizingMaskIntoConstraints = true
+        chipScrollView.documentView = chipContainerView
+        containerView.addSubview(chipScrollView)
     }
 
     private func setupPlaceholder() {
@@ -192,7 +205,8 @@ final class AgentChatInputView: NSView {
 
     private func setupConstraints() {
         inputTopToContainer = inputTextView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16)
-        inputTopToChips = inputTextView.topAnchor.constraint(equalTo: chipContainerView.bottomAnchor, constant: 8)
+        inputTopToChips = inputTextView.topAnchor.constraint(equalTo: chipScrollView.bottomAnchor, constant: 8)
+        chipScrollHeightConstraint = chipScrollView.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
             containerView.topAnchor.constraint(equalTo: topAnchor),
@@ -200,9 +214,10 @@ final class AgentChatInputView: NSView {
             containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
 
-            chipContainerView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 5),
-            chipContainerView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 12),
-            chipContainerView.trailingAnchor.constraint(lessThanOrEqualTo: containerView.trailingAnchor, constant: -12),
+            chipScrollView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 5),
+            chipScrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 12),
+            chipScrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12),
+            chipScrollHeightConstraint,
 
             inputTopToContainer,
 
@@ -396,13 +411,15 @@ final class AgentChatInputView: NSView {
         let cornerButtonOverflow: CGFloat = 7
 
         guard !selectedConnections.isEmpty else {
-            chipContainerView.isHidden = true
+            chipScrollView.isHidden = true
+            chipScrollHeightConstraint.constant = 0
+            chipContainerView.frame = .zero
             inputTopToChips.isActive = false
             inputTopToContainer.isActive = true
             return
         }
 
-        chipContainerView.isHidden = false
+        chipScrollView.isHidden = false
         inputTopToContainer.isActive = false
         inputTopToChips.isActive = true
 
@@ -427,10 +444,22 @@ final class AgentChatInputView: NSView {
         if let last = lastChip {
             last.trailingAnchor.constraint(equalTo: chipContainerView.trailingAnchor, constant: -cornerButtonOverflow).isActive = true
         }
+
+        chipContainerView.layoutSubtreeIfNeeded()
+        let contentSize = chipContainerView.fittingSize
+        let width = max(1, ceil(contentSize.width))
+        let height = max(1, ceil(contentSize.height))
+
+        chipContainerView.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        chipScrollHeightConstraint.constant = height
+        chipScrollView.contentView.scroll(to: .zero)
+        chipScrollView.reflectScrolledClipView(chipScrollView.contentView)
     }
 
     private func makeConnectionChip(for connection: Connection) -> NSView {
         let chip = AgentConnectionChipView(connection: connection)
+        chip.setContentHuggingPriority(.required, for: .horizontal)
+        chip.setContentCompressionResistancePriority(.required, for: .horizontal)
         chip.onRemove = { [weak self] in
             self?.removeSelectedConnection(withKeychainID: connection.keychainId)
         }
@@ -477,6 +506,11 @@ private final class AgentConnectionChipView: NSView {
 
         super.init(frame: .zero)
 
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
+
         wantsLayer = true
         layer?.cornerRadius = 8
         layer?.cornerCurve = .continuous
@@ -494,11 +528,15 @@ private final class AgentConnectionChipView: NSView {
         let nameLabel = NSTextField(labelWithString: connection.name)
         nameLabel.font = .systemFont(ofSize: 12, weight: .medium)
         nameLabel.textColor = .labelColor
+        nameLabel.setContentHuggingPriority(.required, for: .horizontal)
+        nameLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let subtitleLabel = NSTextField(labelWithString: connection.databaseType.rawValue.capitalized)
         subtitleLabel.font = .systemFont(ofSize: 10)
         subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.setContentHuggingPriority(.required, for: .horizontal)
+        subtitleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let textStack = NSStackView(views: [nameLabel, subtitleLabel])
@@ -533,7 +571,7 @@ private final class AgentConnectionChipView: NSView {
             textStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
             textStack.topAnchor.constraint(equalTo: topAnchor, constant: 5),
             textStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -5),
-            textStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -22),
+            textStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
 
             closeButton.centerXAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             closeButton.centerYAnchor.constraint(equalTo: topAnchor, constant: 4),

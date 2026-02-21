@@ -399,6 +399,7 @@ private final class ThinkingStatusView: NSView {
     private let mainStack: NSStackView
     private let thinkingIcon: NSImageView
     private let thinkingLabel: NSTextField
+    private var thinkingShimmerMaskLayer: CAGradientLayer?
     private var toolCallRows: [ToolCallRowView] = []
 
     override init(frame: NSRect) {
@@ -437,10 +438,17 @@ private final class ThinkingStatusView: NSView {
         ])
 
         startThinkingPulse()
+        startThinkingShimmer()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    override func layout() {
+        super.layout()
+        guard let mask = thinkingShimmerMaskLayer else { return }
+        mask.frame = thinkingLabel.bounds.insetBy(dx: -24, dy: 0)
     }
 
     func updateToolCalls(_ calls: [AgentChatController.ToolCallStatus]) {
@@ -501,6 +509,35 @@ private final class ThinkingStatusView: NSView {
         pulse.repeatCount = .infinity
         pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         thinkingIcon.layer?.add(pulse, forKey: "pulse")
+    }
+
+    private func startThinkingShimmer() {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        guard thinkingShimmerMaskLayer == nil else { return }
+
+        thinkingLabel.wantsLayer = true
+
+        let mask = CAGradientLayer()
+        mask.startPoint = CGPoint(x: 0, y: 0.5)
+        mask.endPoint = CGPoint(x: 1, y: 0.5)
+        mask.colors = [
+            NSColor.white.withAlphaComponent(0.55).cgColor,
+            NSColor.white.cgColor,
+            NSColor.white.withAlphaComponent(0.55).cgColor,
+        ]
+        mask.locations = [0.0, 0.18, 0.36]
+        mask.frame = thinkingLabel.bounds.insetBy(dx: -24, dy: 0)
+
+        let shimmer = CABasicAnimation(keyPath: "locations")
+        shimmer.fromValue = [-0.25, -0.1, 0.05]
+        shimmer.toValue = [0.95, 1.1, 1.25]
+        shimmer.duration = 1.4
+        shimmer.repeatCount = .infinity
+        shimmer.timingFunction = CAMediaTimingFunction(name: .easeOut)
+
+        mask.add(shimmer, forKey: "shimmer")
+        thinkingLabel.layer?.mask = mask
+        thinkingShimmerMaskLayer = mask
     }
 }
 
