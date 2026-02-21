@@ -1067,10 +1067,15 @@ final class ChartConfigController: NSViewController {
 
             case .multiple:
                 for column in selectedColumns {
-                    let chip = FieldColumnChipView(title: column) { [weak self] in
-                        self?.viewModel.removeFieldColumn(key: definition.key, column: column)
-                        self?.rebuildAxisFields()
-                    }
+                    let chip = FieldColumnChipView(
+                        title: column,
+                        availableItems: available,
+                        onChange: { [weak self] newColumn in
+                            self?.viewModel.removeFieldColumn(key: definition.key, column: column)
+                            self?.viewModel.addFieldColumn(key: definition.key, column: newColumn)
+                            self?.rebuildAxisFields()
+                        }
+                    )
                     chip.translatesAutoresizingMaskIntoConstraints = false
                     if showAgg {
                         let aggDropdown = makeAggregationDropdown(forField: definition.key, column: column)
@@ -1217,10 +1222,16 @@ extension ChartConfigController: NSSplitViewDelegate {
 
 final class FieldColumnChipView: NSView {
 
-    private let onRemove: () -> Void
+    private let currentTitle: String
+    private let availableItems: [String]
+    private let onChange: (String) -> Void
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
 
-    init(title: String, onRemove: @escaping () -> Void) {
-        self.onRemove = onRemove
+    init(title: String, availableItems: [String], onChange: @escaping (String) -> Void) {
+        self.currentTitle = title
+        self.availableItems = availableItems
+        self.onChange = onChange
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -1237,27 +1248,24 @@ final class FieldColumnChipView: NSView {
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
-        let removeButton = NSButton()
-        removeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Remove")
-        removeButton.symbolConfiguration = .init(pointSize: 8, weight: .semibold)
-        removeButton.contentTintColor = .tertiaryLabelColor
-        removeButton.isBordered = false
-        removeButton.target = self
-        removeButton.action = #selector(removeTapped)
-        removeButton.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(removeButton)
+        let chevron = NSImageView()
+        chevron.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
+        chevron.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
+        chevron.contentTintColor = .tertiaryLabelColor
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(chevron)
 
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: 28),
 
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: removeButton.leadingAnchor, constant: -4),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -4),
 
-            removeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            removeButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            removeButton.widthAnchor.constraint(equalToConstant: 16),
-            removeButton.heightAnchor.constraint(equalToConstant: 16),
+            chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 12),
+            chevron.heightAnchor.constraint(equalToConstant: 12),
         ])
     }
 
@@ -1269,12 +1277,59 @@ final class FieldColumnChipView: NSView {
         NotificationCenter.default.removeObserver(self)
     }
 
-    @objc private func removeTapped() {
-        onRemove()
-    }
-
     @objc private func appearanceChanged() {
         updateColors()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        applyHoverBackground(isHovering)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        applyHoverBackground(isHovering)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        showMenu()
+    }
+
+    private func showMenu() {
+        let menu = NSMenu()
+        menu.minimumWidth = max(bounds.width, 130)
+        for item in availableItems {
+            let menuItem = NSMenuItem(
+                title: item,
+                action: #selector(menuItemSelected(_:)),
+                keyEquivalent: ""
+            )
+            menuItem.target = self
+            menuItem.representedObject = item
+            if item == currentTitle {
+                menuItem.state = .on
+            }
+            menu.addItem(menuItem)
+        }
+        let point = NSPoint(x: 0, y: bounds.maxY + 4)
+        menu.popUp(positioning: nil, at: point, in: self)
+    }
+
+    @objc private func menuItemSelected(_ sender: NSMenuItem) {
+        guard let title = sender.representedObject as? String, title != currentTitle else { return }
+        onChange(title)
     }
 
     private func updateColors() {
@@ -1283,9 +1338,7 @@ final class FieldColumnChipView: NSView {
             layer?.borderColor = isDark
                 ? NSColor.white.withAlphaComponent(0.1).cgColor
                 : NSColor.black.withAlphaComponent(0.08).cgColor
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.04).cgColor
-                : NSColor.black.withAlphaComponent(0.03).cgColor
+            layer?.backgroundColor = NSColor.clear.cgColor
         }
     }
 }

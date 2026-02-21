@@ -235,7 +235,8 @@ final class AgentMessageRowView: NSView {
         NSLayoutConstraint.activate([
             thinking.leadingAnchor.constraint(equalTo: leadingAnchor),
             thinking.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
-            thinking.centerYAnchor.constraint(equalTo: centerYAnchor),
+            thinking.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            thinking.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4),
         ])
         thinkingView = thinking
     }
@@ -247,8 +248,8 @@ final class AgentMessageRowView: NSView {
         primaryContentView.isHidden = false
     }
 
-    func updateToolStatus(_ status: String?) {
-        thinkingView?.updateToolStatus(status)
+    func updateToolCalls(_ calls: [AgentChatController.ToolCallStatus]) {
+        thinkingView?.updateToolCalls(calls)
     }
 
     // MARK: - Content
@@ -269,22 +270,31 @@ final class AgentMessageRowView: NSView {
     }
 
     private func recalculateTextSize() {
-        guard let layoutManager = textView.layoutManager,
-              let textContainer = textView.textContainer else { return }
+        guard role == .user else { return }
+        guard let attributedText = textView.textStorage else { return }
+        guard let textContainer = textView.textContainer else { return }
 
-        let maxWidth: CGFloat
-        if role == .user {
-            maxWidth = max(0, bounds.width * 0.80 - 24)
-        } else {
-            maxWidth = textContainer.size.width
+        let maxWidth = max(0, bounds.width * 0.80 - 24)
+        guard maxWidth > 0 else {
+            textViewWidthConstraint?.constant = 1
+            textViewHeightConstraint?.constant = 1
+            return
         }
 
-        textContainer.containerSize = NSSize(width: maxWidth, height: .greatestFiniteMagnitude)
-        layoutManager.ensureLayout(for: textContainer)
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        textViewHeightConstraint?.constant = max(1, ceil(usedRect.height))
-        let clampedWidth = min(maxWidth, ceil(usedRect.width))
+        let unconstrainedRect = attributedText.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        let clampedWidth = max(1, min(maxWidth, ceil(unconstrainedRect.width)))
+
+        let constrainedRect = attributedText.boundingRect(
+            with: NSSize(width: clampedWidth, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+
+        textContainer.containerSize = NSSize(width: clampedWidth, height: CGFloat.greatestFiniteMagnitude)
         textViewWidthConstraint?.constant = clampedWidth
+        textViewHeightConstraint?.constant = max(1, ceil(constrainedRect.height))
     }
 
     // MARK: - Layout Setup
@@ -299,8 +309,8 @@ final class AgentMessageRowView: NSView {
         textView.isRichText = false
         textView.textContainerInset = .zero
         textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainer?.lineBreakMode = .byCharWrapping
-        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineBreakMode = .byWordWrapping
+        textView.textContainer?.widthTracksTextView = false
         textView.isVerticallyResizable = false
         textView.isHorizontallyResizable = false
         textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -311,6 +321,11 @@ final class AgentMessageRowView: NSView {
         heightConstraint.priority = .defaultHigh
         heightConstraint.isActive = true
         textViewHeightConstraint = heightConstraint
+
+        let widthConstraint = textView.widthAnchor.constraint(equalToConstant: 0)
+        widthConstraint.priority = .defaultHigh
+        widthConstraint.isActive = true
+        textViewWidthConstraint = widthConstraint
 
         switch role {
         case .user:
@@ -362,11 +377,7 @@ final class AgentMessageRowView: NSView {
 
     override func layout() {
         super.layout()
-        if role == .user {
-            let maxTextWidth = bounds.width * 0.80 - 24
-            textView.textContainer?.size.width = max(0, maxTextWidth)
-            recalculateTextSize()
-        }
+        recalculateTextSize()
     }
 
     private func updateUserBubbleColor() {
@@ -385,51 +396,179 @@ final class AgentMessageRowView: NSView {
 
 private final class ThinkingStatusView: NSView {
 
-    private let spinner: NSProgressIndicator
+    private let mainStack: NSStackView
+    private let thinkingIcon: NSImageView
     private let thinkingLabel: NSTextField
-    private let toolStatusLabel: NSTextField
+    private var toolCallRows: [ToolCallRowView] = []
 
     override init(frame: NSRect) {
-        spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isIndeterminate = true
-        spinner.translatesAutoresizingMaskIntoConstraints = false
+        thinkingIcon = NSImageView()
+        thinkingIcon.image = NSImage(systemSymbolName: "lightbulb.max", accessibilityDescription: nil)
+        thinkingIcon.contentTintColor = .tertiaryLabelColor
+        thinkingIcon.symbolConfiguration = .init(pointSize: 13, weight: .medium)
+        thinkingIcon.translatesAutoresizingMaskIntoConstraints = false
 
-        thinkingLabel = NSTextField(labelWithString: "Thinking...")
+        thinkingLabel = NSTextField(labelWithString: "Thinking")
         thinkingLabel.font = .systemFont(ofSize: 13, weight: .medium)
         thinkingLabel.textColor = .secondaryLabelColor
-        thinkingLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        toolStatusLabel = NSTextField(labelWithString: "")
-        toolStatusLabel.font = .systemFont(ofSize: 11)
-        toolStatusLabel.textColor = .tertiaryLabelColor
-        toolStatusLabel.lineBreakMode = .byTruncatingTail
-        toolStatusLabel.isHidden = true
-        toolStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        let thinkingRow = NSStackView(views: [thinkingIcon, thinkingLabel])
+        thinkingRow.orientation = .horizontal
+        thinkingRow.spacing = 6
+        thinkingRow.alignment = .centerY
+
+        mainStack = NSStackView(views: [thinkingRow])
+        mainStack.orientation = .vertical
+        mainStack.alignment = .leading
+        mainStack.spacing = 6
 
         super.init(frame: frame)
 
-        let topRow = NSStackView(views: [spinner, thinkingLabel])
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-        topRow.translatesAutoresizingMaskIntoConstraints = false
-
-        let stack = NSStackView(views: [topRow, toolStatusLabel])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 2
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(mainStack)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            spinner.widthAnchor.constraint(equalToConstant: 16),
-            spinner.heightAnchor.constraint(equalToConstant: 16),
+            mainStack.topAnchor.constraint(equalTo: topAnchor),
+            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            mainStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            thinkingIcon.widthAnchor.constraint(equalToConstant: 16),
+            thinkingIcon.heightAnchor.constraint(equalToConstant: 16),
+        ])
+
+        startThinkingPulse()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func updateToolCalls(_ calls: [AgentChatController.ToolCallStatus]) {
+        // Collapse when calls cleared
+        if calls.isEmpty && !toolCallRows.isEmpty {
+            collapseToolCalls()
+            return
+        }
+
+        // Add new rows for new tool calls
+        while toolCallRows.count < calls.count {
+            let call = calls[toolCallRows.count]
+            let row = ToolCallRowView(displayText: call.displayText)
+            row.translatesAutoresizingMaskIntoConstraints = false
+            mainStack.addArrangedSubview(row)
+            toolCallRows.append(row)
+
+            row.alphaValue = 0
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.2
+                row.animator().alphaValue = 1
+            }
+        }
+
+        // Update completion state on existing rows
+        for (i, call) in calls.enumerated() where i < toolCallRows.count {
+            if call.isComplete {
+                toolCallRows[i].markComplete()
+            }
+        }
+    }
+
+    private func collapseToolCalls() {
+        let rows = toolCallRows
+        toolCallRows.removeAll()
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.25
+            for row in rows {
+                row.animator().alphaValue = 0
+            }
+        } completionHandler: { [weak self] in
+            guard let self else { return }
+            for row in rows {
+                self.mainStack.removeArrangedSubview(row)
+                row.removeFromSuperview()
+            }
+        }
+    }
+
+    private func startThinkingPulse() {
+        thinkingIcon.wantsLayer = true
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 1.0
+        pulse.toValue = 0.3
+        pulse.duration = 1.2
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        thinkingIcon.layer?.add(pulse, forKey: "pulse")
+    }
+}
+
+// MARK: - Tool Call Row View
+
+private final class ToolCallRowView: NSView {
+
+    private let spinner: NSProgressIndicator
+    private let checkCircle: NSView
+    private let checkIcon: NSImageView
+    private let label: NSTextField
+
+    init(displayText: String) {
+        spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .mini
+        spinner.isIndeterminate = true
+
+        checkCircle = NSView()
+        checkCircle.wantsLayer = true
+        checkCircle.layer?.cornerRadius = 5.5
+        checkCircle.layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
+        checkCircle.isHidden = true
+
+        checkIcon = NSImageView()
+        checkIcon.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
+        checkIcon.contentTintColor = .white
+        checkIcon.symbolConfiguration = .init(pointSize: 6, weight: .bold)
+        checkIcon.translatesAutoresizingMaskIntoConstraints = false
+
+        label = NSTextField(labelWithString: displayText)
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+
+        super.init(frame: .zero)
+
+        checkCircle.addSubview(checkIcon)
+
+        let iconContainer = NSView()
+        iconContainer.translatesAutoresizingMaskIntoConstraints = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        checkCircle.translatesAutoresizingMaskIntoConstraints = false
+        iconContainer.addSubview(spinner)
+        iconContainer.addSubview(checkCircle)
+
+        let row = NSStackView(views: [iconContainer, label])
+        row.orientation = .horizontal
+        row.spacing = 6
+        row.alignment = .centerY
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+
+        NSLayoutConstraint.activate([
+            iconContainer.widthAnchor.constraint(equalToConstant: 16),
+            iconContainer.heightAnchor.constraint(equalToConstant: 16),
+            spinner.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+            checkCircle.widthAnchor.constraint(equalToConstant: 11),
+            checkCircle.heightAnchor.constraint(equalToConstant: 11),
+            checkCircle.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            checkCircle.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+            checkIcon.centerXAnchor.constraint(equalTo: checkCircle.centerXAnchor),
+            checkIcon.centerYAnchor.constraint(equalTo: checkCircle.centerYAnchor),
+            row.topAnchor.constraint(equalTo: topAnchor),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
 
         spinner.startAnimation(nil)
@@ -439,12 +578,10 @@ private final class ThinkingStatusView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func updateToolStatus(_ status: String?) {
-        if let status, !status.isEmpty {
-            toolStatusLabel.stringValue = status
-            toolStatusLabel.isHidden = false
-        } else {
-            toolStatusLabel.isHidden = true
-        }
+    func markComplete() {
+        guard !spinner.isHidden else { return }
+        spinner.stopAnimation(nil)
+        spinner.isHidden = true
+        checkCircle.isHidden = false
     }
 }

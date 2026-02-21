@@ -32,6 +32,7 @@ final class MarkdownContentView: NSView {
         if divergenceIndex == newBlocks.count - 1
             && newBlocks.count == currentBlocks.count
             && divergenceIndex < blockViews.count
+            && sameBlockType(currentBlocks[divergenceIndex], newBlocks[divergenceIndex])
         {
             updateBlockView(blockViews[divergenceIndex], with: newBlocks[divergenceIndex])
             currentBlocks = newBlocks
@@ -177,6 +178,23 @@ final class MarkdownContentView: NSView {
         view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor).isActive = true
         view.trailingAnchor.constraint(equalTo: stackView.trailingAnchor).isActive = true
         blockViews.append(view)
+    }
+
+    private func sameBlockType(_ a: MarkdownBlock, _ b: MarkdownBlock) -> Bool {
+        switch (a, b) {
+        case (.paragraph, .paragraph),
+             (.heading, .heading),
+             (.codeBlock, .codeBlock),
+             (.unorderedList, .unorderedList),
+             (.orderedList, .orderedList),
+             (.blockquote, .blockquote),
+             (.table, .table),
+             (.horizontalRule, .horizontalRule),
+             (.thinkingBlock, .thinkingBlock):
+            return true
+        default:
+            return false
+        }
     }
 
     private func removeAllBlockViews() {

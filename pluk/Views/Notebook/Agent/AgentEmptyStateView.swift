@@ -8,9 +8,9 @@ final class AgentEmptyStateView: NSView {
 
     override init(frame: NSRect) {
         let rows: [(icon: String, label: String)] = [
-            ("chart.bar.xaxis", "Build a chart"),
-            ("sparkle.magnifyingglass", "Explore this data"),
-            ("chart.bar", "Summarize key insights"),
+            ("chart.bar.xaxis", "Analyze trends over time"),
+            ("sparkle.magnifyingglass", "Explore and visualize this data"),
+            ("text.below.photo", "Build a dashboard with insights"),
         ]
 
         stackView = NSStackView()

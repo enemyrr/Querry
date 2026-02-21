@@ -13,6 +13,14 @@ final class AgentChatController {
     private(set) var streamingContent = ""
     private(set) var error: String?
     private(set) var toolStatusMessage: String?
+    private(set) var activeToolCalls: [ToolCallStatus] = []
+
+    struct ToolCallStatus {
+        let id: String
+        let name: String
+        let displayText: String
+        var isComplete: Bool
+    }
 
     var selectedConnections: [Connection] = []
 
@@ -124,6 +132,7 @@ final class AgentChatController {
         }
         streamingContent = ""
         toolStatusMessage = nil
+        activeToolCalls.removeAll()
         isStreaming = false
     }
 
@@ -151,9 +160,20 @@ final class AgentChatController {
 
     // MARK: - Agent Loop
 
+    private static func toolDisplayName(for name: String) -> String {
+        switch name {
+        case "list_tables": return "Fetching tables"
+        case "get_table_schema": return "Reading schema"
+        case "create_chart_block": return "Creating chart"
+        case "create_text_block": return "Adding text"
+        default: return name.replacing("_", with: " ").capitalized
+        }
+    }
+
     private func performAgentLoop(chat: AgentChat) async {
         streamingContent = ""
         error = nil
+        activeToolCalls.removeAll()
         engine.clearPendingCreations()
 
         var conversationHistory = buildOpenAIMessages()
@@ -168,6 +188,11 @@ final class AgentChatController {
                     connections: selectedConnections
                 ) { [weak self] token in
                     self?.streamingContent += token
+                }
+
+                print("[AgentLoop] Round result — text length: \(round.streamedText.count), toolCalls: \(round.toolCalls.count)")
+                for tc in round.toolCalls {
+                    print("[AgentLoop]   tool: \(tc.name) | id: \(tc.id) | args: \(tc.arguments)")
                 }
 
                 if round.toolCalls.isEmpty {
@@ -190,7 +215,14 @@ final class AgentChatController {
                 // Execute tool calls
                 for toolCall in round.toolCalls {
                     guard !Task.isCancelled else { break }
-                    toolStatusMessage = "Running \(toolCall.name)..."
+
+                    activeToolCalls.append(ToolCallStatus(
+                        id: toolCall.id,
+                        name: toolCall.name,
+                        displayText: Self.toolDisplayName(for: toolCall.name),
+                        isComplete: false
+                    ))
+                    try? await Task.sleep(for: .milliseconds(50))
 
                     let result = await engine.executeToolCall(toolCall, connections: selectedConnections)
 
@@ -199,6 +231,11 @@ final class AgentChatController {
                         handleBlockCreation(creation)
                     }
                     engine.clearPendingCreations()
+
+                    if let idx = activeToolCalls.lastIndex(where: { $0.id == toolCall.id }) {
+                        activeToolCalls[idx].isComplete = true
+                    }
+                    try? await Task.sleep(for: .milliseconds(50))
 
                     conversationHistory.append(.tool(
                         content: .text(result),
@@ -224,6 +261,7 @@ final class AgentChatController {
             isStreaming = false
             streamingContent = ""
             toolStatusMessage = nil
+            activeToolCalls.removeAll()
             return
         }
 
@@ -236,6 +274,7 @@ final class AgentChatController {
 
         streamingContent = ""
         toolStatusMessage = nil
+        activeToolCalls.removeAll()
         isStreaming = false
     }
 

@@ -51,7 +51,7 @@ final class AgentChatInputView: NSView {
         chipContainerView = NSView()
         inputTextView = AgentInputTextView()
         sendButton = AgentSendButton()
-        placeholderLabel = NSTextField(labelWithString: "Ask data question...")
+        placeholderLabel = NSTextField(labelWithString: "Analyze data, build charts, explore trends...")
         statusLabel = NSTextField(labelWithString: "")
 
         super.init(frame: .zero)
@@ -84,6 +84,7 @@ final class AgentChatInputView: NSView {
             guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             self.onSend(message)
             self.text = ""
+            self.clearSelectedConnections()
         }
 
         sendButton.action = handleSend
@@ -199,7 +200,7 @@ final class AgentChatInputView: NSView {
             containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
 
-            chipContainerView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 12),
+            chipContainerView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 5),
             chipContainerView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 12),
             chipContainerView.trailingAnchor.constraint(lessThanOrEqualTo: containerView.trailingAnchor, constant: -12),
 
@@ -346,7 +347,9 @@ final class AgentChatInputView: NSView {
         if let icon = NSImage(named: connection.databaseType.icon) {
             let attachment = NSTextAttachment()
             attachment.image = icon
-            attachment.bounds = CGRect(x: 0, y: -3, width: 13, height: 13)
+            let iconSize: CGFloat = 13
+            let yOffset = (textFont.capHeight - iconSize) / 2
+            attachment.bounds = CGRect(x: 0, y: yOffset, width: iconSize, height: iconSize)
             let iconStr = NSMutableAttributedString(attachment: attachment)
             iconStr.addAttributes(attrs, range: NSRange(location: 0, length: iconStr.length))
             tag.append(iconStr)
@@ -358,6 +361,13 @@ final class AgentChatInputView: NSView {
             .foregroundColor: NSColor.labelColor,
         ]))
         return tag
+    }
+
+    private func clearSelectedConnections() {
+        selectedConnections.removeAll()
+        rebuildChips()
+        inputTextView.recalculateHeight()
+        placeholderLabel.isHidden = !userMessage.isEmpty
     }
 
     // MARK: - Chip Management
@@ -506,7 +516,8 @@ private final class AgentConnectionChipView: NSView {
         closeButton.toolTip = "Clear connection"
         closeButton.wantsLayer = true
         closeButton.layer?.cornerRadius = 7
-        closeButton.layer?.cornerCurve = .continuous
+        closeButton.layer?.masksToBounds = true
+        closeButton.layer?.cornerCurve = .circular
         closeButton.isHidden = true
 
         addSubview(iconView)
@@ -524,10 +535,10 @@ private final class AgentConnectionChipView: NSView {
             textStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -5),
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -22),
 
-            closeButton.centerXAnchor.constraint(equalTo: trailingAnchor),
-            closeButton.centerYAnchor.constraint(equalTo: topAnchor),
-            closeButton.widthAnchor.constraint(equalToConstant: 14),
-            closeButton.heightAnchor.constraint(equalToConstant: 14),
+            closeButton.centerXAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            closeButton.centerYAnchor.constraint(equalTo: topAnchor, constant: 4),
+            closeButton.widthAnchor.constraint(equalToConstant: 17),
+            closeButton.heightAnchor.constraint(equalToConstant: 15),
         ])
 
         updateAppearance()
@@ -589,12 +600,20 @@ private final class AgentConnectionChipView: NSView {
                 ? NSColor.white.withAlphaComponent(0.08).cgColor
                 : NSColor.black.withAlphaComponent(0.03).cgColor
             closeButton.layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.14).cgColor
-                : NSColor.black.withAlphaComponent(0.10).cgColor
+                ? NSColor(white: 0.35, alpha: 1).cgColor
+                : NSColor(white: 0.78, alpha: 1).cgColor
             closeButton.contentTintColor = isDark
-                ? NSColor.white.withAlphaComponent(0.9)
-                : NSColor.black.withAlphaComponent(0.8)
+                ? NSColor(white: 0.85, alpha: 1)
+                : NSColor(white: 0.4, alpha: 1)
         }
+    }
+}
+
+// MARK: - Plain Paste Text View
+
+private final class PlainPasteTextView: NSTextView {
+    override func paste(_ sender: Any?) {
+        pasteAsPlainText(sender)
     }
 }
 
@@ -620,7 +639,7 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         textContainer.lineBreakMode = .byCharWrapping
         layoutManager.addTextContainer(textContainer)
 
-        textView = NSTextView(frame: .zero, textContainer: textContainer)
+        textView = PlainPasteTextView(frame: .zero, textContainer: textContainer)
         textView.isRichText = true
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false

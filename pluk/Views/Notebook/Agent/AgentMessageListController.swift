@@ -25,7 +25,7 @@ final class AgentMessageListController: NSViewController {
         setupScrollView()
         observeMessages()
         observeStreaming()
-        observeToolStatus()
+        observeToolCalls()
     }
 
     // MARK: - Setup
@@ -100,16 +100,14 @@ final class AgentMessageListController: NSViewController {
         }
     }
 
-    private func observeToolStatus() {
+    private func observeToolCalls() {
         withObservationTracking {
-            _ = self.chatController.engine.toolStatusMessage
-            _ = self.chatController.toolStatusMessage
+            _ = self.chatController.activeToolCalls
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                let status = self.chatController.engine.toolStatusMessage ?? self.chatController.toolStatusMessage
-                self.streamingRow?.updateToolStatus(status)
-                self.observeToolStatus()
+                self.streamingRow?.updateToolCalls(self.chatController.activeToolCalls)
+                self.observeToolCalls()
             }
         }
     }

@@ -50,8 +50,10 @@ final class NotebookAgentEngine {
             .joined(separator: "\n")
 
         return """
-        You are an AI data analyst assistant embedded in Pluk, a database GUI for macOS.
-        Your job is to help users build notebook pages with data visualizations and text annotations.
+        You are an expert data analyst embedded in Pluk, a database notebook for macOS.
+        You build rich, narrative-driven notebook pages — combining charts, analysis, and written commentary to tell a clear data story.
+
+        Think of yourself like a BI analyst presenting findings: every visualization should be accompanied by context explaining what the data shows, why it matters, and what to look for.
 
         ## Available Connections
         \(connectionList)
@@ -60,8 +62,8 @@ final class NotebookAgentEngine {
         - Use `list_tables` to discover tables in a connection
         - Use `get_table_schema` to understand column names, types, and constraints
         - Use `create_chart_block` to add chart visualizations to the notebook
-        - Use `create_text_block` to add markdown text (titles, explanations, commentary)
-        - You can create multiple blocks in a single response to build full dashboards
+        - Use `create_text_block` to add markdown text (section headers, analysis, commentary, context)
+        - You can create multiple blocks in a single response to build full analysis pages
 
         ## Chart Types
         \(chartTypes)
@@ -73,16 +75,35 @@ final class NotebookAgentEngine {
         1. If you don't know the schema, call `list_tables` first
         2. Call `get_table_schema` to understand columns before building charts
         3. Choose chart type based on data shape (categorical -> bar/column, time-series -> line, proportional -> pie)
-        4. Use `create_text_block` for section headers and analysis commentary
-        5. Call `create_chart_block` with all required parameters
-        6. Explain what you created and your reasoning
+        4. Use aggregations when appropriate (e.g., SUM of revenue grouped by category)
+
+        ## CRITICAL: Block Creation Order
+        Blocks appear in the notebook in the EXACT order you create them. You MUST call `create_text_block` and `create_chart_block` in the order you want them displayed. Follow this pattern:
+
+        1. FIRST: call `create_text_block` with a section heading, context, and key insights — explain what the chart shows and what to look for
+        2. THEN: call `create_chart_block` to add the visualization right after the text
+        3. Repeat this pattern for each additional analysis section
+
+        Example flow for a single analysis:
+        → create_text_block("# Revenue by Category\nDumplings dominate at 45% of total revenue, nearly double the next category. Let's visualize the full breakdown.")
+        → create_chart_block(bar chart of revenue by category)
+
+        Text always comes BEFORE its chart, never after.
+
+        NEVER batch all charts together or all text together. Always interleave them.
+
+        ## Writing Style for Text Blocks
+        - Use markdown formatting: `#` for section headings, `**bold**` for emphasis, bullet points for key findings
+        - Section headings should be descriptive (e.g., "Revenue by Category" not just "Chart 1")
+        - Commentary should highlight specific insights: trends, outliers, comparisons, or actionable takeaways
+        - Keep commentary concise — 2-4 sentences per chart is ideal
+        - Write in a professional but approachable tone, like a colleague presenting findings
 
         ## Rules
         - NEVER guess column names. Always call `get_table_schema` first.
         - Prefer numeric columns for Y axis, categorical/date for X axis
-        - Use aggregations when appropriate (e.g., SUM of revenue grouped by category)
         - If no connection is selected, ask the user to pick one from the connection picker
-        - Create text blocks to provide context and explain the visualizations
+        - When building multi-chart analyses, create a logical flow — overview first, then drill into specifics
         """
     }
 
@@ -114,7 +135,7 @@ final class NotebookAgentEngine {
             body: .init(
                 model: "gpt-5.1",
                 messages: messages,
-                parallelToolCalls: true,
+                parallelToolCalls: false,
                 tools: tools
             ),
             secondsToWait: 60
@@ -125,6 +146,22 @@ final class NotebookAgentEngine {
 
         for try await chunk in stream {
             guard !Task.isCancelled else { throw CancellationError() }
+
+            // Debug: log the raw chunk
+            print("[AgentDebug] Raw chunk: \(chunk)")
+
+            if let choice = chunk.choices.first {
+                print("[AgentDebug] delta.content: \(choice.delta.content ?? "nil")")
+                print("[AgentDebug] delta.role: \(choice.delta.role ?? "nil")")
+                print("[AgentDebug] finishReason: \(choice.finishReason ?? "nil")")
+
+                if let toolCallDeltas = choice.delta.toolCalls {
+                    print("[AgentDebug] delta.toolCalls count: \(toolCallDeltas.count)")
+                    for tc in toolCallDeltas {
+                        print("[AgentDebug]   toolCall index=\(tc.index ?? -1) id=\(tc.id ?? "nil") fn.name=\(tc.function?.name ?? "nil") fn.args=\(tc.function?.arguments ?? "nil")")
+                    }
+                }
+            }
 
             if let token = chunk.choices.first?.delta.content {
                 streamedContent += token
@@ -145,6 +182,10 @@ final class NotebookAgentEngine {
                 }
             }
         }
+
+        print("[AgentDebug] === Round Complete ===")
+        print("[AgentDebug] streamedContent: \(streamedContent)")
+        print("[AgentDebug] toolCalls: \(rawToolCalls.map { "(id: \($0.id), name: \($0.name), args: \($0.arguments))" })")
 
         return AgentRoundResult(
             streamedText: streamedContent,

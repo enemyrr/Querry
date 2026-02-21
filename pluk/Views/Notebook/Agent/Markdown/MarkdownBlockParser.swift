@@ -127,7 +127,13 @@ enum MarkdownBlockParser {
                 if let taskItem = parseTaskListItem(trimmed) {
                     flushParagraph()
                     flushTable()
-                    if !listBuffer.isEmpty && listIsOrdered { flushList() }
+                    if !listBuffer.isEmpty && listIsOrdered {
+                        let last = listBuffer.removeLast()
+                        let checkbox = taskItem.isChecked ? "\u{2611} " : "\u{2610} "
+                        let newText = last.text.isEmpty ? checkbox + taskItem.text : last.text + "\n" + checkbox + taskItem.text
+                        listBuffer.append(ListItem(text: newText, isTask: last.isTask, isChecked: last.isChecked))
+                        continue
+                    }
                     listIsOrdered = false
                     listBuffer.append(taskItem)
                     continue
@@ -136,7 +142,12 @@ enum MarkdownBlockParser {
                 if let ulText = parseUnorderedListItem(trimmed) {
                     flushParagraph()
                     flushTable()
-                    if !listBuffer.isEmpty && listIsOrdered { flushList() }
+                    if !listBuffer.isEmpty && listIsOrdered {
+                        let last = listBuffer.removeLast()
+                        let newText = last.text.isEmpty ? "\u{2022} " + ulText : last.text + "\n\u{2022} " + ulText
+                        listBuffer.append(ListItem(text: newText, isTask: last.isTask, isChecked: last.isChecked))
+                        continue
+                    }
                     listIsOrdered = false
                     listBuffer.append(ListItem(text: ulText, isTask: false, isChecked: false))
                     continue
@@ -148,6 +159,13 @@ enum MarkdownBlockParser {
                     if !listBuffer.isEmpty && !listIsOrdered { flushList() }
                     listIsOrdered = true
                     listBuffer.append(ListItem(text: olText, isTask: false, isChecked: false))
+                    continue
+                }
+
+                if !listBuffer.isEmpty {
+                    let last = listBuffer.removeLast()
+                    let newText = last.text.isEmpty ? trimmed : last.text + "\n" + trimmed
+                    listBuffer.append(ListItem(text: newText, isTask: last.isTask, isChecked: last.isChecked))
                     continue
                 }
 
@@ -229,7 +247,8 @@ enum MarkdownBlockParser {
         let numberPart = trimmed[trimmed.startIndex..<dotIndex]
         guard !numberPart.isEmpty, numberPart.allSatisfy(\.isNumber) else { return nil }
         let afterDot = trimmed.index(after: dotIndex)
-        guard afterDot < trimmed.endIndex, trimmed[afterDot] == " " else { return nil }
+        guard afterDot < trimmed.endIndex else { return "" }
+        guard trimmed[afterDot] == " " else { return nil }
         return String(trimmed[trimmed.index(after: afterDot)...])
     }
 
