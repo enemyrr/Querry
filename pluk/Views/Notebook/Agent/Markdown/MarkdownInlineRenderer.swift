@@ -15,9 +15,13 @@ enum MarkdownInlineRenderer {
         font: NSFont = .systemFont(ofSize: NSFont.systemFontSize),
         color: NSColor = .labelColor
     ) -> NSAttributedString {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 4
+
         let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: color,
+            .paragraphStyle: paragraphStyle,
         ]
         let result = NSMutableAttributedString(string: text, attributes: baseAttributes)
         let nsText = text as NSString
@@ -53,8 +57,6 @@ enum MarkdownInlineRenderer {
         return result
     }
 
-    // MARK: - Helpers
-
     private static func collectMatches(
         pattern: NSRegularExpression,
         in text: String,
@@ -67,8 +69,7 @@ enum MarkdownInlineRenderer {
         for match in pattern.matches(in: text, range: fullRange) {
             guard !overlaps(match.range, with: matches) else { continue }
             let content = nsText.substring(with: match.range(at: 1))
-            var attrs = baseAttributes
-            for (key, value) in overrides { attrs[key] = value }
+            let attrs = baseAttributes.merging(overrides) { _, new in new }
             matches.append(InlineMatch(range: match.range, replacement: NSAttributedString(string: content, attributes: attrs)))
         }
     }
@@ -95,5 +96,20 @@ enum MarkdownInlineRenderer {
             .fontDescriptor
             .withSymbolicTraits(.italic)
         return NSFont(descriptor: descriptor, size: size) ?? NSFont.boldSystemFont(ofSize: size)
+    }
+}
+
+extension NSTextField {
+
+    func configureForMarkdownDisplay() {
+        isEditable = false
+        isSelectable = true
+        allowsEditingTextAttributes = true
+        isBordered = false
+        isBezeled = false
+        drawsBackground = false
+        lineBreakMode = .byWordWrapping
+        maximumNumberOfLines = 0
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 }

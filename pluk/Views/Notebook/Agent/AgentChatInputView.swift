@@ -51,7 +51,7 @@ final class AgentChatInputView: NSView {
             }
         }
 
-        let sendAction: () -> Void = { [weak self] in
+        let handleSend: () -> Void = { [weak self] in
             guard let self else { return }
             if self.isStreaming {
                 self.onStop()
@@ -63,8 +63,8 @@ final class AgentChatInputView: NSView {
             self.text = ""
         }
 
-        sendButton.action = sendAction
-        inputTextView.onReturn = sendAction
+        sendButton.action = handleSend
+        inputTextView.onReturn = handleSend
 
         NotificationCenter.default.addObserver(
             self,
@@ -93,8 +93,8 @@ final class AgentChatInputView: NSView {
         containerView.layer?.cornerRadius = 14
         containerView.layer?.cornerCurve = .continuous
         containerView.layer?.borderWidth = 0.5
-        containerView.layer?.shadowColor = NSColor.black.cgColor
-        containerView.layer?.shadowOpacity = 0.03
+        containerView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.10).cgColor
+        containerView.layer?.shadowOpacity = 1.0
         containerView.layer?.shadowRadius = 1
         containerView.layer?.shadowOffset = CGSize(width: 0, height: 1)
         containerView.translatesAutoresizingMaskIntoConstraints = false
@@ -163,8 +163,6 @@ final class AgentChatInputView: NSView {
         sendButton.updateAppearance()
     }
 }
-
-// MARK: - Auto-Growing Text View
 
 private final class AgentInputTextView: NSView, NSTextViewDelegate {
 
@@ -274,8 +272,6 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
     }
 }
 
-// MARK: - Send Button
-
 private final class AgentSendButton: NSView {
 
     enum Mode { case send, stop }
@@ -326,14 +322,12 @@ private final class AgentSendButton: NSView {
     }
 
     private func updateIcon() {
-        switch mode {
-        case .send:
-            let image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: "Send")?.withSymbolConfiguration(Self.sendConfig)
-            iconView.image = image ?? NSImage()
-        case .stop:
-            let image = NSImage(systemSymbolName: "stop.fill", accessibilityDescription: "Stop")?.withSymbolConfiguration(Self.stopConfig)
-            iconView.image = image ?? NSImage()
+        let (symbol, label, config) = switch mode {
+        case .send: ("arrow.up", "Send", Self.sendConfig)
+        case .stop: ("stop.fill", "Stop", Self.stopConfig)
         }
+        iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
+            .withSymbolConfiguration(config) ?? NSImage()
     }
 
     required init?(coder: NSCoder) {

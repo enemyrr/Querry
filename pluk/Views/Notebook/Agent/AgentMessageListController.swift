@@ -8,6 +8,7 @@ final class AgentMessageListController: NSViewController {
     private var stackView: NSStackView!
     private var streamingRow: AgentMessageRowView?
     private var renderedMessageIds: [UUID] = []
+    private weak var lastAssistantRow: AgentMessageRowView?
 
     init(chatController: AgentChatController) {
         self.chatController = chatController
@@ -100,34 +101,48 @@ final class AgentMessageListController: NSViewController {
         let messages = chatController.messages
         let currentIds = messages.map(\.id)
 
-        if currentIds.count < renderedMessageIds.count || (currentIds.count > 0 && renderedMessageIds.count > 0 && currentIds.first != renderedMessageIds.first) {
-            // Chat switched or messages removed — full rebuild
-            if let row = streamingRow {
-                stackView.removeArrangedSubview(row)
-                row.removeFromSuperview()
-                streamingRow = nil
-            }
+        let needsFullRebuild = currentIds.count < renderedMessageIds.count
+            || (!currentIds.isEmpty && !renderedMessageIds.isEmpty && currentIds.first != renderedMessageIds.first)
+
+        if needsFullRebuild {
+            removeStreamingRow()
             for v in stackView.arrangedSubviews {
                 stackView.removeArrangedSubview(v)
                 v.removeFromSuperview()
             }
             renderedMessageIds = []
+            lastAssistantRow = nil
 
             for message in messages {
-                let row = AgentMessageRowView(role: message.role, content: message.content)
+                let row = makeRow(for: message)
+                if message.role == .assistant {
+                    lastAssistantRow?.setActionBarAlwaysVisible(false)
+                    lastAssistantRow = row
+                }
                 addRow(row)
                 renderedMessageIds.append(message.id)
             }
+            lastAssistantRow?.setActionBarAlwaysVisible(true)
         } else {
-            // Append only new messages
             let newMessages = messages.dropFirst(renderedMessageIds.count)
             for message in newMessages {
                 if message.role == .assistant, let existingRow = streamingRow {
-                    // Reuse the streaming row as the finalized row (no flash)
+                    lastAssistantRow?.setActionBarAlwaysVisible(false)
                     existingRow.update(content: message.content)
+                    existingRow.markFinalized(createdAt: message.createdAt, feedback: message.feedback)
+                    wireCallbacks(on: existingRow, message: message)
+                    existingRow.setActionBarAlwaysVisible(true)
+                    lastAssistantRow = existingRow
                     streamingRow = nil
                 } else {
-                    let row = AgentMessageRowView(role: message.role, content: message.content)
+                    if message.role == .assistant {
+                        lastAssistantRow?.setActionBarAlwaysVisible(false)
+                    }
+                    let row = makeRow(for: message)
+                    if message.role == .assistant {
+                        row.setActionBarAlwaysVisible(true)
+                        lastAssistantRow = row
+                    }
                     addRow(row, animated: true)
                 }
                 renderedMessageIds.append(message.id)
@@ -135,23 +150,51 @@ final class AgentMessageListController: NSViewController {
         }
 
         if chatController.isStreaming && streamingRow == nil {
-            let row = AgentMessageRowView(role: .assistant, content: chatController.streamingContent)
+            let row = AgentMessageRowView(role: .assistant, content: chatController.streamingContent, isStreaming: true)
             addRow(row, animated: true)
             streamingRow = row
-        } else if !chatController.isStreaming, let row = streamingRow {
-            // Streaming ended with empty response — remove the row
-            stackView.removeArrangedSubview(row)
-            row.removeFromSuperview()
-            streamingRow = nil
+        } else if !chatController.isStreaming {
+            removeStreamingRow()
         }
 
         scrollToBottom()
+    }
+
+    private func removeStreamingRow() {
+        guard let row = streamingRow else { return }
+        stackView.removeArrangedSubview(row)
+        row.removeFromSuperview()
+        streamingRow = nil
     }
 
     private func updateStreamingRow() {
         streamingRow?.update(content: chatController.streamingContent)
         scrollToBottom()
     }
+
+    // MARK: - Row Factory
+
+    private func makeRow(for message: AgentMessage) -> AgentMessageRowView {
+        let row = AgentMessageRowView(
+            role: message.role,
+            content: message.content,
+            createdAt: message.createdAt,
+            feedback: message.feedback
+        )
+        wireCallbacks(on: row, message: message)
+        return row
+    }
+
+    private func wireCallbacks(on row: AgentMessageRowView, message: AgentMessage) {
+        row.onRetry = { [weak self] in
+            self?.chatController.retry(from: message.id)
+        }
+        row.onFeedbackChanged = { [weak self] feedback in
+            self?.chatController.setFeedback(feedback, for: message.id)
+        }
+    }
+
+    // MARK: - Helpers
 
     private func addRow(_ row: AgentMessageRowView, animated: Bool = false) {
         row.translatesAutoresizingMaskIntoConstraints = false
@@ -193,4 +236,3 @@ final class AgentMessageListController: NSViewController {
 private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
-

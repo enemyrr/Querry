@@ -36,6 +36,10 @@ final class AgentHeaderView: NSView {
         newChatButton.updateLabel(text)
     }
 
+    func setNewChatEnabled(_ isEnabled: Bool) {
+        composeButton.isEnabled = isEnabled
+    }
+
     private func setupLayout() {
         translatesAutoresizingMaskIntoConstraints = false
 
@@ -61,11 +65,17 @@ final class AgentHeaderView: NSView {
     }
 }
 
-// MARK: - Icon Button
-
 private final class AgentHeaderIconButton: NSView {
 
     var action: () -> Void = {}
+    var isEnabled = true {
+        didSet {
+            if !isEnabled {
+                isHovering = false
+            }
+            updateVisualState()
+        }
+    }
 
     private let iconView: NSImageView
     private var trackingArea: NSTrackingArea?
@@ -123,21 +133,24 @@ private final class AgentHeaderIconButton: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        guard isEnabled else { return }
         isHovering = true
         applyIconHover(true)
     }
 
     override func mouseExited(with event: NSEvent) {
+        guard isEnabled else { return }
         isHovering = false
         applyIconHover(false)
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         action()
     }
 
     private func refreshHoverState() {
-        guard let window else {
+        guard isEnabled, let window else {
             isHovering = false
             applyIconHover(false)
             return
@@ -162,13 +175,16 @@ private final class AgentHeaderIconButton: NSView {
     }
 
     @objc private func handleAppearanceChange() {
-        applyIconHover(isHovering)
+        updateVisualState()
+    }
+
+    private func updateVisualState() {
+        alphaValue = isEnabled ? 1 : 0.45
+        applyIconHover(isEnabled && isHovering)
     }
 }
 
-// MARK: - Text Dropdown Button
-
-fileprivate final class AgentHeaderTextButton: NSView {
+private final class AgentHeaderTextButton: NSView {
 
     var action: () -> Void = {}
 

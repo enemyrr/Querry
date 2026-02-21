@@ -184,18 +184,11 @@ final class NotebookMainPaneController: NSViewController {
     private func handleBlocksScroll(_ offset: CGFloat) {
         guard dataController.hasBlocks else { return }
 
-        if isHeaderCompact {
-            if offset < 18 {
-                isHeaderCompact = false
-                headerController?.setCompactMode(false, animated: true)
-            }
-            return
-        }
+        let shouldBeCompact = isHeaderCompact ? offset >= 18 : offset > 36
+        guard shouldBeCompact != isHeaderCompact else { return }
 
-        if offset > 36 {
-            isHeaderCompact = true
-            headerController?.setCompactMode(true, animated: true)
-        }
+        isHeaderCompact = shouldBeCompact
+        headerController?.setCompactMode(shouldBeCompact, animated: true)
     }
 
     // MARK: - Appearance
@@ -215,8 +208,8 @@ final class NotebookMainPaneController: NSViewController {
 
     private func makeShadow() -> NSShadow {
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.04)
-        shadow.shadowBlurRadius = 2
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.10)
+        shadow.shadowBlurRadius = 1
         shadow.shadowOffset = .zero
         return shadow
     }

@@ -93,12 +93,9 @@ final class NotebookBlocksController: NSViewController {
         notifyScrollOffsetChanged()
     }
 
-    // MARK: - Block Management
-
     private func rebuildBlocks() {
         let currentIds = Set(dataController.blocks.map(\.id))
 
-        // Clean up stale controllers
         for (id, controller) in blockControllers where !currentIds.contains(id) {
             if let chartController = controller as? ChartBlockController {
                 chartController.cleanupSession()
@@ -108,7 +105,6 @@ final class NotebookBlocksController: NSViewController {
             blockControllers.removeValue(forKey: id)
         }
 
-        // Remove all from stack and re-add in order
         for arrangedView in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(arrangedView)
             arrangedView.removeFromSuperview()
@@ -125,8 +121,7 @@ final class NotebookBlocksController: NSViewController {
                 case .chart:
                     controller = ChartBlockController(block: block, dataController: dataController)
                 case .text:
-                    let textController = TextBlockController(block: block, dataController: dataController)
-                    controller = textController
+                    controller = TextBlockController(block: block, dataController: dataController)
                     if initialLoadComplete {
                         pendingFocusBlockId = block.id
                     }
@@ -135,55 +130,42 @@ final class NotebookBlocksController: NSViewController {
                 blockControllers[block.id] = controller
             }
 
-            controller.view.translatesAutoresizingMaskIntoConstraints = false
-            stackView.addArrangedSubview(controller.view)
+            addFullWidthArrangedSubview(controller.view)
 
-            NSLayoutConstraint.activate([
-                controller.view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
-                controller.view.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
-            ])
-
-            // Add insertion view between blocks (not after the last one)
             if index < blocks.count - 1 {
                 let insertionView = BlockInsertionView(
                     insertionIndex: index + 1,
                     dataController: dataController
                 )
-                insertionView.translatesAutoresizingMaskIntoConstraints = false
-                stackView.addArrangedSubview(insertionView)
-
-                NSLayoutConstraint.activate([
-                    insertionView.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
-                    insertionView.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
-                ])
+                addFullWidthArrangedSubview(insertionView)
             }
         }
 
-        // Append action bar at the bottom
         if actionBarView == nil {
             actionBarView = NotebookActionBarView(dataController: dataController)
         }
         if let bar = actionBarView {
-            bar.isHidden = true // TODO: temp hide for video
-            bar.translatesAutoresizingMaskIntoConstraints = false
-            stackView.addArrangedSubview(bar)
-
-            NSLayoutConstraint.activate([
-                bar.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
-                bar.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
-            ])
+            addFullWidthArrangedSubview(bar)
         }
 
         notifyScrollOffsetChanged()
         initialLoadComplete = true
 
-        // Auto-focus newly created text blocks
         if let focusId = pendingFocusBlockId, let textController = blockControllers[focusId] as? TextBlockController {
             pendingFocusBlockId = nil
             Task { @MainActor in
                 textController.focusEditor()
             }
         }
+    }
+
+    private func addFullWidthArrangedSubview(_ subview: NSView) {
+        subview.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(subview)
+        NSLayoutConstraint.activate([
+            subview.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),
+            subview.trailingAnchor.constraint(equalTo: stackView.trailingAnchor),
+        ])
     }
 
     // MARK: - Observation

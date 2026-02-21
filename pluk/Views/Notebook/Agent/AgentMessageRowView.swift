@@ -2,6 +2,9 @@ import AppKit
 
 final class AgentMessageRowView: NSView {
 
+    var onRetry: (() -> Void)?
+    var onFeedbackChanged: ((AgentMessageFeedback?) -> Void)?
+
     private let role: AgentMessageRole
     private let textView: NSTextView
     private var containerView: NSView?
@@ -9,6 +12,16 @@ final class AgentMessageRowView: NSView {
     private var textViewHeightConstraint: NSLayoutConstraint?
     private var textViewWidthConstraint: NSLayoutConstraint?
     private var markdownContentView: MarkdownContentView?
+
+    private var userActionBar: UserMessageActionBar?
+    private var assistantActionBar: AssistantMessageActionBar?
+    private var containerBottomConstraint: NSLayoutConstraint?
+    private var mdBottomConstraint: NSLayoutConstraint?
+
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+    private var isStreamingRow = false
+    private var actionBarAlwaysVisible = false
 
     private static let userBubbleColor = NSColor(name: nil) { appearance in
         if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
@@ -23,10 +36,12 @@ final class AgentMessageRowView: NSView {
         return style
     }()
 
-    init(role: AgentMessageRole, content: String) {
+    init(role: AgentMessageRole, content: String, createdAt: Date = Date(), feedback: AgentMessageFeedback? = nil, isStreaming: Bool = false) {
         self.role = role
+        self.isStreamingRow = isStreaming
         self.textView = NSTextView()
         super.init(frame: .zero)
+        wantsLayer = true
         setupLayout()
 
         if role == .assistant, let mdView = markdownContentView {
@@ -39,6 +54,10 @@ final class AgentMessageRowView: NSView {
 
         if role == .assistant && content.isEmpty {
             showLoading()
+        }
+
+        if !isStreaming {
+            setupActionBar(createdAt: createdAt, feedback: feedback)
         }
 
         NotificationCenter.default.addObserver(
@@ -70,12 +89,146 @@ final class AgentMessageRowView: NSView {
         needsLayout = true
     }
 
-    private func showLoading() {
-        if role == .assistant, let mdView = markdownContentView {
-            mdView.isHidden = true
-        } else {
-            textView.isHidden = true
+    func markFinalized(createdAt: Date, feedback: AgentMessageFeedback?) {
+        isStreamingRow = false
+        setupActionBar(createdAt: createdAt, feedback: feedback)
+    }
+
+    func updateFeedback(_ feedback: AgentMessageFeedback?) {
+        assistantActionBar?.setFeedback(feedback)
+    }
+
+    func setActionBarAlwaysVisible(_ visible: Bool) {
+        actionBarAlwaysVisible = visible
+        let bar: NSView? = role == .user ? userActionBar : assistantActionBar
+        guard let bar else { return }
+        if visible {
+            bar.alphaValue = 1
+        } else if !isHovering {
+            bar.alphaValue = 0
         }
+    }
+
+    // MARK: - Action Bar
+
+    private func setupActionBar(createdAt: Date, feedback: AgentMessageFeedback?) {
+        switch role {
+        case .user:
+            let bar = UserMessageActionBar(timestamp: createdAt)
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            bar.alphaValue = 0
+            bar.onCopy = { [weak self] in
+                guard let self else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(textView.string, forType: .string)
+            }
+            addSubview(bar)
+
+            containerBottomConstraint?.constant = -(24 + 4)
+
+            NSLayoutConstraint.activate([
+                bar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+                bar.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+
+            userActionBar = bar
+
+        case .assistant:
+            let bar = AssistantMessageActionBar()
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            bar.alphaValue = actionBarAlwaysVisible ? 1 : 0
+            bar.setFeedback(feedback)
+            bar.onThumbsUp = { [weak self] in
+                guard let self else { return }
+                self.onFeedbackChanged?(bar.resolvedFeedback)
+            }
+            bar.onThumbsDown = { [weak self] in
+                guard let self else { return }
+                self.onFeedbackChanged?(bar.resolvedFeedback)
+            }
+            bar.onCopyText = { [weak self] in
+                guard let self, let mdView = self.markdownContentView else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(mdView.plainText, forType: .string)
+            }
+            bar.onRetry = { [weak self] in self?.onRetry?() }
+            addSubview(bar)
+
+            mdBottomConstraint?.constant = -(4 + 24 + 4)
+
+            NSLayoutConstraint.activate([
+                bar.leadingAnchor.constraint(equalTo: leadingAnchor),
+                bar.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+
+            assistantActionBar = bar
+        }
+        updateTrackingAreas()
+        refreshHoverState()
+    }
+
+    // MARK: - Hover
+
+    private var actionBar: NSView? {
+        role == .user ? userActionBar : assistantActionBar
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        guard actionBar != nil else { return }
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+        refreshHoverState()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard !isStreamingRow, !actionBarAlwaysVisible else { return }
+        isHovering = true
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            actionBar?.animator().alphaValue = 1
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard !actionBarAlwaysVisible else { return }
+        isHovering = false
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            actionBar?.animator().alphaValue = 0
+        }
+    }
+
+    private func refreshHoverState() {
+        guard let window else {
+            if !actionBarAlwaysVisible { actionBar?.alphaValue = 0 }
+            return
+        }
+        guard !actionBarAlwaysVisible else {
+            actionBar?.alphaValue = 1
+            return
+        }
+        let mouse = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let should = bounds.contains(mouse) && !isStreamingRow
+        guard should != isHovering else { return }
+        isHovering = should
+        actionBar?.alphaValue = isHovering ? 1 : 0
+    }
+
+    // MARK: - Loading
+
+    private var primaryContentView: NSView {
+        (role == .assistant ? markdownContentView : nil) ?? textView
+    }
+
+    private func showLoading() {
+        primaryContentView.isHidden = true
         let indicator = TypingIndicatorView()
         indicator.translatesAutoresizingMaskIntoConstraints = false
         addSubview(indicator)
@@ -93,12 +246,10 @@ final class AgentMessageRowView: NSView {
         indicator.stopAnimating()
         indicator.removeFromSuperview()
         loadingView = nil
-        if role == .assistant, let mdView = markdownContentView {
-            mdView.isHidden = false
-        } else {
-            textView.isHidden = false
-        }
+        primaryContentView.isHidden = false
     }
+
+    // MARK: - Content
 
     private func applyAttributedContent(_ text: String) {
         let color: NSColor = role == .user ? .white : .labelColor
@@ -134,6 +285,8 @@ final class AgentMessageRowView: NSView {
         textViewWidthConstraint?.constant = ceil(boundingRect.width)
     }
 
+    // MARK: - Layout Setup
+
     private func setupLayout() {
         textView.isEditable = false
         textView.isSelectable = true
@@ -166,6 +319,9 @@ final class AgentMessageRowView: NSView {
             self.containerView = container
             updateUserBubbleColor()
 
+            let bottomC = container.bottomAnchor.constraint(equalTo: bottomAnchor)
+            containerBottomConstraint = bottomC
+
             NSLayoutConstraint.activate([
                 textView.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
                 textView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
@@ -173,7 +329,7 @@ final class AgentMessageRowView: NSView {
                 textView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
 
                 container.topAnchor.constraint(equalTo: topAnchor),
-                container.bottomAnchor.constraint(equalTo: bottomAnchor),
+                bottomC,
                 container.trailingAnchor.constraint(equalTo: trailingAnchor),
                 container.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.80),
             ])
@@ -184,9 +340,12 @@ final class AgentMessageRowView: NSView {
             addSubview(mdView)
             markdownContentView = mdView
 
+            let bottomC = mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+            mdBottomConstraint = bottomC
+
             NSLayoutConstraint.activate([
                 mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+                bottomC,
                 mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
                 mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
             ])

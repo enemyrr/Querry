@@ -68,14 +68,7 @@ final class MarkdownListView: NSView {
             bulletLabel.setContentHuggingPriority(.required, for: .horizontal)
 
             let textField = NSTextField(labelWithAttributedString: MarkdownInlineRenderer.render(item.text))
-            textField.isEditable = false
-            textField.isSelectable = true
-            textField.isBordered = false
-            textField.isBezeled = false
-            textField.drawsBackground = false
-            textField.lineBreakMode = .byWordWrapping
-            textField.maximumNumberOfLines = 0
-            textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            textField.configureForMarkdownDisplay()
             textField.translatesAutoresizingMaskIntoConstraints = false
 
             row.addArrangedSubview(bulletLabel)

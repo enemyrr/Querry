@@ -35,7 +35,16 @@ final class AgentChatController {
         chats = (try? context.fetch(chatDescriptor)) ?? []
 
         if let latest = chats.first {
-            selectChat(latest)
+            let chatId = latest.id
+            let messageDescriptor = FetchDescriptor<AgentMessage>(
+                predicate: #Predicate { $0.chatId == chatId }
+            )
+            let messageCount = (try? context.fetchCount(messageDescriptor)) ?? 0
+            if messageCount == 0 {
+                selectChat(latest)
+            } else {
+                createNewChat()
+            }
         } else {
             createNewChat()
         }
@@ -83,12 +92,10 @@ final class AgentChatController {
     }
 
     func send(text: String) {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        guard let chat = currentChat else { return }
-        guard !isStreaming else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let chat = currentChat, !isStreaming else { return }
 
         if messages.isEmpty {
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             chat.title = String(trimmed.prefix(60))
             chat.updatedAt = Date()
             save()
@@ -116,7 +123,27 @@ final class AgentChatController {
         isStreaming = false
     }
 
-    // MARK: - Private
+    func retry(from messageId: UUID) {
+        guard !isStreaming else { return }
+        guard let chat = currentChat else { return }
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+
+        let toDelete = Array(messages[index...])
+        for msg in toDelete {
+            modelContainer.mainContext.delete(msg)
+        }
+        messages.removeSubrange(index...)
+        save()
+
+        isStreaming = true
+        streamingTask = Task { await performStreaming(chat: chat) }
+    }
+
+    func setFeedback(_ feedback: AgentMessageFeedback?, for messageId: UUID) {
+        guard let msg = messages.first(where: { $0.id == messageId }) else { return }
+        msg.feedback = feedback
+        save()
+    }
 
     private func loadMessages(for chat: AgentChat) {
         let chatId = chat.id

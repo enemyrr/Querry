@@ -225,8 +225,8 @@ final class DocumentViewController: NSViewController {
 
     private func makeShadow() -> NSShadow {
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.08)
-        shadow.shadowBlurRadius = 4
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.10)
+        shadow.shadowBlurRadius = 1
         shadow.shadowOffset = .zero
         return shadow
     }
@@ -541,8 +541,8 @@ private final class EmptyDocumentStateView: NSView {
         layer?.cornerRadius = 10
 
         let s = NSShadow()
-        s.shadowColor = NSColor.black.withAlphaComponent(0.08)
-        s.shadowBlurRadius = 4
+        s.shadowColor = NSColor.black.withAlphaComponent(0.10)
+        s.shadowBlurRadius = 1
         s.shadowOffset = .zero
         shadow = s
 

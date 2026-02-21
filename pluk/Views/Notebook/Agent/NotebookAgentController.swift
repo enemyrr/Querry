@@ -41,6 +41,7 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         chatController.load()
         syncEmptyStateVisibility()
         syncHeaderTitle()
+        syncHeaderActions()
         observeEmptyState()
         observeCurrentChat()
     }
@@ -107,7 +108,8 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
             self?.dataController.isRightSidebarVisible = false
         }
         headerView.onCompose = { [weak self] in
-            self?.chatController.createNewChat()
+            guard let self, !self.chatController.messages.isEmpty else { return }
+            self.chatController.createNewChat()
         }
         headerView.onNewChat = { [weak self] in
             self?.showChatHistoryPopover()
@@ -138,11 +140,13 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
 
     private func observeCurrentChat() {
         withObservationTracking {
+            _ = self.chatController.currentChat?.id
             _ = self.chatController.currentChat?.title
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.syncHeaderTitle()
+                self.syncHeaderActions()
                 self.observeCurrentChat()
             }
         }
@@ -153,10 +157,16 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         emptyStateView.isHidden = hasContent
         messageListController.view.isHidden = !hasContent
         chatInputView.isStreaming = chatController.isStreaming
+        syncHeaderActions()
     }
 
     private func syncHeaderTitle() {
         headerView.updateTitle(chatController.currentChat?.title ?? "New Chat")
+    }
+
+    private func syncHeaderActions() {
+        let canCreateNewChat = !chatController.messages.isEmpty
+        headerView.setNewChatEnabled(canCreateNewChat)
     }
 
     // MARK: - Chat History Popover
@@ -179,12 +189,14 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
             self?.chatHistoryPopover = nil
             self?.chatController.selectChat(chat)
             self?.syncHeaderTitle()
+            self?.syncHeaderActions()
         }
         popoverVC.onDeleteChat = { [weak self] chat in
             self?.chatController.deleteChat(chat)
             self?.chatHistoryPopover?.close()
             self?.chatHistoryPopover = nil
             self?.syncHeaderTitle()
+            self?.syncHeaderActions()
         }
 
         let popover = NSPopover()

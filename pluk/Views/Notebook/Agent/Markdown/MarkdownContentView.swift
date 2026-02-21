@@ -25,18 +25,10 @@ final class MarkdownContentView: NSView {
             return
         }
 
-        // Find first divergent block
-        var divergenceIndex = 0
-        let minCount = min(currentBlocks.count, newBlocks.count)
-        while divergenceIndex < minCount {
-            if currentBlocks[divergenceIndex] == newBlocks[divergenceIndex] {
-                divergenceIndex += 1
-            } else {
-                break
-            }
-        }
+        let divergenceIndex = zip(currentBlocks, newBlocks)
+            .prefix(while: { $0 == $1 })
+            .count
 
-        // If only the last block's text changed and block count is the same, update in-place
         if divergenceIndex == newBlocks.count - 1
             && newBlocks.count == currentBlocks.count
             && divergenceIndex < blockViews.count
@@ -47,7 +39,6 @@ final class MarkdownContentView: NSView {
             return
         }
 
-        // If new blocks were just appended
         if divergenceIndex == currentBlocks.count && newBlocks.count > currentBlocks.count {
             for i in divergenceIndex..<newBlocks.count {
                 let view = makeBlockView(for: newBlocks[i])
@@ -58,8 +49,6 @@ final class MarkdownContentView: NSView {
             return
         }
 
-        // Structure changed — rebuild from divergence point
-        // Remove views from divergence point onward
         while blockViews.count > divergenceIndex {
             let view = blockViews.removeLast()
             stackView.removeArrangedSubview(view)
@@ -74,6 +63,25 @@ final class MarkdownContentView: NSView {
 
         currentBlocks = newBlocks
         invalidateIntrinsicContentSize()
+    }
+
+    var plainText: String {
+        currentBlocks.map { block -> String in
+            switch block {
+            case .paragraph(let text), .heading(_, let text), .blockquote(let text), .thinkingBlock(let text):
+                return text
+            case .codeBlock(let code, _):
+                return code
+            case .unorderedList(let items), .orderedList(let items):
+                return items.map(\.text).joined(separator: "\n")
+            case .table(let headers, let rows):
+                let headerRow = headers.joined(separator: "\t")
+                let dataRows = rows.map { $0.joined(separator: "\t") }.joined(separator: "\n")
+                return headerRow + "\n" + dataRows
+            case .horizontalRule:
+                return "---"
+            }
+        }.joined(separator: "\n\n")
     }
 
     // MARK: - Setup

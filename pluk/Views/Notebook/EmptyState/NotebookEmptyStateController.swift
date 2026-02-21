@@ -26,13 +26,11 @@ final class NotebookEmptyStateController: NSViewController {
         containerStack.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(containerStack)
 
-        // Title
         let title = NSTextField(labelWithString: "What would you like to know?")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         title.textColor = .labelColor
         title.alignment = .center
 
-        // Subtitle
         let subtitle = NSTextField(labelWithString: "Start by connecting a data source or adding a cell.")
         subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
@@ -44,13 +42,10 @@ final class NotebookEmptyStateController: NSViewController {
         textStack.spacing = 12
         containerStack.addArrangedSubview(textStack)
 
-        // Connection chips
         let chipsSection = makeConnectionChips()
         containerStack.addArrangedSubview(chipsSection)
 
-        // Action bar
         let actionBar = NotebookActionBarView(dataController: dataController)
-        actionBar.isHidden = true // TODO: temp hide for video
         actionBar.translatesAutoresizingMaskIntoConstraints = false
         containerStack.addArrangedSubview(actionBar)
 
@@ -155,8 +150,6 @@ final class NotebookEmptyStateController: NSViewController {
         }
     }
 }
-
-// MARK: - Connection Chip
 
 private final class ConnectionChipView: NSView {
 

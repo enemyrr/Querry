@@ -81,12 +81,7 @@ final class AgentChatHistoryPopoverController: NSViewController {
             return
         }
 
-        for (index, group) in grouped.enumerated() {
-            if index > 0 {
-                let separator = createSeparator()
-                stackView.addArrangedSubview(separator)
-            }
-
+        for group in grouped {
             let header = createSectionHeader(group.title)
             stackView.addArrangedSubview(header)
 
@@ -125,25 +120,6 @@ final class AgentChatHistoryPopoverController: NSViewController {
             container.widthAnchor.constraint(equalToConstant: popoverWidth - 12),
         ])
         return container
-    }
-
-    private func createSeparator() -> NSView {
-        let box = NSBox()
-        box.boxType = .separator
-        box.translatesAutoresizingMaskIntoConstraints = false
-
-        let wrapper = NSView()
-        wrapper.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.addSubview(box)
-
-        NSLayoutConstraint.activate([
-            box.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 8),
-            box.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -8),
-            box.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor),
-            wrapper.heightAnchor.constraint(equalToConstant: 9),
-            wrapper.widthAnchor.constraint(equalToConstant: popoverWidth - 12),
-        ])
-        return wrapper
     }
 
     // MARK: - Grouping
@@ -191,8 +167,6 @@ final class AgentChatHistoryPopoverController: NSViewController {
         return groups
     }
 }
-
-// MARK: - Chat Row
 
 private final class ChatHistoryRowView: NSView {
 

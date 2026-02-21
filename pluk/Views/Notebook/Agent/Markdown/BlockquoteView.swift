@@ -27,14 +27,7 @@ final class BlockquoteView: NSView {
         accentBar.translatesAutoresizingMaskIntoConstraints = false
         addSubview(accentBar)
 
-        textField.isEditable = false
-        textField.isSelectable = true
-        textField.isBordered = false
-        textField.isBezeled = false
-        textField.drawsBackground = false
-        textField.lineBreakMode = .byWordWrapping
-        textField.maximumNumberOfLines = 0
-        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textField.configureForMarkdownDisplay()
         textField.translatesAutoresizingMaskIntoConstraints = false
         addSubview(textField)
 

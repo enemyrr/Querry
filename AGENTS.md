@@ -10,13 +10,12 @@ This file provides guidance to AI coding agents when working with code in this r
 
 - Target macOS 15.0 or later
 - Swift 6.2 or later, using modern Swift concurrency
-- Use SwiftUI for lightweight UI components and simple views
-- Use AppKit for high-performance logic, complex table views, custom drawing, and window management
+- Use AppKit for high-performance logic and smaller components, complex table views, custom drawing, and window management
 - Do not introduce third-party frameworks without asking first
 
 ## Important
 
-- Always ask the user to test the product and see if its working fine instead of you trying to build<D-s>
+- Always ask the user to test the product and see if its working fine instead of you trying to build
 - Do not add comments unless its complex or info that's needed for user reference
 - Always use github cli instead of API
 
@@ -40,47 +39,9 @@ This file provides guidance to AI coding agents when working with code in this r
   `window.mouseLocationOutsideOfEventStream` and call it from `updateTrackingAreas()`
 - Reference implementations: `BlockHoverTrackingView` and `FieldRowCell` in `ChartConfigController.swift`
 
-## Development Commands
-
-### Building
-
-```bash
-# Standard release build (ARM64 only)
-./scripts/build.sh
-
-# Debug build
-./scripts/build.sh --configuration Debug
-
-# Build with code signing
-./scripts/build.sh --sign
-
-# Beta/pre-release build
-IS_PRERELEASE_BUILD=YES ./scripts/build.sh
-```
-
-### Version Management
-
-- Version configuration: `pluk/version.xcconfig`
-- Bundle ID: doc.pluk
-
 ### Search Tools
 
 **Use ast-grep for syntax-aware searches**: When searching for code patterns, function definitions, or structural elements, use `sg --lang swift -p'<pattern>'` instead of text-based search tools. Only fall back to grep/text search when explicitly requested or for non-code content.
-
-## Architecture
-
-### Core Structure
-
-```
-pluk/
-├── Core/           # Database core, models, extensions
-├── Drivers/        # Database-specific drivers (PostgreSQL, MySQL, SQLite, MongoDB)
-├── Services/       # Business logic (DatabaseService, AIService, ConnectionService, TabManager)
-├── Views/          # SwiftUI views organized by feature
-├── Models/         # SwiftData models (Connection.swift is primary)
-├── Shared/         # Reusable UI components
-└── Utilities/      # Helper functions
-```
 
 ### Key Components
 
@@ -114,23 +75,9 @@ Key frameworks integrated via Xcode project:
 - UI: CodeEditorView (syntax highlighting)
 - Services: AIProxy, Sparkle (updates), PostHog (analytics), Sentry (errors)
 
-### Build System
+## Architecture: AppKit
 
-- **Primary scheme**: "Collection" (builds Pluk.app)
-- **Output**: `build/Build/Products/<Configuration>/Pluk.app`
-- **Architecture**: ARM64 only (Apple Silicon)
-- **Signing**: Automated via `scripts/codesign-app.sh`
-
-## Architecture: SwiftUI + AppKit Hybrid
-
-- SwiftUI is the default for simple, declarative UI (settings, popovers, sheets, sidebars)
-- AppKit is required for:
-  - High-performance table views with thousands of rows (NSTableView, NSOutlineView)
-  - Custom text editing (NSTextView)
-  - Complex window management and titlebar customization
-  - Drag and drop with fine-grained control
-  - Custom drawing and CALayer manipulation
-  - Menu bar applications and status items
+- Appkit is the default
 - Use NSHostingController to embed SwiftUI views in AppKit
 - Use NSViewRepresentable / NSViewControllerRepresentable to embed AppKit views in SwiftUI
 - Keep clear boundaries between SwiftUI and AppKit layers
@@ -153,22 +100,7 @@ Key frameworks integrated via Xcode project:
 - Avoid force unwraps and force try unless it is unrecoverable
 - Use guard statements for early returns
 - Prefer value types (structs, enums) over reference types unless shared mutable state is required
-
-## SwiftUI Rules
-
-- Always use `foregroundStyle()` instead of `foregroundColor()`
-- Always use `clipShape(.rect(cornerRadius:))` instead of `cornerRadius()`
-- Never use `ObservableObject`; always prefer `@Observable` classes instead
-- Never use the `onChange()` modifier in its 1-parameter variant; use the variant that accepts two parameters or accepts none
-- Never use `onTapGesture()` unless you specifically need tap location or count. Use `Button` for all other cases
-- Do not break views up using computed properties; place them into new View structs instead
-- Do not force specific font sizes; prefer using Dynamic Type instead
-- Use `NavigationSplitView` for sidebar-based navigation on macOS
-- Use the `Settings` scene for preferences windows
-- Avoid `AnyView` unless absolutely required
-- Avoid specifying hard-coded values for padding and spacing unless requested
-- Use `@Environment(\.dismiss)` for dismissing sheets and popovers
-- Place view logic into view models, so it can be tested
+- use Foundation.JSONDecoder() instead of JSONDecoder() because i have my custom function name as JSONDecoder()
 
 ## AppKit Rules
 
@@ -185,26 +117,6 @@ Key frameworks integrated via Xcode project:
 - Use NSSplitViewController for resizable split views with persistence
 - Implement proper responder chain for keyboard shortcuts and menu actions
 - Use NSMenu and NSMenuItem for context menus; wire up actions and `validateMenuItem`
-
-## Window Management
-
-- Use NSWindowController for managing window lifecycle
-- Set proper window style masks (titled, closable, miniaturizable, resizable)
-- Use `window.contentMinSize` and `contentMaxSize` for size constraints
-- For document-based apps, subclass NSDocument and NSDocumentController
-- Use NSPanel for utility windows and inspectors
-- Handle fullscreen transitions properly with `willEnterFullScreen` and `willExitFullScreen`
-- Persist window frame using `setFrameAutosaveName`
-
-## Database Client Specific
-
-- Use connection pooling for database connections
-- Display query results in NSTableView for performance with large result sets
-- Use lazy loading and pagination for tables with many rows
-- Implement proper cancellation for long-running queries
-- Show query execution time and row counts
-- Use syntax highlighting for SQL (NSTextView with NSLayoutManager)
-- Support multiple database connections in tabs or windows
 
 ## SwiftData Rules
 

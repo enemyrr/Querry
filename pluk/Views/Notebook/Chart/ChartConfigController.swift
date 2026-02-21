@@ -103,11 +103,12 @@ final class ChartConfigController: NSViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        if !didSetInitialDividerPositions {
-            didSetInitialDividerPositions = true
-            splitView.setPosition(Self.leftPanelWidth, ofDividerAt: 0)
-            innerSplitView.setPosition(Self.centerPanelWidth, ofDividerAt: 0)
-        }
+        applyInitialDividerPositionsIfNeeded()
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        applyInitialDividerPositionsIfNeeded()
     }
 
     private var didSetInitialDividerPositions = false
@@ -174,7 +175,21 @@ final class ChartConfigController: NSViewController {
             picker.removeFromSuperview()
             self?.connectionPickerView = nil
             self?.splitView.isHidden = false
+            self?.view.layoutSubtreeIfNeeded()
+            self?.applyInitialDividerPositionsIfNeeded()
         }
+    }
+
+    private func applyInitialDividerPositionsIfNeeded() {
+        guard !didSetInitialDividerPositions else { return }
+        guard splitView != nil, innerSplitView != nil else { return }
+        guard !splitView.isHidden else { return }
+        guard splitView.bounds.width > Self.leftPanelWidth else { return }
+        guard innerSplitView.bounds.width > Self.centerPanelWidth else { return }
+
+        splitView.setPosition(Self.leftPanelWidth, ofDividerAt: 0)
+        innerSplitView.setPosition(Self.centerPanelWidth, ofDividerAt: 0)
+        didSetInitialDividerPositions = true
     }
 
     private func observeConfig() {
@@ -1088,4 +1103,3 @@ extension ChartConfigController: NSSplitViewDelegate {
         sv === splitView && subview === columnPanelContainer
     }
 }
-

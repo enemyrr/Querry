@@ -25,14 +25,7 @@ final class MarkdownTextBlockView: NSView {
     }
 
     private func setupTextField() {
-        textField.isEditable = false
-        textField.isSelectable = true
-        textField.isBordered = false
-        textField.isBezeled = false
-        textField.drawsBackground = false
-        textField.lineBreakMode = .byWordWrapping
-        textField.maximumNumberOfLines = 0
-        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textField.configureForMarkdownDisplay()
         textField.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(textField)
@@ -49,13 +42,13 @@ final class MarkdownTextBlockView: NSView {
         case .paragraph:
             return MarkdownInlineRenderer.render(text)
         case .heading(let level):
-            let (fontSize, weight) = headingStyle(for: level)
-            let font = NSFont.systemFont(ofSize: fontSize, weight: weight)
+            let heading = headingStyle(for: level)
+            let font = NSFont.systemFont(ofSize: heading.size, weight: heading.weight)
             return MarkdownInlineRenderer.render(text, font: font)
         }
     }
 
-    private static func headingStyle(for level: Int) -> (CGFloat, NSFont.Weight) {
+    private static func headingStyle(for level: Int) -> (size: CGFloat, weight: NSFont.Weight) {
         switch level {
         case 1: return (24, .bold)
         case 2: return (20, .semibold)
