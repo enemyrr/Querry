@@ -1029,7 +1029,9 @@ final class ChartConfigController: NSViewController {
 
         let chartType = viewModel.config?.chartType ?? .groupedColumn
         let definitions = chartType.fieldDefinitions
-        let sorted = definitions.sorted { lhs, _ in lhs.cardinality == .single }
+        let sorted = definitions.sorted { lhs, rhs in
+            (lhs.cardinality == .single ? 0 : 1) < (rhs.cardinality == .single ? 0 : 1)
+        }
 
         for definition in sorted {
             let group = NSStackView()
@@ -1049,111 +1051,82 @@ final class ChartConfigController: NSViewController {
 
             switch definition.cardinality {
             case .single:
-                if showAgg, let selected = selectedColumns.first {
-                    let row = NSStackView()
-                    row.orientation = .horizontal
-                    row.spacing = 6
-                    row.translatesAutoresizingMaskIntoConstraints = false
-
-                    let dropdown = StyledDropdown(placeholder: "Select column") { [weak self] title in
-                        self?.viewModel.setFieldColumn(key: definition.key, column: title)
-                        self?.rebuildAxisFields()
-                    }
-                    dropdown.translatesAutoresizingMaskIntoConstraints = false
-                    dropdown.setItems(available)
+                let dropdown = makeColumnDropdown(placeholder: "Select column", items: available) { [weak self] title in
+                    self?.viewModel.setFieldColumn(key: definition.key, column: title)
+                    self?.rebuildAxisFields()
+                }
+                if let selected = selectedColumns.first {
                     dropdown.selectItem(selected)
-                    row.addArrangedSubview(dropdown)
-
+                }
+                if showAgg, let selected = selectedColumns.first {
                     let aggDropdown = makeAggregationDropdown(forField: definition.key, column: selected)
-                    row.addArrangedSubview(aggDropdown)
-
-                    group.addArrangedSubview(row)
-                    NSLayoutConstraint.activate([
-                        row.leadingAnchor.constraint(equalTo: group.leadingAnchor),
-                        row.trailingAnchor.constraint(equalTo: group.trailingAnchor),
-                        aggDropdown.widthAnchor.constraint(equalToConstant: 90),
-                    ])
+                    addRowWithAggregation(mainView: dropdown, aggDropdown: aggDropdown, to: group)
                 } else {
-                    let dropdown = StyledDropdown(placeholder: "Select column") { [weak self] title in
-                        self?.viewModel.setFieldColumn(key: definition.key, column: title)
-                        self?.rebuildAxisFields()
-                    }
-                    dropdown.translatesAutoresizingMaskIntoConstraints = false
-                    dropdown.setItems(available)
-                    if let selected = selectedColumns.first {
-                        dropdown.selectItem(selected)
-                    }
-                    group.addArrangedSubview(dropdown)
-
-                    NSLayoutConstraint.activate([
-                        dropdown.leadingAnchor.constraint(equalTo: group.leadingAnchor),
-                        dropdown.trailingAnchor.constraint(equalTo: group.trailingAnchor),
-                    ])
+                    addFullWidthView(dropdown, to: group)
                 }
 
             case .multiple:
                 for column in selectedColumns {
+                    let chip = FieldColumnChipView(title: column) { [weak self] in
+                        self?.viewModel.removeFieldColumn(key: definition.key, column: column)
+                        self?.rebuildAxisFields()
+                    }
+                    chip.translatesAutoresizingMaskIntoConstraints = false
                     if showAgg {
-                        let row = NSStackView()
-                        row.orientation = .horizontal
-                        row.spacing = 6
-                        row.translatesAutoresizingMaskIntoConstraints = false
-
-                        let chip = FieldColumnChipView(title: column) { [weak self] in
-                            self?.viewModel.removeFieldColumn(key: definition.key, column: column)
-                            self?.rebuildAxisFields()
-                        }
-                        chip.translatesAutoresizingMaskIntoConstraints = false
-                        row.addArrangedSubview(chip)
-
                         let aggDropdown = makeAggregationDropdown(forField: definition.key, column: column)
-                        row.addArrangedSubview(aggDropdown)
-
-                        group.addArrangedSubview(row)
-                        NSLayoutConstraint.activate([
-                            row.leadingAnchor.constraint(equalTo: group.leadingAnchor),
-                            row.trailingAnchor.constraint(equalTo: group.trailingAnchor),
-                            aggDropdown.widthAnchor.constraint(equalToConstant: 90),
-                        ])
+                        addRowWithAggregation(mainView: chip, aggDropdown: aggDropdown, to: group)
                     } else {
-                        let chip = FieldColumnChipView(title: column) { [weak self] in
-                            self?.viewModel.removeFieldColumn(key: definition.key, column: column)
-                            self?.rebuildAxisFields()
-                        }
-                        chip.translatesAutoresizingMaskIntoConstraints = false
-                        group.addArrangedSubview(chip)
-
-                        NSLayoutConstraint.activate([
-                            chip.leadingAnchor.constraint(equalTo: group.leadingAnchor),
-                            chip.trailingAnchor.constraint(equalTo: group.trailingAnchor),
-                        ])
+                        addFullWidthView(chip, to: group)
                     }
                 }
 
                 let remaining = available.filter { !selectedColumns.contains($0) }
                 if !remaining.isEmpty {
-                    let addDropdown = StyledDropdown(placeholder: "Add column") { [weak self] title in
+                    let addDropdown = makeColumnDropdown(placeholder: "Add column", items: remaining) { [weak self] title in
                         self?.viewModel.addFieldColumn(key: definition.key, column: title)
                         self?.rebuildAxisFields()
                     }
-                    addDropdown.translatesAutoresizingMaskIntoConstraints = false
-                    addDropdown.setItems(remaining)
-                    group.addArrangedSubview(addDropdown)
-
-                    NSLayoutConstraint.activate([
-                        addDropdown.leadingAnchor.constraint(equalTo: group.leadingAnchor),
-                        addDropdown.trailingAnchor.constraint(equalTo: group.trailingAnchor),
-                    ])
+                    addFullWidthView(addDropdown, to: group)
                 }
             }
 
             axisFieldsStack.addArrangedSubview(group)
-
-            NSLayoutConstraint.activate([
-                group.leadingAnchor.constraint(equalTo: axisFieldsStack.leadingAnchor),
-                group.trailingAnchor.constraint(equalTo: axisFieldsStack.trailingAnchor),
-            ])
+            pinEdges(of: group, to: axisFieldsStack)
         }
+    }
+
+    private func makeColumnDropdown(placeholder: String, items: [String], onSelect: @escaping (String) -> Void) -> StyledDropdown {
+        let dropdown = StyledDropdown(placeholder: placeholder, onSelect: onSelect)
+        dropdown.translatesAutoresizingMaskIntoConstraints = false
+        dropdown.setItems(items)
+        return dropdown
+    }
+
+    private func addFullWidthView(_ child: NSView, to parent: NSStackView) {
+        parent.addArrangedSubview(child)
+        pinEdges(of: child, to: parent)
+    }
+
+    private func addRowWithAggregation(mainView: NSView, aggDropdown: StyledDropdown, to parent: NSStackView) {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.spacing = 6
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.addArrangedSubview(mainView)
+        row.addArrangedSubview(aggDropdown)
+        parent.addArrangedSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: parent.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: parent.trailingAnchor),
+            aggDropdown.widthAnchor.constraint(equalToConstant: 90),
+        ])
+    }
+
+    private func pinEdges(of child: NSView, to parent: NSStackView) {
+        NSLayoutConstraint.activate([
+            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor),
+            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor),
+        ])
     }
 
     private func makeAggregationDropdown(forField fieldKey: String, column: String) -> StyledDropdown {

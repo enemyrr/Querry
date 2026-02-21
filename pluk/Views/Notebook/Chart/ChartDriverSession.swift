@@ -36,7 +36,7 @@ actor ChartDriverSession {
     func fetchTableData(tableName: String, schema: String?, limit: Int, filters: [ChartFilterCondition] = []) async throws -> QueryResult {
         guard let driver else { throw ChartBlockError.notConnected }
 
-        let validFilters = filters.filter { !$0.field.isEmpty && ($0.filterOperator.needsValue ? !$0.value.isEmpty : true) }
+        let validFilters = filters.filter(\.isComplete)
 
         if validFilters.isEmpty {
             return try await driver.findDocuments(
@@ -78,7 +78,7 @@ actor ChartDriverSession {
 
         var query = "SELECT \(selectParts.joined(separator: ", ")) FROM \(schemaPrefix)\"\(tableName)\""
 
-        let validFilters = filters.filter { !$0.field.isEmpty && ($0.filterOperator.needsValue ? !$0.value.isEmpty : true) }
+        let validFilters = filters.filter(\.isComplete)
         if !validFilters.isEmpty {
             let whereClause = validFilters.map(\.sqlFragment).joined(separator: " AND ")
             query += " WHERE \(whereClause)"

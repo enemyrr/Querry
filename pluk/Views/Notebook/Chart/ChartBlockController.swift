@@ -578,8 +578,8 @@ final class StyledDropdown: NSView {
 
     private func showMenu() {
         let menu = NSMenu()
-        menu.minimumWidth = bounds.width
-        let maxTitleWidth = max(80, bounds.width - 34)
+        menu.minimumWidth = max(bounds.width, 130)
+        let maxTitleWidth = max(80, menu.minimumWidth - 34)
         for item in items {
             let menuItem = NSMenuItem(
                 title: truncatedMenuTitle(item, maxWidth: maxTitleWidth),

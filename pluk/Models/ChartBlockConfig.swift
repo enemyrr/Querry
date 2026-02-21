@@ -74,6 +74,10 @@ struct ChartFilterCondition: Codable, Equatable, Identifiable {
         }
         return "\(field) \(filterOperator.displayName) \(value)"
     }
+
+    var isComplete: Bool {
+        !field.isEmpty && (filterOperator.needsValue ? !value.isEmpty : true)
+    }
 }
 
 struct ChartFieldDefinition {
@@ -143,24 +147,28 @@ enum AggregationFunction: String, Codable, CaseIterable {
         }
     }
 
-    static func defaultAggregation(for dataType: String) -> AggregationFunction {
+    private static let numericKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
+    private static let dateKeywords = ["date", "time", "timestamp"]
+
+    static func isNumericDataType(_ dataType: String) -> Bool {
         let lower = dataType.lowercased()
-        let numericKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
-        if numericKeywords.contains(where: { lower.contains($0) }) {
-            return .sum
-        }
-        return .count
+        return numericKeywords.contains { lower.contains($0) }
+    }
+
+    static func isDateDataType(_ dataType: String) -> Bool {
+        let lower = dataType.lowercased()
+        return dateKeywords.contains { lower.contains($0) }
+    }
+
+    static func defaultAggregation(for dataType: String) -> AggregationFunction {
+        isNumericDataType(dataType) ? .sum : .count
     }
 
     static func availableAggregations(for dataType: String) -> [AggregationFunction] {
-        let lower = dataType.lowercased()
-        let numericKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
-        let dateKeywords = ["date", "time", "timestamp"]
-
-        if numericKeywords.contains(where: { lower.contains($0) }) {
+        if isNumericDataType(dataType) {
             return [.sum, .average, .count, .countDistinct, .min, .max, .none]
         }
-        if dateKeywords.contains(where: { lower.contains($0) }) {
+        if isDateDataType(dataType) {
             return [.count, .countDistinct, .min, .max, .none]
         }
         return [.count, .countDistinct, .none]
@@ -192,24 +200,12 @@ struct ChartBlockConfig: Codable {
 
     var xAxisColumn: String? {
         get { fields["xAxis"]?.first }
-        set {
-            if let value = newValue {
-                fields["xAxis"] = [value]
-            } else {
-                fields["xAxis"] = nil
-            }
-        }
+        set { fields["xAxis"] = newValue.map { [$0] } }
     }
 
     var yAxisColumn: String? {
         get { fields["yAxis"]?.first }
-        set {
-            if let value = newValue {
-                fields["yAxis"] = [value]
-            } else {
-                fields["yAxis"] = nil
-            }
-        }
+        set { fields["yAxis"] = newValue.map { [$0] } }
     }
 
     init(
@@ -331,42 +327,29 @@ struct ChartBlockConfig: Codable {
 
         var fieldDefinitions: [ChartFieldDefinition] {
             switch self {
-            case .groupedColumn, .stackedColumn, .hundredPercentStackedColumn:
-                return [
-                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
-                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
-                ]
-            case .groupedBar, .stackedBar, .hundredPercentStackedBar:
-                return [
-                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
-                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
-                ]
-            case .line:
-                return [
-                    ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
-                    ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
-                ]
-            case .stackedArea, .hundredPercentStackedArea:
-                return [
+            case .groupedColumn, .stackedColumn, .hundredPercentStackedColumn,
+                 .groupedBar, .stackedBar, .hundredPercentStackedBar,
+                 .line, .stackedArea, .hundredPercentStackedArea:
+                [
                     ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
                     ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .multiple, columnFilter: .all),
                 ]
             case .histogram:
-                return [
+                [
                     ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
                 ]
             case .scatter:
-                return [
+                [
                     ChartFieldDefinition(key: "xAxis", label: "X-axis", cardinality: .single, columnFilter: .all),
                     ChartFieldDefinition(key: "yAxis", label: "Y-axis", cardinality: .single, columnFilter: .all),
                 ]
             case .pie:
-                return [
+                [
                     ChartFieldDefinition(key: "xAxis", label: "Label", cardinality: .single, columnFilter: .all),
                     ChartFieldDefinition(key: "yAxis", label: "Size", cardinality: .single, columnFilter: .all),
                 ]
             case .pivotTable:
-                return [
+                [
                     ChartFieldDefinition(key: "rows", label: "Rows", cardinality: .multiple, columnFilter: .all),
                     ChartFieldDefinition(key: "columns", label: "Columns", cardinality: .multiple, columnFilter: .all),
                     ChartFieldDefinition(key: "values", label: "Values", cardinality: .multiple, columnFilter: .all),

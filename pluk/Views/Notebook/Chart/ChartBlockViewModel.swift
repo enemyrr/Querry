@@ -339,25 +339,14 @@ final class ChartBlockViewModel {
     }
 
     private func isMeasureFieldKey(_ key: String) -> Bool {
-        key == "yAxis" || key == "values"
+        let definitions = config?.chartType.fieldDefinitions ?? []
+        return definitions.first(where: { $0.key == key })?.isMeasureField ?? false
     }
 
     private func setDefaultAggregation(forField fieldKey: String, column: String) {
         let dataType = schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
         let defaultAgg = AggregationFunction.defaultAggregation(for: dataType)
         config?.setAggregation(defaultAgg, forField: fieldKey, column: column)
-    }
-
-    func resetAxes() {
-        resetFields()
-    }
-
-    func setXAxis(_ column: String) {
-        setFieldColumn(key: "xAxis", column: column)
-    }
-
-    func setYAxis(_ column: String) {
-        setFieldColumn(key: "yAxis", column: column)
     }
 
     private func triggerFetchIfReady() {
@@ -406,49 +395,23 @@ final class ChartBlockViewModel {
         defer { isLoadingChart = false }
         do {
             let effectiveLimit = min(cfg.rowLimit, 200)
-            let validFilters = cfg.filters.filter { isFilterFieldValid($0) }
+            let validFilters = cfg.filters.filter { $0.isComplete && isFilterFieldValid($0) }
 
-            let chartType = cfg.chartType
-            let definitions = chartType.fieldDefinitions
-            let measureDefs = definitions.filter(\.isMeasureField)
-            let dimensionDefs = definitions.filter { !$0.isMeasureField }
-
-            var dimensions: [String] = []
-            for def in dimensionDefs {
-                if let cols = cfg.fields[def.key] {
-                    dimensions.append(contentsOf: cols)
-                }
-            }
-
-            var measures: [(column: String, aggregation: AggregationFunction)] = []
-            for def in measureDefs {
-                if let cols = cfg.fields[def.key] {
-                    for col in cols {
-                        let agg = resolvedAggregation(forField: def.key, column: col)
-                        measures.append((column: col, aggregation: agg))
+            let definitions = cfg.chartType.fieldDefinitions
+            let dimensions = definitions
+                .filter { !$0.isMeasureField }
+                .flatMap { cfg.fields[$0.key] ?? [] }
+            let measures: [(column: String, aggregation: AggregationFunction)] = definitions
+                .filter(\.isMeasureField)
+                .flatMap { def in
+                    (cfg.fields[def.key] ?? []).map { col in
+                        (column: col, aggregation: resolvedAggregation(forField: def.key, column: col))
                     }
                 }
-            }
 
-            let allNone = measures.allSatisfy { $0.aggregation == .none }
+            let needsAggregation = !measures.isEmpty && !measures.allSatisfy { $0.aggregation == .none }
 
-            if allNone || measures.isEmpty {
-                let result = try await session.fetchTableData(
-                    tableName: cfg.tableName,
-                    schema: cfg.schemaName,
-                    limit: effectiveLimit,
-                    filters: validFilters
-                )
-                let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
-                    guard let xInfo = row[xCol],
-                          let yInfo = row[yCol],
-                          let xRaw = xInfo.value,
-                          let yRaw = yInfo.value,
-                          let yNum = toDouble(yRaw) else { return nil }
-                    return ChartDataPoint(x: String(describing: xRaw), y: yNum)
-                }
-                chartData = reduceChartData(points, maxPoints: 160)
-            } else {
+            if needsAggregation, let firstMeasure = measures.first {
                 let result = try await session.fetchAggregatedData(
                     tableName: cfg.tableName,
                     schema: cfg.schemaName,
@@ -457,13 +420,25 @@ final class ChartBlockViewModel {
                     limit: effectiveLimit,
                     filters: validFilters
                 )
-                let firstMeasure = measures.first!
                 let aliasCol = "\(firstMeasure.column)\(firstMeasure.aggregation.sqlAliasSuffix)"
-                let points: [ChartDataPoint] = result.rows.compactMap { (row: [String: QueryRowInfo]) -> ChartDataPoint? in
-                    guard let xInfo = row[xCol],
-                          let xRaw = xInfo.value else { return nil }
+                let points: [ChartDataPoint] = result.rows.compactMap { row in
+                    guard let xRaw = row[xCol]?.value else { return nil }
                     let yInfo = row[aliasCol] ?? row[firstMeasure.column]
                     guard let yRaw = yInfo?.value,
+                          let yNum = toDouble(yRaw) else { return nil }
+                    return ChartDataPoint(x: String(describing: xRaw), y: yNum)
+                }
+                chartData = reduceChartData(points, maxPoints: 160)
+            } else {
+                let result = try await session.fetchTableData(
+                    tableName: cfg.tableName,
+                    schema: cfg.schemaName,
+                    limit: effectiveLimit,
+                    filters: validFilters
+                )
+                let points: [ChartDataPoint] = result.rows.compactMap { row in
+                    guard let xRaw = row[xCol]?.value,
+                          let yRaw = row[yCol]?.value,
                           let yNum = toDouble(yRaw) else { return nil }
                     return ChartDataPoint(x: String(describing: xRaw), y: yNum)
                 }
@@ -490,11 +465,8 @@ final class ChartBlockViewModel {
 
     // MARK: - Helpers
 
-    private static let numericTypeKeywords = ["int", "float", "double", "decimal", "numeric", "real", "number", "serial", "money"]
-
     private func isNumericType(_ type: String) -> Bool {
-        let lower = type.lowercased()
-        return Self.numericTypeKeywords.contains { lower.contains($0) }
+        AggregationFunction.isNumericDataType(type)
     }
 
     private func toDouble(_ value: Any) -> Double? {
