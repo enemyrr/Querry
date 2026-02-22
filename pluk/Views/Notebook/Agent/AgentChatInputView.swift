@@ -553,7 +553,7 @@ private final class AgentConnectionChipView: NSView {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         closeButton.toolTip = "Clear connection"
         closeButton.wantsLayer = true
-        closeButton.layer?.cornerRadius = 7
+        closeButton.layer?.cornerRadius = 8
         closeButton.layer?.masksToBounds = true
         closeButton.layer?.cornerCurve = .circular
         closeButton.isHidden = true
@@ -575,8 +575,8 @@ private final class AgentConnectionChipView: NSView {
 
             closeButton.centerXAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             closeButton.centerYAnchor.constraint(equalTo: topAnchor, constant: 4),
-            closeButton.widthAnchor.constraint(equalToConstant: 17),
-            closeButton.heightAnchor.constraint(equalToConstant: 15),
+            closeButton.widthAnchor.constraint(equalToConstant: 16),
+            closeButton.heightAnchor.constraint(equalToConstant: 16),
         ])
 
         updateAppearance()

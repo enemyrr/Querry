@@ -4,6 +4,8 @@ import AIProxy
 struct AgentRoundResult {
     let streamedText: String
     let toolCalls: [(id: String, name: String, arguments: String)]
+    let reasoningSummary: String?
+    let responseId: String?
 }
 
 struct BlockCreationRequest {
@@ -109,8 +111,8 @@ final class NotebookAgentEngine {
 
     // MARK: - Tool Definitions
 
-    func buildTools(connections: [Connection]) -> [OpenAIChatCompletionRequestBody.Tool] {
-        var tools: [OpenAIChatCompletionRequestBody.Tool] = [
+    func buildTools(connections: [Connection]) -> [OpenAICreateResponseRequestBody.Tool] {
+        var tools: [OpenAICreateResponseRequestBody.Tool] = [
             listTablesTool,
             getTableSchemaTool,
         ]
@@ -118,12 +120,14 @@ final class NotebookAgentEngine {
         return tools
     }
 
-    // MARK: - Streaming Round
+    // MARK: - Streaming Round (Responses API)
 
     func performRound(
-        messages: [OpenAIChatCompletionRequestBody.Message],
+        input: OpenAIResponse.Input,
+        previousResponseId: String?,
         connections: [Connection],
-        onToken: @escaping @MainActor @Sendable (String) -> Void
+        onToken: @escaping @MainActor @Sendable (String) -> Void,
+        onReasoning: @escaping @MainActor @Sendable (String) -> Void
     ) async throws -> AgentRoundResult {
         let openAIService = AIProxy.openAIService(
             partialKey: Self.partialKey,
@@ -131,65 +135,85 @@ final class NotebookAgentEngine {
         )
         let tools = buildTools(connections: connections)
 
-        let stream = try await openAIService.streamingChatCompletionRequest(
-            body: .init(
-                model: "gpt-5.1",
-                messages: messages,
-                parallelToolCalls: false,
-                tools: tools
-            ),
+        let requestBody = OpenAICreateResponseRequestBody(
+            input: input,
+            instructions: buildSystemPrompt(connections: connections),
+            model: "gpt-5.1",
+            parallelToolCalls: false,
+            previousResponseId: previousResponseId,
+            reasoning: .init(effort: .medium, summary: .detailed),
+            tools: tools,
+            truncation: .auto
+        )
+
+        let stream = try await openAIService.createStreamingResponse(
+            requestBody: requestBody,
             secondsToWait: 60
         )
 
         var streamedContent = ""
-        var rawToolCalls: [(id: String, name: String, arguments: String)] = []
+        var reasoningSummary = ""
+        var responseId: String?
 
-        for try await chunk in stream {
+        // Track function calls by output index
+        struct PendingFunctionCall {
+            var callId: String
+            var name: String
+            var arguments: String
+        }
+        var pendingFunctionCalls: [Int: PendingFunctionCall] = [:]
+
+        for try await event in stream {
             guard !Task.isCancelled else { throw CancellationError() }
 
-            // Debug: log the raw chunk
-            print("[AgentDebug] Raw chunk: \(chunk)")
+            switch event {
+            case .outputTextDelta(let delta):
+                streamedContent += delta.delta
+                onToken(delta.delta)
 
-            if let choice = chunk.choices.first {
-                print("[AgentDebug] delta.content: \(choice.delta.content ?? "nil")")
-                print("[AgentDebug] delta.role: \(choice.delta.role ?? "nil")")
-                print("[AgentDebug] finishReason: \(choice.finishReason ?? "nil")")
+            case .functionCallArgumentsDelta(let delta):
+                let index = delta.outputIndex ?? 0
+                pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].arguments += delta.delta
 
-                if let toolCallDeltas = choice.delta.toolCalls {
-                    print("[AgentDebug] delta.toolCalls count: \(toolCallDeltas.count)")
-                    for tc in toolCallDeltas {
-                        print("[AgentDebug]   toolCall index=\(tc.index ?? -1) id=\(tc.id ?? "nil") fn.name=\(tc.function?.name ?? "nil") fn.args=\(tc.function?.arguments ?? "nil")")
-                    }
+            case .outputItemAdded(let item):
+                if case .functionCall(let fc) = item.item {
+                    let index = item.index ?? 0
+                    pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].callId = fc.callId
+                    pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].name = fc.name
                 }
-            }
 
-            if let token = chunk.choices.first?.delta.content {
-                streamedContent += token
-                onToken(token)
-            }
+            case .functionCallArgumentsDone(let done):
+                let index = done.outputIndex ?? 0
+                pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].arguments = done.arguments
 
-            if let deltas = chunk.choices.first?.delta.toolCalls {
-                for delta in deltas {
-                    guard let index = delta.index, let function = delta.function else { continue }
-                    while rawToolCalls.count <= index {
-                        rawToolCalls.append((id: "", name: "", arguments: ""))
-                    }
-                    var current = rawToolCalls[index]
-                    if let id = delta.id { current.id = id }
-                    if let name = function.name { current.name = name }
-                    if let args = function.arguments { current.arguments += args }
-                    rawToolCalls[index] = current
-                }
+            case .reasoningSummaryTextDelta(let delta):
+                reasoningSummary += delta.delta
+                onReasoning(delta.delta)
+
+            case .responseCompleted(let completed):
+                responseId = completed.response.id
+
+            case .error(let errorEvent):
+                throw NSError(
+                    domain: "NotebookAgentEngine",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "API error (\(errorEvent.code)): \(errorEvent.message)"]
+                )
+
+            default:
+                break
             }
         }
 
-        print("[AgentDebug] === Round Complete ===")
-        print("[AgentDebug] streamedContent: \(streamedContent)")
-        print("[AgentDebug] toolCalls: \(rawToolCalls.map { "(id: \($0.id), name: \($0.name), args: \($0.arguments))" })")
+        let toolCalls = pendingFunctionCalls
+            .sorted { $0.key < $1.key }
+            .map { (id: $0.value.callId, name: $0.value.name, arguments: $0.value.arguments) }
 
         return AgentRoundResult(
             streamedText: streamedContent,
-            toolCalls: rawToolCalls
+            toolCalls: toolCalls,
+            reasoningSummary: reasoningSummary.isEmpty ? nil : reasoningSummary,
+            responseId: responseId
         )
     }
 
@@ -356,7 +380,6 @@ final class NotebookAgentEngine {
         config.xAxisColumn = xAxis
         config.fields["yAxis"] = yAxisColumns
 
-        // Apply aggregations if provided
         if let aggs = json["aggregations"] as? [String: String] {
             for (column, aggRaw) in aggs {
                 if let agg = AggregationFunction(rawValue: aggRaw) {
@@ -365,7 +388,6 @@ final class NotebookAgentEngine {
             }
         }
 
-        // Apply filters if provided
         if let filterArray = json["filters"] as? [[String: String]] {
             for filterDict in filterArray {
                 guard let field = filterDict["field"],
@@ -419,47 +441,51 @@ final class NotebookAgentEngine {
 
     // MARK: - Static Tool Definitions
 
-    private let listTablesTool = OpenAIChatCompletionRequestBody.Tool.function(
-        name: "list_tables",
-        description: "Lists all tables and collections in a database connection. Call this first to discover available data.",
-        parameters: [
-            "type": .string("object"),
-            "properties": .object([
-                "connection_keychain_id": .object([
-                    "type": .string("string"),
-                    "description": .string("The keychainId of the connection to query"),
+    private let listTablesTool = OpenAICreateResponseRequestBody.Tool.function(
+        OpenAICreateResponseRequestBody.FunctionTool(
+            name: "list_tables",
+            parameters: [
+                "type": .string("object"),
+                "properties": .object([
+                    "connection_keychain_id": .object([
+                        "type": .string("string"),
+                        "description": .string("The keychainId of the connection to query"),
+                    ]),
+                    "schema_name": .object([
+                        "type": .string("string"),
+                        "description": .string("Schema name to list tables from (optional, e.g. 'public' for PostgreSQL)"),
+                    ]),
                 ]),
-                "schema_name": .object([
-                    "type": .string("string"),
-                    "description": .string("Schema name to list tables from (optional, e.g. 'public' for PostgreSQL)"),
-                ]),
-            ]),
-            "required": .array([.string("connection_keychain_id")]),
-        ],
-        strict: nil
+                "required": .array([.string("connection_keychain_id")]),
+            ],
+            strict: false,
+            description: "Lists all tables and collections in a database connection. Call this first to discover available data."
+        )
     )
 
-    private let getTableSchemaTool = OpenAIChatCompletionRequestBody.Tool.function(
-        name: "get_table_schema",
-        description: "Gets detailed column information for a table: names, data types, primary keys, foreign keys, and constraints.",
-        parameters: [
-            "type": .string("object"),
-            "properties": .object([
-                "connection_keychain_id": .object([
-                    "type": .string("string"),
-                    "description": .string("The keychainId of the connection"),
+    private let getTableSchemaTool = OpenAICreateResponseRequestBody.Tool.function(
+        OpenAICreateResponseRequestBody.FunctionTool(
+            name: "get_table_schema",
+            parameters: [
+                "type": .string("object"),
+                "properties": .object([
+                    "connection_keychain_id": .object([
+                        "type": .string("string"),
+                        "description": .string("The keychainId of the connection"),
+                    ]),
+                    "table_name": .object([
+                        "type": .string("string"),
+                        "description": .string("The table name to get schema for"),
+                    ]),
+                    "schema_name": .object([
+                        "type": .string("string"),
+                        "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                    ]),
                 ]),
-                "table_name": .object([
-                    "type": .string("string"),
-                    "description": .string("The table name to get schema for"),
-                ]),
-                "schema_name": .object([
-                    "type": .string("string"),
-                    "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
-                ]),
-            ]),
-            "required": .array([.string("connection_keychain_id"), .string("table_name")]),
-        ],
-        strict: nil
+                "required": .array([.string("connection_keychain_id"), .string("table_name")]),
+            ],
+            strict: false,
+            description: "Gets detailed column information for a table: names, data types, primary keys, foreign keys, and constraints."
+        )
     )
 }

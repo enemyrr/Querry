@@ -21,7 +21,8 @@
       "WebFetch(domain:learn.hex.tech)",
       "WebSearch",
       "Bash(sg:*)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Bash(sort:*)"
     ],
     "deny": [],
     "ask": [],

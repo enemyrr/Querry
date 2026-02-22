@@ -8,10 +8,10 @@ final class AgentMessageRowView: NSView {
     private let role: AgentMessageRole
     private let textView: NSTextView
     private var containerView: NSView?
-    private var thinkingView: ThinkingStatusView?
     private var textViewHeightConstraint: NSLayoutConstraint?
     private var textViewWidthConstraint: NSLayoutConstraint?
     private var markdownContentView: MarkdownContentView?
+    private var streamingPartsView: StreamingPartsView?
 
     private var userActionBar: UserMessageActionBar?
     private var assistantActionBar: AssistantMessageActionBar?
@@ -44,16 +44,12 @@ final class AgentMessageRowView: NSView {
         wantsLayer = true
         setupLayout()
 
-        if role == .assistant, let mdView = markdownContentView {
+        if role == .assistant && !isStreaming, let mdView = markdownContentView {
             if !content.isEmpty {
                 mdView.update(content: content)
             }
-        } else {
+        } else if role == .user {
             applyAttributedContent(content)
-        }
-
-        if role == .assistant && content.isEmpty {
-            showLoading()
         }
 
         if !isStreaming {
@@ -77,9 +73,6 @@ final class AgentMessageRowView: NSView {
     }
 
     func update(content: String) {
-        if !content.isEmpty {
-            hideLoading()
-        }
         if role == .assistant, let mdView = markdownContentView {
             mdView.update(content: content)
         } else {
@@ -89,8 +82,45 @@ final class AgentMessageRowView: NSView {
         needsLayout = true
     }
 
-    func markFinalized(createdAt: Date, feedback: AgentMessageFeedback?) {
+    func updateParts(_ parts: [StreamingPart]) {
+        if parts.isEmpty {
+            streamingPartsView?.showPlaceholder()
+        } else {
+            streamingPartsView?.updateParts(parts)
+        }
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+    }
+
+    func markFinalized(content: String, createdAt: Date, feedback: AgentMessageFeedback?) {
         isStreamingRow = false
+
+        if let partsView = streamingPartsView {
+            partsView.removeFromSuperview()
+            streamingPartsView = nil
+
+            let mdView = MarkdownContentView()
+            mdView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            mdView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            mdView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(mdView)
+            markdownContentView = mdView
+
+            let bottomC = mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+            mdBottomConstraint = bottomC
+
+            NSLayoutConstraint.activate([
+                mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                bottomC,
+                mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            ])
+        }
+
+        if !content.isEmpty, let mdView = markdownContentView {
+            mdView.update(content: content)
+        }
+
         setupActionBar(createdAt: createdAt, feedback: feedback)
     }
 
@@ -221,37 +251,6 @@ final class AgentMessageRowView: NSView {
         actionBar?.alphaValue = isHovering ? 1 : 0
     }
 
-    // MARK: - Loading
-
-    private var primaryContentView: NSView {
-        (role == .assistant ? markdownContentView : nil) ?? textView
-    }
-
-    private func showLoading() {
-        primaryContentView.isHidden = true
-        let thinking = ThinkingStatusView()
-        thinking.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(thinking)
-        NSLayoutConstraint.activate([
-            thinking.leadingAnchor.constraint(equalTo: leadingAnchor),
-            thinking.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
-            thinking.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            thinking.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4),
-        ])
-        thinkingView = thinking
-    }
-
-    private func hideLoading() {
-        guard let thinking = thinkingView else { return }
-        thinking.removeFromSuperview()
-        thinkingView = nil
-        primaryContentView.isHidden = false
-    }
-
-    func updateToolCalls(_ calls: [AgentChatController.ToolCallStatus]) {
-        thinkingView?.updateToolCalls(calls)
-    }
-
     // MARK: - Content
 
     private func applyAttributedContent(_ text: String) {
@@ -356,22 +355,41 @@ final class AgentMessageRowView: NSView {
             ])
 
         case .assistant:
-            let mdView = MarkdownContentView()
-            mdView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-            mdView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            mdView.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(mdView)
-            markdownContentView = mdView
+            if isStreamingRow {
+                let partsView = StreamingPartsView()
+                partsView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+                partsView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+                partsView.translatesAutoresizingMaskIntoConstraints = false
+                addSubview(partsView)
+                streamingPartsView = partsView
 
-            let bottomC = mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
-            mdBottomConstraint = bottomC
+                let bottomC = partsView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+                mdBottomConstraint = bottomC
 
-            NSLayoutConstraint.activate([
-                mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                bottomC,
-                mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            ])
+                NSLayoutConstraint.activate([
+                    partsView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                    bottomC,
+                    partsView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                    partsView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                ])
+            } else {
+                let mdView = MarkdownContentView()
+                mdView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+                mdView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+                mdView.translatesAutoresizingMaskIntoConstraints = false
+                addSubview(mdView)
+                markdownContentView = mdView
+
+                let bottomC = mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+                mdBottomConstraint = bottomC
+
+                NSLayoutConstraint.activate([
+                    mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                    bottomC,
+                    mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                    mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                ])
+            }
         }
     }
 
@@ -392,130 +410,269 @@ final class AgentMessageRowView: NSView {
     }
 }
 
-// MARK: - Thinking Status View
+// MARK: - Streaming Parts View
 
-private final class ThinkingStatusView: NSView {
+final class StreamingPartsView: NSView {
 
-    private let mainStack: NSStackView
-    private let thinkingIcon: NSImageView
-    private let thinkingLabel: NSTextField
-    private var thinkingShimmerMaskLayer: CAGradientLayer?
-    private var toolCallRows: [ToolCallRowView] = []
+    private let stackView: NSStackView
+    private var partViews: [(part: StreamingPart, view: NSView)] = []
+    private weak var activeThinkingView: ThinkingBlockView?
+    private var placeholderView: ThinkingBlockView?
 
     override init(frame: NSRect) {
-        thinkingIcon = NSImageView()
-        thinkingIcon.image = NSImage(systemSymbolName: "lightbulb.max", accessibilityDescription: nil)
-        thinkingIcon.contentTintColor = .tertiaryLabelColor
-        thinkingIcon.symbolConfiguration = .init(pointSize: 13, weight: .medium)
-        thinkingIcon.translatesAutoresizingMaskIntoConstraints = false
-
-        thinkingLabel = NSTextField(labelWithString: "Thinking")
-        thinkingLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        thinkingLabel.textColor = .secondaryLabelColor
-
-        let thinkingRow = NSStackView(views: [thinkingIcon, thinkingLabel])
-        thinkingRow.orientation = .horizontal
-        thinkingRow.spacing = 6
-        thinkingRow.alignment = .centerY
-
-        mainStack = NSStackView(views: [thinkingRow])
-        mainStack.orientation = .vertical
-        mainStack.alignment = .leading
-        mainStack.spacing = 6
-
+        stackView = NSStackView()
         super.init(frame: frame)
-
-        mainStack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(mainStack)
-
-        NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: topAnchor),
-            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            mainStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
-            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            thinkingIcon.widthAnchor.constraint(equalToConstant: 16),
-            thinkingIcon.heightAnchor.constraint(equalToConstant: 16),
-        ])
-
-        startThinkingPulse()
-        startThinkingShimmer()
+        setupStack()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
     }
 
-    override func layout() {
-        super.layout()
-        guard let mask = thinkingShimmerMaskLayer else { return }
-        mask.frame = thinkingLabel.bounds.insetBy(dx: -24, dy: 0)
+    func showPlaceholder() {
+        guard placeholderView == nil else { return }
+        removeAll()
+        let placeholder = ThinkingBlockView(text: "")
+        addPartView(placeholder)
+        placeholderView = placeholder
     }
 
-    func updateToolCalls(_ calls: [AgentChatController.ToolCallStatus]) {
-        // Collapse when calls cleared
-        if calls.isEmpty && !toolCallRows.isEmpty {
-            collapseToolCalls()
+    private func removePlaceholder() {
+        guard let placeholder = placeholderView else { return }
+        stackView.removeArrangedSubview(placeholder)
+        placeholder.removeFromSuperview()
+        placeholderView = nil
+    }
+
+    func updateParts(_ parts: [StreamingPart]) {
+        guard !parts.isEmpty else {
+            removeAll()
             return
         }
 
-        // Add new rows for new tool calls
-        while toolCallRows.count < calls.count {
-            let call = calls[toolCallRows.count]
-            let row = ToolCallRowView(displayText: call.displayText)
-            row.translatesAutoresizingMaskIntoConstraints = false
-            mainStack.addArrangedSubview(row)
-            toolCallRows.append(row)
+        removePlaceholder()
 
-            row.alphaValue = 0
+        var viewIndex = 0
+
+        for (partIndex, part) in parts.enumerated() {
+            let isLast = partIndex == parts.count - 1
+
+            if viewIndex < partViews.count && sameKind(partViews[viewIndex].part, part) {
+                updateExistingView(at: viewIndex, with: part, isLast: isLast)
+                partViews[viewIndex].part = part
+                viewIndex += 1
+            } else {
+                while partViews.count > viewIndex {
+                    let removed = partViews.removeLast()
+                    stackView.removeArrangedSubview(removed.view)
+                    removed.view.removeFromSuperview()
+                }
+                let view = makeView(for: part, isLast: isLast)
+                let shouldAnimate = !partViews.isEmpty
+                addPartView(view, animated: shouldAnimate)
+                partViews.append((part: part, view: view))
+                viewIndex += 1
+            }
+        }
+
+        while partViews.count > viewIndex {
+            let removed = partViews.removeLast()
+            stackView.removeArrangedSubview(removed.view)
+            removed.view.removeFromSuperview()
+        }
+
+        updateThinkingStreamState(parts)
+        invalidateIntrinsicContentSize()
+    }
+
+    private func updateThinkingStreamState(_ parts: [StreamingPart]) {
+        let lastIsThinking: Bool
+        if case .thinking = parts.last {
+            lastIsThinking = true
+        } else {
+            lastIsThinking = false
+        }
+
+        if lastIsThinking, let thinkingView = partViews.last?.view as? ThinkingBlockView {
+            if activeThinkingView !== thinkingView {
+                activeThinkingView?.setActivelyStreaming(false)
+                activeThinkingView = thinkingView
+            }
+            thinkingView.setActivelyStreaming(true)
+        } else {
+            activeThinkingView?.setActivelyStreaming(false)
+            activeThinkingView = nil
+        }
+    }
+
+    private func makeView(for part: StreamingPart, isLast: Bool) -> NSView {
+        switch part {
+        case .thinking(let text):
+            return ThinkingBlockView(text: text)
+        case .text(let text):
+            let mdView = MarkdownContentView()
+            mdView.update(content: text)
+            return mdView
+        case .toolCall(_, _, let displayText, let iconName, let isComplete):
+            let row = StreamingToolCallRowView(displayText: displayText, iconName: iconName, initiallyComplete: isComplete)
+            return row
+        }
+    }
+
+    private func updateExistingView(at index: Int, with part: StreamingPart, isLast: Bool) {
+        let view = partViews[index].view
+        switch part {
+        case .thinking(let text):
+            (view as? ThinkingBlockView)?.update(text: text)
+        case .text(let text):
+            (view as? MarkdownContentView)?.update(content: text)
+        case .toolCall(_, _, let displayText, _, let isComplete):
+            if isComplete {
+                (view as? StreamingToolCallRowView)?.markComplete(newDisplayText: displayText)
+            }
+        }
+    }
+
+    private func sameKind(_ a: StreamingPart, _ b: StreamingPart) -> Bool {
+        switch (a, b) {
+        case (.thinking, .thinking), (.text, .text): return true
+        case (.toolCall(let idA, _, _, _, _), .toolCall(let idB, _, _, _, _)): return idA == idB
+        default: return false
+        }
+    }
+
+    private func setupStack() {
+        stackView.orientation = .vertical
+        stackView.alignment = .leading
+        stackView.spacing = 8
+        stackView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stackView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            stackView.topAnchor.constraint(equalTo: topAnchor),
+            stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+        ])
+    }
+
+    private func addPartView(_ view: NSView, animated: Bool = false) {
+        view.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(view)
+        view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor).isActive = true
+        view.trailingAnchor.constraint(equalTo: stackView.trailingAnchor).isActive = true
+
+        if animated {
+            view.wantsLayer = true
+            view.alphaValue = 0
+            view.layer?.transform = CATransform3DMakeTranslation(0, 6, 0)
+
+            stackView.layoutSubtreeIfNeeded()
+
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.2
-                row.animator().alphaValue = 1
-            }
-        }
-
-        // Update completion state on existing rows
-        for (i, call) in calls.enumerated() where i < toolCallRows.count {
-            if call.isComplete {
-                toolCallRows[i].markComplete()
+                ctx.duration = 0.25
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                view.animator().alphaValue = 1
+                view.layer?.transform = CATransform3DIdentity
             }
         }
     }
 
-    private func collapseToolCalls() {
-        let rows = toolCallRows
-        toolCallRows.removeAll()
+    private func removeAll() {
+        removePlaceholder()
+        activeThinkingView = nil
+        for entry in partViews {
+            stackView.removeArrangedSubview(entry.view)
+            entry.view.removeFromSuperview()
+        }
+        partViews.removeAll()
+    }
+}
 
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
-            for row in rows {
-                row.animator().alphaValue = 0
-            }
-        } completionHandler: { [weak self] in
-            guard let self else { return }
-            for row in rows {
-                self.mainStack.removeArrangedSubview(row)
-                row.removeFromSuperview()
-            }
+// MARK: - Streaming Tool Call Row View
+
+final class StreamingToolCallRowView: NSView {
+
+    private let iconView: NSImageView
+    private let label: NSTextField
+    private var shimmerMaskLayer: CAGradientLayer?
+    private var isComplete = false
+    private var needsShimmerStart = false
+
+    init(displayText: String, iconName: String? = nil, initiallyComplete: Bool = false) {
+        isComplete = initiallyComplete
+
+        iconView = NSImageView()
+        iconView.image = NSImage(systemSymbolName: iconName ?? "gearshape", accessibilityDescription: nil)
+        iconView.contentTintColor = .secondaryLabelColor
+        iconView.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+
+        label = NSTextField(labelWithString: displayText)
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.wantsLayer = true
+
+        super.init(frame: .zero)
+
+        let row = NSStackView(views: [iconView, label])
+        row.orientation = .horizontal
+        row.spacing = 6
+        row.alignment = .centerY
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+
+        NSLayoutConstraint.activate([
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
+            row.topAnchor.constraint(equalTo: topAnchor),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+
+        if !initiallyComplete {
+            needsShimmerStart = true
         }
     }
 
-    private func startThinkingPulse() {
-        thinkingIcon.wantsLayer = true
-        let pulse = CABasicAnimation(keyPath: "opacity")
-        pulse.fromValue = 1.0
-        pulse.toValue = 0.3
-        pulse.duration = 1.2
-        pulse.autoreverses = true
-        pulse.repeatCount = .infinity
-        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        thinkingIcon.layer?.add(pulse, forKey: "pulse")
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
     }
 
-    private func startThinkingShimmer() {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if needsShimmerStart && window != nil {
+            needsShimmerStart = false
+            startShimmer()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        if needsShimmerStart && label.bounds.width > 0 {
+            needsShimmerStart = false
+            startShimmer()
+        }
+        shimmerMaskLayer?.frame = label.bounds.insetBy(dx: -24, dy: 0)
+    }
+
+    func markComplete(newDisplayText: String? = nil) {
+        guard !isComplete else { return }
+        isComplete = true
+        needsShimmerStart = false
+        stopShimmer()
+        if let text = newDisplayText {
+            label.stringValue = text
+        }
+    }
+
+    private func startShimmer() {
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
-        guard thinkingShimmerMaskLayer == nil else { return }
-
-        thinkingLabel.wantsLayer = true
+        guard shimmerMaskLayer == nil else { return }
 
         let mask = CAGradientLayer()
         mask.startPoint = CGPoint(x: 0, y: 0.5)
@@ -526,7 +683,12 @@ private final class ThinkingStatusView: NSView {
             NSColor.white.withAlphaComponent(0.55).cgColor,
         ]
         mask.locations = [0.0, 0.18, 0.36]
-        mask.frame = thinkingLabel.bounds.insetBy(dx: -24, dy: 0)
+        let labelBounds = label.bounds
+        if labelBounds.width > 0 {
+            mask.frame = labelBounds.insetBy(dx: -24, dy: 0)
+        } else {
+            mask.frame = CGRect(x: -24, y: 0, width: 250, height: 20)
+        }
 
         let shimmer = CABasicAnimation(keyPath: "locations")
         shimmer.fromValue = [-0.25, -0.1, 0.05]
@@ -536,89 +698,14 @@ private final class ThinkingStatusView: NSView {
         shimmer.timingFunction = CAMediaTimingFunction(name: .easeOut)
 
         mask.add(shimmer, forKey: "shimmer")
-        thinkingLabel.layer?.mask = mask
-        thinkingShimmerMaskLayer = mask
-    }
-}
-
-// MARK: - Tool Call Row View
-
-private final class ToolCallRowView: NSView {
-
-    private let spinner: NSProgressIndicator
-    private let checkCircle: NSView
-    private let checkIcon: NSImageView
-    private let label: NSTextField
-
-    init(displayText: String) {
-        spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .mini
-        spinner.isIndeterminate = true
-
-        checkCircle = NSView()
-        checkCircle.wantsLayer = true
-        checkCircle.layer?.cornerRadius = 5.5
-        checkCircle.layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
-        checkCircle.isHidden = true
-
-        checkIcon = NSImageView()
-        checkIcon.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
-        checkIcon.contentTintColor = .white
-        checkIcon.symbolConfiguration = .init(pointSize: 6, weight: .bold)
-        checkIcon.translatesAutoresizingMaskIntoConstraints = false
-
-        label = NSTextField(labelWithString: displayText)
-        label.font = .systemFont(ofSize: 13)
-        label.textColor = .secondaryLabelColor
-        label.lineBreakMode = .byTruncatingTail
-
-        super.init(frame: .zero)
-
-        checkCircle.addSubview(checkIcon)
-
-        let iconContainer = NSView()
-        iconContainer.translatesAutoresizingMaskIntoConstraints = false
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        checkCircle.translatesAutoresizingMaskIntoConstraints = false
-        iconContainer.addSubview(spinner)
-        iconContainer.addSubview(checkCircle)
-
-        let row = NSStackView(views: [iconContainer, label])
-        row.orientation = .horizontal
-        row.spacing = 6
-        row.alignment = .centerY
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
-
-        NSLayoutConstraint.activate([
-            iconContainer.widthAnchor.constraint(equalToConstant: 16),
-            iconContainer.heightAnchor.constraint(equalToConstant: 16),
-            spinner.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
-            checkCircle.widthAnchor.constraint(equalToConstant: 11),
-            checkCircle.heightAnchor.constraint(equalToConstant: 11),
-            checkCircle.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
-            checkCircle.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
-            checkIcon.centerXAnchor.constraint(equalTo: checkCircle.centerXAnchor),
-            checkIcon.centerYAnchor.constraint(equalTo: checkCircle.centerYAnchor),
-            row.topAnchor.constraint(equalTo: topAnchor),
-            row.leadingAnchor.constraint(equalTo: leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor),
-            row.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-
-        spinner.startAnimation(nil)
+        label.layer?.mask = mask
+        shimmerMaskLayer = mask
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    func markComplete() {
-        guard !spinner.isHidden else { return }
-        spinner.stopAnimation(nil)
-        spinner.isHidden = true
-        checkCircle.isHidden = false
+    private func stopShimmer() {
+        guard let mask = shimmerMaskLayer else { return }
+        mask.removeAllAnimations()
+        label.layer?.mask = nil
+        shimmerMaskLayer = nil
     }
 }

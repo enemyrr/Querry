@@ -15,7 +15,8 @@ enum MarkdownBlock: Equatable {
     case blockquote(String)
     case table(headers: [String], rows: [[String]])
     case horizontalRule
-    case thinkingBlock(String)
+    case thinkingBlock(String, duration: Int?)
+    case toolCall(name: String, displayText: String)
 }
 
 @MainActor
@@ -24,7 +25,7 @@ enum MarkdownBlockParser {
     private enum State {
         case idle
         case inCodeBlock(language: String, lines: [String])
-        case inThinkingBlock(lines: [String])
+        case inThinkingBlock(lines: [String], duration: Int?)
     }
 
     static func parse(_ text: String) -> [MarkdownBlock] {
@@ -77,9 +78,20 @@ enum MarkdownBlockParser {
                     continue
                 }
 
-                if trimmed == "<thinking>" {
+                if trimmed.hasPrefix("<thinking") && trimmed.hasSuffix(">") {
                     flushAll()
-                    state = .inThinkingBlock(lines: [])
+                    var duration: Int?
+                    if let dStart = trimmed.range(of: "duration=\""),
+                       let dEnd = trimmed[dStart.upperBound...].firstIndex(of: "\"") {
+                        duration = Int(trimmed[dStart.upperBound..<dEnd])
+                    }
+                    state = .inThinkingBlock(lines: [], duration: duration)
+                    continue
+                }
+
+                if let toolCallBlock = parseToolCallTag(trimmed) {
+                    flushAll()
+                    blocks.append(toolCallBlock)
                     continue
                 }
 
@@ -182,13 +194,13 @@ enum MarkdownBlockParser {
                     state = .inCodeBlock(language: language, lines: codeLines)
                 }
 
-            case .inThinkingBlock(var thinkingLines):
+            case .inThinkingBlock(var thinkingLines, let duration):
                 if trimmed == "</thinking>" {
-                    blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n")))
+                    blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration))
                     state = .idle
                 } else {
                     thinkingLines.append(line)
-                    state = .inThinkingBlock(lines: thinkingLines)
+                    state = .inThinkingBlock(lines: thinkingLines, duration: duration)
                 }
             }
         }
@@ -198,8 +210,8 @@ enum MarkdownBlockParser {
             flushAll()
         case .inCodeBlock(let language, let codeLines):
             blocks.append(.codeBlock(code: codeLines.joined(separator: "\n"), language: language))
-        case .inThinkingBlock(let thinkingLines):
-            blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n")))
+        case .inThinkingBlock(let thinkingLines, let duration):
+            blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration))
         }
 
         return blocks
@@ -266,5 +278,17 @@ enum MarkdownBlockParser {
         return row.components(separatedBy: "|").allSatisfy { cell in
             cell.trimmingCharacters(in: .whitespaces).replacing("-", with: "").replacing(":", with: "").isEmpty
         }
+    }
+
+    private static func parseToolCallTag(_ trimmed: String) -> MarkdownBlock? {
+        guard trimmed.hasPrefix("<tool_call"), trimmed.hasSuffix("</tool_call>") else { return nil }
+        guard let nameStart = trimmed.range(of: "name=\""),
+              let nameEnd = trimmed[nameStart.upperBound...].firstIndex(of: "\"") else { return nil }
+        let name = String(trimmed[nameStart.upperBound..<nameEnd])
+        guard let contentStart = trimmed.firstIndex(of: ">") else { return nil }
+        let afterTag = trimmed.index(after: contentStart)
+        guard let contentEnd = trimmed.range(of: "</tool_call>") else { return nil }
+        let displayText = String(trimmed[afterTag..<contentEnd.lowerBound])
+        return .toolCall(name: name, displayText: displayText)
     }
 }

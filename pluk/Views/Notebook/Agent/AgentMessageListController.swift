@@ -24,8 +24,7 @@ final class AgentMessageListController: NSViewController {
         self.view = root
         setupScrollView()
         observeMessages()
-        observeStreaming()
-        observeToolCalls()
+        observeStreamingParts()
     }
 
     // MARK: - Setup
@@ -88,26 +87,14 @@ final class AgentMessageListController: NSViewController {
         }
     }
 
-    private func observeStreaming() {
+    private func observeStreamingParts() {
         withObservationTracking {
-            _ = self.chatController.streamingContent
+            _ = self.chatController.streamingParts
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.updateStreamingRow()
-                self.observeStreaming()
-            }
-        }
-    }
-
-    private func observeToolCalls() {
-        withObservationTracking {
-            _ = self.chatController.activeToolCalls
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.streamingRow?.updateToolCalls(self.chatController.activeToolCalls)
-                self.observeToolCalls()
+                self.observeStreamingParts()
             }
         }
     }
@@ -145,8 +132,7 @@ final class AgentMessageListController: NSViewController {
             for message in newMessages {
                 if message.role == .assistant, let existingRow = streamingRow {
                     lastAssistantRow?.setActionBarAlwaysVisible(false)
-                    existingRow.update(content: message.content)
-                    existingRow.markFinalized(createdAt: message.createdAt, feedback: message.feedback)
+                    existingRow.markFinalized(content: message.content, createdAt: message.createdAt, feedback: message.feedback)
                     wireCallbacks(on: existingRow, message: message)
                     existingRow.setActionBarAlwaysVisible(true)
                     lastAssistantRow = existingRow
@@ -167,8 +153,9 @@ final class AgentMessageListController: NSViewController {
         }
 
         if chatController.isStreaming && streamingRow == nil {
-            let row = AgentMessageRowView(role: .assistant, content: chatController.streamingContent, isStreaming: true)
+            let row = AgentMessageRowView(role: .assistant, content: "", isStreaming: true)
             addRow(row, animated: true)
+            row.updateParts(chatController.streamingParts)
             streamingRow = row
         } else if !chatController.isStreaming {
             removeStreamingRow()
@@ -185,7 +172,7 @@ final class AgentMessageListController: NSViewController {
     }
 
     private func updateStreamingRow() {
-        streamingRow?.update(content: chatController.streamingContent)
+        streamingRow?.updateParts(chatController.streamingParts)
         scrollToBottom()
     }
 
