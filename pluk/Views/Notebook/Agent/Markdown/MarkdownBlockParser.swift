@@ -6,6 +6,11 @@ struct ListItem: Equatable {
     let isChecked: Bool
 }
 
+struct ToolCallInfo: Equatable {
+    let name: String
+    let displayText: String
+}
+
 enum MarkdownBlock: Equatable {
     case paragraph(String)
     case heading(level: Int, text: String)
@@ -15,8 +20,8 @@ enum MarkdownBlock: Equatable {
     case blockquote(String)
     case table(headers: [String], rows: [[String]])
     case horizontalRule
-    case thinkingBlock(String, duration: Int?)
-    case toolCall(name: String, displayText: String)
+    case thinkingBlock(String, duration: Int?, toolCalls: [ToolCallInfo])
+    case toolCallGroup(calls: [ToolCallInfo])
 }
 
 @MainActor
@@ -89,9 +94,13 @@ enum MarkdownBlockParser {
                     continue
                 }
 
-                if let toolCallBlock = parseToolCallTag(trimmed) {
+                if let toolCallInfo = parseToolCallTag(trimmed) {
                     flushAll()
-                    blocks.append(toolCallBlock)
+                    if case .toolCallGroup(let existing) = blocks.last {
+                        blocks[blocks.count - 1] = .toolCallGroup(calls: existing + [toolCallInfo])
+                    } else {
+                        blocks.append(.toolCallGroup(calls: [toolCallInfo]))
+                    }
                     continue
                 }
 
@@ -196,7 +205,7 @@ enum MarkdownBlockParser {
 
             case .inThinkingBlock(var thinkingLines, let duration):
                 if trimmed == "</thinking>" {
-                    blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration))
+                    blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration, toolCalls: []))
                     state = .idle
                 } else {
                     thinkingLines.append(line)
@@ -211,10 +220,28 @@ enum MarkdownBlockParser {
         case .inCodeBlock(let language, let codeLines):
             blocks.append(.codeBlock(code: codeLines.joined(separator: "\n"), language: language))
         case .inThinkingBlock(let thinkingLines, let duration):
-            blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration))
+            blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration, toolCalls: []))
         }
 
-        return blocks
+        return mergeToolCallsIntoThinking(blocks)
+    }
+
+    private static func mergeToolCallsIntoThinking(_ blocks: [MarkdownBlock]) -> [MarkdownBlock] {
+        var merged: [MarkdownBlock] = []
+        var i = 0
+        while i < blocks.count {
+            if case .thinkingBlock(let text, let duration, var toolCalls) = blocks[i] {
+                while i + 1 < blocks.count, case .toolCallGroup(let calls) = blocks[i + 1] {
+                    toolCalls += calls
+                    i += 1
+                }
+                merged.append(.thinkingBlock(text, duration: duration, toolCalls: toolCalls))
+            } else {
+                merged.append(blocks[i])
+            }
+            i += 1
+        }
+        return merged
     }
 
     // MARK: - Line Parsers
@@ -280,15 +307,15 @@ enum MarkdownBlockParser {
         }
     }
 
-    private static func parseToolCallTag(_ trimmed: String) -> MarkdownBlock? {
-        guard trimmed.hasPrefix("<tool_call"), trimmed.hasSuffix("</tool_call>") else { return nil }
-        guard let nameStart = trimmed.range(of: "name=\""),
-              let nameEnd = trimmed[nameStart.upperBound...].firstIndex(of: "\"") else { return nil }
+    private static func parseToolCallTag(_ trimmed: String) -> ToolCallInfo? {
+        guard trimmed.hasPrefix("<tool_call"),
+              let closingRange = trimmed.range(of: "</tool_call>"),
+              trimmed.endIndex == closingRange.upperBound,
+              let nameStart = trimmed.range(of: "name=\""),
+              let nameEnd = trimmed[nameStart.upperBound...].firstIndex(of: "\""),
+              let openTagEnd = trimmed.firstIndex(of: ">") else { return nil }
         let name = String(trimmed[nameStart.upperBound..<nameEnd])
-        guard let contentStart = trimmed.firstIndex(of: ">") else { return nil }
-        let afterTag = trimmed.index(after: contentStart)
-        guard let contentEnd = trimmed.range(of: "</tool_call>") else { return nil }
-        let displayText = String(trimmed[afterTag..<contentEnd.lowerBound])
-        return .toolCall(name: name, displayText: displayText)
+        let displayText = String(trimmed[trimmed.index(after: openTagEnd)..<closingRange.lowerBound])
+        return ToolCallInfo(name: name, displayText: displayText)
     }
 }

@@ -16,7 +16,7 @@ enum MarkdownInlineRenderer {
         color: NSColor = .labelColor
     ) -> NSAttributedString {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineSpacing = 4
+        paragraphStyle.lineSpacing = 6
 
         let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: font,

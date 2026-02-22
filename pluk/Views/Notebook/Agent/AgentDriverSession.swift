@@ -37,6 +37,11 @@ actor AgentDriverSession {
         return try await driver.getInformationSchema()
     }
 
+    func executeRawQuery(_ query: String, schema: String?) async throws -> [QueryResult] {
+        guard let driver else { throw AgentSessionError.notConnected }
+        return try await driver.executeRawQuery(query, databaseSchema: schema)
+    }
+
     func disconnect() async {
         await driver?.disconnect()
         driver = nil

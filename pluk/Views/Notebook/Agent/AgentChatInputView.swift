@@ -54,7 +54,7 @@ final class AgentChatInputView: NSView {
         chipContainerView = NSView()
         inputTextView = AgentInputTextView()
         sendButton = AgentSendButton()
-        placeholderLabel = NSTextField(labelWithString: "Analyze data, build charts, explore trends...")
+        placeholderLabel = NSTextField(labelWithString: "Ask data question...")
         statusLabel = NSTextField(labelWithString: "")
 
         super.init(frame: .zero)
@@ -138,11 +138,13 @@ final class AgentChatInputView: NSView {
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = 14
         containerView.layer?.cornerCurve = .continuous
-        containerView.layer?.borderWidth = 0.5
-        containerView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.10).cgColor
-        containerView.layer?.shadowOpacity = 1.0
-        containerView.layer?.shadowRadius = 1
-        containerView.layer?.shadowOffset = CGSize(width: 0, height: 1)
+        containerView.shadow = {
+            let s = NSShadow()
+            s.shadowColor = NSColor.black.withAlphaComponent(0.10)
+            s.shadowBlurRadius = 1
+            s.shadowOffset = .zero
+            return s
+        }()
         containerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         containerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         containerView.translatesAutoresizingMaskIntoConstraints = false
@@ -204,7 +206,7 @@ final class AgentChatInputView: NSView {
     }
 
     private func setupConstraints() {
-        inputTopToContainer = inputTextView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16)
+        inputTopToContainer = inputTextView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 14)
         inputTopToChips = inputTextView.topAnchor.constraint(equalTo: chipScrollView.bottomAnchor, constant: 8)
         chipScrollHeightConstraint = chipScrollView.heightAnchor.constraint(equalToConstant: 0)
 
@@ -221,15 +223,15 @@ final class AgentChatInputView: NSView {
 
             inputTopToContainer,
 
-            inputTextView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
-            inputTextView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
+            inputTextView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 14),
+            inputTextView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -14),
 
             placeholderLabel.topAnchor.constraint(equalTo: inputTextView.topAnchor),
             placeholderLabel.leadingAnchor.constraint(equalTo: inputTextView.leadingAnchor),
 
             sendButton.topAnchor.constraint(equalTo: inputTextView.bottomAnchor, constant: 10),
-            sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
-            sendButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -10),
+            sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
+            sendButton.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -8),
 
             statusLabel.centerYAnchor.constraint(equalTo: sendButton.centerYAnchor),
             statusLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
@@ -471,11 +473,8 @@ final class AgentChatInputView: NSView {
     private func updateContainerAppearance() {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             let isDark = NSAppearance.currentDrawing().isDarkMode
-            containerView.layer?.borderColor = isDark
-                ? NSColor.white.withAlphaComponent(0.08).cgColor
-                : NSColor.black.withAlphaComponent(0.06).cgColor
             containerView.layer?.backgroundColor = isDark
-                ? NSColor(white: 0.1, alpha: 1).cgColor
+                ? NSColor.black.withAlphaComponent(0.25).cgColor
                 : NSColor.white.cgColor
         }
     }
@@ -685,7 +684,7 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
         textView.isAutomaticLinkDetectionEnabled = false
-        textView.font = .preferredFont(forTextStyle: .title3)
+        textView.font = .systemFont(ofSize: 14)
         textView.textColor = .labelColor
         textView.backgroundColor = .clear
         textView.drawsBackground = false
@@ -695,7 +694,7 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.typingAttributes = [
-            .font: NSFont.preferredFont(forTextStyle: .title3),
+            .font: NSFont.systemFont(ofSize: 14),
             .foregroundColor: NSColor.labelColor,
         ]
 

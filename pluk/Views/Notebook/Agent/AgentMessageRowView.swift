@@ -98,23 +98,7 @@ final class AgentMessageRowView: NSView {
         if let partsView = streamingPartsView {
             partsView.removeFromSuperview()
             streamingPartsView = nil
-
-            let mdView = MarkdownContentView()
-            mdView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-            mdView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            mdView.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(mdView)
-            markdownContentView = mdView
-
-            let bottomC = mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
-            mdBottomConstraint = bottomC
-
-            NSLayoutConstraint.activate([
-                mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                bottomC,
-                mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            ])
+            installMarkdownContentView()
         }
 
         if !content.isEmpty, let mdView = markdownContentView {
@@ -356,41 +340,42 @@ final class AgentMessageRowView: NSView {
 
         case .assistant:
             if isStreamingRow {
-                let partsView = StreamingPartsView()
-                partsView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-                partsView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-                partsView.translatesAutoresizingMaskIntoConstraints = false
-                addSubview(partsView)
-                streamingPartsView = partsView
-
-                let bottomC = partsView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
-                mdBottomConstraint = bottomC
-
-                NSLayoutConstraint.activate([
-                    partsView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                    bottomC,
-                    partsView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                    partsView.trailingAnchor.constraint(equalTo: trailingAnchor),
-                ])
+                installStreamingPartsView()
             } else {
-                let mdView = MarkdownContentView()
-                mdView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-                mdView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-                mdView.translatesAutoresizingMaskIntoConstraints = false
-                addSubview(mdView)
-                markdownContentView = mdView
-
-                let bottomC = mdView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
-                mdBottomConstraint = bottomC
-
-                NSLayoutConstraint.activate([
-                    mdView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-                    bottomC,
-                    mdView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                    mdView.trailingAnchor.constraint(equalTo: trailingAnchor),
-                ])
+                installMarkdownContentView()
             }
         }
+    }
+
+    private func installMarkdownContentView() {
+        let mdView = MarkdownContentView()
+        mdView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        mdView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        mdView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(mdView)
+        markdownContentView = mdView
+        pinAssistantContentView(mdView)
+    }
+
+    private func installStreamingPartsView() {
+        let partsView = StreamingPartsView()
+        partsView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        partsView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        partsView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(partsView)
+        streamingPartsView = partsView
+        pinAssistantContentView(partsView)
+    }
+
+    private func pinAssistantContentView(_ contentView: NSView) {
+        let bottomC = contentView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+        mdBottomConstraint = bottomC
+        NSLayoutConstraint.activate([
+            contentView.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            bottomC,
+            contentView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: trailingAnchor),
+        ])
     }
 
     override func layout() {
@@ -410,14 +395,194 @@ final class AgentMessageRowView: NSView {
     }
 }
 
+// MARK: - Tool Call Group View
+
+final class ToolCallGroupView: NSView {
+
+    private let nodeCircle = NSView()
+    private let headerLabel: NSTextField
+    private let timelineLine = NSView()
+    private let childrenStack = NSStackView()
+
+    private static let nodeSize: CGFloat = 10
+
+    private struct ChildRow {
+        let id: String
+        let spinner: NSProgressIndicator
+        let checkmark: NSImageView
+        let label: NSTextField
+    }
+    private var rows: [ChildRow] = []
+    private var headerConfigured = false
+
+    override init(frame: NSRect) {
+        headerLabel = NSTextField(labelWithString: "")
+        super.init(frame: frame)
+
+        // Node circle at top of timeline
+        nodeCircle.wantsLayer = true
+        nodeCircle.layer?.cornerRadius = Self.nodeSize / 2
+        nodeCircle.layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
+        nodeCircle.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(nodeCircle)
+
+        // Header label (to the right of circle)
+        headerLabel.font = .systemFont(ofSize: 13)
+        headerLabel.textColor = .secondaryLabelColor
+        headerLabel.lineBreakMode = .byTruncatingTail
+        headerLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(headerLabel)
+
+        // Timeline line (below circle)
+        timelineLine.wantsLayer = true
+        timelineLine.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        timelineLine.translatesAutoresizingMaskIntoConstraints = false
+        timelineLine.isHidden = true
+        addSubview(timelineLine)
+
+        // Children stack (indented to the right of the line)
+        childrenStack.orientation = .vertical
+        childrenStack.alignment = .leading
+        childrenStack.spacing = 10
+        childrenStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(childrenStack)
+
+        NSLayoutConstraint.activate([
+            // Circle: top-left
+            nodeCircle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            nodeCircle.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            nodeCircle.widthAnchor.constraint(equalToConstant: Self.nodeSize),
+            nodeCircle.heightAnchor.constraint(equalToConstant: Self.nodeSize),
+
+            // Header label: right of circle
+            headerLabel.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 8),
+            headerLabel.centerYAnchor.constraint(equalTo: nodeCircle.centerYAnchor),
+            headerLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+
+            // Timeline line: centered on circle, below it
+            timelineLine.widthAnchor.constraint(equalToConstant: 1.5),
+            timelineLine.centerXAnchor.constraint(equalTo: nodeCircle.centerXAnchor),
+            timelineLine.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 4),
+            timelineLine.bottomAnchor.constraint(equalTo: childrenStack.bottomAnchor),
+
+            // Children stack: indented right of the line
+            childrenStack.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 14),
+            childrenStack.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 8),
+            childrenStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            childrenStack.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func addRow(id: String, name: String, displayText: String, isComplete: Bool) {
+        if !headerConfigured {
+            headerLabel.stringValue = Self.groupHeader(for: name)
+            headerConfigured = true
+        }
+
+        // Spinner (in-progress)
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.isIndeterminate = true
+
+        // Checkmark (complete)
+        let checkmark = NSImageView()
+        checkmark.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)
+        checkmark.contentTintColor = .tertiaryLabelColor
+        checkmark.symbolConfiguration = .init(pointSize: 13, weight: .medium)
+        checkmark.translatesAutoresizingMaskIntoConstraints = false
+
+        // Label
+        let label = NSTextField(labelWithString: displayText)
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+
+        let row = NSStackView(views: [spinner, checkmark, label])
+        row.orientation = .horizontal
+        row.spacing = 6
+        row.alignment = .centerY
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            spinner.widthAnchor.constraint(equalToConstant: 16),
+            spinner.heightAnchor.constraint(equalToConstant: 16),
+            checkmark.widthAnchor.constraint(equalToConstant: 16),
+            checkmark.heightAnchor.constraint(equalToConstant: 16),
+        ])
+
+        if isComplete {
+            spinner.isHidden = true
+            checkmark.isHidden = false
+        } else {
+            spinner.startAnimation(nil)
+            spinner.isHidden = false
+            checkmark.isHidden = true
+        }
+
+        childrenStack.addArrangedSubview(row)
+        row.leadingAnchor.constraint(equalTo: childrenStack.leadingAnchor).isActive = true
+        row.trailingAnchor.constraint(equalTo: childrenStack.trailingAnchor).isActive = true
+
+        rows.append(ChildRow(id: id, spinner: spinner, checkmark: checkmark, label: label))
+        timelineLine.isHidden = false
+    }
+
+    func containsRow(id: String) -> Bool {
+        rows.contains { $0.id == id }
+    }
+
+    func markRowComplete(id: String, displayText: String) {
+        guard let entry = rows.first(where: { $0.id == id }) else { return }
+        entry.spinner.stopAnimation(nil)
+        entry.spinner.isHidden = true
+        entry.checkmark.isHidden = false
+        entry.label.stringValue = displayText
+    }
+
+    var rowCount: Int { rows.count }
+
+    static func iconName(for toolName: String) -> String {
+        switch toolName {
+        case "list_tables": return "tablecells"
+        case "get_table_schema": return "square.stack.3d.up"
+        case "run_query": return "text.page.badge.magnifyingglass"
+        case "create_chart_block": return "chart.bar"
+        case "create_text_block": return "text.alignleft"
+        default: return "gearshape"
+        }
+    }
+
+    private static func groupHeader(for firstToolName: String) -> String {
+        switch firstToolName {
+        case "list_tables": return "Exploring database"
+        case "get_table_schema": return "Reading schema"
+        case "run_query": return "Querying data"
+        case "create_chart_block": return "Building visualizations"
+        case "create_text_block": return "Writing content"
+        default: return "Processing"
+        }
+    }
+}
+
 // MARK: - Streaming Parts View
 
 final class StreamingPartsView: NSView {
 
     private let stackView: NSStackView
-    private var partViews: [(part: StreamingPart, view: NSView)] = []
     private weak var activeThinkingView: ThinkingBlockView?
     private var placeholderView: ThinkingBlockView?
+
+    private enum DisplayEntry {
+        case single(part: StreamingPart, view: NSView)
+        case toolGroup(round: Int, parts: [StreamingPart], view: ToolCallGroupView)
+    }
+    private var entries: [DisplayEntry] = []
 
     override init(frame: NSRect) {
         stackView = NSStackView()
@@ -433,7 +598,7 @@ final class StreamingPartsView: NSView {
         guard placeholderView == nil else { return }
         removeAll()
         let placeholder = ThinkingBlockView(text: "")
-        addPartView(placeholder)
+        addEntryView(placeholder)
         placeholderView = placeholder
     }
 
@@ -452,94 +617,217 @@ final class StreamingPartsView: NSView {
 
         removePlaceholder()
 
-        var viewIndex = 0
+        let sections = segmentParts(parts)
+        var entryIndex = 0
 
-        for (partIndex, part) in parts.enumerated() {
-            let isLast = partIndex == parts.count - 1
-
-            if viewIndex < partViews.count && sameKind(partViews[viewIndex].part, part) {
-                updateExistingView(at: viewIndex, with: part, isLast: isLast)
-                partViews[viewIndex].part = part
-                viewIndex += 1
+        for section in sections {
+            if entryIndex < entries.count && sameSection(entries[entryIndex], section) {
+                updateEntry(at: entryIndex, with: section)
+                entryIndex += 1
             } else {
-                while partViews.count > viewIndex {
-                    let removed = partViews.removeLast()
-                    stackView.removeArrangedSubview(removed.view)
-                    removed.view.removeFromSuperview()
+                while entries.count > entryIndex {
+                    removeLastEntry()
                 }
-                let view = makeView(for: part, isLast: isLast)
-                let shouldAnimate = !partViews.isEmpty
-                addPartView(view, animated: shouldAnimate)
-                partViews.append((part: part, view: view))
-                viewIndex += 1
+                let view = makeEntryView(for: section)
+                addEntryView(view, animated: !entries.isEmpty)
+                entries.append(makeEntry(section: section, view: view))
+                entryIndex += 1
             }
         }
 
-        while partViews.count > viewIndex {
-            let removed = partViews.removeLast()
-            stackView.removeArrangedSubview(removed.view)
-            removed.view.removeFromSuperview()
+        while entries.count > entryIndex {
+            removeLastEntry()
         }
 
         updateThinkingStreamState(parts)
         invalidateIntrinsicContentSize()
     }
 
+    // MARK: - Segmentation
+
+    private struct Section {
+        enum Kind: Equatable {
+            case thinking
+            case text
+            case toolGroup(round: Int)
+        }
+        var kind: Kind
+        var parts: [StreamingPart]
+    }
+
+    private func segmentParts(_ parts: [StreamingPart]) -> [Section] {
+        var sections: [Section] = []
+        for part in parts {
+            switch part {
+            case .thinking:
+                if case .thinking = sections.last?.kind {
+                    let hasToolCalls = sections[sections.count - 1].parts.contains {
+                        if case .toolCall = $0 { return true }
+                        return false
+                    }
+                    if hasToolCalls {
+                        sections.append(Section(kind: .thinking, parts: [part]))
+                    } else {
+                        sections[sections.count - 1].parts = [part]
+                    }
+                } else {
+                    sections.append(Section(kind: .thinking, parts: [part]))
+                }
+            case .text:
+                if case .text = sections.last?.kind {
+                    sections[sections.count - 1].parts = [part]
+                } else {
+                    sections.append(Section(kind: .text, parts: [part]))
+                }
+            case .toolCall:
+                if case .thinking = sections.last?.kind {
+                    sections[sections.count - 1].parts.append(part)
+                } else if case .toolGroup(let round) = sections.last?.kind,
+                          case .toolCall(_, _, _, _, _, let r) = part, r == round {
+                    sections[sections.count - 1].parts.append(part)
+                } else {
+                    if case .toolCall(_, _, _, _, _, let round) = part {
+                        sections.append(Section(kind: .toolGroup(round: round), parts: [part]))
+                    }
+                }
+            }
+        }
+        return sections
+    }
+
+    // MARK: - Reconciliation
+
+    private func sameSection(_ entry: DisplayEntry, _ section: Section) -> Bool {
+        switch (entry, section.kind) {
+        case (.single(let part, _), .thinking):
+            if case .thinking = part { return true }
+            return false
+        case (.single(let part, _), .text):
+            if case .text = part { return true }
+            return false
+        case (.toolGroup(let existingRound, _, _), .toolGroup(let newRound)):
+            return existingRound == newRound
+        default:
+            return false
+        }
+    }
+
+    private func updateEntry(at index: Int, with section: Section) {
+        switch (entries[index], section.kind) {
+        case (.single(_, let view), .thinking):
+            guard let tbView = view as? ThinkingBlockView else { break }
+            if let thinkingText = section.parts.compactMap({
+                if case .thinking(let text) = $0 { return text }
+                return nil
+            }).first {
+                tbView.update(text: thinkingText)
+            }
+            for part in section.parts {
+                guard case .toolCall(let id, let name, let displayText, _, let isComplete, _) = part else { continue }
+                if tbView.containsToolCall(id: id) {
+                    if isComplete {
+                        tbView.markToolCallComplete(id: id, displayText: displayText)
+                    }
+                } else {
+                    tbView.addToolCall(id: id, name: name, displayText: displayText, isComplete: isComplete)
+                }
+            }
+            entries[index] = .single(part: section.parts[0], view: view)
+        case (.single(_, let view), .text):
+            if case .text(let text) = section.parts.first {
+                (view as? MarkdownContentView)?.update(content: text)
+                entries[index] = .single(part: section.parts[0], view: view)
+            }
+        case (.toolGroup(let round, _, let groupView), .toolGroup):
+            for part in section.parts {
+                guard case .toolCall(let id, let name, let displayText, _, let isComplete, _) = part else { continue }
+                if groupView.containsRow(id: id) {
+                    if isComplete {
+                        groupView.markRowComplete(id: id, displayText: displayText)
+                    }
+                } else {
+                    groupView.addRow(id: id, name: name, displayText: displayText, isComplete: isComplete)
+                }
+            }
+            entries[index] = .toolGroup(round: round, parts: section.parts, view: groupView)
+        default:
+            break
+        }
+    }
+
+    private func makeEntry(section: Section, view: NSView) -> DisplayEntry {
+        switch section.kind {
+        case .thinking, .text:
+            return .single(part: section.parts[0], view: view)
+        case .toolGroup(let round):
+            return .toolGroup(round: round, parts: section.parts, view: view as! ToolCallGroupView)
+        }
+    }
+
+    private func makeEntryView(for section: Section) -> NSView {
+        switch section.kind {
+        case .thinking:
+            let thinkingText = section.parts.compactMap {
+                if case .thinking(let text) = $0 { return text }
+                return nil
+            }.first ?? ""
+            let view = ThinkingBlockView(text: thinkingText)
+            for part in section.parts {
+                guard case .toolCall(let id, let name, let displayText, _, let isComplete, _) = part else { continue }
+                view.addToolCall(id: id, name: name, displayText: displayText, isComplete: isComplete)
+            }
+            return view
+        case .text:
+            let mdView = MarkdownContentView()
+            if case .text(let text) = section.parts.first {
+                mdView.update(content: text)
+            }
+            return mdView
+        case .toolGroup:
+            let group = ToolCallGroupView()
+            for part in section.parts {
+                guard case .toolCall(let id, let name, let displayText, _, let isComplete, _) = part else { continue }
+                group.addRow(id: id, name: name, displayText: displayText, isComplete: isComplete)
+            }
+            return group
+        }
+    }
+
+    private func removeLastEntry() {
+        guard let entry = entries.popLast() else { return }
+        let view: NSView
+        switch entry {
+        case .single(_, let v): view = v
+        case .toolGroup(_, _, let v): view = v
+        }
+        stackView.removeArrangedSubview(view)
+        view.removeFromSuperview()
+    }
+
+    // MARK: - Thinking State
+
     private func updateThinkingStreamState(_ parts: [StreamingPart]) {
-        let lastIsThinking: Bool
-        if case .thinking = parts.last {
-            lastIsThinking = true
-        } else {
-            lastIsThinking = false
+        guard case .single(let part, let view) = entries.last,
+              case .thinking = part,
+              let thinkingView = view as? ThinkingBlockView else {
+            activeThinkingView?.finishAll()
+            activeThinkingView = nil
+            return
         }
 
-        if lastIsThinking, let thinkingView = partViews.last?.view as? ThinkingBlockView {
-            if activeThinkingView !== thinkingView {
-                activeThinkingView?.setActivelyStreaming(false)
-                activeThinkingView = thinkingView
-            }
+        if activeThinkingView !== thinkingView {
+            activeThinkingView?.finishAll()
+            activeThinkingView = thinkingView
+        }
+
+        if case .thinking = parts.last {
             thinkingView.setActivelyStreaming(true)
         } else {
-            activeThinkingView?.setActivelyStreaming(false)
-            activeThinkingView = nil
+            thinkingView.setActivelyStreaming(false)
         }
     }
 
-    private func makeView(for part: StreamingPart, isLast: Bool) -> NSView {
-        switch part {
-        case .thinking(let text):
-            return ThinkingBlockView(text: text)
-        case .text(let text):
-            let mdView = MarkdownContentView()
-            mdView.update(content: text)
-            return mdView
-        case .toolCall(_, _, let displayText, let iconName, let isComplete):
-            let row = StreamingToolCallRowView(displayText: displayText, iconName: iconName, initiallyComplete: isComplete)
-            return row
-        }
-    }
-
-    private func updateExistingView(at index: Int, with part: StreamingPart, isLast: Bool) {
-        let view = partViews[index].view
-        switch part {
-        case .thinking(let text):
-            (view as? ThinkingBlockView)?.update(text: text)
-        case .text(let text):
-            (view as? MarkdownContentView)?.update(content: text)
-        case .toolCall(_, _, let displayText, _, let isComplete):
-            if isComplete {
-                (view as? StreamingToolCallRowView)?.markComplete(newDisplayText: displayText)
-            }
-        }
-    }
-
-    private func sameKind(_ a: StreamingPart, _ b: StreamingPart) -> Bool {
-        switch (a, b) {
-        case (.thinking, .thinking), (.text, .text): return true
-        case (.toolCall(let idA, _, _, _, _), .toolCall(let idB, _, _, _, _)): return idA == idB
-        default: return false
-        }
-    }
+    // MARK: - Stack Helpers
 
     private func setupStack() {
         stackView.orientation = .vertical
@@ -558,7 +846,7 @@ final class StreamingPartsView: NSView {
         ])
     }
 
-    private func addPartView(_ view: NSView, animated: Bool = false) {
+    private func addEntryView(_ view: NSView, animated: Bool = false) {
         view.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(view)
         view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor).isActive = true
@@ -583,11 +871,9 @@ final class StreamingPartsView: NSView {
     private func removeAll() {
         removePlaceholder()
         activeThinkingView = nil
-        for entry in partViews {
-            stackView.removeArrangedSubview(entry.view)
-            entry.view.removeFromSuperview()
+        while !entries.isEmpty {
+            removeLastEntry()
         }
-        partViews.removeAll()
     }
 }
 

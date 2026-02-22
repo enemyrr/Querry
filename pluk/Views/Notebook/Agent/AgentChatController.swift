@@ -20,7 +20,6 @@ final class AgentChatController {
     private weak var notebookDataController: NotebookDataController?
     let engine = NotebookAgentEngine()
     private var streamingTask: Task<Void, Never>?
-    private var thinkingPartStartTime: Date?
 
     init(notebookId: UUID, modelContainer: ModelContainer, notebookDataController: NotebookDataController) {
         self.notebookId = notebookId
@@ -151,20 +150,51 @@ final class AgentChatController {
 
     // MARK: - Agent Loop
 
-    private static func toolDisplayName(for name: String, complete: Bool = false) -> (String, String) {
+    private static func toolDisplayInfo(for name: String, arguments: String = "", complete: Bool = false) -> (text: String, icon: String) {
+        let json = parseToolArguments(arguments)
+
         switch name {
         case "list_tables":
-            return (complete ? "Fetched tables" : "Fetching tables", "tablecells")
+            let schema = json["schema_name"] as? String
+            let label = schema != nil ? "Listing tables in \(schema!)" : "Listing all tables"
+            return (label, "tablecells")
+
         case "get_table_schema":
-            return (complete ? "Read data schema" : "Reading data schema", "square.stack.3d.up")
+            let table = json["table_name"] as? String
+            let label = table != nil ? "Reading \(table!) schema" : "Reading table schema"
+            return (label, "square.stack.3d.up")
+
+        case "run_query":
+            let query = json["query"] as? String ?? ""
+            let preview = Self.queryPreview(query)
+            return (preview.isEmpty ? "Running query" : preview, "text.page.badge.magnifyingglass")
+
         case "create_chart_block":
-            return (complete ? "Created chart" : "Creating chart", "chart.bar")
+            let title = json["title"] as? String
+            return (title ?? "Chart", "chart.bar")
+
         case "create_text_block":
-            return (complete ? "Created text block" : "Creating text block", "text.alignleft")
+            return ("Text block", "text.alignleft")
+
         default:
-            let text = name.replacing("_", with: " ").capitalized
-            return (text, "gearshape")
+            return (name.replacing("_", with: " ").capitalized, "gearshape")
         }
+    }
+
+    private static func parseToolArguments(_ arguments: String) -> [String: Any] {
+        guard let data = arguments.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        return json
+    }
+
+    private static func queryPreview(_ query: String) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let oneLine = trimmed.replacing(/\s+/, with: " ")
+        if oneLine.count <= 60 { return oneLine }
+        return String(oneLine.prefix(57)) + "..."
     }
 
     private func performAgentLoop(chat: AgentChat) async {
@@ -172,43 +202,32 @@ final class AgentChatController {
         error = nil
         engine.clearPendingCreations()
 
-        let input = buildResponsesInput()
+        var input = buildResponseInput()
         var previousResponseId: String?
         var accumulatedAssistantText = ""
 
         do {
-            var currentInput = input
+            var roundNumber = 0
 
-            for _ in 0..<8 {
+            for _ in 0..<100 {
                 guard !Task.isCancelled else { break }
-
-                var thinkingStartTime: Date?
+                roundNumber += 1
 
                 let round = try await engine.performRound(
-                    input: currentInput,
+                    input: input,
                     previousResponseId: previousResponseId,
-                    connections: selectedConnections
-                ) { [weak self] token in
-                    guard let self else { return }
-                    self.appendOrUpdateText(token)
-                } onReasoning: { [weak self] delta in
-                    guard let self else { return }
-                    if thinkingStartTime == nil {
-                        thinkingStartTime = Date()
+                    connections: selectedConnections,
+                    onToken: { [weak self] token in
+                        guard let self else { return }
+                        self.appendOrUpdateText(token)
+                    },
+                    onReasoning: { [weak self] text in
+                        guard let self else { return }
+                        self.appendOrUpdateThinking(text)
                     }
-                    self.appendOrUpdateThinking(delta)
-                }
+                )
 
-                previousResponseId = round.responseId ?? previousResponseId
-
-                if let summary = round.reasoningSummary, !summary.isEmpty {
-                    let duration = thinkingStartTime.map { max(1, Int(Date().timeIntervalSince($0))) }
-                    if let duration {
-                        accumulatedAssistantText += "<thinking duration=\"\(duration)\">\n\(summary)\n</thinking>\n\n"
-                    } else {
-                        accumulatedAssistantText += "<thinking>\n\(summary)\n</thinking>\n\n"
-                    }
-                }
+                previousResponseId = round.responseId
 
                 if round.toolCalls.isEmpty {
                     accumulatedAssistantText += round.streamedText
@@ -219,13 +238,14 @@ final class AgentChatController {
                     accumulatedAssistantText += round.streamedText
                 }
 
+                // Execute tools and send results back via previousResponseId
                 var toolOutputItems: [OpenAIResponse.Input.InputItem] = []
 
                 for toolCall in round.toolCalls {
                     guard !Task.isCancelled else { break }
 
-                    let (activeText, iconName) = Self.toolDisplayName(for: toolCall.name)
-                    appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeText, iconName: iconName)
+                    let activeInfo = Self.toolDisplayInfo(for: toolCall.name, arguments: toolCall.arguments)
+                    appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeInfo.text, iconName: activeInfo.icon, round: roundNumber)
                     try? await Task.sleep(for: .milliseconds(50))
 
                     let result = await engine.executeToolCall(toolCall, connections: selectedConnections)
@@ -235,15 +255,18 @@ final class AgentChatController {
                     }
                     engine.clearPendingCreations()
 
-                    let (completeText, _) = Self.toolDisplayName(for: toolCall.name, complete: true)
-                    markToolCallComplete(id: toolCall.id, displayText: completeText)
-                    accumulatedAssistantText += "<tool_call name=\"\(toolCall.name)\">\(completeText)</tool_call>\n"
+                    let completeInfo = Self.toolDisplayInfo(for: toolCall.name, arguments: toolCall.arguments, complete: true)
+                    markToolCallComplete(id: toolCall.id, displayText: completeInfo.text)
+                    if !accumulatedAssistantText.isEmpty && !accumulatedAssistantText.hasSuffix("\n") {
+                        accumulatedAssistantText += "\n"
+                    }
+                    accumulatedAssistantText += "<tool_call name=\"\(toolCall.name)\">\(completeInfo.text)</tool_call>\n"
                     try? await Task.sleep(for: .milliseconds(50))
 
                     toolOutputItems.append(.functionCallOutput(callID: toolCall.id, output: result))
                 }
 
-                currentInput = .items(toolOutputItems)
+                input = .items(toolOutputItems)
             }
         } catch {
             if !Task.isCancelled {
@@ -271,7 +294,6 @@ final class AgentChatController {
     // MARK: - Streaming Parts Helpers
 
     private func appendOrUpdateText(_ token: String) {
-        thinkingPartStartTime = nil
         if case .text(let existing) = streamingParts.last {
             streamingParts[streamingParts.count - 1] = .text(existing + token)
         } else {
@@ -279,56 +301,45 @@ final class AgentChatController {
         }
     }
 
-    private func appendOrUpdateThinking(_ delta: String) {
+    private func appendOrUpdateThinking(_ token: String) {
         if case .thinking(let existing) = streamingParts.last {
-            streamingParts[streamingParts.count - 1] = .thinking(existing + delta)
+            streamingParts[streamingParts.count - 1] = .thinking(existing + token)
         } else {
-            if thinkingPartStartTime == nil {
-                thinkingPartStartTime = Date()
-            }
-            streamingParts.append(.thinking(delta))
+            streamingParts.append(.thinking(token))
         }
     }
 
-    private func appendToolCall(id: String, name: String, displayText: String, iconName: String?) {
-        thinkingPartStartTime = nil
+    private func appendToolCall(id: String, name: String, displayText: String, iconName: String?, round: Int) {
         streamingParts.append(.toolCall(
             id: id,
             name: name,
             displayText: displayText,
             iconName: iconName,
-            isComplete: false
+            isComplete: false,
+            round: round
         ))
     }
 
     private func markToolCallComplete(id: String, displayText: String) {
         guard let idx = streamingParts.lastIndex(where: {
-            if case .toolCall(let tcId, _, _, _, _) = $0 { return tcId == id }
+            if case .toolCall(let tcId, _, _, _, _, _) = $0 { return tcId == id }
             return false
-        }) else { return }
-        if case .toolCall(let tcId, let name, _, let icon, _) = streamingParts[idx] {
-            streamingParts[idx] = .toolCall(id: tcId, name: name, displayText: displayText, iconName: icon, isComplete: true)
-        }
+        }),
+        case .toolCall(let tcId, let name, _, let icon, _, let round) = streamingParts[idx] else { return }
+        streamingParts[idx] = .toolCall(id: tcId, name: name, displayText: displayText, iconName: icon, isComplete: true, round: round)
     }
 
     private func buildFinalContent() -> String {
-        var result = ""
-        for part in streamingParts {
+        streamingParts.map { part in
             switch part {
-            case .thinking(let text):
-                let duration = thinkingPartStartTime.map { max(1, Int(Date().timeIntervalSince($0))) }
-                if let duration {
-                    result += "<thinking duration=\"\(duration)\">\n\(text)\n</thinking>\n\n"
-                } else {
-                    result += "<thinking>\n\(text)\n</thinking>\n\n"
-                }
+            case .thinking:
+                return ""
             case .text(let text):
-                result += text
-            case .toolCall(_, let name, let displayText, _, _):
-                result += "<tool_call name=\"\(name)\">\(displayText)</tool_call>\n"
+                return text
+            case .toolCall(_, let name, let displayText, _, _, _):
+                return "<tool_call name=\"\(name)\">\(displayText)</tool_call>\n"
             }
-        }
-        return result
+        }.joined()
     }
 
     // MARK: - Block Creation
@@ -355,14 +366,14 @@ final class AgentChatController {
 
     // MARK: - Message Building (Responses API)
 
-    private func buildResponsesInput() -> OpenAIResponse.Input {
+    private func buildResponseInput() -> OpenAIResponse.Input {
         var items: [OpenAIResponse.Input.InputItem] = []
         for msg in messages {
             switch msg.role {
             case .user:
                 items.append(.message(role: .user, content: .text(msg.content)))
             case .assistant:
-                let strippedContent = stripThinkingBlocks(from: msg.content)
+                let strippedContent = stripSerializedTags(from: msg.content)
                 if !strippedContent.isEmpty {
                     items.append(.message(role: .assistant, content: .text(strippedContent)))
                 }
@@ -371,15 +382,10 @@ final class AgentChatController {
         return .items(items)
     }
 
-    private func stripThinkingBlocks(from text: String) -> String {
-        var result = text
-        if let thinkingRegex = try? Regex("<thinking[^>]*>[\\s\\S]*?</thinking>\\n*") {
-            result = result.replacing(thinkingRegex, with: "")
-        }
-        if let toolCallRegex = try? Regex("<tool_call[^>]*>[^<]*</tool_call>\\n*") {
-            result = result.replacing(toolCallRegex, with: "")
-        }
-        return result
+    private static let toolCallTagRegex = try! Regex("<tool_call[^>]*>[^<]*</tool_call>\\n*")
+
+    private func stripSerializedTags(from text: String) -> String {
+        text.replacing(Self.toolCallTagRegex, with: "")
     }
 
     // MARK: - Persistence

@@ -202,7 +202,7 @@ final class NotebookMainPaneController: NSViewController {
             let isDark = NSAppearance.currentDrawing().isDarkMode
             mainContentView.layer?.backgroundColor = isDark
                 ? NSColor.black.withAlphaComponent(0.25).cgColor
-                : NSColor(red: 253.0 / 255, green: 253.0 / 255, blue: 253.0 / 255, alpha: 1).cgColor
+                : NSColor.white.cgColor
         }
     }
 

@@ -22,7 +22,9 @@
       "WebSearch",
       "Bash(sg:*)",
       "Bash(gh api:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "Bash(psql:*)",
+      "Bash(git:*)"
     ],
     "deny": [],
     "ask": [],

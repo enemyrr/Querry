@@ -20,7 +20,6 @@ struct BlockCreationRequest {
 final class NotebookAgentEngine {
 
     private(set) var pendingBlockCreations: [BlockCreationRequest] = []
-    private(set) var toolStatusMessage: String?
 
     private let driverSession = AgentDriverSession()
 
@@ -53,19 +52,19 @@ final class NotebookAgentEngine {
 
         return """
         You are an expert data analyst embedded in Pluk, a database notebook for macOS.
-        You build rich, narrative-driven notebook pages — combining charts, analysis, and written commentary to tell a clear data story.
-
-        Think of yourself like a BI analyst presenting findings: every visualization should be accompanied by context explaining what the data shows, why it matters, and what to look for.
+        You build rich, narrative-driven notebook pages — combining charts, exploratory queries, and written commentary to tell a clear data story backed by real numbers.
 
         ## Available Connections
         \(connectionList)
 
-        ## Your Capabilities
-        - Use `list_tables` to discover tables in a connection
-        - Use `get_table_schema` to understand column names, types, and constraints
-        - Use `create_chart_block` to add chart visualizations to the notebook
-        - Use `create_text_block` to add markdown text (section headers, analysis, commentary, context)
-        - You can create multiple blocks in a single response to build full analysis pages
+        ## Your Tools
+        | Tool | Purpose |
+        |------|---------|
+        | `list_tables` | Discover tables in a connection |
+        | `get_table_schema` | Column names, types, keys, constraints |
+        | `run_query` | Execute a read-only SQL query and get results (for exploration — results are NOT added to the notebook) |
+        | `create_chart_block` | Add a chart visualization to the notebook |
+        | `create_text_block` | Add markdown text (headings, analysis, commentary) |
 
         ## Chart Types
         \(chartTypes)
@@ -73,39 +72,65 @@ final class NotebookAgentEngine {
         ## Aggregation Functions (for Y axis columns)
         \(aggregations)
 
-        ## Workflow
-        1. If you don't know the schema, call `list_tables` first
-        2. Call `get_table_schema` to understand columns before building charts
-        3. Choose chart type based on data shape (categorical -> bar/column, time-series -> line, proportional -> pie)
-        4. Use aggregations when appropriate (e.g., SUM of revenue grouped by category)
+        ## Three-Phase Workflow
 
-        ## CRITICAL: Block Creation Order
-        Blocks appear in the notebook in the EXACT order you create them. You MUST call `create_text_block` and `create_chart_block` in the order you want them displayed. Follow this pattern:
+        ### Phase 1 — Discover, Explore & Plan
+        1. Call `list_tables` to see available tables.
+        2. Call `get_table_schema` on relevant tables to learn columns.
+        3. Use `run_query` to run exploratory queries — row counts, date ranges, cardinalities, distributions, top-N breakdowns. Gather enough data to understand the shape and story of the dataset.
+        4. **Create the plan**: Once you understand the data, decide on 4-6 numbered analysis sections. Then call `create_text_block` to add a report introduction that includes a brief overview of the dataset (row count, date range, key dimensions — citing real numbers from your queries) and a numbered table of contents listing every section you will build. Example:
 
-        1. FIRST: call `create_text_block` with a section heading, context, and key insights — explain what the chart shows and what to look for
-        2. THEN: call `create_chart_block` to add the visualization right after the text
-        3. Repeat this pattern for each additional analysis section
+        ```
+        # Sales Performance Report
+        This report analyzes **12,450 orders** spanning **Jan 2019 – Dec 2023** across **4 product categories** and **38 regions**.
 
-        Example flow for a single analysis:
-        → create_text_block("# Revenue by Category\nDumplings dominate at 45% of total revenue, nearly double the next category. Let's visualize the full breakdown.")
-        → create_chart_block(bar chart of revenue by category)
+        **Sections:**
+        1. Revenue by Category
+        2. Monthly Growth Trend
+        3. Regional Breakdown
+        4. Average Order Value Analysis
+        5. Top Customers
+        ```
 
-        Text always comes BEFORE its chart, never after.
+        This intro block is your contract — you MUST build every section listed in it.
 
-        NEVER batch all charts together or all text together. Always interleave them.
+        ### Phase 2 — Build Every Planned Section
+        Work through the sections from your plan one by one. For EACH section:
+        1. `run_query` — gather the specific data points you need for commentary.
+        2. `create_chart_block` — add the visualization **first**.
+        3. `create_text_block` — add commentary **after** the chart.
+
+        The chart always comes BEFORE its commentary text. Never reverse this.
+        NEVER batch all charts together or all text together. Always interleave: chart → text, chart → text.
+
+        **CRITICAL**: You MUST keep calling tools until every section from your plan is created. Do NOT emit a text-only response until the entire report — all sections plus the summary — is complete. Every response you send must include at least one tool call until you are completely done. If you want to share progress (e.g., "Now analyzing revenue trends..."), include it alongside a tool call in the same response, never as a standalone message.
 
         ## Writing Style for Text Blocks
-        - Use markdown formatting: `#` for section headings, `**bold**` for emphasis, bullet points for key findings
-        - Section headings should be descriptive (e.g., "Revenue by Category" not just "Chart 1")
-        - Commentary should highlight specific insights: trends, outliers, comparisons, or actionable takeaways
-        - Keep commentary concise — 2-4 sentences per chart is ideal
-        - Write in a professional but approachable tone, like a colleague presenting findings
+        - Number section headings: "## 1. Revenue by Category", "## 2. Growth Over Time"
+        - Use em dashes (—) instead of parenthetical asides
+        - Always cite specific numbers: "Revenue grew 440x from $1.2K to $528K" not "Revenue grew significantly"
+        - Bold key metrics: **$528K**, **3.2x growth**, **42% of total**
+        - Keep commentary to 2-4 sentences per chart — dense with insight, no filler
+        - End each section with a business conclusion or actionable takeaway
+        - Write in a professional but direct tone, like a senior analyst presenting to stakeholders
+
+        ## Anomaly Investigation
+        If a `run_query` returns unexpected data (nulls, zeros, extreme outliers, empty results), run a follow-up query to investigate before drawing conclusions. Surface anomalies explicitly in your commentary.
+
+        ## Comprehensive by Default
+        - Always produce a comprehensive, multi-chart report unless the user explicitly asks for something specific
+        - A comprehensive report should cover: overview/summary, key breakdowns by relevant dimensions, trends over time (if date columns exist), and notable outliers or comparisons
+        - Aim for 4-6 chart+text sections — enough to tell a complete story. You MUST create all planned sections before finishing.
+        - If the user asks a narrow question (e.g., "show me revenue by category"), just answer that — don't over-expand
+        - NEVER stop after creating just 1 or 2 sections when a comprehensive report was requested. Keep going until all sections are built.
 
         ## Rules
         - NEVER guess column names. Always call `get_table_schema` first.
-        - Prefer numeric columns for Y axis, categorical/date for X axis
-        - If no connection is selected, ask the user to pick one from the connection picker
-        - When building multi-chart analyses, create a logical flow — overview first, then drill into specifics
+        - NEVER fabricate numbers. Every statistic must come from a `run_query` result.
+        - Prefer numeric columns for Y axis, categorical/date for X axis.
+        - If no connection is selected, ask the user to pick one from the connection picker.
+        - `run_query` is for exploration only — its results are returned to you but NOT shown in the notebook. Use `create_chart_block` and `create_text_block` for notebook content.
+        - You can call `list_tables` and `get_table_schema` in parallel when you already know the table name.
         """
     }
 
@@ -115,8 +140,9 @@ final class NotebookAgentEngine {
         var tools: [OpenAICreateResponseRequestBody.Tool] = [
             listTablesTool,
             getTableSchemaTool,
+            runQueryTool,
         ]
-        tools.append(contentsOf: NotebookBlockKind.allAITools)
+        tools.append(contentsOf: NotebookBlockKind.allOpenAITools)
         return tools
     }
 
@@ -139,9 +165,9 @@ final class NotebookAgentEngine {
             input: input,
             instructions: buildSystemPrompt(connections: connections),
             model: "gpt-5.1",
-            parallelToolCalls: false,
+            parallelToolCalls: true,
             previousResponseId: previousResponseId,
-            reasoning: .init(effort: .medium, summary: .detailed),
+            reasoning: .init(effort: .medium, summary: .auto),
             tools: tools,
             truncation: .auto
         )
@@ -155,7 +181,6 @@ final class NotebookAgentEngine {
         var reasoningSummary = ""
         var responseId: String?
 
-        // Track function calls by output index
         struct PendingFunctionCall {
             var callId: String
             var name: String
@@ -178,8 +203,10 @@ final class NotebookAgentEngine {
             case .outputItemAdded(let item):
                 if case .functionCall(let fc) = item.item {
                     let index = item.index ?? 0
-                    pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].callId = fc.callId
-                    pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].name = fc.name
+                    var entry = pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")]
+                    entry.callId = fc.callId
+                    entry.name = fc.name
+                    pendingFunctionCalls[index] = entry
                 }
 
             case .functionCallArgumentsDone(let done):
@@ -230,6 +257,8 @@ final class NotebookAgentEngine {
             return await executeListTables(json: json, connections: connections)
         case "get_table_schema":
             return await executeGetTableSchema(json: json, connections: connections)
+        case "run_query":
+            return await executeRunQuery(json: json, connections: connections)
         case "create_chart_block":
             return executeCreateChartBlock(json: json)
         case "create_text_block":
@@ -253,9 +282,6 @@ final class NotebookAgentEngine {
     }
 
     private func fetchTables(connection: Connection, schema: String?) async -> String {
-        toolStatusMessage = "Fetching tables from \(connection.name)..."
-        defer { toolStatusMessage = nil }
-
         do {
             try await driverSession.connect(
                 databaseType: connection.databaseType,
@@ -302,9 +328,6 @@ final class NotebookAgentEngine {
             return "Error: No connection available"
         }
 
-        toolStatusMessage = "Reading schema for \(tableName)..."
-        defer { toolStatusMessage = nil }
-
         do {
             try await driverSession.connect(
                 databaseType: conn.databaseType,
@@ -337,6 +360,106 @@ final class NotebookAgentEngine {
             if let def = col.columnDefault { output += " DEFAULT \(def)" }
             output += "\n"
         }
+        return output
+    }
+
+    // MARK: - Run Query
+
+    private static let blockedPrefixes = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
+
+    private func executeRunQuery(json: [String: Any], connections: [Connection]) async -> String {
+        guard let query = json["query"] as? String else {
+            return "Error: query is required"
+        }
+
+        let trimmedUpper = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if Self.blockedPrefixes.contains(where: { trimmedUpper.hasPrefix($0) }) {
+            return "Error: run_query only supports read-only SELECT queries. Write operations are not allowed."
+        }
+
+        let schemaName = json["schema_name"] as? String
+        let keychainId = json["connection_keychain_id"] as? String
+
+        let connection: Connection?
+        if let kid = keychainId {
+            connection = connections.first(where: { $0.keychainId == kid })
+        } else {
+            connection = connections.first
+        }
+
+        guard let conn = connection else {
+            return "Error: No connection available"
+        }
+
+        do {
+            try await driverSession.connect(
+                databaseType: conn.databaseType,
+                uri: conn.connectionUri,
+                keychainId: conn.keychainId,
+                databaseName: conn.defaultDatabase ?? ""
+            )
+            let results = try await driverSession.executeRawQuery(query, schema: schemaName)
+            return formatQueryResults(results)
+        } catch {
+            return "Error executing query: \(error.localizedDescription)"
+        }
+    }
+
+    private func formatQueryResults(_ results: [QueryResult]) -> String {
+        guard let result = results.first else {
+            return "Query executed successfully. No results returned."
+        }
+
+        let columns = result.columns.map(\.name)
+        guard !columns.isEmpty else {
+            return "Query executed successfully. No columns returned."
+        }
+
+        let maxRows = 50
+        let maxCellWidth = 100
+        let rows = result.rows.prefix(maxRows)
+
+        var table: [[String]] = []
+        table.append(columns)
+
+        for row in rows {
+            let cells = columns.map { col -> String in
+                guard let info = row[col] else { return "NULL" }
+                let str = info.value.map { "\($0)" } ?? "NULL"
+                if str.count > maxCellWidth {
+                    return String(str.prefix(maxCellWidth - 3)) + "..."
+                }
+                return str
+            }
+            table.append(cells)
+        }
+
+        var colWidths = columns.indices.map { i in
+            table.map { $0[i].count }.max() ?? 0
+        }
+        for i in colWidths.indices {
+            colWidths[i] = min(colWidths[i], maxCellWidth)
+        }
+
+        func formatRow(_ cells: [String]) -> String {
+            cells.enumerated().map { i, cell in
+                cell.padding(toLength: colWidths[i], withPad: " ", startingAt: 0)
+            }.joined(separator: " | ")
+        }
+
+        var output = formatRow(table[0]) + "\n"
+        output += colWidths.map { String(repeating: "-", count: $0) }.joined(separator: " | ") + "\n"
+        for row in table.dropFirst() {
+            output += formatRow(row) + "\n"
+        }
+
+        let totalRows = result.rows.count
+        if totalRows > maxRows {
+            output += "... (\(totalRows) total rows, showing first \(maxRows))\n"
+        } else {
+            output += "\(totalRows) row(s) returned.\n"
+        }
+
         return output
     }
 
@@ -460,6 +583,32 @@ final class NotebookAgentEngine {
             ],
             strict: false,
             description: "Lists all tables and collections in a database connection. Call this first to discover available data."
+        )
+    )
+
+    private let runQueryTool = OpenAICreateResponseRequestBody.Tool.function(
+        OpenAICreateResponseRequestBody.FunctionTool(
+            name: "run_query",
+            parameters: [
+                "type": .string("object"),
+                "properties": .object([
+                    "connection_keychain_id": .object([
+                        "type": .string("string"),
+                        "description": .string("The keychainId of the connection to query"),
+                    ]),
+                    "query": .object([
+                        "type": .string("string"),
+                        "description": .string("A read-only SQL query (SELECT only). Used for data exploration — results are returned to you but NOT added to the notebook."),
+                    ]),
+                    "schema_name": .object([
+                        "type": .string("string"),
+                        "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                    ]),
+                ]),
+                "required": .array([.string("connection_keychain_id"), .string("query")]),
+            ],
+            strict: false,
+            description: "Execute a read-only SQL query to explore data. Use this to gather specific numbers, distributions, and statistics before building charts and writing commentary. Results are returned to you for analysis but are NOT added to the notebook."
         )
     )
 

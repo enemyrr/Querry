@@ -7,8 +7,11 @@ final class AgentMessageListController: NSViewController {
     private var scrollView: NSScrollView!
     private var stackView: NSStackView!
     private var streamingRow: AgentMessageRowView?
+    private var errorBanner: NSView?
     private var renderedMessageIds: [UUID] = []
     private weak var lastAssistantRow: AgentMessageRowView?
+    private var userScrolledAway = false
+    private var scrollObserver: NSObjectProtocol?
 
     init(chatController: AgentChatController) {
         self.chatController = chatController
@@ -19,12 +22,17 @@ final class AgentMessageListController: NSViewController {
         fatalError("init(coder:) is not supported")
     }
 
+    deinit {
+        if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }
+    }
+
     override func loadView() {
         let root = NSView()
         self.view = root
         setupScrollView()
         observeMessages()
         observeStreamingParts()
+        observeError()
     }
 
     // MARK: - Setup
@@ -70,6 +78,16 @@ final class AgentMessageListController: NSViewController {
 
             documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
         ])
+
+        scrollObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.userScrolledAway = !self.isNearBottom()
+        }
+        scrollView.contentView.postsBoundsChangedNotifications = true
     }
 
     // MARK: - Observation
@@ -95,6 +113,18 @@ final class AgentMessageListController: NSViewController {
                 guard let self else { return }
                 self.updateStreamingRow()
                 self.observeStreamingParts()
+            }
+        }
+    }
+
+    private func observeError() {
+        withObservationTracking {
+            _ = self.chatController.error
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateErrorBanner()
+                self.observeError()
             }
         }
     }
@@ -153,6 +183,7 @@ final class AgentMessageListController: NSViewController {
         }
 
         if chatController.isStreaming && streamingRow == nil {
+            userScrolledAway = false
             let row = AgentMessageRowView(role: .assistant, content: "", isStreaming: true)
             addRow(row, animated: true)
             row.updateParts(chatController.streamingParts)
@@ -198,6 +229,108 @@ final class AgentMessageListController: NSViewController {
         }
     }
 
+    // MARK: - Error Banner
+
+    private func updateErrorBanner() {
+        if let errorText = chatController.error {
+            showErrorBanner(errorText)
+        } else {
+            removeErrorBanner()
+        }
+    }
+
+    private func showErrorBanner(_ text: String) {
+        removeErrorBanner()
+
+        let banner = NSView()
+        banner.wantsLayer = true
+        banner.layer?.cornerRadius = 14
+        banner.layer?.backgroundColor = NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(red: 1.0, green: 0.35, blue: 0.3, alpha: 0.08)
+                : NSColor(red: 0.9, green: 0.2, blue: 0.15, alpha: 0.06)
+        }.cgColor
+        banner.translatesAutoresizingMaskIntoConstraints = false
+
+        let iconPill = NSView()
+        iconPill.wantsLayer = true
+        iconPill.layer?.cornerRadius = 8
+        iconPill.layer?.backgroundColor = NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(red: 1.0, green: 0.35, blue: 0.3, alpha: 0.15)
+                : NSColor(red: 0.9, green: 0.2, blue: 0.15, alpha: 0.1)
+        }.cgColor
+        iconPill.translatesAutoresizingMaskIntoConstraints = false
+        banner.addSubview(iconPill)
+
+        let icon = NSImageView()
+        icon.image = NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: nil)
+        icon.contentTintColor = NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(red: 1.0, green: 0.45, blue: 0.4, alpha: 1.0)
+                : NSColor(red: 0.85, green: 0.2, blue: 0.15, alpha: 1.0)
+        }
+        icon.symbolConfiguration = .init(pointSize: 13, weight: .semibold)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        iconPill.addSubview(icon)
+
+        let titleLabel = NSTextField(labelWithString: "Something went wrong")
+        titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        titleLabel.textColor = .labelColor
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        banner.addSubview(titleLabel)
+
+        let detailLabel = NSTextField(wrappingLabelWithString: text)
+        detailLabel.font = .systemFont(ofSize: 12)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.lineBreakMode = .byWordWrapping
+        detailLabel.maximumNumberOfLines = 3
+        detailLabel.translatesAutoresizingMaskIntoConstraints = false
+        banner.addSubview(detailLabel)
+
+        NSLayoutConstraint.activate([
+            iconPill.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 12),
+            iconPill.topAnchor.constraint(equalTo: banner.topAnchor, constant: 12),
+            iconPill.widthAnchor.constraint(equalToConstant: 30),
+            iconPill.heightAnchor.constraint(equalToConstant: 30),
+
+            icon.centerXAnchor.constraint(equalTo: iconPill.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: iconPill.centerYAnchor),
+
+            titleLabel.leadingAnchor.constraint(equalTo: iconPill.trailingAnchor, constant: 10),
+            titleLabel.topAnchor.constraint(equalTo: iconPill.topAnchor, constant: -1),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: banner.trailingAnchor, constant: -14),
+
+            detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            detailLabel.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -14),
+            detailLabel.bottomAnchor.constraint(lessThanOrEqualTo: banner.bottomAnchor, constant: -12),
+
+            banner.heightAnchor.constraint(greaterThanOrEqualToConstant: 54),
+        ])
+
+        stackView.addArrangedSubview(banner)
+        banner.leadingAnchor.constraint(equalTo: stackView.leadingAnchor).isActive = true
+        banner.trailingAnchor.constraint(equalTo: stackView.trailingAnchor).isActive = true
+
+        banner.alphaValue = 0
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.25
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            banner.animator().alphaValue = 1
+        }
+
+        errorBanner = banner
+        scrollToBottom()
+    }
+
+    private func removeErrorBanner() {
+        guard let banner = errorBanner else { return }
+        stackView.removeArrangedSubview(banner)
+        banner.removeFromSuperview()
+        errorBanner = nil
+    }
+
     // MARK: - Helpers
 
     private func addRow(_ row: AgentMessageRowView, animated: Bool = false) {
@@ -226,7 +359,16 @@ final class AgentMessageListController: NSViewController {
         }
     }
 
+    private func isNearBottom(threshold: CGFloat = 60) -> Bool {
+        guard let documentView = scrollView.documentView else { return true }
+        let contentHeight = documentView.frame.height
+        let visibleHeight = scrollView.contentView.bounds.height
+        let scrollY = scrollView.contentView.bounds.origin.y
+        return contentHeight - scrollY - visibleHeight <= threshold
+    }
+
     private func scrollToBottom() {
+        guard !userScrolledAway else { return }
         guard let documentView = scrollView.documentView else { return }
         documentView.layoutSubtreeIfNeeded()
         let contentHeight = documentView.frame.height

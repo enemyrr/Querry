@@ -32,25 +32,25 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         return "create_\(rawValue)_block"
     }
 
-    var aiTool: OpenAICreateResponseRequestBody.Tool? {
+    var openAITool: OpenAICreateResponseRequestBody.Tool? {
         guard isAICreatable else { return nil }
         switch self {
-        case .chart: return Self.chartTool
-        case .text: return Self.textTool
+        case .chart: return Self.openAIChartTool
+        case .text: return Self.openAITextTool
         }
     }
 
-    static var allAITools: [OpenAICreateResponseRequestBody.Tool] {
-        allCases.compactMap(\.aiTool)
+    static var allOpenAITools: [OpenAICreateResponseRequestBody.Tool] {
+        allCases.compactMap(\.openAITool)
     }
 
     static func kindForToolName(_ name: String) -> NotebookBlockKind? {
         allCases.first { $0.aiToolName == name }
     }
 
-    // MARK: - Tool Definitions
+    // MARK: - OpenAI Tool Definitions
 
-    private static let chartTool = OpenAICreateResponseRequestBody.Tool.function(
+    private static let openAIChartTool: OpenAICreateResponseRequestBody.Tool = .function(
         OpenAICreateResponseRequestBody.FunctionTool(
             name: "create_chart_block",
             parameters: [
@@ -86,7 +86,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                     ]),
                     "chart_type": .object([
                         "type": .string("string"),
-                        "enum": .array(ChartBlockConfig.ChartType.allCases.map { .string($0.rawValue) }),
+                        "enum": .array(ChartBlockConfig.ChartType.allCases.map { AIProxyJSONValue.string($0.rawValue) }),
                         "description": .string("The chart visualization type"),
                     ]),
                     "x_axis_column": .object([
@@ -110,7 +110,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                                 "field": .object(["type": .string("string")]),
                                 "operator": .object([
                                     "type": .string("string"),
-                                    "enum": .array(ChartFilterCondition.ChartFilterOperator.allCases.map { .string($0.rawValue) }),
+                                    "enum": .array(ChartFilterCondition.ChartFilterOperator.allCases.map { AIProxyJSONValue.string($0.rawValue) }),
                                 ]),
                                 "value": .object(["type": .string("string")]),
                             ]),
@@ -138,7 +138,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         )
     )
 
-    private static let textTool = OpenAICreateResponseRequestBody.Tool.function(
+    private static let openAITextTool: OpenAICreateResponseRequestBody.Tool = .function(
         OpenAICreateResponseRequestBody.FunctionTool(
             name: "create_text_block",
             parameters: [

@@ -6,7 +6,8 @@ final class ThinkingBlockView: NSView {
     private let titleLabel: NSTextField
     private let chevronIcon: NSImageView
     private let headerArea: NSView
-    private let contentField: NSTextField
+    private let bulletDot: NSView
+    private let markdownView: MarkdownContentView
     private let contentContainer: NSView
     private var containerHeightConstraint: NSLayoutConstraint!
     private var contentTopConstraint: NSLayoutConstraint!
@@ -16,15 +17,34 @@ final class ThinkingBlockView: NSView {
     private var isFinished = false
     private var shimmerMaskLayer: CAGradientLayer?
 
+    // Tool calls
+    private var toolCallContainer: NSView?
+    private var toolCallHeaderIcon: NSImageView?
+    private var toolCallHeaderLabel: NSTextField?
+    private var timelineLine: NSView?
+    private var toolCallPillStack: NSStackView?
+    private var toolCallRows: [ToolCallRow] = []
+    private var headerConfigured = false
+
+    private struct ToolCallRow {
+        let id: String
+        let pill: NSView
+        let spinner: NSProgressIndicator
+        let checkmark: NSImageView
+        let label: NSTextField
+    }
+
     init(text: String, finishedDuration: Int? = nil) {
         statusIcon = NSImageView()
         titleLabel = NSTextField(labelWithString: "Thinking")
         chevronIcon = NSImageView()
         headerArea = NSView()
-        contentField = NSTextField(wrappingLabelWithString: Self.stripTitle(text))
+        bulletDot = NSView()
+        markdownView = MarkdownContentView()
         contentContainer = NSView()
         super.init(frame: .zero)
         setupViews()
+        markdownView.update(content: Self.stripTitle(text))
 
         chevronIcon.isHidden = true
 
@@ -42,7 +62,7 @@ final class ThinkingBlockView: NSView {
     }
 
     func update(text: String) {
-        contentField.stringValue = Self.stripTitle(text)
+        markdownView.update(content: Self.stripTitle(text))
         if isExpanded {
             updateExpandedHeight(animated: false)
         }
@@ -61,21 +81,213 @@ final class ThinkingBlockView: NSView {
                 setExpanded(true, animated: false)
             }
         } else if !streaming && !isFinished {
-            isFinished = true
-            autoExpanded = false
-            updateHeaderToFinished()
-            collapseQuietly()
+            if toolCallContainer != nil {
+                stopHeaderAnimations()
+            } else {
+                finishAll()
+            }
         }
     }
 
-    private func updateHeaderToFinished() {
-        let durationSeconds: Int
-        if let start = streamingStartTime {
-            durationSeconds = max(1, Int(Date().timeIntervalSince(start)))
-        } else {
-            durationSeconds = 0
+    func finishAll() {
+        guard !isFinished else { return }
+        isFinished = true
+        autoExpanded = false
+        updateHeaderToFinished()
+        collapseQuietly()
+    }
+
+    // MARK: - Tool Calls
+
+    func addToolCall(id: String, name: String, displayText: String, isComplete: Bool) {
+        if toolCallContainer == nil {
+            setupToolCallSection(firstToolName: name)
         }
-        showFinishedHeader(duration: durationSeconds)
+
+        if !headerConfigured {
+            toolCallHeaderLabel?.stringValue = Self.toolGroupHeader(for: name)
+            toolCallHeaderIcon?.image = NSImage(systemSymbolName: Self.toolGroupIcon(for: name), accessibilityDescription: nil)
+            headerConfigured = true
+        }
+
+        guard let pillStack = toolCallPillStack else { return }
+
+        let pill = NSView()
+        pill.wantsLayer = true
+        pill.layer?.cornerRadius = 14
+        pill.layer?.backgroundColor = NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor.white.withAlphaComponent(0.06)
+                : NSColor.black.withAlphaComponent(0.05)
+        }.cgColor
+        pill.translatesAutoresizingMaskIntoConstraints = false
+
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+
+        let checkmark = NSImageView()
+        checkmark.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
+        checkmark.contentTintColor = .tertiaryLabelColor
+        checkmark.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        checkmark.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(labelWithString: displayText)
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .labelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        pill.addSubview(spinner)
+        pill.addSubview(checkmark)
+        pill.addSubview(label)
+
+        NSLayoutConstraint.activate([
+            spinner.widthAnchor.constraint(equalToConstant: 16),
+            spinner.heightAnchor.constraint(equalToConstant: 16),
+            spinner.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 10),
+            spinner.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+
+            checkmark.widthAnchor.constraint(equalToConstant: 16),
+            checkmark.heightAnchor.constraint(equalToConstant: 16),
+            checkmark.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 10),
+            checkmark.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+
+            label.leadingAnchor.constraint(equalTo: spinner.trailingAnchor, constant: 6),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: pill.trailingAnchor, constant: -12),
+            label.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+
+            pill.heightAnchor.constraint(equalToConstant: 36),
+        ])
+
+        if isComplete {
+            spinner.isHidden = true
+            checkmark.isHidden = false
+        } else {
+            spinner.startAnimation(nil)
+            spinner.isHidden = false
+            checkmark.isHidden = true
+        }
+
+        pillStack.addArrangedSubview(pill)
+        pill.leadingAnchor.constraint(equalTo: pillStack.leadingAnchor).isActive = true
+        pill.trailingAnchor.constraint(lessThanOrEqualTo: pillStack.trailingAnchor).isActive = true
+        toolCallRows.append(ToolCallRow(id: id, pill: pill, spinner: spinner, checkmark: checkmark, label: label))
+
+        if isExpanded {
+            updateExpandedHeight(animated: true)
+        }
+    }
+
+    func containsToolCall(id: String) -> Bool {
+        toolCallRows.contains { $0.id == id }
+    }
+
+    func markToolCallComplete(id: String, displayText: String) {
+        guard let entry = toolCallRows.first(where: { $0.id == id }) else { return }
+        entry.spinner.stopAnimation(nil)
+        entry.spinner.isHidden = true
+        entry.checkmark.isHidden = false
+        entry.label.stringValue = displayText
+    }
+
+    private func setupToolCallSection(firstToolName: String) {
+        // Timeline line in contentContainer: from bullet dot all the way down
+        let line = NSView()
+        line.wantsLayer = true
+        line.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        line.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(line)
+        timelineLine = line
+
+        // Tool call container (header + pills) to the right of the bullet/line
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(container)
+
+        let hIcon = NSImageView()
+        hIcon.image = NSImage(systemSymbolName: Self.toolGroupIcon(for: firstToolName), accessibilityDescription: nil)
+        hIcon.contentTintColor = .secondaryLabelColor
+        hIcon.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        hIcon.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(hIcon)
+        toolCallHeaderIcon = hIcon
+
+        let hLabel = NSTextField(labelWithString: Self.toolGroupHeader(for: firstToolName))
+        hLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        hLabel.textColor = .secondaryLabelColor
+        hLabel.lineBreakMode = .byTruncatingTail
+        hLabel.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(hLabel)
+        toolCallHeaderLabel = hLabel
+
+        let pillStack = NSStackView()
+        pillStack.orientation = .vertical
+        pillStack.alignment = .leading
+        pillStack.spacing = 8
+        pillStack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(pillStack)
+        toolCallPillStack = pillStack
+
+        NSLayoutConstraint.activate([
+            // Line: centered on bullet dot, from below dot to bottom of pill stack
+            line.widthAnchor.constraint(equalToConstant: 1.5),
+            line.centerXAnchor.constraint(equalTo: bulletDot.centerXAnchor),
+            line.topAnchor.constraint(equalTo: bulletDot.bottomAnchor, constant: 4),
+            line.bottomAnchor.constraint(equalTo: pillStack.bottomAnchor),
+
+            // Container: aligned with markdown text
+            container.topAnchor.constraint(equalTo: markdownView.bottomAnchor, constant: 12),
+            container.leadingAnchor.constraint(equalTo: markdownView.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+
+            hIcon.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hIcon.topAnchor.constraint(equalTo: container.topAnchor),
+            hIcon.widthAnchor.constraint(equalToConstant: 16),
+            hIcon.heightAnchor.constraint(equalToConstant: 16),
+
+            hLabel.leadingAnchor.constraint(equalTo: hIcon.trailingAnchor, constant: 4),
+            hLabel.centerYAnchor.constraint(equalTo: hIcon.centerYAnchor),
+            hLabel.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+
+            pillStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
+            pillStack.topAnchor.constraint(equalTo: hIcon.bottomAnchor, constant: 10),
+            pillStack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            pillStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        toolCallContainer = container
+    }
+
+    private static func toolGroupHeader(for toolName: String) -> String {
+        switch toolName {
+        case "list_tables": return "Exploring database"
+        case "get_table_schema": return "Reading schema"
+        case "run_query": return "Fetching data"
+        case "create_chart_block": return "Building visualizations"
+        case "create_text_block": return "Writing content"
+        default: return "Processing"
+        }
+    }
+
+    private static func toolGroupIcon(for toolName: String) -> String {
+        switch toolName {
+        case "list_tables": return "tablecells"
+        case "get_table_schema": return "square.stack.3d.up"
+        case "run_query": return "text.page.badge.magnifyingglass"
+        case "create_chart_block": return "chart.bar"
+        case "create_text_block": return "text.alignleft"
+        default: return "gearshape"
+        }
+    }
+
+    // MARK: - Header
+
+    private func updateHeaderToFinished() {
+        let duration = streamingStartTime.map { max(1, Int(Date().timeIntervalSince($0))) } ?? 0
+        showFinishedHeader(duration: duration)
     }
 
     private func showFinishedHeader(duration: Int) {
@@ -92,14 +304,18 @@ final class ThinkingBlockView: NSView {
 
     // MARK: - Expand / Collapse
 
+    private static let chevronConfig = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+
+    private func updateChevronImage() {
+        let name = isExpanded ? "chevron.down" : "chevron.right"
+        chevronIcon.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(Self.chevronConfig)
+    }
+
     private func collapseQuietly() {
         guard isExpanded else { return }
         isExpanded = false
-
-        let chevronConfig = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
-        chevronIcon.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)?
-            .withSymbolConfiguration(chevronConfig)
-
+        updateChevronImage()
         containerHeightConstraint.constant = 0
         contentTopConstraint.constant = 0
     }
@@ -107,12 +323,7 @@ final class ThinkingBlockView: NSView {
     private func setExpanded(_ expanded: Bool, animated: Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
-
-        let chevronName = isExpanded ? "chevron.down" : "chevron.right"
-        let chevronConfig = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
-
-        chevronIcon.image = NSImage(systemSymbolName: chevronName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(chevronConfig)
+        updateChevronImage()
 
         let targetHeight: CGFloat = isExpanded ? targetContentHeight() : 0
         let targetGap: CGFloat = isExpanded ? 4 : 0
@@ -164,9 +375,24 @@ final class ThinkingBlockView: NSView {
     }
 
     private func targetContentHeight() -> CGFloat {
-        let width = contentContainer.bounds.width > 0 ? contentContainer.bounds.width : (superview?.bounds.width ?? 300)
-        let size = contentField.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)) ?? .zero
-        return ceil(size.height)
+        var height: CGFloat
+        let fitting = markdownView.fittingSize
+        if fitting.height > 0 {
+            height = ceil(fitting.height)
+        } else {
+            let size = markdownView.intrinsicContentSize
+            height = size.height > 0 ? ceil(size.height) : 20
+        }
+
+        if let tcContainer = toolCallContainer {
+            let tcFitting = tcContainer.fittingSize
+            let tcHeight = tcFitting.height > 0 ? ceil(tcFitting.height) : ceil(tcContainer.intrinsicContentSize.height)
+            if tcHeight > 0 {
+                height += 12 + tcHeight
+            }
+        }
+
+        return height
     }
 
     override func layout() {
@@ -178,6 +404,20 @@ final class ThinkingBlockView: NSView {
             }
         }
         shimmerMaskLayer?.frame = titleLabel.bounds.insetBy(dx: -24, dy: 0)
+        updateBulletDotAppearance()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBulletDotAppearance()
+    }
+
+    private func updateBulletDotAppearance() {
+        let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        bulletDot.layer?.borderColor = (isDark
+            ? NSColor.white.withAlphaComponent(0.35)
+            : NSColor.black.withAlphaComponent(0.25)
+        ).cgColor
     }
 
     // MARK: - Setup
@@ -213,21 +453,19 @@ final class ThinkingBlockView: NSView {
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentContainer)
 
-        contentField.font = .systemFont(ofSize: 12)
-        contentField.textColor = .secondaryLabelColor
-        contentField.isEditable = false
-        contentField.isSelectable = true
-        contentField.isBordered = false
-        contentField.isBezeled = false
-        contentField.drawsBackground = false
-        contentField.lineBreakMode = .byCharWrapping
-        contentField.maximumNumberOfLines = 0
-        contentField.cell?.wraps = true
-        contentField.cell?.isScrollable = false
-        contentField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        contentField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        contentField.translatesAutoresizingMaskIntoConstraints = false
-        contentContainer.addSubview(contentField)
+        // Bullet dot: hollow outlined circle
+        bulletDot.wantsLayer = true
+        bulletDot.layer?.cornerRadius = 3.5
+        bulletDot.layer?.backgroundColor = .clear
+        bulletDot.layer?.borderWidth = 1.5
+        bulletDot.layer?.borderColor = NSColor.tertiaryLabelColor.cgColor
+        bulletDot.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(bulletDot)
+
+        markdownView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        markdownView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        markdownView.translatesAutoresizingMaskIntoConstraints = false
+        contentContainer.addSubview(markdownView)
 
         let heightC = contentContainer.heightAnchor.constraint(equalToConstant: 0)
         containerHeightConstraint = heightC
@@ -260,9 +498,14 @@ final class ThinkingBlockView: NSView {
             contentContainer.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightC,
 
-            contentField.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            contentField.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            contentField.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            bulletDot.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            bulletDot.topAnchor.constraint(equalTo: contentContainer.topAnchor, constant: 5),
+            bulletDot.widthAnchor.constraint(equalToConstant: 7),
+            bulletDot.heightAnchor.constraint(equalToConstant: 7),
+
+            markdownView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            markdownView.leadingAnchor.constraint(equalTo: bulletDot.trailingAnchor, constant: 6),
+            markdownView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
         ])
     }
 
@@ -302,11 +545,10 @@ final class ThinkingBlockView: NSView {
     }
 
     private func stopHeaderAnimations() {
-        if let mask = shimmerMaskLayer {
-            mask.removeAllAnimations()
-            titleLabel.layer?.mask = nil
-            shimmerMaskLayer = nil
-        }
+        guard let mask = shimmerMaskLayer else { return }
+        mask.removeAllAnimations()
+        titleLabel.layer?.mask = nil
+        shimmerMaskLayer = nil
     }
 
     private static func stripTitle(_ text: String) -> String {

@@ -60,7 +60,6 @@ final class MarkdownContentView: NSView {
             view.removeFromSuperview()
         }
 
-        // Add new views
         for i in divergenceIndex..<newBlocks.count {
             let view = makeBlockView(for: newBlocks[i])
             addBlockView(view)
@@ -72,28 +71,18 @@ final class MarkdownContentView: NSView {
     }
 
     private func updateThinkingStreamState() {
-        let lastIsThinking: Bool
-        if case .thinkingBlock = currentBlocks.last {
-            lastIsThinking = true
-        } else {
-            lastIsThinking = false
-        }
-
-        if lastIsThinking, let thinkingView = blockViews.last as? ThinkingBlockView {
-            for view in blockViews.dropLast() {
-                if let tv = view as? ThinkingBlockView, tv !== activeThinkingView {
-                    tv.setActivelyStreaming(false)
-                }
+        if case .thinkingBlock = currentBlocks.last,
+           let thinkingView = blockViews.last as? ThinkingBlockView {
+            if activeThinkingView !== thinkingView {
+                activeThinkingView?.setActivelyStreaming(false)
+                activeThinkingView = thinkingView
             }
-            activeThinkingView = thinkingView
             thinkingView.setActivelyStreaming(true)
         } else {
             activeThinkingView?.setActivelyStreaming(false)
             activeThinkingView = nil
             for view in blockViews {
-                if let tv = view as? ThinkingBlockView {
-                    tv.setActivelyStreaming(false)
-                }
+                (view as? ThinkingBlockView)?.setActivelyStreaming(false)
             }
         }
     }
@@ -101,7 +90,7 @@ final class MarkdownContentView: NSView {
     var plainText: String {
         currentBlocks.map { block -> String in
             switch block {
-            case .paragraph(let text), .heading(_, let text), .blockquote(let text), .thinkingBlock(let text, _):
+            case .paragraph(let text), .heading(_, let text), .blockquote(let text), .thinkingBlock(let text, _, _):
                 return text
             case .codeBlock(let code, _):
                 return code
@@ -113,8 +102,8 @@ final class MarkdownContentView: NSView {
                 return headerRow + "\n" + dataRows
             case .horizontalRule:
                 return "---"
-            case .toolCall(_, let displayText):
-                return displayText
+            case .toolCallGroup(let calls):
+                return calls.map(\.displayText).joined(separator: "\n")
             }
         }.joined(separator: "\n\n")
     }
@@ -168,11 +157,19 @@ final class MarkdownContentView: NSView {
         case .horizontalRule:
             return HorizontalRuleView()
 
-        case .thinkingBlock(let text, let duration):
-            return ThinkingBlockView(text: text, finishedDuration: duration)
+        case .thinkingBlock(let text, let duration, let toolCalls):
+            let view = ThinkingBlockView(text: text, finishedDuration: duration)
+            for (i, call) in toolCalls.enumerated() {
+                view.addToolCall(id: "persisted-\(i)", name: call.name, displayText: call.displayText, isComplete: true)
+            }
+            return view
 
-        case .toolCall(let name, let displayText):
-            return StreamingToolCallRowView(displayText: displayText, iconName: Self.toolCallIconName(for: name), initiallyComplete: true)
+        case .toolCallGroup(let calls):
+            let group = ToolCallGroupView()
+            for (i, call) in calls.enumerated() {
+                group.addRow(id: "persisted-\(i)", name: call.name, displayText: call.displayText, isComplete: true)
+            }
+            return group
         }
     }
 
@@ -199,13 +196,13 @@ final class MarkdownContentView: NSView {
         case .table(let headers, let rows):
             (view as? MarkdownTableView)?.update(headers: headers, rows: rows)
 
-        case .thinkingBlock(let text, _):
+        case .thinkingBlock(let text, _, _):
             (view as? ThinkingBlockView)?.update(text: text)
 
         case .horizontalRule:
             break
 
-        case .toolCall:
+        case .toolCallGroup:
             break
         }
     }
@@ -220,16 +217,6 @@ final class MarkdownContentView: NSView {
         blockViews.append(view)
     }
 
-    private static func toolCallIconName(for name: String) -> String {
-        switch name {
-        case "list_tables": return "tablecells"
-        case "get_table_schema": return "square.stack.3d.up"
-        case "create_chart_block": return "chart.bar"
-        case "create_text_block": return "text.alignleft"
-        default: return "gearshape"
-        }
-    }
-
     private func sameBlockType(_ a: MarkdownBlock, _ b: MarkdownBlock) -> Bool {
         switch (a, b) {
         case (.paragraph, .paragraph),
@@ -241,7 +228,7 @@ final class MarkdownContentView: NSView {
              (.table, .table),
              (.horizontalRule, .horizontalRule),
              (.thinkingBlock, .thinkingBlock),
-             (.toolCall, .toolCall):
+             (.toolCallGroup, .toolCallGroup):
             return true
         default:
             return false
