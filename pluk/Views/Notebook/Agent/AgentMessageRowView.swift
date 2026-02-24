@@ -138,7 +138,7 @@ final class AgentMessageRowView: NSView {
             }
             addSubview(bar)
 
-            containerBottomConstraint?.constant = -(24 + 4)
+            containerBottomConstraint?.constant = -26
 
             NSLayoutConstraint.activate([
                 bar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
@@ -168,7 +168,7 @@ final class AgentMessageRowView: NSView {
             bar.onRetry = { [weak self] in self?.onRetry?() }
             addSubview(bar)
 
-            mdBottomConstraint?.constant = -(4 + 24 + 4)
+            mdBottomConstraint?.constant = -26
 
             NSLayoutConstraint.activate([
                 bar.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -427,7 +427,7 @@ final class ToolCallGroupView: NSView {
         addSubview(nodeCircle)
 
         // Header label (to the right of circle)
-        headerLabel.font = .systemFont(ofSize: 11.5)
+        headerLabel.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         headerLabel.textColor = .secondaryLabelColor
         headerLabel.lineBreakMode = .byTruncatingTail
         headerLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -479,7 +479,7 @@ final class ToolCallGroupView: NSView {
 
     func addRow(id: String, name: String, displayText: String, isComplete: Bool) {
         if !headerConfigured {
-            headerLabel.stringValue = Self.groupHeader(for: name)
+            headerLabel.stringValue = ToolMetadata.groupHeader(for: name)
             headerConfigured = true
         }
 
@@ -548,27 +548,6 @@ final class ToolCallGroupView: NSView {
 
     var rowCount: Int { rows.count }
 
-    static func iconName(for toolName: String) -> String {
-        switch toolName {
-        case "list_tables": return "tablecells"
-        case "get_table_schema": return "square.stack.3d.up"
-        case "run_query": return "text.page.badge.magnifyingglass"
-        case "create_chart_block": return "chart.bar"
-        case "create_text_block": return "text.alignleft"
-        default: return "gearshape"
-        }
-    }
-
-    private static func groupHeader(for firstToolName: String) -> String {
-        switch firstToolName {
-        case "list_tables": return "Exploring database"
-        case "get_table_schema": return "Reading schema"
-        case "run_query": return "Querying data"
-        case "create_chart_block": return "Building visualizations"
-        case "create_text_block": return "Writing content"
-        default: return "Processing"
-        }
-    }
 }
 
 // MARK: - Streaming Parts View
@@ -821,11 +800,7 @@ final class StreamingPartsView: NSView {
             activeThinkingView = thinkingView
         }
 
-        if case .thinking = parts.last {
-            thinkingView.setActivelyStreaming(true)
-        } else {
-            thinkingView.setActivelyStreaming(false)
-        }
+        thinkingView.setActivelyStreaming(true)
     }
 
     // MARK: - Stack Helpers
@@ -884,7 +859,7 @@ final class StreamingToolCallRowView: NSView {
 
     private let iconView: NSImageView
     private let label: NSTextField
-    private var shimmerMaskLayer: CAGradientLayer?
+    private let shimmer = ShimmerLayer()
     private var isComplete = false
     private var needsShimmerStart = false
 
@@ -945,7 +920,7 @@ final class StreamingToolCallRowView: NSView {
             needsShimmerStart = false
             startShimmer()
         }
-        shimmerMaskLayer?.frame = label.bounds.insetBy(dx: -24, dy: 0)
+        shimmer.updateFrame(for: label)
     }
 
     func markComplete(newDisplayText: String? = nil) {
@@ -959,41 +934,10 @@ final class StreamingToolCallRowView: NSView {
     }
 
     private func startShimmer() {
-        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
-        guard shimmerMaskLayer == nil else { return }
-
-        let mask = CAGradientLayer()
-        mask.startPoint = CGPoint(x: 0, y: 0.5)
-        mask.endPoint = CGPoint(x: 1, y: 0.5)
-        mask.colors = [
-            NSColor.white.withAlphaComponent(0.55).cgColor,
-            NSColor.white.cgColor,
-            NSColor.white.withAlphaComponent(0.55).cgColor,
-        ]
-        mask.locations = [0.0, 0.18, 0.36]
-        let labelBounds = label.bounds
-        if labelBounds.width > 0 {
-            mask.frame = labelBounds.insetBy(dx: -24, dy: 0)
-        } else {
-            mask.frame = CGRect(x: -24, y: 0, width: 250, height: 20)
-        }
-
-        let shimmer = CABasicAnimation(keyPath: "locations")
-        shimmer.fromValue = [-0.25, -0.1, 0.05]
-        shimmer.toValue = [0.95, 1.1, 1.25]
-        shimmer.duration = 1.4
-        shimmer.repeatCount = .infinity
-        shimmer.timingFunction = CAMediaTimingFunction(name: .easeOut)
-
-        mask.add(shimmer, forKey: "shimmer")
-        label.layer?.mask = mask
-        shimmerMaskLayer = mask
+        shimmer.start(on: label)
     }
 
     private func stopShimmer() {
-        guard let mask = shimmerMaskLayer else { return }
-        mask.removeAllAnimations()
-        label.layer?.mask = nil
-        shimmerMaskLayer = nil
+        shimmer.stop(from: label)
     }
 }

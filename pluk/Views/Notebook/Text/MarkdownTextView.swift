@@ -20,6 +20,11 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
 
     private let defaultFont = NSFont.systemFont(ofSize: 14)
     private let defaultTextColor = NSColor.labelColor
+    private let defaultParagraphStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 6
+        return style
+    }()
 
     var string: String {
         get { textView.string }
@@ -191,6 +196,7 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
         textStorage.setAttributes([
             .font: defaultFont,
             .foregroundColor: defaultTextColor,
+            .paragraphStyle: defaultParagraphStyle,
         ], range: fullRange)
 
         // Track code blocks

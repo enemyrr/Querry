@@ -24,7 +24,9 @@
       "Bash(gh api:*)",
       "Bash(sort:*)",
       "Bash(psql:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:newsletter.pragmaticengineer.com)"
     ],
     "deny": [],
     "ask": [],

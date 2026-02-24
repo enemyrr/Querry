@@ -43,11 +43,17 @@ enum MarkdownInlineRenderer {
         collectMatches(pattern: boldPattern, in: text, nsText: nsText, fullRange: fullRange, baseAttributes: baseAttributes, overrides: [.font: NSFont.boldSystemFont(ofSize: font.pointSize)], into: &matches)
         collectMatches(pattern: italicPattern, in: text, nsText: nsText, fullRange: fullRange, baseAttributes: baseAttributes, overrides: [.font: makeItalicFont(from: font)], into: &matches)
         collectMatches(pattern: strikethroughPattern, in: text, nsText: nsText, fullRange: fullRange, baseAttributes: baseAttributes, overrides: [.strikethroughStyle: NSUnderlineStyle.single.rawValue], into: &matches)
-        collectMatches(pattern: inlineCodePattern, in: text, nsText: nsText, fullRange: fullRange, baseAttributes: baseAttributes, overrides: [
-            .font: NSFont.monospacedSystemFont(ofSize: font.pointSize - 1, weight: .regular),
-            .foregroundColor: NSColor.systemPink,
-            .backgroundColor: NSColor.quaternaryLabelColor,
-        ], into: &matches)
+        for match in inlineCodePattern.matches(in: text, range: fullRange) {
+            guard !overlaps(match.range, with: matches) else { continue }
+            let content = nsText.substring(with: match.range(at: 1))
+            let codeFont = NSFont.monospacedSystemFont(ofSize: font.pointSize - 1, weight: .regular)
+            let cell = InlineCodeAttachmentCell(text: content, font: codeFont, lineFont: font)
+            let attachment = NSTextAttachment()
+            attachment.attachmentCell = cell
+            let attachStr = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+            attachStr.addAttributes(baseAttributes, range: NSRange(location: 0, length: attachStr.length))
+            matches.append(InlineMatch(range: match.range, replacement: attachStr))
+        }
 
         matches.sort(by: >)
         for m in matches {
@@ -96,6 +102,73 @@ enum MarkdownInlineRenderer {
             .fontDescriptor
             .withSymbolicTraits(.italic)
         return NSFont(descriptor: descriptor, size: size) ?? NSFont.boldSystemFont(ofSize: size)
+    }
+}
+
+// MARK: - Inline Code Attachment
+
+private final class InlineCodeAttachmentCell: NSTextAttachmentCell {
+
+    private let text: String
+    private let codeFont: NSFont
+    private let lineFont: NSFont
+    private static let hPad: CGFloat = 5
+    private static let vPad: CGFloat = 1.5
+    private static let cornerRadius: CGFloat = 4
+
+    init(text: String, font: NSFont, lineFont: NSFont) {
+        self.text = text
+        self.codeFont = font
+        self.lineFont = lineFont
+        super.init()
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func cellSize() -> NSSize {
+        let textSize = (text as NSString).size(withAttributes: [.font: codeFont])
+        return NSSize(
+            width: ceil(textSize.width) + Self.hPad * 2,
+            height: ceil(lineFont.ascender - lineFont.descender + Self.vPad * 2)
+        )
+    }
+
+    override func cellBaselineOffset() -> NSPoint {
+        NSPoint(x: 0, y: lineFont.descender - Self.vPad)
+    }
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        let isDark = (controlView ?? NSApp.mainWindow?.contentView)?.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+
+        let bgColor = isDark
+            ? NSColor.white.withAlphaComponent(0.06)
+            : NSColor.white
+        let borderColor = isDark
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.black.withAlphaComponent(0.1)
+
+        let path = NSBezierPath(roundedRect: cellFrame.insetBy(dx: 0.5, dy: 0.5), xRadius: Self.cornerRadius, yRadius: Self.cornerRadius)
+        bgColor.setFill()
+        path.fill()
+        borderColor.setStroke()
+        path.lineWidth = 0.5
+        path.stroke()
+
+        let textSize = (text as NSString).size(withAttributes: [.font: codeFont])
+        let textRect = NSRect(
+            x: cellFrame.origin.x + Self.hPad,
+            y: cellFrame.origin.y + (cellFrame.height - textSize.height) / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        (text as NSString).draw(in: textRect, withAttributes: [
+            .font: codeFont,
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ])
     }
 }
 

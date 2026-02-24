@@ -197,10 +197,16 @@ enum MarkdownParser {
         let hashCount = level + 1
         var ranges: [MarkdownStyledRange] = []
 
-        // Style the whole line with heading font
+        // Style the whole line with heading font + extra spacing after
+        let headingParagraph = NSMutableParagraphStyle()
+        headingParagraph.lineSpacing = 6
+        headingParagraph.paragraphSpacing = 8
         ranges.append(MarkdownStyledRange(
             range: lineRange,
-            attributes: [.font: NSFont.systemFont(ofSize: fontSize, weight: weight)],
+            attributes: [
+                .font: NSFont.systemFont(ofSize: fontSize, weight: weight),
+                .paragraphStyle: headingParagraph,
+            ],
             isMarker: false
         ))
 

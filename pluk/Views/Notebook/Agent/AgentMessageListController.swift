@@ -41,7 +41,7 @@ final class AgentMessageListController: NSViewController {
         stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
-        stackView.spacing = 8
+        stackView.spacing = 2
         stackView.edgeInsets = NSEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
         stackView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         stackView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)

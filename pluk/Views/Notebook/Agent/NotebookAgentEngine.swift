@@ -183,7 +183,7 @@ final class NotebookAgentEngine {
             model: "gpt-5.1",
             parallelToolCalls: true,
             previousResponseId: previousResponseId,
-            reasoning: .init(effort: .medium, summary: .auto),
+            reasoning: .init(effort: .low, summary: .detailed),
             tools: tools,
             truncation: .auto
         )
@@ -195,14 +195,7 @@ final class NotebookAgentEngine {
 
         var streamedContent = ""
         var reasoningSummary = ""
-        var responseId: String?
-
-        struct PendingFunctionCall {
-            var callId: String
-            var name: String
-            var arguments: String
-        }
-        var pendingFunctionCalls: [Int: PendingFunctionCall] = [:]
+        var completedResponse: OpenAIResponse?
 
         for try await event in stream {
             guard !Task.isCancelled else { throw CancellationError() }
@@ -212,29 +205,12 @@ final class NotebookAgentEngine {
                 streamedContent += delta.delta
                 onToken(delta.delta)
 
-            case .functionCallArgumentsDelta(let delta):
-                let index = delta.outputIndex ?? 0
-                pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].arguments += delta.delta
-
-            case .outputItemAdded(let item):
-                if case .functionCall(let fc) = item.item {
-                    let index = item.index ?? 0
-                    var entry = pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")]
-                    entry.callId = fc.callId
-                    entry.name = fc.name
-                    pendingFunctionCalls[index] = entry
-                }
-
-            case .functionCallArgumentsDone(let done):
-                let index = done.outputIndex ?? 0
-                pendingFunctionCalls[index, default: PendingFunctionCall(callId: "", name: "", arguments: "")].arguments = done.arguments
-
             case .reasoningSummaryTextDelta(let delta):
                 reasoningSummary += delta.delta
                 onReasoning(delta.delta)
 
             case .responseCompleted(let completed):
-                responseId = completed.response.id
+                completedResponse = completed.response
 
             case .error(let errorEvent):
                 throw NSError(
@@ -248,15 +224,16 @@ final class NotebookAgentEngine {
             }
         }
 
-        let toolCalls = pendingFunctionCalls
-            .sorted { $0.key < $1.key }
-            .map { (id: $0.value.callId, name: $0.value.name, arguments: $0.value.arguments) }
+        let toolCalls = (completedResponse?.output ?? []).compactMap { item -> (id: String, name: String, arguments: String)? in
+            guard case .functionCall(let fc) = item else { return nil }
+            return (id: fc.callId, name: fc.name, arguments: fc.arguments)
+        }
 
         return AgentRoundResult(
             streamedText: streamedContent,
             toolCalls: toolCalls,
             reasoningSummary: reasoningSummary.isEmpty ? nil : reasoningSummary,
-            responseId: responseId
+            responseId: completedResponse?.id
         )
     }
 

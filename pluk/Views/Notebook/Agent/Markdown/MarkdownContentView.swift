@@ -5,7 +5,6 @@ final class MarkdownContentView: NSView {
     private let stackView: NSStackView
     private var currentBlocks: [MarkdownBlock] = []
     private var blockViews: [NSView] = []
-    private weak var activeThinkingView: ThinkingBlockView?
 
     override init(frame: NSRect) {
         stackView = NSStackView()
@@ -23,7 +22,6 @@ final class MarkdownContentView: NSView {
         guard !newBlocks.isEmpty else {
             removeAllBlockViews()
             currentBlocks = []
-            updateThinkingStreamState()
             return
         }
 
@@ -39,7 +37,6 @@ final class MarkdownContentView: NSView {
             updateBlockView(blockViews[divergenceIndex], with: newBlocks[divergenceIndex])
             currentBlocks = newBlocks
             invalidateIntrinsicContentSize()
-            updateThinkingStreamState()
             return
         }
 
@@ -50,7 +47,6 @@ final class MarkdownContentView: NSView {
             }
             currentBlocks = newBlocks
             invalidateIntrinsicContentSize()
-            updateThinkingStreamState()
             return
         }
 
@@ -67,24 +63,6 @@ final class MarkdownContentView: NSView {
 
         currentBlocks = newBlocks
         invalidateIntrinsicContentSize()
-        updateThinkingStreamState()
-    }
-
-    private func updateThinkingStreamState() {
-        if case .thinkingBlock = currentBlocks.last,
-           let thinkingView = blockViews.last as? ThinkingBlockView {
-            if activeThinkingView !== thinkingView {
-                activeThinkingView?.setActivelyStreaming(false)
-                activeThinkingView = thinkingView
-            }
-            thinkingView.setActivelyStreaming(true)
-        } else {
-            activeThinkingView?.setActivelyStreaming(false)
-            activeThinkingView = nil
-            for view in blockViews {
-                (view as? ThinkingBlockView)?.setActivelyStreaming(false)
-            }
-        }
     }
 
     var plainText: String {
@@ -158,7 +136,7 @@ final class MarkdownContentView: NSView {
             return HorizontalRuleView()
 
         case .thinkingBlock(let text, let duration, let toolCalls):
-            let view = ThinkingBlockView(text: text, finishedDuration: duration)
+            let view = ThinkingBlockView(text: text, finishedDuration: duration ?? 0)
             for (i, call) in toolCalls.enumerated() {
                 view.addToolCall(id: "persisted-\(i)", name: call.name, displayText: call.displayText, isComplete: true)
             }
