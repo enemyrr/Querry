@@ -4,6 +4,16 @@ struct ChartDataPoint: Identifiable {
     let id = UUID()
     let x: String
     let y: Double
+
+    var truncatedX: String {
+        x.count > 16 ? String(x.prefix(14)) + "…" : x
+    }
+
+    static func xAxisStride(for count: Int) -> Int {
+        let maxLabels = 12
+        guard count > maxLabels else { return 1 }
+        return Int(ceil(Double(count) / Double(maxLabels)))
+    }
 }
 
 @Observable
@@ -335,7 +345,8 @@ final class ChartBlockViewModel {
             return stored
         }
         let dataType = schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
-        return AggregationFunction.defaultAggregation(for: dataType)
+        let chartType = config?.chartType ?? .groupedColumn
+        return AggregationFunction.defaultAggregation(for: dataType, chartType: chartType)
     }
 
     private func isMeasureFieldKey(_ key: String) -> Bool {
@@ -345,7 +356,8 @@ final class ChartBlockViewModel {
 
     private func setDefaultAggregation(forField fieldKey: String, column: String) {
         let dataType = schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
-        let defaultAgg = AggregationFunction.defaultAggregation(for: dataType)
+        let chartType = config?.chartType ?? .groupedColumn
+        let defaultAgg = AggregationFunction.defaultAggregation(for: dataType, chartType: chartType)
         config?.setAggregation(defaultAgg, forField: fieldKey, column: column)
     }
 

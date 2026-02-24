@@ -23,8 +23,12 @@ final class ThinkingBlockView: NSView {
     private var toolCallHeaderLabel: NSTextField?
     private var timelineLine: NSView?
     private var toolCallPillStack: NSStackView?
+    private var toolCallScrollView: NSScrollView?
     private var toolCallRows: [ToolCallRow] = []
     private var headerConfigured = false
+    private static let maxVisiblePills = 6
+    private static let pillHeight: CGFloat = 24
+    private static let pillSpacing: CGFloat = 5
 
     private struct ToolCallRow {
         let id: String
@@ -81,9 +85,7 @@ final class ThinkingBlockView: NSView {
                 setExpanded(true, animated: false)
             }
         } else if !streaming && !isFinished {
-            if toolCallContainer != nil {
-                stopHeaderAnimations()
-            } else {
+            if toolCallContainer == nil {
                 finishAll()
             }
         }
@@ -131,13 +133,15 @@ final class ThinkingBlockView: NSView {
         let checkmark = NSImageView()
         checkmark.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
         checkmark.contentTintColor = .tertiaryLabelColor
-        checkmark.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        checkmark.symbolConfiguration = .init(pointSize: 10, weight: .medium)
         checkmark.translatesAutoresizingMaskIntoConstraints = false
 
         let label = NSTextField(labelWithString: displayText)
-        label.font = .systemFont(ofSize: 13)
+        label.font = .systemFont(ofSize: 11.5)
         label.textColor = .labelColor
         label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         label.translatesAutoresizingMaskIntoConstraints = false
 
         pill.addSubview(spinner)
@@ -145,21 +149,21 @@ final class ThinkingBlockView: NSView {
         pill.addSubview(label)
 
         NSLayoutConstraint.activate([
-            spinner.widthAnchor.constraint(equalToConstant: 16),
-            spinner.heightAnchor.constraint(equalToConstant: 16),
-            spinner.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 10),
+            spinner.widthAnchor.constraint(equalToConstant: 13),
+            spinner.heightAnchor.constraint(equalToConstant: 13),
+            spinner.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 6),
             spinner.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
 
-            checkmark.widthAnchor.constraint(equalToConstant: 16),
-            checkmark.heightAnchor.constraint(equalToConstant: 16),
-            checkmark.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 10),
+            checkmark.widthAnchor.constraint(equalToConstant: 13),
+            checkmark.heightAnchor.constraint(equalToConstant: 13),
+            checkmark.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 6),
             checkmark.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
 
-            label.leadingAnchor.constraint(equalTo: spinner.trailingAnchor, constant: 6),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: pill.trailingAnchor, constant: -12),
+            label.leadingAnchor.constraint(equalTo: spinner.trailingAnchor, constant: 3),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: pill.trailingAnchor, constant: -6),
             label.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
 
-            pill.heightAnchor.constraint(equalToConstant: 36),
+            pill.heightAnchor.constraint(equalToConstant: 24),
         ])
 
         if isComplete {
@@ -173,11 +177,18 @@ final class ThinkingBlockView: NSView {
 
         pillStack.addArrangedSubview(pill)
         pill.leadingAnchor.constraint(equalTo: pillStack.leadingAnchor).isActive = true
-        pill.trailingAnchor.constraint(lessThanOrEqualTo: pillStack.trailingAnchor).isActive = true
+        pill.widthAnchor.constraint(lessThanOrEqualTo: pillStack.widthAnchor, multiplier: 0.85).isActive = true
         toolCallRows.append(ToolCallRow(id: id, pill: pill, spinner: spinner, checkmark: checkmark, label: label))
 
         if isExpanded {
             updateExpandedHeight(animated: true)
+        }
+
+        // Auto-scroll to show the latest pill
+        if let scrollView = toolCallScrollView {
+            pillStack.layoutSubtreeIfNeeded()
+            let bottomPoint = NSPoint(x: 0, y: max(0, pillStack.frame.height - scrollView.contentView.bounds.height))
+            scrollView.contentView.scroll(to: bottomPoint)
         }
     }
 
@@ -210,13 +221,13 @@ final class ThinkingBlockView: NSView {
         let hIcon = NSImageView()
         hIcon.image = NSImage(systemSymbolName: Self.toolGroupIcon(for: firstToolName), accessibilityDescription: nil)
         hIcon.contentTintColor = .secondaryLabelColor
-        hIcon.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        hIcon.symbolConfiguration = .init(pointSize: 10, weight: .medium)
         hIcon.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(hIcon)
         toolCallHeaderIcon = hIcon
 
         let hLabel = NSTextField(labelWithString: Self.toolGroupHeader(for: firstToolName))
-        hLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        hLabel.font = .systemFont(ofSize: 11.5, weight: .medium)
         hLabel.textColor = .secondaryLabelColor
         hLabel.lineBreakMode = .byTruncatingTail
         hLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -226,36 +237,59 @@ final class ThinkingBlockView: NSView {
         let pillStack = NSStackView()
         pillStack.orientation = .vertical
         pillStack.alignment = .leading
-        pillStack.spacing = 8
+        pillStack.spacing = Self.pillSpacing
         pillStack.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(pillStack)
         toolCallPillStack = pillStack
 
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = .init(top: 0, left: 0, bottom: 0, right: 0)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        let clipView = NSClipView()
+        clipView.drawsBackground = false
+        clipView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.contentView = clipView
+        scrollView.documentView = pillStack
+
+        container.addSubview(scrollView)
+        toolCallScrollView = scrollView
+
+        let maxHeight = Self.pillHeight * CGFloat(Self.maxVisiblePills) + Self.pillSpacing * CGFloat(Self.maxVisiblePills - 1)
+
         NSLayoutConstraint.activate([
-            // Line: centered on bullet dot, from below dot to bottom of pill stack
+            pillStack.topAnchor.constraint(equalTo: clipView.topAnchor),
+            pillStack.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
+            pillStack.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
+
+            // Line: centered on bullet dot, from below dot to bottom of scroll view
             line.widthAnchor.constraint(equalToConstant: 1.5),
             line.centerXAnchor.constraint(equalTo: bulletDot.centerXAnchor),
             line.topAnchor.constraint(equalTo: bulletDot.bottomAnchor, constant: 4),
-            line.bottomAnchor.constraint(equalTo: pillStack.bottomAnchor),
+            line.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
 
             // Container: aligned with markdown text
-            container.topAnchor.constraint(equalTo: markdownView.bottomAnchor, constant: 12),
+            container.topAnchor.constraint(equalTo: markdownView.bottomAnchor, constant: 8),
             container.leadingAnchor.constraint(equalTo: markdownView.leadingAnchor),
             container.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
 
             hIcon.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             hIcon.topAnchor.constraint(equalTo: container.topAnchor),
-            hIcon.widthAnchor.constraint(equalToConstant: 16),
-            hIcon.heightAnchor.constraint(equalToConstant: 16),
+            hIcon.widthAnchor.constraint(equalToConstant: 13),
+            hIcon.heightAnchor.constraint(equalToConstant: 13),
 
-            hLabel.leadingAnchor.constraint(equalTo: hIcon.trailingAnchor, constant: 4),
+            hLabel.leadingAnchor.constraint(equalTo: hIcon.trailingAnchor, constant: 3),
             hLabel.centerYAnchor.constraint(equalTo: hIcon.centerYAnchor),
             hLabel.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
 
-            pillStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
-            pillStack.topAnchor.constraint(equalTo: hIcon.bottomAnchor, constant: 10),
-            pillStack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            pillStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 2),
+            scrollView.topAnchor.constraint(equalTo: hIcon.bottomAnchor, constant: 6),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: maxHeight),
         ])
 
         toolCallContainer = container

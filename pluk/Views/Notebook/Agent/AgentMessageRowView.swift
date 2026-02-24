@@ -404,7 +404,7 @@ final class ToolCallGroupView: NSView {
     private let timelineLine = NSView()
     private let childrenStack = NSStackView()
 
-    private static let nodeSize: CGFloat = 10
+    private static let nodeSize: CGFloat = 8
 
     private struct ChildRow {
         let id: String
@@ -427,7 +427,7 @@ final class ToolCallGroupView: NSView {
         addSubview(nodeCircle)
 
         // Header label (to the right of circle)
-        headerLabel.font = .systemFont(ofSize: 13)
+        headerLabel.font = .systemFont(ofSize: 11.5)
         headerLabel.textColor = .secondaryLabelColor
         headerLabel.lineBreakMode = .byTruncatingTail
         headerLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -443,31 +443,31 @@ final class ToolCallGroupView: NSView {
         // Children stack (indented to the right of the line)
         childrenStack.orientation = .vertical
         childrenStack.alignment = .leading
-        childrenStack.spacing = 10
+        childrenStack.spacing = 6
         childrenStack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(childrenStack)
 
         NSLayoutConstraint.activate([
             // Circle: top-left
-            nodeCircle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            nodeCircle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             nodeCircle.topAnchor.constraint(equalTo: topAnchor, constant: 3),
             nodeCircle.widthAnchor.constraint(equalToConstant: Self.nodeSize),
             nodeCircle.heightAnchor.constraint(equalToConstant: Self.nodeSize),
 
             // Header label: right of circle
-            headerLabel.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 8),
+            headerLabel.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 6),
             headerLabel.centerYAnchor.constraint(equalTo: nodeCircle.centerYAnchor),
             headerLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
 
             // Timeline line: centered on circle, below it
-            timelineLine.widthAnchor.constraint(equalToConstant: 1.5),
+            timelineLine.widthAnchor.constraint(equalToConstant: 1),
             timelineLine.centerXAnchor.constraint(equalTo: nodeCircle.centerXAnchor),
-            timelineLine.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 4),
+            timelineLine.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 3),
             timelineLine.bottomAnchor.constraint(equalTo: childrenStack.bottomAnchor),
 
             // Children stack: indented right of the line
-            childrenStack.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 14),
-            childrenStack.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 8),
+            childrenStack.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 10),
+            childrenStack.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 5),
             childrenStack.trailingAnchor.constraint(equalTo: trailingAnchor),
             childrenStack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
@@ -494,26 +494,27 @@ final class ToolCallGroupView: NSView {
         let checkmark = NSImageView()
         checkmark.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)
         checkmark.contentTintColor = .tertiaryLabelColor
-        checkmark.symbolConfiguration = .init(pointSize: 13, weight: .medium)
+        checkmark.symbolConfiguration = .init(pointSize: 11, weight: .medium)
         checkmark.translatesAutoresizingMaskIntoConstraints = false
 
         // Label
         let label = NSTextField(labelWithString: displayText)
-        label.font = .systemFont(ofSize: 13)
+        label.font = .systemFont(ofSize: 11.5)
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let row = NSStackView(views: [spinner, checkmark, label])
         row.orientation = .horizontal
-        row.spacing = 6
+        row.spacing = 4
         row.alignment = .centerY
         row.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            spinner.widthAnchor.constraint(equalToConstant: 16),
-            spinner.heightAnchor.constraint(equalToConstant: 16),
-            checkmark.widthAnchor.constraint(equalToConstant: 16),
-            checkmark.heightAnchor.constraint(equalToConstant: 16),
+            spinner.widthAnchor.constraint(equalToConstant: 13),
+            spinner.heightAnchor.constraint(equalToConstant: 13),
+            checkmark.widthAnchor.constraint(equalToConstant: 13),
+            checkmark.heightAnchor.constraint(equalToConstant: 13),
         ])
 
         if isComplete {
@@ -893,27 +894,28 @@ final class StreamingToolCallRowView: NSView {
         iconView = NSImageView()
         iconView.image = NSImage(systemSymbolName: iconName ?? "gearshape", accessibilityDescription: nil)
         iconView.contentTintColor = .secondaryLabelColor
-        iconView.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        iconView.symbolConfiguration = .init(pointSize: 10, weight: .medium)
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
         label = NSTextField(labelWithString: displayText)
-        label.font = .systemFont(ofSize: 13)
+        label.font = .systemFont(ofSize: 11.5)
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.wantsLayer = true
 
         super.init(frame: .zero)
 
         let row = NSStackView(views: [iconView, label])
         row.orientation = .horizontal
-        row.spacing = 6
+        row.spacing = 4
         row.alignment = .centerY
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
 
         NSLayoutConstraint.activate([
-            iconView.widthAnchor.constraint(equalToConstant: 16),
-            iconView.heightAnchor.constraint(equalToConstant: 16),
+            iconView.widthAnchor.constraint(equalToConstant: 13),
+            iconView.heightAnchor.constraint(equalToConstant: 13),
             row.topAnchor.constraint(equalTo: topAnchor),
             row.leadingAnchor.constraint(equalTo: leadingAnchor),
             row.trailingAnchor.constraint(equalTo: trailingAnchor),

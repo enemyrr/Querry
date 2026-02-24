@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents when working with code in this repository.
+The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in the project that surprises you, please alert the developer working with you and indicate that this is the case in the AgentMD file to help prevent future agents from having the same
 
 ## Project Overview
 
@@ -24,9 +24,6 @@ This file provides guidance to AI coding agents when working with code in this r
 - Create issues on the public repo: `pluk-inc/Pluk`
 - Create PRs on the private repo: `pluk-inc/app-pluk`
 - Link PRs to issues using `Fixes pluk-inc/Pluk#<issue-number>`
-
-## GitHub GraphQL API
-
 - Never use deprecated Projects (classic) fields: `projectCards`, `ProjectCard`, `ProjectColumn`
 - Always use ProjectsV2 API: `projectItems`, `ProjectV2Item`, `ProjectV2ItemFieldValue`
 - Reference: https://docs.github.com/en/graphql/reference/objects#projectv2
@@ -42,38 +39,6 @@ This file provides guidance to AI coding agents when working with code in this r
 ### Search Tools
 
 **Use ast-grep for syntax-aware searches**: When searching for code patterns, function definitions, or structural elements, use `sg --lang swift -p'<pattern>'` instead of text-based search tools. Only fall back to grep/text search when explicitly requested or for non-code content.
-
-### Key Components
-
-**Database Layer**: Protocol-based driver system in `Drivers/` with unified interface for multiple database types.
-
-**Service Layer**: Centralized business logic in `Services/`:
-
-- `DatabaseService.swift` - Core database operations
-- `AIService.swift` - AI query assistance
-- `ConnectionService.swift` - Connection management
-- `TabManager.swift` - Multi-tab interface
-
-**View Layer**: SwiftUI views using @Observable pattern:
-
-- `SQLEditorView/` - Query editor with syntax highlighting
-- `MainWindow.swift` - Primary interface
-- `CreateConnection/` - Database setup
-- `Documents/` - Data tables and editing
-
-### Data Management
-
-- **SwiftData** for persistence (Connection model)
-- **Keychain** for secure credential storage
-- **Security-scoped bookmarks** for SQLite file access
-
-### Dependencies
-
-Key frameworks integrated via Xcode project:
-
-- Database drivers: PostgresNIO, MySQLNIO, SQLiteNIO, MongoKitten
-- UI: CodeEditorView (syntax highlighting)
-- Services: AIProxy, Sparkle (updates), PostHog (analytics), Sentry (errors)
 
 ## Architecture: AppKit
 
@@ -134,102 +99,38 @@ Key frameworks integrated via Xcode project:
 - Reuse cells in NSTableView; implement `makeView(withIdentifier:owner:)`
 - Batch database operations when possible
 
-## Critical Architecture Patterns
+## Skills — MANDATORY Pre-Code Checklist
 
-### Database Driver System
+**Before writing or modifying ANY code**, you MUST run through this checklist and load the matching skills. This is not optional. Do NOT write code first and consult skills later — read the skill FIRST, then write code that follows it.
 
-**Unified Query Interface**: All database drivers (MongoDB, PostgreSQL, MySQL, SQLite) implement the `DatabaseDriver` protocol defined in `pluk/Protocols/DatabaseDriver.swift`. This provides a consistent interface for:
+### How to use a skill
 
-- Connection management (`connect`, `disconnect`, `reconnect`, `ping`)
-- CRUD operations (`findDocuments`, `createDocument`, `updateDocument`, `deleteDocument`)
-- Schema introspection (`getSchema`, `getIndexes`)
-- Real-time subscriptions (optional, database-dependent)
+1. Read the SKILL.md file at the path listed below (use the Read tool)
+2. Follow its patterns and guidance as you write your code
+3. Briefly state which skill(s) you're applying (one line)
 
-**QueryResult Standardization**: Database-specific results are converted to a unified `QueryResult` type containing:
+### Skill trigger map
 
-- `rows: [[String: QueryRowInfo]]` - Formatted data for UI display
-- `rawRows: [[String: Any?]]` - Raw data for lazy decoding
-- `columns: [QueryColumnInfo]` - Column metadata
+| If the task involves…                                                                      | You MUST read this skill FIRST                       |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Writing, modifying, or refactoring **any SwiftUI view code**                               | `.agents/skills/swiftui-expert-skill/SKILL.md`       |
+| Writing, modifying, or refactoring **any macOS/AppKit code**                               | `.agents/skills/macos-development/SKILL.md`          |
+| Writing, modifying, or fixing **Swift concurrency** (async/await, actors, tasks, Sendable) | `.agents/skills/swift-concurrency/SKILL.md`          |
+| Adding or modifying **animations** (transitions, springs, gestures, matched geometry)      | `.agents/skills/emilkowal-animations-swift/SKILL.md` |
+| Building **UI components, pages, or web interfaces**                                       | `.agents/skills/frontend-design/SKILL.md`            |
 
-**Driver-Specific Implementations**:
+### Trigger keywords (if ANY of these appear in the task, load the matching skills)
 
-- Each driver in `Drivers/` converts native database types to the unified format
-- MongoDB uses `FormattedDocument` → `[String: QueryRowInfo]` conversion
-- SQL databases convert result sets to the same unified format
+- **SwiftUI skill**: "view", "SwiftUI", "@State", "@Binding", "@Observable", "@Environment", "modifier", "List", "NavigationStack", "sheet", "overlay", "Liquid Glass"
+- **macOS skill**: "AppKit", "NSView", "NSViewController", "NSWindow", "NSTableView", "NSToolbar", "NSMenu", "titlebar", "NSHostingController", "window management"
+- **Swift concurrency skill**: "async", "await", "actor", "Task", "Sendable", "@MainActor", "concurrency", "data race", "thread safety", "nonisolated"
+- **Animation skill**: "animation", "transition", "spring", "gesture", "matchedGeometryEffect", "phaseAnimator", "keyframeAnimator", "withAnimation", "CALayer animation"
+- **Frontend skill**: "UI", "page", "component", "frontend", "web", "HTML", "CSS", "design", "layout", "dashboard"
 
-### MongoDB-Specific Data Flow
+### Rules
 
-**Document Display Pipeline**:
-
-```
-MongoDB Document
-  ↓
-formatDocument() → Document.FormattedDocument (preserves rawDocument)
-  ↓
-convertFormattedDocumentToRow() → [String: QueryRowInfo]
-  ↓
-DocumentRowView displays formatted data
-```
-
-**Metadata Pattern**: MongoDB documents store `FormattedDocument` metadata using special key `__formattedDocument` in the row dictionary. This preserves access to the raw MongoDB Document for operations like JSON export while displaying formatted data in the UI.
-
-**Type Conversion**: `Document+Formatting.swift` contains formatting logic that:
-
-- Converts BSON types (ObjectId, Binary, Date, etc.) to display strings
-- Handles nested documents and arrays recursively
-- Preserves type information via `FormattedPrimitive`
-
-### Environment Object Hierarchy
-
-Views access services through SwiftUI environment:
-
-```swift
-@Environment(ConnectionInstance.self) private var instance
-@Environment(AppViewModel.self) private var appViewModel
-```
-
-**ConnectionInstance** provides:
-
-- `databaseService: DatabaseService` - Core database operations
-- `selectedTab: DatabaseTab?` - Current active collection/table
-- `connection: Connection` - Connection metadata
-- `databaseDriver` - Direct access to driver (use sparingly)
-
-**DatabaseService** centralizes all database operations and should be used instead of calling drivers directly.
-
-### Document Editing Architecture
-
-**Two-Way Binding Pattern**: `DocumentEditView` uses `@Binding` to share state with parent `DocumentRowView`:
-
-- User edits JSON in CodeEditor (via binding)
-- Changes sync to parent's `@State var editingJSON`
-- Save button triggers update via `DatabaseService.updateDocument()`
-- MongoDB driver converts edited JSON → MongoDB Document → database
-
-**State Management**:
-
-- `pendingAction: DocumentAction?` - Tracks edit/delete mode
-- Local state in view (not centralized view model)
-- Direct database updates without batching
-
-### Real-Time Subscriptions
-
-Some drivers support real-time updates (e.g., Convex):
-
-- `subscribeToCollectionChanges()` provides live data streams
-- Views check `databaseService.supportsRealTime` before subscribing
-- Subscription lifecycle managed at view level
-- Cache clearing via `clearSubscriptionCache()`
-
-### AI Integration Points
-
-AI features integrated at multiple levels:
-
-- **Query Generation**: `buildSystemPrompt()` and `buildAICommandPromptSystemPrompt()` in each driver
-- **Error Suggestions**: AI analyzes query errors and suggests fixes
-- **Natural Language**: CMD+K actions convert text to database queries
-- **AIProxy Service**: Centralized AI API access via AIProxy library
-
-### Testing
-
-- Always ask the user to test the product and see if its working fine instead of you trying to build<D-s>
+- When writing SwiftUI code that uses concurrency, ALWAYS load **both** `swiftui-expert-skill` AND `swift-concurrency` — they are complementary
+- When writing AppKit code with SwiftUI embedding, load **both** `macos-development` AND `swiftui-expert-skill`
+- When adding animations to SwiftUI views, load **both** `emilkowal-animations-swift` AND `swiftui-expert-skill`
+- If you are unsure whether a skill applies, **load it anyway** — false positives are fine, missed skills are not
+- You may load skills in parallel with other reads to save time

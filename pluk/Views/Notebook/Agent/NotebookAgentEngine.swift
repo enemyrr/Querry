@@ -72,6 +72,22 @@ final class NotebookAgentEngine {
         ## Aggregation Functions (for Y axis columns)
         \(aggregations)
 
+        ## Choosing the Right Aggregation
+        Think about what the chart is trying to answer before picking an aggregation:
+        - **"How many?"** → `count` — distribution of rows across categories (e.g., orders per status, users per plan)
+        - **"How much total?"** → `sum` — only when the column is an additive measure like revenue, quantity, or amount
+        - **"What's typical?"** → `average` — e.g., average order value, average response time
+        - **"What's the range?"** → `min` / `max` — e.g., earliest/latest date, cheapest/most expensive item
+        - **"How many unique?"** → `countDistinct` — e.g., unique customers per region
+        - **"Just plot raw values"** → `none` — when data is already one-row-per-point (rare, usually pre-aggregated)
+
+        Key rules:
+        - `sum` only makes sense on columns that represent measurable quantities (revenue, weight, hours). Summing an ID, a rating, or a year column is meaningless — use `count` or `average` instead.
+        - For **pie charts**, prefer `count` as the default. Pie charts show parts of a whole, and counting rows per category naturally represents 100% of the data. Only use `sum` when the user explicitly asks for a totaled measure (e.g., "revenue share by region"). When using `count`, set `y_axis_columns` to the same column as `x_axis_column`.
+        - For **bar/column charts** showing "top N" or "breakdown by category", `count` is usually correct unless the user asks about a specific measure.
+        - For **line charts** showing trends over time, `sum` or `average` are typical — sum for cumulative metrics (daily revenue), average for rate metrics (avg response time per day).
+        - When unsure, run a quick `run_query` (e.g., `SELECT column, COUNT(*) ... GROUP BY column`) to see what the data looks like before committing to an aggregation.
+
         ## Three-Phase Workflow
 
         ### Phase 1 — Discover, Explore & Plan
@@ -508,6 +524,10 @@ final class NotebookAgentEngine {
                 if let agg = AggregationFunction(rawValue: aggRaw) {
                     config.setAggregation(agg, forField: "yAxis", column: column)
                 }
+            }
+        } else if chartType == .pie {
+            for column in yAxisColumns {
+                config.setAggregation(.count, forField: "yAxis", column: column)
             }
         }
 

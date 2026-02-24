@@ -229,6 +229,10 @@ final class AgentChatController {
 
                 previousResponseId = round.responseId
 
+                if let reasoning = round.reasoningSummary, !reasoning.isEmpty {
+                    accumulatedAssistantText += "<thinking>\n\(reasoning)\n</thinking>\n"
+                }
+
                 if round.toolCalls.isEmpty {
                     accumulatedAssistantText += round.streamedText
                     break
@@ -332,8 +336,8 @@ final class AgentChatController {
     private func buildFinalContent() -> String {
         streamingParts.map { part in
             switch part {
-            case .thinking:
-                return ""
+            case .thinking(let text):
+                return "<thinking>\n\(text)\n</thinking>\n"
             case .text(let text):
                 return text
             case .toolCall(_, let name, let displayText, _, _, _):
