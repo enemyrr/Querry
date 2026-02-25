@@ -4,15 +4,89 @@ struct ChartDataPoint: Identifiable {
     let id = UUID()
     let x: String
     let y: Double
+    var series: String = ""
 
     var truncatedX: String {
         x.count > 16 ? String(x.prefix(14)) + "…" : x
     }
 
-    static func xAxisStride(for count: Int) -> Int {
-        let maxLabels = 12
-        guard count > maxLabels else { return 1 }
-        return Int(ceil(Double(count) / Double(maxLabels)))
+    static let seriesPalette: [Color] = [
+        AccentColor.coral.color,
+        AccentColor.ocean.color,
+        AccentColor.purple.color,
+        AccentColor.ruby.color,
+        AccentColor.emerald.color,
+        AccentColor.amber.color,
+        AccentColor.teal.color,
+        AccentColor.indigo.color,
+        AccentColor.magenta.color,
+        AccentColor.lime.color,
+        AccentColor.azure.color,
+        AccentColor.crimson.color,
+        AccentColor.violet.color,
+        AccentColor.mint.color,
+        AccentColor.gold.color,
+    ]
+
+    static func hasMultipleSeries(_ data: [ChartDataPoint]) -> Bool {
+        Set(data.lazy.map(\.series)).count > 1
+    }
+
+    static func seriesNames(_ data: [ChartDataPoint]) -> [String] {
+        var ordered: [String] = []
+        var seen: Set<String> = []
+        for point in data {
+            if seen.insert(point.series).inserted {
+                ordered.append(point.series)
+            }
+        }
+        return ordered
+    }
+
+    static func normalized(_ data: [ChartDataPoint]) -> [ChartDataPoint] {
+        let filled = fillMissingSeries(data)
+        var totalByX: [String: Double] = [:]
+        for point in filled {
+            totalByX[point.x, default: 0] += point.y
+        }
+        return filled.map { point in
+            let total = totalByX[point.x] ?? 1
+            return ChartDataPoint(x: point.x, y: total > 0 ? point.y / total : 0, series: point.series)
+        }
+    }
+
+    static func fillMissingSeries(_ data: [ChartDataPoint]) -> [ChartDataPoint] {
+        var orderedX: [String] = []
+        var seenX: Set<String> = []
+        for point in data {
+            if seenX.insert(point.x).inserted {
+                orderedX.append(point.x)
+            }
+        }
+        let allSeries = seriesNames(data)
+        var existing: Set<String> = []
+        for point in data {
+            existing.insert("\(point.x)\u{0}\(point.series)")
+        }
+        var result = data
+        for x in orderedX {
+            for s in allSeries {
+                if !existing.contains("\(x)\u{0}\(s)") {
+                    result.append(ChartDataPoint(x: x, y: 0, series: s))
+                }
+            }
+        }
+        return result
+    }
+
+    static func xAxisStride(for data: [ChartDataPoint], availableWidth: CGFloat) -> Int {
+        guard !data.isEmpty, availableWidth > 0 else { return 1 }
+        let maxLabelChars = min(data.map(\.truncatedX.count).max() ?? 8, 16)
+        let charWidth: CGFloat = 6.5
+        let labelWidth = CGFloat(maxLabelChars) * charWidth + 16
+        let maxLabels = max(1, Int(availableWidth / labelWidth))
+        guard data.count > maxLabels else { return 1 }
+        return Int(ceil(Double(data.count) / Double(maxLabels)))
     }
 }
 
@@ -423,7 +497,7 @@ final class ChartBlockViewModel {
 
             let needsAggregation = !measures.isEmpty && !measures.allSatisfy { $0.aggregation == .none }
 
-            if needsAggregation, let firstMeasure = measures.first {
+            if needsAggregation, !measures.isEmpty {
                 let result = try await session.fetchAggregatedData(
                     tableName: cfg.tableName,
                     schema: cfg.schemaName,
@@ -432,27 +506,46 @@ final class ChartBlockViewModel {
                     limit: effectiveLimit,
                     filters: validFilters
                 )
-                let aliasCol = "\(firstMeasure.column)\(firstMeasure.aggregation.sqlAliasSuffix)"
-                let points: [ChartDataPoint] = result.rows.compactMap { row in
-                    guard let xRaw = row[xCol]?.value else { return nil }
-                    let yInfo = row[aliasCol] ?? row[firstMeasure.column]
-                    guard let yRaw = yInfo?.value,
-                          let yNum = toDouble(yRaw) else { return nil }
-                    return ChartDataPoint(x: String(describing: xRaw), y: yNum)
+                var points: [ChartDataPoint] = []
+                let multiSeries = measures.count > 1
+                for row in result.rows {
+                    guard let xRaw = row[xCol]?.value else { continue }
+                    let xStr = String(describing: xRaw)
+                    for measure in measures {
+                        let aliasCol = "\(measure.column)\(measure.aggregation.sqlAliasSuffix)"
+                        let yInfo = row[aliasCol] ?? row[measure.column]
+                        guard let yRaw = yInfo?.value,
+                              let yNum = toDouble(yRaw) else { continue }
+                        points.append(ChartDataPoint(
+                            x: xStr,
+                            y: yNum,
+                            series: multiSeries ? measure.column : ""
+                        ))
+                    }
                 }
                 chartData = reduceChartData(points, maxPoints: 160)
             } else {
+                let allYCols = cfg.fields["yAxis"] ?? [yCol]
                 let result = try await session.fetchTableData(
                     tableName: cfg.tableName,
                     schema: cfg.schemaName,
                     limit: effectiveLimit,
                     filters: validFilters
                 )
-                let points: [ChartDataPoint] = result.rows.compactMap { row in
-                    guard let xRaw = row[xCol]?.value,
-                          let yRaw = row[yCol]?.value,
-                          let yNum = toDouble(yRaw) else { return nil }
-                    return ChartDataPoint(x: String(describing: xRaw), y: yNum)
+                var points: [ChartDataPoint] = []
+                let multiSeries = allYCols.count > 1
+                for row in result.rows {
+                    guard let xRaw = row[xCol]?.value else { continue }
+                    let xStr = String(describing: xRaw)
+                    for col in allYCols {
+                        guard let yRaw = row[col]?.value,
+                              let yNum = toDouble(yRaw) else { continue }
+                        points.append(ChartDataPoint(
+                            x: xStr,
+                            y: yNum,
+                            series: multiSeries ? col : ""
+                        ))
+                    }
                 }
                 chartData = reduceChartData(points, maxPoints: 160)
             }
@@ -495,40 +588,28 @@ final class ChartBlockViewModel {
     }
 
     private func reduceChartData(_ points: [ChartDataPoint], maxPoints: Int) -> [ChartDataPoint] {
-        guard points.count > maxPoints, maxPoints > 1 else { return points }
+        guard !points.isEmpty, maxPoints > 1 else { return points }
 
-        var orderedKeys: [String] = []
-        var sumsByKey: [String: Double] = [:]
-
+        var orderedXValues: [String] = []
+        var seenX: Set<String> = []
         for point in points {
-            if sumsByKey[point.x] == nil {
-                orderedKeys.append(point.x)
-            }
-            sumsByKey[point.x, default: 0] += point.y
-        }
-
-        if orderedKeys.count <= maxPoints {
-            return orderedKeys.compactMap { key in
-                guard let total = sumsByKey[key] else { return nil }
-                return ChartDataPoint(x: key, y: total)
+            if seenX.insert(point.x).inserted {
+                orderedXValues.append(point.x)
             }
         }
 
-        return downsample(points: points, maxPoints: maxPoints)
-    }
+        let seriesCount = max(1, Set(points.map(\.series)).count)
+        let maxCategories = max(1, maxPoints / seriesCount)
 
-    private func downsample(points: [ChartDataPoint], maxPoints: Int) -> [ChartDataPoint] {
-        guard points.count > maxPoints, maxPoints > 1 else { return points }
-        let step = Double(points.count - 1) / Double(maxPoints - 1)
-        var reduced: [ChartDataPoint] = []
-        reduced.reserveCapacity(maxPoints)
+        guard orderedXValues.count > maxCategories else { return points }
 
-        for i in 0..<maxPoints {
-            let rawIndex = Int(Double(i) * step)
-            let index = min(max(rawIndex, 0), points.count - 1)
-            reduced.append(points[index])
+        let step = Double(orderedXValues.count - 1) / Double(maxCategories - 1)
+        var keepX: Set<String> = []
+        for i in 0..<maxCategories {
+            let index = min(Int(Double(i) * step), orderedXValues.count - 1)
+            keepX.insert(orderedXValues[index])
         }
 
-        return reduced
+        return points.filter { keepX.contains($0.x) }
     }
 }

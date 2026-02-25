@@ -11,6 +11,7 @@ final class AgentMessageListController: NSViewController {
     private var renderedMessageIds: [UUID] = []
     private weak var lastAssistantRow: AgentMessageRowView?
     private var userScrolledAway = false
+    private var suppressScrollTracking = false
     private var scrollObserver: NSObjectProtocol?
 
     init(chatController: AgentChatController) {
@@ -84,7 +85,7 @@ final class AgentMessageListController: NSViewController {
             object: scrollView.contentView,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
+            guard let self, !self.suppressScrollTracking else { return }
             self.userScrolledAway = !self.isNearBottom()
         }
         scrollView.contentView.postsBoundsChangedNotifications = true
@@ -132,6 +133,7 @@ final class AgentMessageListController: NSViewController {
     // MARK: - Row Management
 
     private func syncMessageRows() {
+        suppressScrollTracking = true
         let messages = chatController.messages
         let currentIds = messages.map(\.id)
 
@@ -203,6 +205,7 @@ final class AgentMessageListController: NSViewController {
     }
 
     private func updateStreamingRow() {
+        suppressScrollTracking = true
         streamingRow?.updateParts(chatController.streamingParts)
         scrollToBottom()
     }
@@ -368,8 +371,15 @@ final class AgentMessageListController: NSViewController {
     }
 
     private func scrollToBottom() {
-        guard !userScrolledAway else { return }
-        guard let documentView = scrollView.documentView else { return }
+        guard !userScrolledAway else {
+            suppressScrollTracking = false
+            return
+        }
+        guard let documentView = scrollView.documentView else {
+            suppressScrollTracking = false
+            return
+        }
+        suppressScrollTracking = true
         documentView.layoutSubtreeIfNeeded()
         let contentHeight = documentView.frame.height
         let visibleHeight = scrollView.contentView.bounds.height
@@ -377,6 +387,9 @@ final class AgentMessageListController: NSViewController {
             let bottomPoint = NSPoint(x: 0, y: contentHeight - visibleHeight)
             scrollView.contentView.scroll(to: bottomPoint)
             scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+        Task { @MainActor [weak self] in
+            self?.suppressScrollTracking = false
         }
     }
 }

@@ -182,12 +182,15 @@ enum AggregationFunction: String, Codable, CaseIterable {
         return defaultAggregation(for: dataType)
     }
 
-    static func availableAggregations(for dataType: String) -> [AggregationFunction] {
+    static func availableAggregations(for dataType: String, chartType: ChartBlockConfig.ChartType? = nil) -> [AggregationFunction] {
         if isNumericDataType(dataType) {
             return [.sum, .average, .count, .countDistinct, .min, .max, .none]
         }
         if isDateDataType(dataType) {
             return [.count, .countDistinct, .min, .max, .none]
+        }
+        if chartType == .pie {
+            return [.sum, .count, .countDistinct, .none]
         }
         return [.count, .countDistinct, .none]
     }

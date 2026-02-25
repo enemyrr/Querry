@@ -1136,7 +1136,8 @@ final class ChartConfigController: NSViewController {
 
     private func makeAggregationDropdown(forField fieldKey: String, column: String) -> StyledDropdown {
         let dataType = viewModel.schemaResult?.columns.first(where: { $0.columnName == column })?.dataType ?? ""
-        let options = AggregationFunction.availableAggregations(for: dataType)
+        let chartType = viewModel.config?.chartType
+        let options = AggregationFunction.availableAggregations(for: dataType, chartType: chartType)
         let current = viewModel.resolvedAggregation(forField: fieldKey, column: column)
 
         let dropdown = StyledDropdown(placeholder: "Aggregation") { [weak self] title in

@@ -5,36 +5,42 @@ struct HistogramChartView: View {
     let data: [ChartDataPoint]
 
     var body: some View {
-        let stride = ChartDataPoint.xAxisStride(for: data.count)
-        Chart(data) { point in
-            BarMark(
-                x: .value("X", point.x),
-                y: .value("Y", point.y)
-            )
-            .foregroundStyle(Color.accentColor.opacity(0.8))
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic) { value in
-                if let label = value.as(String.self),
-                   let index = data.firstIndex(where: { $0.x == label }),
-                   index % stride == 0 {
-                    AxisValueLabel {
-                        Text(data[index].truncatedX)
-                            .font(.caption)
-                            .lineLimit(1)
+        GeometryReader { geo in
+            let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
+            Chart(data) { point in
+                BarMark(
+                    x: .value("X", point.x),
+                    y: .value("Y", point.y)
+                )
+                .foregroundStyle(Color.accentColor.opacity(0.8))
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic) { value in
+                    if let label = value.as(String.self),
+                       let index = data.firstIndex(where: { $0.x == label }),
+                       index % stride == 0 {
+                        AxisValueLabel {
+                            Text(data[index].truncatedX)
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) {
-                AxisGridLine()
-                AxisValueLabel()
-                    .font(.caption)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let number = value.as(Double.self) {
+                            Text(number.formatted(.number.notation(.compactName)))
+                                .font(.caption)
+                        }
+                    }
+                }
             }
-        }
-        .transaction { transaction in
-            transaction.animation = nil
+            .transaction { transaction in
+                transaction.animation = nil
+            }
         }
     }
 }

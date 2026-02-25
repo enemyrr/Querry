@@ -3,39 +3,101 @@ import Charts
 
 struct BarChartView: View {
     let data: [ChartDataPoint]
+    var chartType: ChartBlockConfig.ChartType = .groupedColumn
+
+    private var isMultiSeries: Bool {
+        ChartDataPoint.hasMultipleSeries(data)
+    }
+
+    private var isHundredPercent: Bool {
+        chartType == .hundredPercentStackedColumn
+    }
+
+    private var displayData: [ChartDataPoint] {
+        if isHundredPercent, isMultiSeries {
+            return ChartDataPoint.normalized(data)
+        }
+        return data
+    }
 
     var body: some View {
-        let stride = ChartDataPoint.xAxisStride(for: data.count)
-        Chart(data) { point in
-            BarMark(
-                x: .value("X", point.x),
-                y: .value("Y", point.y)
-            )
-            .foregroundStyle(Color.accentColor)
-            .clipShape(.rect(cornerRadius: 3))
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic) { value in
-                if let label = value.as(String.self),
-                   let index = data.firstIndex(where: { $0.x == label }),
-                   index % stride == 0 {
-                    AxisValueLabel {
-                        Text(data[index].truncatedX)
-                            .font(.caption)
-                            .lineLimit(1)
+        GeometryReader { geo in
+            let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
+            let series = ChartDataPoint.seriesNames(data)
+            let colors = series.indices.map { ChartDataPoint.seriesPalette[$0 % ChartDataPoint.seriesPalette.count] }
+
+            Chart(displayData) { point in
+                if isMultiSeries {
+                    if chartType == .groupedColumn {
+                        BarMark(
+                            x: .value("X", point.x),
+                            y: .value("Y", point.y)
+                        )
+                        .foregroundStyle(by: .value("Series", point.series))
+                        .position(by: .value("Series", point.series))
+                        .clipShape(.rect(cornerRadius: 3))
+                    } else {
+                        BarMark(
+                            x: .value("X", point.x),
+                            y: .value("Y", point.y)
+                        )
+                        .foregroundStyle(by: .value("Series", point.series))
+                    }
+                } else {
+                    BarMark(
+                        x: .value("X", point.x),
+                        y: .value("Y", point.y)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .clipShape(.rect(cornerRadius: 3))
+                }
+            }
+            .chartForegroundStyleScale(domain: series, range: colors)
+            .hundredPercentYScale(isActive: isHundredPercent)
+            .chartXAxis {
+                AxisMarks(values: .automatic) { value in
+                    if let label = value.as(String.self),
+                       let index = data.firstIndex(where: { $0.x == label }),
+                       index % stride == 0 {
+                        AxisValueLabel {
+                            Text(data[index].truncatedX)
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) {
-                AxisGridLine()
-                AxisValueLabel()
-                    .font(.caption)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let number = value.as(Double.self) {
+                            if isHundredPercent {
+                                Text(number.formatted(.percent))
+                                    .font(.caption)
+                            } else {
+                                Text(number.formatted(.number.notation(.compactName)))
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                }
+            }
+            .chartLegend(isMultiSeries ? .visible : .hidden)
+            .transaction { transaction in
+                transaction.animation = nil
             }
         }
-        .transaction { transaction in
-            transaction.animation = nil
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func hundredPercentYScale(isActive: Bool) -> some View {
+        if isActive {
+            chartYScale(domain: 0...1 as ClosedRange<Double>)
+        } else {
+            self
         }
     }
 }
