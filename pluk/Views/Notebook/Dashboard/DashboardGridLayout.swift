@@ -14,14 +14,19 @@ final class DashboardGridLayout: NSCollectionViewLayout {
     var lineSpacing: CGFloat = 16
     var handleWidth: CGFloat = 12
 
+    var insertRowGapBeforeIndex: Int?
+    var insertRowGapHeight: CGFloat = 60
+
     private var cachedAttributes: [NSCollectionViewLayoutAttributes] = []
     private var cachedContentSize: NSSize = .zero
     private(set) var cachedRows: [DashboardRowInfo] = []
+    private(set) var insertGapFrame: NSRect?
 
     override func prepare() {
         super.prepare()
         cachedAttributes.removeAll()
         cachedRows.removeAll()
+        insertGapFrame = nil
 
         guard let collectionView, let dataController else {
             cachedContentSize = .zero
@@ -43,7 +48,12 @@ final class DashboardGridLayout: NSCollectionViewLayout {
         var yOffset = sectionInsets.top
         var globalIndex = 0
 
-        for row in rows {
+        for (rowIndex, row) in rows.enumerated() {
+            if rowIndex == insertRowGapBeforeIndex {
+                insertGapFrame = NSRect(x: sectionInsets.left, y: yOffset, width: availableWidth, height: insertRowGapHeight)
+                yOffset += insertRowGapHeight + lineSpacing
+            }
+
             let totalFraction = row.reduce(0.0) { $0 + $1.blockWidthFraction }
             let blockCount = row.count
             let isSingleItem = blockCount == 1
@@ -92,6 +102,11 @@ final class DashboardGridLayout: NSCollectionViewLayout {
             ))
 
             yOffset += maxHeight + lineSpacing
+        }
+
+        if insertRowGapBeforeIndex == rows.count {
+            insertGapFrame = NSRect(x: sectionInsets.left, y: yOffset, width: availableWidth, height: insertRowGapHeight)
+            yOffset += insertRowGapHeight + lineSpacing
         }
 
         yOffset = yOffset - lineSpacing + sectionInsets.bottom
