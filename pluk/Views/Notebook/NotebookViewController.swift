@@ -27,6 +27,7 @@ final class NotebookViewController: NSViewController {
 
         dataController.load()
         setupContent()
+        observePublishedState()
     }
 
     override func viewDidAppear() {
@@ -36,6 +37,7 @@ final class NotebookViewController: NSViewController {
                   self.view.window == event.window else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if flags == .command && event.charactersIgnoringModifiers == "e" {
+                guard !self.dataController.isDashboardPublished else { return event }
                 self.dataController.isRightSidebarVisible.toggle()
                 return nil
             }
@@ -48,6 +50,20 @@ final class NotebookViewController: NSViewController {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+    }
+
+    private func observePublishedState() {
+        withObservationTracking {
+            _ = self.dataController.isDashboardPublished
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.dataController.isDashboardPublished {
+                    self.splitViewController?.collapse()
+                }
+                self.observePublishedState()
+            }
         }
     }
 

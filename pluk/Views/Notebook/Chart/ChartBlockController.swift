@@ -15,7 +15,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 
     init(block: NotebookBlock, dataController: NotebookDataController) {
         self.dataController = dataController
-        self.viewModel = ChartBlockViewModel(block: block, dataController: dataController)
+        self.viewModel = dataController.chartViewModel(for: block)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -168,6 +168,8 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
             onMoveDown: { dismiss(); dc.moveBlockDown(block) },
             onDuplicate: { dismiss(); dc.duplicateBlock(block) },
             onCopy: { [weak self] in dismiss(); self?.copyBlockConfig() },
+            isHiddenInDashboard: block.isHiddenInDashboard,
+            onToggleDashboardVisibility: { dismiss(); dc.toggleBlockDashboardVisibility(block) },
             onDelete: { dismiss(); dc.deleteBlock(block) }
         )
 
@@ -728,6 +730,8 @@ final class BlockMenuPopoverController: NSViewController {
     private let onMoveDown: () -> Void
     private let onDuplicate: () -> Void
     private let onCopy: (() -> Void)?
+    private let isHiddenInDashboard: Bool
+    private let onToggleDashboardVisibility: (() -> Void)?
     private let onDelete: () -> Void
 
     init(
@@ -739,6 +743,8 @@ final class BlockMenuPopoverController: NSViewController {
         onMoveDown: @escaping () -> Void,
         onDuplicate: @escaping () -> Void,
         onCopy: (() -> Void)? = nil,
+        isHiddenInDashboard: Bool = false,
+        onToggleDashboardVisibility: (() -> Void)? = nil,
         onDelete: @escaping () -> Void
     ) {
         self.canMoveUp = canMoveUp
@@ -749,6 +755,8 @@ final class BlockMenuPopoverController: NSViewController {
         self.onMoveDown = onMoveDown
         self.onDuplicate = onDuplicate
         self.onCopy = onCopy
+        self.isHiddenInDashboard = isHiddenInDashboard
+        self.onToggleDashboardVisibility = onToggleDashboardVisibility
         self.onDelete = onDelete
         super.init(nibName: nil, bundle: nil)
     }
@@ -773,6 +781,10 @@ final class BlockMenuPopoverController: NSViewController {
         addItem(to: stack, title: "Duplicate", action: onDuplicate)
         if let onCopy {
             addItem(to: stack, title: "Copy Cell", action: onCopy)
+        }
+        if let onToggleDashboardVisibility {
+            let title = isHiddenInDashboard ? "Show in Dashboard" : "Hide from Dashboard"
+            addItem(to: stack, title: title, action: onToggleDashboardVisibility)
         }
         addDivider(to: stack)
         addItem(to: stack, title: "Delete Block", action: onDelete, tint: .systemRed)
@@ -882,7 +894,7 @@ final class HoverableMenuItem: NSView {
 
 // MARK: - Block resize handle
 
-private final class BlockResizeHandle: NSView {
+final class BlockResizeHandle: NSView {
 
     private let onDrag: (CGFloat) -> Void
     private var lastY: CGFloat = 0

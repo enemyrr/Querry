@@ -36,6 +36,7 @@ final class Notebook {
     var status: NotebookStatus = NotebookStatus.exploratory
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
+    var isPublished: Bool = false
 
     init(title: String = "Untitled Notebook", description: String = "", status: NotebookStatus = .exploratory) {
         self.title = title

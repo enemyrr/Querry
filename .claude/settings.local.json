@@ -26,7 +26,11 @@
       "Bash(psql:*)",
       "Bash(git:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "WebFetch(domain:newsletter.pragmaticengineer.com)"
+      "WebFetch(domain:newsletter.pragmaticengineer.com)",
+      "WebFetch(domain:intent-systems.com)",
+      "Bash(wc:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": [],

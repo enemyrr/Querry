@@ -2,6 +2,28 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in the project that surprises you, please alert the developer working with you and indicate that this is the case in the AgentMD file to help prevent future agents from having the same
 
+## Intent Layer — Local Context
+
+Before modifying code in any directory, check for a matching `AGENTS.md` file in `.agents/pluk/` that mirrors the source tree. These files provide local architecture context, invariants, and anti-patterns for each subsystem.
+
+```
+.agents/pluk/AGENTS.md                              ← Root architecture overview
+.agents/pluk/Protocols/AGENTS.md                     ← DatabaseDriver contract
+.agents/pluk/Drivers/AGENTS.md                       ← Per-database implementations
+.agents/pluk/Services/AGENTS.md                      ← Service layer
+.agents/pluk/Models/AGENTS.md                        ← Data models
+.agents/pluk/Core/ViewControllers/AGENTS.md          ← AppKit VC hierarchy
+.agents/pluk/Core/Database/AGENTS.md                 ← Database utilities
+.agents/pluk/Views/AGENTS.md                         ← View layer overview
+.agents/pluk/Views/Documents/AGENTS.md               ← Tab management
+.agents/pluk/Views/Documents/TabContent/TableListView/AGENTS.md  ← Table viewer
+.agents/pluk/Views/Notebook/AGENTS.md                ← Notebook system
+.agents/pluk/Views/Notebook/Agent/AGENTS.md          ← AI agent subsystem
+.agents/pluk/Views/Notebook/Chart/AGENTS.md          ← Chart system
+.agents/pluk/Shared/AGENTS.md                        ← Design system
+.agents/pluk/Utilities/CodeEditorView/AGENTS.md      ← Code editor
+```
+
 ## Project Overview
 
 **Pluk** is a multi-database GUI client application for macOS built with SwiftUI and AppKit. It supports PostgreSQL, MySQL, SQLite, and MongoDB with AI-powered query assistance.

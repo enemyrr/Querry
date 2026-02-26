@@ -20,6 +20,17 @@ struct HorizontalBarChartView: View {
         return data
     }
 
+    private var categoryCount: Int {
+        Set(data.map(\.x)).count
+    }
+
+    private var barThickness: CGFloat {
+        let seriesCount = isMultiSeries && chartType == .groupedBar
+            ? max(1, ChartDataPoint.seriesNames(data).count)
+            : 1
+        return seriesCount > 2 ? 8 : 20
+    }
+
     var body: some View {
         GeometryReader { geo in
             let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.height)
@@ -31,25 +42,38 @@ struct HorizontalBarChartView: View {
                     if chartType == .groupedBar {
                         BarMark(
                             x: .value("Y", point.y),
-                            y: .value("X", point.x)
+                            y: .value("X", point.x),
+                            height: .fixed(barThickness)
                         )
                         .foregroundStyle(by: .value("Series", point.series))
                         .position(by: .value("Series", point.series))
                         .clipShape(.rect(cornerRadius: 3))
+                        .annotation(position: .trailing, spacing: 4) {
+                            Text(point.y.formatted(.number.notation(.compactName)))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     } else {
                         BarMark(
                             x: .value("Y", point.y),
-                            y: .value("X", point.x)
+                            y: .value("X", point.x),
+                            height: .fixed(barThickness)
                         )
                         .foregroundStyle(by: .value("Series", point.series))
                     }
                 } else {
                     BarMark(
                         x: .value("Y", point.y),
-                        y: .value("X", point.x)
+                        y: .value("X", point.x),
+                        height: .fixed(barThickness)
                     )
                     .foregroundStyle(Color.accentColor)
                     .clipShape(.rect(cornerRadius: 3))
+                    .annotation(position: .trailing, spacing: 4) {
+                        Text(point.y.formatted(.number.notation(.compactName)))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .chartForegroundStyleScale(domain: series, range: colors)

@@ -6,12 +6,11 @@ final class NotebookMainPaneController: NSViewController {
     private let dataController: NotebookDataController
 
     private var mainContentView: NSView!
-    private var headerController: NotebookHeaderViewController?
     private var toolbarHostingView: NSHostingView<AnyView>?
+    private var headerController: NotebookHeaderViewController?
     private var emptyStateController: NotebookEmptyStateController?
     private var blocksController: NotebookBlocksController?
-    private var isHeaderCompact = false
-    private var didApplyInitialHeaderState = false
+    private var dashboardController: DashboardGridController?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -56,13 +55,16 @@ final class NotebookMainPaneController: NSViewController {
             object: nil
         )
 
-        setupHeader()
         setupToolbar()
+        setupHeader()
         setupEmptyState()
         setupBlocksView()
+        setupDashboard()
         setupConstraints()
         updateBlocksVisibility()
         observeBlocksState()
+        observeViewMode()
+        observePublishedState()
     }
 
     func updateCornerRadius(_ radius: CGFloat, animated: Bool) {
@@ -92,18 +94,15 @@ final class NotebookMainPaneController: NSViewController {
         return hosting
     }
 
+    private func setupToolbar() {
+        toolbarHostingView = addHostingView(NotebookToolbar(dataController: dataController))
+    }
+
     private func setupHeader() {
         let headerVC = NotebookHeaderViewController(dataController: dataController)
         addChild(headerVC)
         headerVC.view.translatesAutoresizingMaskIntoConstraints = false
-        mainContentView.addSubview(headerVC.view)
         headerController = headerVC
-    }
-
-    private func setupToolbar() {
-        toolbarHostingView = addHostingView(NotebookToolbar(dataController: dataController))
-        toolbarHostingView?.setContentCompressionResistancePriority(.required, for: .horizontal)
-        toolbarHostingView?.setContentHuggingPriority(.required, for: .horizontal)
     }
 
     private func setupEmptyState() {
@@ -115,39 +114,50 @@ final class NotebookMainPaneController: NSViewController {
     }
 
     private func setupBlocksView() {
-        let blocksVC = NotebookBlocksController(dataController: dataController)
-        blocksVC.onScrollOffsetChanged = { [weak self] offset in
-            self?.handleBlocksScroll(offset)
-        }
+        let blocksVC = NotebookBlocksController(
+            dataController: dataController,
+            headerView: headerController?.view
+        )
         addChild(blocksVC)
         blocksVC.view.translatesAutoresizingMaskIntoConstraints = false
         mainContentView.addSubview(blocksVC.view)
         blocksController = blocksVC
     }
 
+    private func setupDashboard() {
+        let dashVC = DashboardGridController(dataController: dataController)
+        addChild(dashVC)
+        dashVC.view.translatesAutoresizingMaskIntoConstraints = false
+        dashVC.view.isHidden = true
+        mainContentView.addSubview(dashVC.view)
+        dashboardController = dashVC
+    }
+
     private func setupConstraints() {
-        guard let header = headerController?.view,
-              let toolbar = toolbarHostingView,
+        guard let toolbar = toolbarHostingView,
               let emptyState = emptyStateController?.view,
-              let blocks = blocksController?.view else { return }
+              let blocks = blocksController?.view,
+              let dashboard = dashboardController?.view else { return }
 
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: mainContentView.topAnchor),
-            header.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: toolbar.leadingAnchor),
-
             toolbar.topAnchor.constraint(equalTo: mainContentView.topAnchor),
+            toolbar.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
             toolbar.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
 
-            emptyState.topAnchor.constraint(equalTo: header.bottomAnchor),
+            emptyState.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
             emptyState.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
             emptyState.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
             emptyState.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
 
-            blocks.topAnchor.constraint(equalTo: header.bottomAnchor),
+            blocks.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
             blocks.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
             blocks.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
             blocks.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
+
+            dashboard.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
+            dashboard.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
+            dashboard.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
+            dashboard.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
         ])
     }
 
@@ -155,18 +165,11 @@ final class NotebookMainPaneController: NSViewController {
 
     private func updateBlocksVisibility() {
         let hasBlocks = dataController.hasBlocks
-        emptyStateController?.view.isHidden = hasBlocks
-        blocksController?.view.isHidden = !hasBlocks
+        let isDashboard = dataController.viewMode == .dashboard
 
-        if !hasBlocks {
-            isHeaderCompact = false
-        }
-
-        headerController?.setCompactMode(
-            hasBlocks && isHeaderCompact,
-            animated: didApplyInitialHeaderState
-        )
-        didApplyInitialHeaderState = true
+        emptyStateController?.view.isHidden = hasBlocks || isDashboard
+        blocksController?.view.isHidden = !hasBlocks || isDashboard
+        dashboardController?.view.isHidden = !isDashboard
     }
 
     private func observeBlocksState() {
@@ -181,14 +184,28 @@ final class NotebookMainPaneController: NSViewController {
         }
     }
 
-    private func handleBlocksScroll(_ offset: CGFloat) {
-        guard dataController.hasBlocks else { return }
+    private func observeViewMode() {
+        withObservationTracking {
+            _ = self.dataController.viewMode
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateBlocksVisibility()
+                self.observeViewMode()
+            }
+        }
+    }
 
-        let shouldBeCompact = isHeaderCompact ? offset >= 18 : offset > 36
-        guard shouldBeCompact != isHeaderCompact else { return }
-
-        isHeaderCompact = shouldBeCompact
-        headerController?.setCompactMode(shouldBeCompact, animated: true)
+    private func observePublishedState() {
+        withObservationTracking {
+            _ = self.dataController.isDashboardPublished
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateBlocksVisibility()
+                self.observePublishedState()
+            }
+        }
     }
 
     // MARK: - Appearance

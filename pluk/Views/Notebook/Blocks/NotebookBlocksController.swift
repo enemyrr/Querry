@@ -7,6 +7,7 @@ private final class FlippedView: NSView {
 final class NotebookBlocksController: NSViewController {
 
     private let dataController: NotebookDataController
+    private let headerView: NSView?
 
     var onScrollOffsetChanged: ((CGFloat) -> Void)?
 
@@ -18,8 +19,9 @@ final class NotebookBlocksController: NSViewController {
     private var pendingFocusBlockId: UUID?
     private var initialLoadComplete = false
 
-    init(dataController: NotebookDataController) {
+    init(dataController: NotebookDataController, headerView: NSView? = nil) {
         self.dataController = dataController
+        self.headerView = headerView
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -76,13 +78,26 @@ final class NotebookBlocksController: NSViewController {
             self?.notifyScrollOffsetChanged()
         }
 
+        if let headerView {
+            headerView.translatesAutoresizingMaskIntoConstraints = false
+            documentView.addSubview(headerView)
+
+            NSLayoutConstraint.activate([
+                headerView.topAnchor.constraint(equalTo: documentView.topAnchor),
+                headerView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
+                headerView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
+            ])
+        }
+
+        let stackTopAnchor = headerView?.bottomAnchor ?? documentView.topAnchor
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            stackView.topAnchor.constraint(equalTo: documentView.topAnchor),
+            stackView.topAnchor.constraint(equalTo: stackTopAnchor),
             stackView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 20),
             stackView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -20),
             stackView.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),

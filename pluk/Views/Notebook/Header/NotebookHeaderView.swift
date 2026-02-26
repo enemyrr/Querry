@@ -7,11 +7,6 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
     private var statusButton: StatusDropdownButton!
     private var titleField: NSTextField!
     private var descriptionField: NSTextField!
-    private var titleTopConstraint: NSLayoutConstraint?
-    private var titleCompactTopConstraint: NSLayoutConstraint?
-    private var expandedBottomConstraint: NSLayoutConstraint?
-    private var compactBottomConstraint: NSLayoutConstraint?
-    private var isCompactMode = false
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -75,81 +70,20 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
     }
 
     private func setupConstraints() {
-        let statusTop = statusButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 16)
-        let titleTop = titleField.topAnchor.constraint(equalTo: statusButton.bottomAnchor, constant: 8)
-        let titleCompactTop = titleField.topAnchor.constraint(equalTo: view.topAnchor, constant: 10)
-        let expandedBottom = descriptionField.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8)
-        let compactBottom = titleField.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8)
-        titleCompactTop.isActive = false
-        compactBottom.isActive = false
-
-        titleTopConstraint = titleTop
-        titleCompactTopConstraint = titleCompactTop
-        expandedBottomConstraint = expandedBottom
-        compactBottomConstraint = compactBottom
-
         NSLayoutConstraint.activate([
-            statusTop,
+            statusButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
             statusButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             statusButton.heightAnchor.constraint(equalToConstant: 22),
 
-            titleTop,
+            titleField.topAnchor.constraint(equalTo: statusButton.bottomAnchor, constant: 8),
             titleField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             titleField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 
             descriptionField.topAnchor.constraint(equalTo: titleField.bottomAnchor, constant: 4),
             descriptionField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             descriptionField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            expandedBottom,
+            descriptionField.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
         ])
-    }
-
-    func setCompactMode(_ compact: Bool, animated: Bool) {
-        guard compact != isCompactMode else { return }
-        isCompactMode = compact
-
-        if compact {
-            compactBottomConstraint?.isActive = true
-            expandedBottomConstraint?.isActive = false
-            titleTopConstraint?.isActive = false
-            titleCompactTopConstraint?.isActive = true
-            titleField.font = .systemFont(ofSize: 20, weight: .semibold)
-        } else {
-            descriptionField.isHidden = false
-            statusButton.isHidden = false
-            compactBottomConstraint?.isActive = false
-            expandedBottomConstraint?.isActive = true
-            titleCompactTopConstraint?.isActive = false
-            titleTopConstraint?.isActive = true
-            titleField.font = .systemFont(ofSize: 26, weight: .bold)
-        }
-
-        if animated {
-            if !compact {
-                descriptionField.alphaValue = 0
-                statusButton.alphaValue = 0
-            }
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                context.allowsImplicitAnimation = true
-                statusButton.animator().alphaValue = compact ? 0 : 1
-                descriptionField.animator().alphaValue = compact ? 0 : 1
-                view.layoutSubtreeIfNeeded()
-            } completionHandler: { [weak self] in
-                guard let self else { return }
-                self.statusButton.isHidden = compact
-                self.descriptionField.isHidden = compact
-            }
-            return
-        }
-
-        statusButton.alphaValue = compact ? 0 : 1
-        statusButton.isHidden = compact
-        descriptionField.alphaValue = compact ? 0 : 1
-        descriptionField.isHidden = compact
-        view.layoutSubtreeIfNeeded()
     }
 
     // MARK: - NSTextFieldDelegate
@@ -169,6 +103,7 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
         observeTitle()
         observeDescription()
         observeStatus()
+        observePublishedState()
     }
 
     private func observeTitle() {
@@ -208,6 +143,29 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
                 self.statusButton.updateStatus(self.dataController.status)
                 self.observeStatus()
             }
+        }
+    }
+
+    private func observePublishedState() {
+        withObservationTracking {
+            _ = self.dataController.isDashboardPublished
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.applyPublishedState()
+                self.observePublishedState()
+            }
+        }
+    }
+
+    private func applyPublishedState() {
+        let published = dataController.isDashboardPublished
+        titleField.isEditable = !published
+        descriptionField.isEditable = !published
+        if published {
+            statusButton.isHidden = true
+        } else {
+            statusButton.isHidden = false
         }
     }
 }

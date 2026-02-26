@@ -174,6 +174,8 @@ final class TextBlockController: NSViewController, MarkdownTextViewDelegate {
             onMoveUp: { dismiss(); dc.moveBlockUp(block) },
             onMoveDown: { dismiss(); dc.moveBlockDown(block) },
             onDuplicate: { dismiss(); dc.duplicateBlock(block) },
+            isHiddenInDashboard: block.isHiddenInDashboard,
+            onToggleDashboardVisibility: { dismiss(); dc.toggleBlockDashboardVisibility(block) },
             onDelete: { dismiss(); dc.deleteBlock(block) }
         )
 

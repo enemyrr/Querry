@@ -12,6 +12,7 @@ final class NotebookBlock {
     var title: String = ""
     var blockHeight: Double = 380
     var configJSON: String = ""
+    var isHiddenInDashboard: Bool = false
 
     init(notebookId: UUID, blockType: NotebookBlockType, sortOrder: Int) {
         self.notebookId = notebookId

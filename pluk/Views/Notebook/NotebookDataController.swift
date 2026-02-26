@@ -1,6 +1,11 @@
 import SwiftData
 import SwiftUI
 
+enum NotebookViewMode: String {
+    case notebook
+    case dashboard
+}
+
 @Observable
 @MainActor
 final class NotebookDataController {
@@ -12,8 +17,43 @@ final class NotebookDataController {
     private(set) var connections: [Connection] = []
     private(set) var blocks: [NotebookBlock] = []
     var isRightSidebarVisible = false
+    var viewMode: NotebookViewMode = .notebook
+
+    private var chartViewModels: [UUID: ChartBlockViewModel] = [:]
 
     var hasBlocks: Bool { !blocks.isEmpty }
+
+    var isPublished: Bool {
+        get { notebook?.isPublished ?? false }
+        set {
+            notebook?.isPublished = newValue
+            notebook?.updatedAt = Date()
+            save()
+        }
+    }
+
+    var isDashboardPublished: Bool {
+        viewMode == .dashboard && isPublished
+    }
+
+    var dashboardBlocks: [NotebookBlock] {
+        blocks.filter { !$0.isHiddenInDashboard }
+    }
+
+    func publishDashboard() {
+        isPublished = true
+        isRightSidebarVisible = false
+    }
+
+    func unpublishDashboard() {
+        isPublished = false
+    }
+
+    func toggleBlockDashboardVisibility(_ block: NotebookBlock) {
+        block.isHiddenInDashboard.toggle()
+        block.updatedAt = Date()
+        save()
+    }
 
     var title: String {
         get { notebook?.title ?? "Untitled Notebook" }
@@ -102,7 +142,17 @@ final class NotebookDataController {
         save()
     }
 
+    func chartViewModel(for block: NotebookBlock) -> ChartBlockViewModel {
+        if let existing = chartViewModels[block.id] {
+            return existing
+        }
+        let vm = ChartBlockViewModel(block: block, dataController: self)
+        chartViewModels[block.id] = vm
+        return vm
+    }
+
     func deleteBlock(_ block: NotebookBlock) {
+        chartViewModels.removeValue(forKey: block.id)
         modelContainer.mainContext.delete(block)
         blocks.removeAll { $0.id == block.id }
         reindexSortOrders()
@@ -131,6 +181,17 @@ final class NotebookDataController {
     func moveBlockDown(_ block: NotebookBlock) {
         guard let index = blocks.firstIndex(where: { $0.id == block.id }), index < blocks.count - 1 else { return }
         blocks.swapAt(index, index + 1)
+        reindexSortOrders()
+        save()
+    }
+
+    func moveBlock(from sourceIndex: Int, to destinationIndex: Int) {
+        guard sourceIndex != destinationIndex,
+              sourceIndex >= 0, sourceIndex < blocks.count,
+              destinationIndex >= 0, destinationIndex <= blocks.count else { return }
+        let block = blocks.remove(at: sourceIndex)
+        let insertIndex = destinationIndex > sourceIndex ? destinationIndex - 1 : destinationIndex
+        blocks.insert(block, at: min(insertIndex, blocks.count))
         reindexSortOrders()
         save()
     }
