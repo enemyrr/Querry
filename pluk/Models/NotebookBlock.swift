@@ -11,8 +11,10 @@ final class NotebookBlock {
     var updatedAt: Date = Date()
     var title: String = ""
     var blockHeight: Double = 380
+    var blockWidthFraction: Double = 1.0
     var configJSON: String = ""
     var isHiddenInDashboard: Bool = false
+    var dashboardInline: Bool = false
 
     init(notebookId: UUID, blockType: NotebookBlockType, sortOrder: Int) {
         self.notebookId = notebookId

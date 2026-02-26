@@ -75,7 +75,7 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
             statusButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             statusButton.heightAnchor.constraint(equalToConstant: 22),
 
-            titleField.topAnchor.constraint(equalTo: statusButton.bottomAnchor, constant: 8),
+            titleField.topAnchor.constraint(equalTo: statusButton.bottomAnchor),
             titleField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             titleField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 

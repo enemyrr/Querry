@@ -978,6 +978,89 @@ final class BlockResizeHandle: NSView {
     }
 }
 
+// MARK: - Block width resize handle
+
+final class BlockWidthResizeHandle: NSView {
+
+    private let onDrag: (CGFloat) -> Void
+    private var lastX: CGFloat = 0
+    private var isDragging = false
+    private let indicator = NSView()
+
+    init(onDrag: @escaping (CGFloat) -> Void) {
+        self.onDrag = onDrag
+        super.init(frame: .zero)
+
+        wantsLayer = true
+
+        indicator.wantsLayer = true
+        indicator.layer?.cornerRadius = 1.5
+        indicator.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        indicator.alphaValue = 0
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(indicator)
+
+        NSLayoutConstraint.activate([
+            indicator.centerXAnchor.constraint(equalTo: centerXAnchor),
+            indicator.centerYAnchor.constraint(equalTo: centerYAnchor),
+            indicator.widthAnchor.constraint(equalToConstant: 3),
+            indicator.heightAnchor.constraint(equalToConstant: 32),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .resizeLeftRight)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        fadeIndicator(to: 1)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard !isDragging else { return }
+        fadeIndicator(to: 0)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        lastX = event.locationInWindow.x
+        isDragging = true
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let delta = event.locationInWindow.x - lastX
+        lastX = event.locationInWindow.x
+        onDrag(delta)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        isDragging = false
+        if !bounds.contains(convert(event.locationInWindow, from: nil)) {
+            fadeIndicator(to: 0)
+        }
+    }
+
+    private func fadeIndicator(to alpha: CGFloat) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            indicator.animator().alphaValue = alpha
+        }
+    }
+}
+
 // MARK: - Block hover tracking view
 
 final class BlockHoverTrackingView: NSView {

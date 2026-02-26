@@ -1,13 +1,13 @@
 import AppKit
-import SwiftUI
 
 final class NotebookMainPaneController: NSViewController {
 
     private let dataController: NotebookDataController
 
     private var mainContentView: NSView!
-    private var toolbarHostingView: NSHostingView<AnyView>?
+    private var toolbarController: NotebookToolbarController?
     private var headerController: NotebookHeaderViewController?
+    private var dashboardHeaderController: NotebookHeaderViewController?
     private var emptyStateController: NotebookEmptyStateController?
     private var blocksController: NotebookBlocksController?
     private var dashboardController: DashboardGridController?
@@ -57,6 +57,7 @@ final class NotebookMainPaneController: NSViewController {
         )
 
         setupHeader()
+        setupDashboardHeader()
         setupEmptyState()
         setupBlocksView()
         setupDashboard()
@@ -93,15 +94,12 @@ final class NotebookMainPaneController: NSViewController {
 
     // MARK: - Setup
 
-    private func addHostingView<V: View>(_ rootView: V) -> NSHostingView<AnyView> {
-        let hosting = NSHostingView(rootView: AnyView(rootView))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        mainContentView.addSubview(hosting)
-        return hosting
-    }
-
     private func setupToolbar() {
-        toolbarHostingView = addHostingView(NotebookToolbar(dataController: dataController))
+        let toolbarVC = NotebookToolbarController(dataController: dataController)
+        addChild(toolbarVC)
+        toolbarVC.view.translatesAutoresizingMaskIntoConstraints = false
+        mainContentView.addSubview(toolbarVC.view)
+        toolbarController = toolbarVC
     }
 
     private func setupHeader() {
@@ -109,6 +107,13 @@ final class NotebookMainPaneController: NSViewController {
         addChild(headerVC)
         headerVC.view.translatesAutoresizingMaskIntoConstraints = false
         headerController = headerVC
+    }
+
+    private func setupDashboardHeader() {
+        let headerVC = NotebookHeaderViewController(dataController: dataController)
+        addChild(headerVC)
+        headerVC.view.translatesAutoresizingMaskIntoConstraints = false
+        dashboardHeaderController = headerVC
     }
 
     private func setupEmptyState() {
@@ -135,7 +140,14 @@ final class NotebookMainPaneController: NSViewController {
     }
 
     private func setupDashboard() {
-        let dashVC = DashboardGridController(dataController: dataController)
+        let dashVC = DashboardGridController(
+            dataController: dataController,
+            headerView: dashboardHeaderController?.view
+        )
+        dashVC.onScrollOffsetChanged = { [weak self] offset in
+            guard let self else { return }
+            self.dataController.isScrolled = offset > 0
+        }
         addChild(dashVC)
         dashVC.view.translatesAutoresizingMaskIntoConstraints = false
         dashVC.view.isHidden = true
@@ -144,7 +156,7 @@ final class NotebookMainPaneController: NSViewController {
     }
 
     private func setupConstraints() {
-        guard let toolbar = toolbarHostingView,
+        guard let toolbar = toolbarController?.view,
               let emptyState = emptyStateController?.view,
               let blocks = blocksController?.view,
               let dashboard = dashboardController?.view else { return }
@@ -221,7 +233,7 @@ final class NotebookMainPaneController: NSViewController {
     // MARK: - Toolbar Inset
 
     private func updateToolbarInset() {
-        guard let toolbar = toolbarHostingView else { return }
+        guard let toolbar = toolbarController?.view else { return }
         let toolbarHeight = toolbar.fittingSize.height
         blocksController?.setTopContentInset(toolbarHeight)
     }

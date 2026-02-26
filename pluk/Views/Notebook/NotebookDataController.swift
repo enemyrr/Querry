@@ -166,6 +166,8 @@ final class NotebookDataController {
         let newBlock = NotebookBlock(notebookId: notebook.id, blockType: block.blockType, sortOrder: index + 1)
         newBlock.configJSON = block.configJSON
         newBlock.blockHeight = block.blockHeight
+        newBlock.blockWidthFraction = block.blockWidthFraction
+        newBlock.dashboardInline = block.dashboardInline
         modelContainer.mainContext.insert(newBlock)
         blocks.insert(newBlock, at: index + 1)
         reindexSortOrders()

@@ -11,7 +11,6 @@ enum NotebookStatus: String, Codable, CaseIterable {
     case inProgress = "In Progress"
     case approved = "Approved"
     case endorsed = "Endorsed"
-    case production = "Production"
 
     var nsColor: NSColor {
         switch self {
@@ -19,7 +18,6 @@ enum NotebookStatus: String, Codable, CaseIterable {
         case .inProgress: NSColor(red: 0.4, green: 0.56, blue: 0.75, alpha: 1)
         case .approved: NSColor(red: 0.42, green: 0.65, blue: 0.52, alpha: 1)
         case .endorsed: NSColor(red: 0.82, green: 0.6, blue: 0.4, alpha: 1)
-        case .production: NSColor(red: 0.75, green: 0.42, blue: 0.42, alpha: 1)
         }
     }
 
