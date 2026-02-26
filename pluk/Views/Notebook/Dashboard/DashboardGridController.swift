@@ -33,7 +33,6 @@ final class DashboardGridController: NSViewController {
     private var isDragging = false
     private var scrollBoundsObserver: Any?
 
-    // Drag state
     private var dragSourceIndex: Int?
     private var dragSnapshotLayer: CALayer?
     private var dragOffset: NSPoint = .zero
@@ -145,8 +144,7 @@ final class DashboardGridController: NSViewController {
     private func updateCollectionHeight() {
         guard let layout = collectionView.collectionViewLayout else { return }
         collectionView.layoutSubtreeIfNeeded()
-        let contentHeight = layout.collectionViewContentSize.height
-        collectionHeightConstraint?.constant = contentHeight
+        collectionHeightConstraint?.constant = layout.collectionViewContentSize.height
     }
 
     // MARK: - Resize
@@ -258,13 +256,13 @@ final class DashboardGridController: NSViewController {
         case insertInRow(rowIndex: Int, hoveredItemIndex: Int)
     }
 
-    private func wireDragCallbacks(on item: DashboardChartItem, at index: Int) {
-        item.onDragBegan = { [weak self] event in self?.beginDrag(itemIndex: index, event: event) }
-        item.onDragMoved = { [weak self] event in self?.updateDrag(event: event) }
-        item.onDragEnded = { [weak self] event in self?.endDrag(event: event) }
-    }
-
-    private func wireDragCallbacks(on item: DashboardTextItem, at index: Int) {
+    private func wireItemCallbacks(on item: DashboardBaseItem, at index: Int) {
+        item.onResize = { [weak self] block, newHeight in
+            self?.handleBlockResize(block: block, newHeight: newHeight)
+        }
+        item.onWidthResize = { [weak self] block, delta in
+            self?.handleBlockWidthResize(block: block, delta: delta)
+        }
         item.onDragBegan = { [weak self] event in self?.beginDrag(itemIndex: index, event: event) }
         item.onDragMoved = { [weak self] event in self?.updateDrag(event: event) }
         item.onDragEnded = { [weak self] event in self?.endDrag(event: event) }
@@ -279,7 +277,6 @@ final class DashboardGridController: NSViewController {
         let dashBlocks = dataController.dashboardBlocks
         let block = dashBlocks[itemIndex]
 
-        // Compact drag card
         let title = block.title.isEmpty
             ? (block.blockType == .chart ? "Untitled Chart" : "Untitled Text")
             : block.title
@@ -296,12 +293,10 @@ final class DashboardGridController: NSViewController {
         dragSnapshotLayer = card
         dragOffset = NSPoint(x: card.frame.width / 2, y: card.frame.height / 2)
 
-        // Dim source
         if let item = collectionView.item(at: itemIndex) {
             item.view.alphaValue = 0.15
         }
 
-        // Row overlay (shown per-row when intent is set)
         let overlay = CALayer()
         overlay.isHidden = true
         overlay.cornerRadius = 10
@@ -314,7 +309,6 @@ final class DashboardGridController: NSViewController {
         collectionView.layer?.addSublayer(overlay)
         dimOverlayLayer = overlay
 
-        // Drop indicator
         let indicator = CAShapeLayer()
         indicator.isHidden = true
         collectionView.layer?.addSublayer(indicator)
@@ -341,7 +335,6 @@ final class DashboardGridController: NSViewController {
         card.shadowOffset = CGSize(width: 0, height: -1)
         card.shadowRadius = 6
 
-        // Icon
         if let image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil) {
             let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
             let configured = image.withSymbolConfiguration(config) ?? image
@@ -352,7 +345,6 @@ final class DashboardGridController: NSViewController {
             card.addSublayer(iconLayer)
         }
 
-        // Title
         let textLayer = CATextLayer()
         textLayer.string = title
         textLayer.fontSize = 12
@@ -369,50 +361,64 @@ final class DashboardGridController: NSViewController {
         return card
     }
 
+    // MARK: - Layer Helpers
+
+    private static let titleOffset: CGFloat = 21
+    private static let resizeOffset: CGFloat = 12
+
+    private func contentRect(from frame: NSRect) -> NSRect {
+        NSRect(
+            x: frame.minX,
+            y: frame.minY + Self.titleOffset,
+            width: frame.width,
+            height: frame.height - Self.titleOffset - Self.resizeOffset
+        )
+    }
+
+    private func applyDashedStyle(
+        to shape: CAShapeLayer,
+        rect: NSRect,
+        fillAlpha: CGFloat?,
+        strokeAlpha: CGFloat,
+        color: NSColor = .controlAccentColor
+    ) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
+        shape.path = path.cgPath
+        shape.fillColor = fillAlpha.map { color.withAlphaComponent($0).cgColor }
+        shape.strokeColor = color.withAlphaComponent(strokeAlpha).cgColor
+        shape.lineWidth = 1.5
+        shape.lineDashPattern = [4, 3]
+    }
+
+    private func makeDashedShape(
+        rect: NSRect,
+        fillAlpha: CGFloat?,
+        strokeAlpha: CGFloat,
+        color: NSColor = .controlAccentColor
+    ) -> CAShapeLayer {
+        let shape = CAShapeLayer()
+        applyDashedStyle(to: shape, rect: rect, fillAlpha: fillAlpha, strokeAlpha: strokeAlpha, color: color)
+        return shape
+    }
+
+    private func removeLayers(_ layers: inout [CAShapeLayer]) {
+        for layer in layers { layer.removeFromSuperlayer() }
+        layers.removeAll()
+    }
+
     private func addItemHighlights(onlyRange: ClosedRange<Int>? = nil) {
         guard let layout = collectionView.collectionViewLayout as? DashboardGridLayout else { return }
-        let accentColor = NSColor.controlAccentColor
 
         for i in 0..<dataController.dashboardBlocks.count {
             guard i != dragSourceIndex else { continue }
             if let only = onlyRange, !only.contains(i) { continue }
             guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
 
-            // Inset to match the block container (skip title area and resize handle)
-            let titleOffset: CGFloat = 21
-            let resizeOffset: CGFloat = 12
-            let rect = NSRect(
-                x: attrs.frame.minX,
-                y: attrs.frame.minY + titleOffset,
-                width: attrs.frame.width,
-                height: attrs.frame.height - titleOffset - resizeOffset
-            ).insetBy(dx: 4, dy: 0.5)
-
-            let shape = CAShapeLayer()
-            let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
-            shape.path = path.cgPath
-            shape.fillColor = nil
-            shape.strokeColor = accentColor.withAlphaComponent(0.25).cgColor
-            shape.lineWidth = 1.5
-            shape.lineDashPattern = [4, 3]
-
+            let rect = contentRect(from: attrs.frame).insetBy(dx: 4, dy: 0.5)
+            let shape = makeDashedShape(rect: rect, fillAlpha: nil, strokeAlpha: 0.25)
             collectionView.layer?.addSublayer(shape)
             itemHighlightLayers.append(shape)
         }
-    }
-
-    private func removeItemHighlights() {
-        for layer in itemHighlightLayers {
-            layer.removeFromSuperlayer()
-        }
-        itemHighlightLayers.removeAll()
-    }
-
-    private func removeDivisionPreview() {
-        for layer in divisionPreviewLayers {
-            layer.removeFromSuperlayer()
-        }
-        divisionPreviewLayers.removeAll()
     }
 
     private func updateDrag(event: NSEvent) {
@@ -463,7 +469,6 @@ final class DashboardGridController: NSViewController {
             return
         }
 
-        // Orphan handling: if source starts a row and next block is inline, promote it
         if !sourceBlock.dashboardInline, sourceIndex + 1 < dashBlocks.count {
             let nextBlock = dashBlocks[sourceIndex + 1]
             if nextBlock.dashboardInline {
@@ -479,19 +484,7 @@ final class DashboardGridController: NSViewController {
             case .insertRow(let beforeIndex):
                 sourceBlock.dashboardInline = false
 
-                let realDestIndex: Int
-                if beforeIndex < rows.count {
-                    let destDashIndex = rows[beforeIndex].startIndex
-                    if destDashIndex < dashBlocks.count {
-                        let destBlock = dashBlocks[destDashIndex]
-                        realDestIndex = dataController.blocks.firstIndex(where: { $0.id == destBlock.id }) ?? dataController.blocks.count
-                    } else {
-                        realDestIndex = dataController.blocks.count
-                    }
-                } else {
-                    realDestIndex = dataController.blocks.count
-                }
-
+                let realDestIndex = realIndex(forDashRow: beforeIndex, rows: rows, dashBlocks: dashBlocks)
                 dataController.moveBlock(from: realSourceIndex, to: realDestIndex)
 
             case .insertInRow(let rowIndex, let hoveredItemIndex):
@@ -501,13 +494,10 @@ final class DashboardGridController: NSViewController {
                 let isSameRow = sourceRowIndex == rowIndex
 
                 if !isSameRow {
-                    let rowBlockRange = row.startIndex...row.endIndex
-                    let usedFraction = rowBlockRange.reduce(0.0) { $0 + dashBlocks[$1].blockWidthFraction }
+                    let usedFraction = (row.startIndex...row.endIndex).reduce(0.0) { $0 + dashBlocks[$1].blockWidthFraction }
                     sourceBlock.blockWidthFraction = max(0.2, 1.0 - usedFraction)
                 }
 
-                // Same-row: move to hovered item's position
-                // Cross-row: insert at cursor position within row
                 let targetDashIndex: Int
                 if isSameRow {
                     targetDashIndex = hoveredItemIndex
@@ -557,8 +547,15 @@ final class DashboardGridController: NSViewController {
         cleanupDrag()
     }
 
+    private func realIndex(forDashRow beforeIndex: Int, rows: [DashboardRowInfo], dashBlocks: [NotebookBlock]) -> Int {
+        guard beforeIndex < rows.count else { return dataController.blocks.count }
+        let destDashIndex = rows[beforeIndex].startIndex
+        guard destDashIndex < dashBlocks.count else { return dataController.blocks.count }
+        let destBlock = dashBlocks[destDashIndex]
+        return dataController.blocks.firstIndex(where: { $0.id == destBlock.id }) ?? dataController.blocks.count
+    }
+
     private func cleanupDrag() {
-        // Close the row gap
         if let gridLayout = collectionView.collectionViewLayout as? DashboardGridLayout,
            gridLayout.insertRowGapBeforeIndex != nil {
             gridLayout.insertRowGapBeforeIndex = nil
@@ -573,8 +570,8 @@ final class DashboardGridController: NSViewController {
         dragSnapshotLayer = nil
         dropIndicatorLayer?.removeFromSuperlayer()
         dropIndicatorLayer = nil
-        removeItemHighlights()
-        removeDivisionPreview()
+        removeLayers(&itemHighlightLayers)
+        removeLayers(&divisionPreviewLayers)
         currentDropIntent = nil
 
         if let sourceIndex = dragSourceIndex,
@@ -593,60 +590,46 @@ final class DashboardGridController: NSViewController {
         let rows = layout.cachedRows
         guard !rows.isEmpty else { return nil }
 
-        // If cursor is within the active gap, keep the current insertRow intent
         if let gapFrame = layout.insertGapFrame, let gapIndex = layout.insertRowGapBeforeIndex {
             let expandedGap = gapFrame.insetBy(dx: 0, dy: -layout.lineSpacing / 2)
             if expandedGap.contains(point) {
-                let intent = DashboardDropIntent.insertRow(beforeIndex: gapIndex)
-                if isNoOp(intent, sourceIndex: sourceIndex, rows: rows) { return nil }
-                return intent
+                return validatedIntent(.insertRow(beforeIndex: gapIndex), sourceIndex: sourceIndex, rows: rows)
             }
         }
 
         let lineSpacing = layout.lineSpacing
 
         for (rowIndex, row) in rows.enumerated() {
-            // Check if in the gap above this row
             if point.y < row.frame.minY, point.y >= row.frame.minY - lineSpacing / 2 {
-                let intent = DashboardDropIntent.insertRow(beforeIndex: rowIndex)
-                if isNoOp(intent, sourceIndex: sourceIndex, rows: rows) { return nil }
-                return intent
+                return validatedIntent(.insertRow(beforeIndex: rowIndex), sourceIndex: sourceIndex, rows: rows)
             }
 
-            // Check if within the row
             if point.y >= row.frame.minY, point.y <= row.frame.maxY {
                 let hoveredItem = findHoveredItemIndex(in: row, at: point.x, layout: layout)
-                let intent = DashboardDropIntent.insertInRow(rowIndex: rowIndex, hoveredItemIndex: hoveredItem)
-                if isNoOp(intent, sourceIndex: sourceIndex, rows: rows) { return nil }
-                return intent
+                return validatedIntent(.insertInRow(rowIndex: rowIndex, hoveredItemIndex: hoveredItem), sourceIndex: sourceIndex, rows: rows)
             }
 
-            // Check gap between this row and next
             if rowIndex + 1 < rows.count {
                 let nextRow = rows[rowIndex + 1]
                 if point.y > row.frame.maxY, point.y < nextRow.frame.minY {
-                    let intent = DashboardDropIntent.insertRow(beforeIndex: rowIndex + 1)
-                    if isNoOp(intent, sourceIndex: sourceIndex, rows: rows) { return nil }
-                    return intent
+                    return validatedIntent(.insertRow(beforeIndex: rowIndex + 1), sourceIndex: sourceIndex, rows: rows)
                 }
             }
         }
 
-        // Below all rows
         if point.y > rows.last!.frame.maxY {
-            let intent = DashboardDropIntent.insertRow(beforeIndex: rows.count)
-            if isNoOp(intent, sourceIndex: sourceIndex, rows: rows) { return nil }
-            return intent
+            return validatedIntent(.insertRow(beforeIndex: rows.count), sourceIndex: sourceIndex, rows: rows)
         }
 
-        // Above all rows
         if point.y < rows.first!.frame.minY {
-            let intent = DashboardDropIntent.insertRow(beforeIndex: 0)
-            if isNoOp(intent, sourceIndex: sourceIndex, rows: rows) { return nil }
-            return intent
+            return validatedIntent(.insertRow(beforeIndex: 0), sourceIndex: sourceIndex, rows: rows)
         }
 
         return nil
+    }
+
+    private func validatedIntent(_ intent: DashboardDropIntent, sourceIndex: Int, rows: [DashboardRowInfo]) -> DashboardDropIntent? {
+        isNoOp(intent, sourceIndex: sourceIndex, rows: rows) ? nil : intent
     }
 
     private func findHoveredItemIndex(in row: DashboardRowInfo, at x: CGFloat, layout: DashboardGridLayout) -> Int {
@@ -666,27 +649,21 @@ final class DashboardGridController: NSViewController {
         case .insertRow(let beforeIndex):
             guard let srcRow = sourceRow else { return false }
             let isAlone = rows[srcRow].startIndex == rows[srcRow].endIndex
-            if isAlone {
-                // Dragging alone-item to adjacent insert position = no-op
-                if beforeIndex == srcRow || beforeIndex == srcRow + 1 { return true }
-            }
-            return false
+            return isAlone && (beforeIndex == srcRow || beforeIndex == srcRow + 1)
 
         case .insertInRow(_, let hoveredItemIndex):
-            if hoveredItemIndex == sourceIndex { return true }
-            return false
+            return hoveredItemIndex == sourceIndex
         }
     }
 
     // MARK: - Drop Indicator
 
     private func updateDropIndicator(for intent: DashboardDropIntent?) {
-        removeDivisionPreview()
-        removeItemHighlights()
+        removeLayers(&divisionPreviewLayers)
+        removeLayers(&itemHighlightLayers)
         guard let indicator = dropIndicatorLayer else { return }
         guard let layout = collectionView.collectionViewLayout as? DashboardGridLayout else { return }
 
-        // Manage row gap — animate content apart for insertRow
         let newGapIndex: Int?
         if case .insertRow(let beforeIndex) = intent {
             newGapIndex = beforeIndex
@@ -714,8 +691,6 @@ final class DashboardGridController: NSViewController {
             return
         }
 
-        let accentColor = NSColor.controlAccentColor
-
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
@@ -723,134 +698,90 @@ final class DashboardGridController: NSViewController {
         case .insertRow:
             if let gapFrame = layout.insertGapFrame {
                 let rect = gapFrame.insetBy(dx: 0.75, dy: 0.75)
-                let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
-                indicator.path = path.cgPath
-                indicator.fillColor = accentColor.withAlphaComponent(0.04).cgColor
-                indicator.strokeColor = accentColor.withAlphaComponent(0.3).cgColor
-                indicator.lineWidth = 1.5
-                indicator.lineDashPattern = [4, 3]
+                applyDashedStyle(to: indicator, rect: rect, fillAlpha: 0.04, strokeAlpha: 0.3)
                 indicator.isHidden = false
             }
             dimOverlayLayer?.isHidden = true
 
         case .insertInRow(let rowIndex, let hoveredItemIndex):
-            guard rowIndex < rows.count else {
-                indicator.isHidden = true
-                dimOverlayLayer?.isHidden = true
-                break
-            }
-            let row = rows[rowIndex]
-            guard let sourceIndex = dragSourceIndex else {
+            guard rowIndex < rows.count, let sourceIndex = dragSourceIndex else {
                 indicator.isHidden = true
                 dimOverlayLayer?.isHidden = true
                 break
             }
 
+            let row = rows[rowIndex]
             let sourceRowIndex = rows.firstIndex { sourceIndex >= $0.startIndex && sourceIndex <= $0.endIndex }
             let isSameRow = sourceRowIndex == rowIndex
 
-            let titleOffset: CGFloat = 21
-            let resizeOffset: CGFloat = 12
-
-            // Position overlay on the target row
-            let overlayRect = NSRect(
-                x: row.frame.minX,
-                y: row.frame.minY + titleOffset,
-                width: row.frame.width,
-                height: row.frame.height - titleOffset - resizeOffset
-            )
-            dimOverlayLayer?.frame = overlayRect
+            dimOverlayLayer?.frame = contentRect(from: row.frame)
             dimOverlayLayer?.isHidden = false
 
             if isSameRow {
-                // Highlight the hovered item's box + borders on row items
                 addItemHighlights(onlyRange: row.startIndex...row.endIndex)
 
                 guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else {
-                    indicator.isHidden = true; break
+                    indicator.isHidden = true
+                    break
                 }
 
-                let rect = NSRect(
-                    x: attrs.frame.minX,
-                    y: attrs.frame.minY + titleOffset,
-                    width: attrs.frame.width,
-                    height: attrs.frame.height - titleOffset - resizeOffset
-                ).insetBy(dx: 4, dy: 0.75)
-
-                let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
-                indicator.path = path.cgPath
-                indicator.fillColor = accentColor.withAlphaComponent(0.06).cgColor
-                indicator.strokeColor = accentColor.withAlphaComponent(0.35).cgColor
-                indicator.lineWidth = 1.5
-                indicator.lineDashPattern = [4, 3]
+                let rect = contentRect(from: attrs.frame).insetBy(dx: 4, dy: 0.75)
+                applyDashedStyle(to: indicator, rect: rect, fillAlpha: 0.06, strokeAlpha: 0.35)
                 indicator.isHidden = false
             } else {
-                // Cross-row: show full division preview of the row
                 indicator.isHidden = true
-
-                guard let hoveredAttrs = layout.layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else { break }
-
-                let insertBefore = lastDragPoint.x < hoveredAttrs.frame.midX
-                let insertionCol = insertBefore
-                    ? hoveredItemIndex - row.startIndex
-                    : hoveredItemIndex - row.startIndex + 1
-
-                // Build predicted fractions
-                let dashBlocks = dataController.dashboardBlocks
-                var existingFractions: [Double] = []
-                for i in row.startIndex...row.endIndex {
-                    existingFractions.append(dashBlocks[i].blockWidthFraction)
-                }
-                let usedFraction = existingFractions.reduce(0, +)
-                let newFraction = max(0.2, 1.0 - usedFraction)
-
-                var predictedFractions = existingFractions
-                predictedFractions.insert(newFraction, at: insertionCol)
-
-                let totalFraction = predictedFractions.reduce(0, +)
-                let normalized: [Double] = totalFraction > 1.0
-                    ? predictedFractions.map { $0 / totalFraction }
-                    : predictedFractions
-
-                // Calculate column widths
-                let handleWidth: CGFloat = 12
-                let totalHandleWidth = handleWidth * CGFloat(normalized.count)
-                let distributableWidth = (collectionView.bounds.width - insets.left - insets.right) - totalHandleWidth
-
-                var xOffset = insets.left
-                for (col, fraction) in normalized.enumerated() {
-                    let colWidth = distributableWidth * fraction + handleWidth
-
-                    let rect = NSRect(
-                        x: xOffset,
-                        y: row.frame.minY + titleOffset,
-                        width: colWidth,
-                        height: row.frame.height - titleOffset - resizeOffset
-                    ).insetBy(dx: 4, dy: 0.75)
-
-                    let shape = CAShapeLayer()
-                    let colPath = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
-                    shape.path = colPath.cgPath
-                    shape.lineWidth = 1.5
-                    shape.lineDashPattern = [4, 3]
-
-                    if col == insertionCol {
-                        shape.fillColor = accentColor.withAlphaComponent(0.04).cgColor
-                        shape.strokeColor = accentColor.withAlphaComponent(0.3).cgColor
-                    } else {
-                        shape.fillColor = nil
-                        shape.strokeColor = accentColor.withAlphaComponent(0.15).cgColor
-                    }
-
-                    collectionView.layer?.addSublayer(shape)
-                    divisionPreviewLayers.append(shape)
-
-                    xOffset += colWidth
-                }
+                showDivisionPreview(row: row, hoveredItemIndex: hoveredItemIndex, insets: insets)
             }
         }
 
         CATransaction.commit()
+    }
+
+    private func showDivisionPreview(row: DashboardRowInfo, hoveredItemIndex: Int, insets: NSEdgeInsets) {
+        guard let hoveredAttrs = (collectionView.collectionViewLayout as? DashboardGridLayout)?
+            .layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else { return }
+
+        let insertBefore = lastDragPoint.x < hoveredAttrs.frame.midX
+        let insertionCol = insertBefore
+            ? hoveredItemIndex - row.startIndex
+            : hoveredItemIndex - row.startIndex + 1
+
+        let dashBlocks = dataController.dashboardBlocks
+        var existingFractions = (row.startIndex...row.endIndex).map { dashBlocks[$0].blockWidthFraction }
+        let usedFraction = existingFractions.reduce(0, +)
+        let newFraction = max(0.2, 1.0 - usedFraction)
+        existingFractions.insert(newFraction, at: insertionCol)
+
+        let totalFraction = existingFractions.reduce(0, +)
+        let normalized: [Double] = totalFraction > 1.0
+            ? existingFractions.map { $0 / totalFraction }
+            : existingFractions
+
+        let handleWidth: CGFloat = 12
+        let totalHandleWidth = handleWidth * CGFloat(normalized.count)
+        let distributableWidth = (collectionView.bounds.width - insets.left - insets.right) - totalHandleWidth
+
+        var xOffset = insets.left
+        for (col, fraction) in normalized.enumerated() {
+            let colWidth = distributableWidth * fraction + handleWidth
+            let rect = NSRect(
+                x: xOffset,
+                y: row.frame.minY + Self.titleOffset,
+                width: colWidth,
+                height: row.frame.height - Self.titleOffset - Self.resizeOffset
+            ).insetBy(dx: 4, dy: 0.75)
+
+            let isInsertionTarget = col == insertionCol
+            let shape = makeDashedShape(
+                rect: rect,
+                fillAlpha: isInsertionTarget ? 0.04 : nil,
+                strokeAlpha: isInsertionTarget ? 0.3 : 0.15
+            )
+            collectionView.layer?.addSublayer(shape)
+            divisionPreviewLayers.append(shape)
+
+            xOffset += colWidth
+        }
     }
 
     // MARK: - Auto-scroll
@@ -903,24 +834,12 @@ extension DashboardGridController: NSCollectionViewDataSource {
             let item = collectionView.makeItem(withIdentifier: DashboardChartItem.identifier, for: indexPath) as! DashboardChartItem
             let vm = dataController.chartViewModel(for: block)
             item.configure(block: block, viewModel: vm, isPublished: published)
-            item.onResize = { [weak self] block, newHeight in
-                self?.handleBlockResize(block: block, newHeight: newHeight)
-            }
-            item.onWidthResize = { [weak self] block, delta in
-                self?.handleBlockWidthResize(block: block, delta: delta)
-            }
-            wireDragCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item, at: indexPath.item)
             return item
         case .text:
             let item = collectionView.makeItem(withIdentifier: DashboardTextItem.identifier, for: indexPath) as! DashboardTextItem
             item.configure(block: block, isPublished: published)
-            item.onResize = { [weak self] block, newHeight in
-                self?.handleBlockResize(block: block, newHeight: newHeight)
-            }
-            item.onWidthResize = { [weak self] block, delta in
-                self?.handleBlockWidthResize(block: block, delta: delta)
-            }
-            wireDragCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item, at: indexPath.item)
             return item
         }
     }
