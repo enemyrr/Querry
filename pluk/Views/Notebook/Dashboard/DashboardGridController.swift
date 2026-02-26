@@ -285,13 +285,13 @@ final class DashboardGridController: NSViewController {
 
         let locationInCollection = collectionView.convert(event.locationInWindow, from: nil)
         card.frame.origin = NSPoint(
-            x: locationInCollection.x - card.frame.width / 2,
+            x: locationInCollection.x - 16,
             y: locationInCollection.y - card.frame.height / 2
         )
 
         collectionView.layer?.addSublayer(card)
         dragSnapshotLayer = card
-        dragOffset = NSPoint(x: card.frame.width / 2, y: card.frame.height / 2)
+        dragOffset = NSPoint(x: 16, y: card.frame.height / 2)
 
         if let item = collectionView.item(at: itemIndex) {
             item.view.alphaValue = 0.15
