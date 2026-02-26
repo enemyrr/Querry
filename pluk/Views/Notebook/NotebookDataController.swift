@@ -18,6 +18,7 @@ final class NotebookDataController {
     private(set) var blocks: [NotebookBlock] = []
     var isRightSidebarVisible = false
     var viewMode: NotebookViewMode = .notebook
+    var isScrolled = false
 
     private var chartViewModels: [UUID: ChartBlockViewModel] = [:]
 

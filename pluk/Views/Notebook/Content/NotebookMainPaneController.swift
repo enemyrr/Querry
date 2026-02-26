@@ -34,6 +34,7 @@ final class NotebookMainPaneController: NSViewController {
         mainContentView = NSView()
         mainContentView.wantsLayer = true
         mainContentView.layer?.cornerRadius = 16
+        mainContentView.layer?.masksToBounds = true
         mainContentView.shadow = makeShadow()
         mainContentView.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(mainContentView)
@@ -55,11 +56,11 @@ final class NotebookMainPaneController: NSViewController {
             object: nil
         )
 
-        setupToolbar()
         setupHeader()
         setupEmptyState()
         setupBlocksView()
         setupDashboard()
+        setupToolbar()
         setupConstraints()
         updateBlocksVisibility()
         observeBlocksState()
@@ -77,6 +78,11 @@ final class NotebookMainPaneController: NSViewController {
             mainContentView.layer?.add(animation, forKey: "cornerRadius")
         }
         mainContentView.layer?.cornerRadius = radius
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        updateToolbarInset()
     }
 
     override func viewDidAppear() {
@@ -118,6 +124,10 @@ final class NotebookMainPaneController: NSViewController {
             dataController: dataController,
             headerView: headerController?.view
         )
+        blocksVC.onScrollOffsetChanged = { [weak self] offset in
+            guard let self else { return }
+            self.dataController.isScrolled = offset > 0
+        }
         addChild(blocksVC)
         blocksVC.view.translatesAutoresizingMaskIntoConstraints = false
         mainContentView.addSubview(blocksVC.view)
@@ -149,7 +159,7 @@ final class NotebookMainPaneController: NSViewController {
             emptyState.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
             emptyState.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
 
-            blocks.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
+            blocks.topAnchor.constraint(equalTo: mainContentView.topAnchor),
             blocks.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
             blocks.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
             blocks.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
@@ -206,6 +216,14 @@ final class NotebookMainPaneController: NSViewController {
                 self.observePublishedState()
             }
         }
+    }
+
+    // MARK: - Toolbar Inset
+
+    private func updateToolbarInset() {
+        guard let toolbar = toolbarHostingView else { return }
+        let toolbarHeight = toolbar.fittingSize.height
+        blocksController?.setTopContentInset(toolbarHeight)
     }
 
     // MARK: - Appearance

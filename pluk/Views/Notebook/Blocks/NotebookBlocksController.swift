@@ -65,6 +65,7 @@ final class NotebookBlocksController: NSViewController {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
+        scrollView.automaticallyAdjustsContentInsets = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
 
@@ -195,6 +196,10 @@ final class NotebookBlocksController: NSViewController {
                 self.observeBlocks()
             }
         }
+    }
+
+    func setTopContentInset(_ inset: CGFloat) {
+        scrollView.contentInsets.top = inset
     }
 
     private func notifyScrollOffsetChanged() {

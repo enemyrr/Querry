@@ -23,11 +23,31 @@ struct NotebookToolbar: View {
             viewModePicker
             Spacer()
         }
+        .overlay(alignment: .leading) {
+            if dataController.isScrolled {
+                Text(dataController.title.isEmpty ? "Untitled Notebook" : dataController.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+                    .padding(.leading, 16)
+            }
+        }
         .overlay(alignment: .trailing) {
             trailingButtons
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+        .background {
+            if dataController.isScrolled {
+                UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16)
+                    .fill(.bar)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if dataController.isScrolled {
+                Divider().opacity(0.5)
+            }
+        }
     }
 
     private var publishedToolbar: some View {
@@ -37,6 +57,17 @@ struct NotebookToolbar: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+        .background {
+            if dataController.isScrolled {
+                UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16)
+                    .fill(.bar)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if dataController.isScrolled {
+                Divider().opacity(0.5)
+            }
+        }
     }
 
     @ViewBuilder
