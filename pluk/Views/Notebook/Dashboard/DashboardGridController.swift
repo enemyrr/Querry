@@ -1,24 +1,5 @@
 import AppKit
 
-private extension NSBezierPath {
-    var cgPath: CGPath {
-        let path = CGMutablePath()
-        var points = [NSPoint](repeating: .zero, count: 3)
-        for i in 0..<elementCount {
-            switch element(at: i, associatedPoints: &points) {
-            case .moveTo: path.move(to: points[0])
-            case .lineTo: path.addLine(to: points[0])
-            case .curveTo: path.addCurve(to: points[2], control1: points[0], control2: points[1])
-            case .closePath: path.closeSubpath()
-            case .cubicCurveTo: path.addCurve(to: points[2], control1: points[0], control2: points[1])
-            case .quadraticCurveTo: path.addQuadCurve(to: points[1], control: points[0])
-            @unknown default: break
-            }
-        }
-        return path
-    }
-}
-
 private final class DashboardFlippedView: NSView {
     override var isFlipped: Bool { true }
 }
@@ -79,6 +60,7 @@ final class DashboardGridController: NSViewController {
         collectionView.isSelectable = false
         collectionView.register(DashboardChartItem.self, forItemWithIdentifier: DashboardChartItem.identifier)
         collectionView.register(DashboardTextItem.self, forItemWithIdentifier: DashboardTextItem.identifier)
+        collectionView.register(DashboardSingleValueItem.self, forItemWithIdentifier: DashboardSingleValueItem.identifier)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
 
         let documentView = DashboardFlippedView()
@@ -277,10 +259,13 @@ final class DashboardGridController: NSViewController {
         let dashBlocks = dataController.dashboardBlocks
         let block = dashBlocks[itemIndex]
 
-        let title = block.title.isEmpty
-            ? (block.blockType == .chart ? "Untitled Chart" : "Untitled Text")
-            : block.title
-        let iconName = block.blockType == .chart ? "chart.bar.fill" : "doc.text.fill"
+        let title = block.title.isEmpty ? "Untitled \(block.blockType.displayName)" : block.title
+        let iconName: String
+        switch block.blockType {
+        case .chart: iconName = "chart.bar.fill"
+        case .singleValue: iconName = "numbers.rectangle"
+        case .text: iconName = "doc.text.fill"
+        }
         let card = createDragCard(title: title, iconName: iconName)
 
         let locationInCollection = collectionView.convert(event.locationInWindow, from: nil)
@@ -464,51 +449,57 @@ final class DashboardGridController: NSViewController {
         let oldIds = dashBlocks.map(\.id)
 
         let sourceBlock = dashBlocks[sourceIndex]
-        guard let realSourceIndex = dataController.blocks.firstIndex(where: { $0.id == sourceBlock.id }) else {
+
+        guard let intent = currentDropIntent else {
             cleanupDrag()
             return
         }
 
-        if !sourceBlock.dashboardInline, sourceIndex + 1 < dashBlocks.count {
-            let nextBlock = dashBlocks[sourceIndex + 1]
-            if nextBlock.dashboardInline {
-                nextBlock.dashboardInline = false
+        let layout = collectionView.collectionViewLayout as? DashboardGridLayout
+        let rows = layout?.cachedRows ?? []
+
+        let sourceRowIndex = rowIndex(containing: sourceIndex, in: rows)
+
+        switch intent {
+        case .insertRow(let beforeIndex):
+            promoteNextInlineBlock(after: sourceIndex, in: dashBlocks)
+            sourceBlock.dashboardInline = false
+            let destDashIndex = beforeIndex < rows.count ? rows[beforeIndex].startIndex : dashBlocks.count
+            dataController.moveDashboardBlock(from: sourceIndex, to: destDashIndex)
+
+        case .insertInRow(let rowIndex, let hoveredItemIndex):
+            guard rowIndex < rows.count else { break }
+            let row = rows[rowIndex]
+            let isSameRow = sourceRowIndex == rowIndex
+
+            if !isSameRow {
+                promoteNextInlineBlock(after: sourceIndex, in: dashBlocks)
+                let usedFraction = (row.startIndex...row.endIndex).reduce(0.0) { $0 + dashBlocks[$1].blockWidthFraction }
+                sourceBlock.blockWidthFraction = max(0.2, 1.0 - usedFraction)
             }
-        }
 
-        if let intent = currentDropIntent {
-            let layout = collectionView.collectionViewLayout as? DashboardGridLayout
-            let rows = layout?.cachedRows ?? []
+            let targetDashIndex: Int
+            if isSameRow {
+                targetDashIndex = hoveredItemIndex
+            } else {
+                let locationInCollection = collectionView.convert(event.locationInWindow, from: nil)
+                let hoveredAttrs = (collectionView.collectionViewLayout as? DashboardGridLayout)?
+                    .layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0))
+                let insertBefore = locationInCollection.x < (hoveredAttrs?.frame.midX ?? 0)
+                targetDashIndex = insertBefore ? hoveredItemIndex : min(hoveredItemIndex + 1, row.endIndex + 1)
+            }
 
-            switch intent {
-            case .insertRow(let beforeIndex):
-                sourceBlock.dashboardInline = false
+            if isSameRow {
+                var destIndex = targetDashIndex
+                if destIndex > sourceIndex { destIndex += 1 }
+                dataController.moveDashboardBlock(from: sourceIndex, to: destIndex)
 
-                let realDestIndex = realIndex(forDashRow: beforeIndex, rows: rows, dashBlocks: dashBlocks)
-                dataController.moveBlock(from: realSourceIndex, to: realDestIndex)
-
-            case .insertInRow(let rowIndex, let hoveredItemIndex):
-                guard rowIndex < rows.count else { break }
-                let row = rows[rowIndex]
-                let sourceRowIndex = rows.firstIndex { sourceIndex >= $0.startIndex && sourceIndex <= $0.endIndex }
-                let isSameRow = sourceRowIndex == rowIndex
-
-                if !isSameRow {
-                    let usedFraction = (row.startIndex...row.endIndex).reduce(0.0) { $0 + dashBlocks[$1].blockWidthFraction }
-                    sourceBlock.blockWidthFraction = max(0.2, 1.0 - usedFraction)
+                let updatedDashBlocks = dataController.dashboardBlocks
+                for i in row.startIndex...row.endIndex {
+                    guard i < updatedDashBlocks.count else { break }
+                    updatedDashBlocks[i].dashboardInline = (i != row.startIndex)
                 }
-
-                let targetDashIndex: Int
-                if isSameRow {
-                    targetDashIndex = hoveredItemIndex
-                } else {
-                    let locationInCollection = collectionView.convert(event.locationInWindow, from: nil)
-                    let hoveredAttrs = (collectionView.collectionViewLayout as? DashboardGridLayout)?
-                        .layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0))
-                    let insertBefore = locationInCollection.x < (hoveredAttrs?.frame.midX ?? 0)
-                    targetDashIndex = insertBefore ? hoveredItemIndex : min(hoveredItemIndex + 1, row.endIndex + 1)
-                }
-
+            } else {
                 if targetDashIndex == row.startIndex {
                     sourceBlock.dashboardInline = false
                     dashBlocks[row.startIndex].dashboardInline = true
@@ -516,17 +507,7 @@ final class DashboardGridController: NSViewController {
                     sourceBlock.dashboardInline = true
                 }
 
-                let realDestIndex: Int
-                if targetDashIndex <= row.endIndex, targetDashIndex < dashBlocks.count {
-                    let destBlock = dashBlocks[targetDashIndex]
-                    realDestIndex = dataController.blocks.firstIndex(where: { $0.id == destBlock.id }) ?? dataController.blocks.count
-                } else {
-                    let lastBlock = dashBlocks[row.endIndex]
-                    let lastRealIndex = dataController.blocks.firstIndex(where: { $0.id == lastBlock.id }) ?? dataController.blocks.count
-                    realDestIndex = lastRealIndex + 1
-                }
-
-                dataController.moveBlock(from: realSourceIndex, to: realDestIndex)
+                dataController.moveDashboardBlock(from: sourceIndex, to: targetDashIndex)
             }
         }
 
@@ -547,12 +528,13 @@ final class DashboardGridController: NSViewController {
         cleanupDrag()
     }
 
-    private func realIndex(forDashRow beforeIndex: Int, rows: [DashboardRowInfo], dashBlocks: [NotebookBlock]) -> Int {
-        guard beforeIndex < rows.count else { return dataController.blocks.count }
-        let destDashIndex = rows[beforeIndex].startIndex
-        guard destDashIndex < dashBlocks.count else { return dataController.blocks.count }
-        let destBlock = dashBlocks[destDashIndex]
-        return dataController.blocks.firstIndex(where: { $0.id == destBlock.id }) ?? dataController.blocks.count
+    private func promoteNextInlineBlock(after sourceIndex: Int, in dashBlocks: [NotebookBlock]) {
+        let sourceBlock = dashBlocks[sourceIndex]
+        guard !sourceBlock.dashboardInline, sourceIndex + 1 < dashBlocks.count else { return }
+        let nextBlock = dashBlocks[sourceIndex + 1]
+        if nextBlock.dashboardInline {
+            nextBlock.dashboardInline = false
+        }
     }
 
     private func cleanupDrag() {
@@ -584,6 +566,10 @@ final class DashboardGridController: NSViewController {
     }
 
     // MARK: - Drop Intent
+
+    private func rowIndex(containing itemIndex: Int, in rows: [DashboardRowInfo]) -> Int? {
+        rows.firstIndex { itemIndex >= $0.startIndex && itemIndex <= $0.endIndex }
+    }
 
     private func computeDropIntent(at point: NSPoint, sourceIndex: Int) -> DashboardDropIntent? {
         guard let layout = collectionView.collectionViewLayout as? DashboardGridLayout else { return nil }
@@ -633,17 +619,25 @@ final class DashboardGridController: NSViewController {
     }
 
     private func findHoveredItemIndex(in row: DashboardRowInfo, at x: CGFloat, layout: DashboardGridLayout) -> Int {
+        var closest = row.endIndex
+        var closestDist = CGFloat.greatestFiniteMagnitude
         for i in row.startIndex...row.endIndex {
+            guard i != dragSourceIndex else { continue }
             guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
             if x >= attrs.frame.minX, x <= attrs.frame.maxX {
                 return i
             }
+            let dist = min(abs(x - attrs.frame.minX), abs(x - attrs.frame.maxX))
+            if dist < closestDist {
+                closestDist = dist
+                closest = i
+            }
         }
-        return row.endIndex
+        return closest
     }
 
     private func isNoOp(_ intent: DashboardDropIntent, sourceIndex: Int, rows: [DashboardRowInfo]) -> Bool {
-        let sourceRow = rows.firstIndex { sourceIndex >= $0.startIndex && sourceIndex <= $0.endIndex }
+        let sourceRow = rowIndex(containing: sourceIndex, in: rows)
 
         switch intent {
         case .insertRow(let beforeIndex):
@@ -664,12 +658,7 @@ final class DashboardGridController: NSViewController {
         guard let indicator = dropIndicatorLayer else { return }
         guard let layout = collectionView.collectionViewLayout as? DashboardGridLayout else { return }
 
-        let newGapIndex: Int?
-        if case .insertRow(let beforeIndex) = intent {
-            newGapIndex = beforeIndex
-        } else {
-            newGapIndex = nil
-        }
+        let newGapIndex: Int? = if case .insertRow(let beforeIndex) = intent { beforeIndex } else { nil }
 
         if layout.insertRowGapBeforeIndex != newGapIndex {
             layout.insertRowGapBeforeIndex = newGapIndex
@@ -711,7 +700,7 @@ final class DashboardGridController: NSViewController {
             }
 
             let row = rows[rowIndex]
-            let sourceRowIndex = rows.firstIndex { sourceIndex >= $0.startIndex && sourceIndex <= $0.endIndex }
+            let sourceRowIndex = self.rowIndex(containing: sourceIndex, in: rows)
             let isSameRow = sourceRowIndex == rowIndex
 
             dimOverlayLayer?.frame = contentRect(from: row.frame)
@@ -835,11 +824,19 @@ extension DashboardGridController: NSCollectionViewDataSource {
             let vm = dataController.chartViewModel(for: block)
             item.configure(block: block, viewModel: vm, isPublished: published)
             wireItemCallbacks(on: item, at: indexPath.item)
+            item.onRun = { Task { await vm.fetchChartData() } }
             return item
         case .text:
             let item = collectionView.makeItem(withIdentifier: DashboardTextItem.identifier, for: indexPath) as! DashboardTextItem
             item.configure(block: block, isPublished: published)
             wireItemCallbacks(on: item, at: indexPath.item)
+            return item
+        case .singleValue:
+            let item = collectionView.makeItem(withIdentifier: DashboardSingleValueItem.identifier, for: indexPath) as! DashboardSingleValueItem
+            let vm = dataController.singleValueViewModel(for: block)
+            item.configure(block: block, viewModel: vm, isPublished: published)
+            wireItemCallbacks(on: item, at: indexPath.item)
+            item.onRun = { Task { await vm.fetchSingleValue() } }
             return item
         }
     }

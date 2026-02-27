@@ -116,6 +116,9 @@ final class NotebookBlocksController: NSViewController {
             if let chartController = controller as? ChartBlockController {
                 chartController.cleanupSession()
             }
+            if let singleValueController = controller as? SingleValueBlockController {
+                singleValueController.cleanupSession()
+            }
             controller.view.removeFromSuperview()
             controller.removeFromParent()
             blockControllers.removeValue(forKey: id)
@@ -141,6 +144,8 @@ final class NotebookBlocksController: NSViewController {
                     if initialLoadComplete {
                         pendingFocusBlockId = block.id
                     }
+                case .singleValue:
+                    controller = SingleValueBlockController(block: block, dataController: dataController)
                 }
                 addChild(controller)
                 blockControllers[block.id] = controller

@@ -66,9 +66,12 @@ final class DashboardGridLayout: NSCollectionViewLayout {
             let rowStartIndex = globalIndex
 
             for block in row {
-                let itemHandleWidth: CGFloat = isPublished ? 0 : handleWidth
+                let isSingleValue = block.blockType == .singleValue
+                let itemHandleWidth: CGFloat = (isPublished || isSingleValue) ? 0 : handleWidth
                 let itemWidth: CGFloat
-                if isSingleItem || totalFraction <= 1.0 {
+                if isSingleValue {
+                    itemWidth = 240
+                } else if isSingleItem || totalFraction <= 1.0 {
                     itemWidth = distributableWidth * block.blockWidthFraction + itemHandleWidth
                 } else {
                     let fraction = block.blockWidthFraction / totalFraction
@@ -76,15 +79,21 @@ final class DashboardGridLayout: NSCollectionViewLayout {
                 }
 
                 let titleHeight: CGFloat = isPublished ? 0 : 18
-                let resizeHandleHeight: CGFloat = isPublished ? 0 : 12
-                let minContentHeight: CGFloat = block.blockType == .chart ? 280 : 80
-                let itemHeight = titleHeight + max(minContentHeight, block.blockHeight) + resizeHandleHeight
+                let resizeHandleHeight: CGFloat = (isPublished || isSingleValue) ? 0 : 12
+                let minContentHeight: CGFloat
+                switch block.blockType {
+                case .chart: minContentHeight = 280
+                case .singleValue: minContentHeight = 140
+                case .text: minContentHeight = 80
+                }
+                let contentHeight: CGFloat = isSingleValue ? 140 : max(minContentHeight, block.blockHeight)
+                let itemHeight = titleHeight + contentHeight + resizeHandleHeight
 
                 let attrs = NSCollectionViewLayoutAttributes(forItemWith: IndexPath(item: globalIndex, section: 0))
                 attrs.frame = NSRect(x: xOffset, y: yOffset, width: itemWidth, height: itemHeight)
                 cachedAttributes.append(attrs)
 
-                xOffset += itemWidth
+                xOffset += itemWidth + (isSingleValue ? 12 : 0)
                 maxHeight = max(maxHeight, itemHeight)
                 globalIndex += 1
             }

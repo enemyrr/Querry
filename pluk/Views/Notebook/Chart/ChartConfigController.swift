@@ -1167,7 +1167,7 @@ final class ChartConfigController: NSViewController {
 
     private func iconName(for column: DatabaseSchemaInfo) -> String {
         if viewModel.isNumericColumn(column) {
-            return "number"
+            return "numbers.rectangle"
         }
         let type = column.dataType.lowercased()
         if type.contains("date") || type.contains("time") || type.contains("timestamp") {

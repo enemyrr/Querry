@@ -58,14 +58,18 @@ private struct NotebookActionBarContent: View {
     let onDidInsert: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
 
+    private var visibleTypes: [NotebookCellType] {
+        NotebookCellType.allCases.filter { $0.isEnabled }
+    }
+
     var body: some View {
         HStack(spacing: 5) {
-            ForEach(Array(NotebookCellType.allCases.enumerated()), id: \.element) { index, type in
-                NotebookActionButton(type: type, isEnabled: type.isEnabled) {
+            ForEach(Array(visibleTypes.enumerated()), id: \.element) { index, type in
+                NotebookActionButton(type: type, isEnabled: true) {
                     handleCellType(type)
                 }
 
-                if index < NotebookCellType.allCases.count - 1 {
+                if index < visibleTypes.count - 1 {
                     Divider()
                         .frame(height: 22)
                 }
@@ -92,6 +96,12 @@ private struct NotebookActionBarContent: View {
                 dataController.insertTextBlock(at: index)
             } else {
                 dataController.addTextBlock()
+            }
+        case .singleValue:
+            if let index = insertionIndex {
+                dataController.insertSingleValueBlock(at: index)
+            } else {
+                dataController.addSingleValueBlock()
             }
         default:
             break

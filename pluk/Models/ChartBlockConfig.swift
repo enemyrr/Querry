@@ -134,6 +134,7 @@ enum AggregationFunction: String, Codable, CaseIterable {
     }
 
     func sqlExpression(for column: String) -> String {
+        if column == "*" && self == .count { return "COUNT(*)" }
         let escaped = "\"\(column)\""
         switch self {
         case .sum: return "SUM(\(escaped))"

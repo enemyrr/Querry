@@ -13,6 +13,7 @@ struct BlockCreationRequest {
     let title: String
     var config: ChartBlockConfig?
     var textContent: String?
+    var singleValueConfig: SingleValueBlockConfig?
 }
 
 @Observable
@@ -64,6 +65,7 @@ final class NotebookAgentEngine {
         | `get_table_schema` | Column names, types, keys, constraints |
         | `run_query` | Execute a read-only SQL query and get results (for exploration — results are NOT added to the notebook) |
         | `create_chart_block` | Add a chart visualization to the notebook |
+        | `create_single_value_block` | Add a single-number KPI (e.g. total count, sum, average) |
         | `create_text_block` | Add markdown text (headings, analysis, commentary) |
 
         ## Chart Types
@@ -254,6 +256,8 @@ final class NotebookAgentEngine {
             return await executeRunQuery(json: json, connections: connections)
         case "create_chart_block":
             return executeCreateChartBlock(json: json)
+        case "create_single_value_block":
+            return executeCreateSingleValueBlock(json: json)
         case "create_text_block":
             return executeCreateTextBlock(json: json)
         default:
@@ -525,6 +529,55 @@ final class NotebookAgentEngine {
         ))
 
         return "Chart block '\(title)' created: \(chartType.displayName) chart on \(tableName) (x: \(xAxis), y: \(yAxisColumns.joined(separator: ", ")))"
+    }
+
+    // MARK: - Create Single Value Block
+
+    private func executeCreateSingleValueBlock(json: [String: Any]) -> String {
+        guard let keychainId = json["connection_keychain_id"] as? String,
+              let connName = json["connection_name"] as? String,
+              let dbType = json["database_type"] as? String,
+              let dbName = json["database_name"] as? String,
+              let tableName = json["table_name"] as? String,
+              let column = json["column"] as? String,
+              let aggRaw = json["aggregation"] as? String,
+              let title = json["title"] as? String else {
+            return "Error: Missing required parameters for create_single_value_block."
+        }
+
+        let aggregation = AggregationFunction(rawValue: aggRaw) ?? .count
+        let schemaName = json["schema_name"] as? String
+        let label = json["label"] as? String
+
+        var singleValueCfg = SingleValueBlockConfig(
+            connectionKeychainId: keychainId,
+            connectionName: connName,
+            databaseType: dbType,
+            databaseName: dbName,
+            schemaName: schemaName,
+            tableName: tableName,
+            column: column,
+            aggregation: aggregation,
+            label: label
+        )
+
+        if let filterArray = json["filters"] as? [[String: String]] {
+            for filterDict in filterArray {
+                guard let field = filterDict["field"],
+                      let opRaw = filterDict["operator"],
+                      let op = ChartFilterCondition.ChartFilterOperator(rawValue: opRaw) else { continue }
+                let value = filterDict["value"] ?? ""
+                singleValueCfg.filters.append(ChartFilterCondition(field: field, filterOperator: op, value: value))
+            }
+        }
+
+        pendingBlockCreations.append(BlockCreationRequest(
+            kind: .singleValue,
+            title: title,
+            singleValueConfig: singleValueCfg
+        ))
+
+        return "Single value block '\(title)' created: \(aggregation.displayName) of \(column) from \(tableName)"
     }
 
     // MARK: - Create Text Block

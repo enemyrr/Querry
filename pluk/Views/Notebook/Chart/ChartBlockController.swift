@@ -8,6 +8,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 
     private var titleLabel: NSTextField!
     private var blockContainer: NSView!
+    private var runButton: NSButton!
     private var menuButton: NSButton!
     private var resizeHandle: NSView!
     private var blockHeightConstraint: NSLayoutConstraint!
@@ -27,6 +28,9 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
         let wrapper = BlockHoverTrackingView { [weak self] isHovered in
             guard let self,
                   let blockIndex = self.dataController.blocks.firstIndex(where: { $0.id == self.viewModel.block.id }) else { return }
+            let showButtons = isHovered || self.popover?.isShown == true
+            self.runButton.isHidden = !showButtons
+            self.menuButton.isHidden = !showButtons
             NotificationCenter.default.post(
                 name: .notebookBlockHoverChanged,
                 object: nil,
@@ -39,6 +43,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 
         setupTitleLabel()
         setupBlockContainer()
+        setupRunButton()
         setupMenuButton()
         setupResizeHandle()
         setupWrapperConstraints()
@@ -84,6 +89,28 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
         updateBorderColor()
     }
 
+    private func setupRunButton() {
+        runButton = NSButton(frame: .zero)
+        runButton.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Run")
+        runButton.symbolConfiguration = .init(pointSize: 9, weight: .medium)
+        runButton.bezelStyle = .accessoryBar
+        runButton.isBordered = false
+        runButton.imagePosition = .imageOnly
+        runButton.contentTintColor = .tertiaryLabelColor
+        runButton.wantsLayer = true
+        runButton.layer?.cornerRadius = 4
+        runButton.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.06).cgColor
+        runButton.isHidden = true
+        runButton.translatesAutoresizingMaskIntoConstraints = false
+        runButton.target = self
+        runButton.action = #selector(handleRunTapped)
+        view.addSubview(runButton)
+    }
+
+    @objc private func handleRunTapped() {
+        Task { await viewModel.fetchChartData() }
+    }
+
     private func setupMenuButton() {
         menuButton = NSButton(frame: .zero)
         menuButton.image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Block menu")
@@ -92,6 +119,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
         menuButton.isBordered = false
         menuButton.imagePosition = .imageOnly
         menuButton.contentTintColor = .tertiaryLabelColor
+        menuButton.isHidden = true
         menuButton.translatesAutoresizingMaskIntoConstraints = false
         menuButton.target = self
         menuButton.action = #selector(showBlockMenu(_:))
@@ -122,8 +150,13 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
             titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
 
-            menuButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor),
-            menuButton.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            runButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
+            runButton.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            runButton.widthAnchor.constraint(equalToConstant: 18),
+            runButton.heightAnchor.constraint(equalToConstant: 12),
+
+            menuButton.topAnchor.constraint(equalTo: runButton.bottomAnchor, constant: 2),
+            menuButton.centerXAnchor.constraint(equalTo: runButton.centerXAnchor),
             menuButton.widthAnchor.constraint(equalToConstant: 24),
             menuButton.heightAnchor.constraint(equalToConstant: 24),
 

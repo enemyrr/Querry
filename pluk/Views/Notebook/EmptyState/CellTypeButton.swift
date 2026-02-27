@@ -5,7 +5,7 @@ enum NotebookCellType: String, CaseIterable {
     case python = "Python"
     case text = "Text"
     case chart = "Chart"
-    case metric = "Metric"
+    case singleValue = "Single Value"
     case parameter = "Parameter"
 
     var icon: String {
@@ -14,7 +14,7 @@ enum NotebookCellType: String, CaseIterable {
         case .python: "chevron.left.forwardslash.chevron.right"
         case .text: "doc.text"
         case .chart: "chart.bar"
-        case .metric: "number"
+        case .singleValue: "numbers.rectangle"
         case .parameter: "slider.horizontal.3"
         }
     }
@@ -23,6 +23,7 @@ enum NotebookCellType: String, CaseIterable {
         switch self {
         case .chart: .chart
         case .text: .text
+        case .singleValue: .singleValue
         default: nil
         }
     }

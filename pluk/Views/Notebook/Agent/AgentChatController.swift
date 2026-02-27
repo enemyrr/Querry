@@ -349,6 +349,13 @@ final class AgentChatController {
                 block.textContent = request.textContent ?? ""
                 dataController.updateBlock(block)
             }
+        case .singleValue:
+            dataController.addSingleValueBlock()
+            if let block = dataController.blocks.last, let config = request.singleValueConfig {
+                block.title = request.title
+                block.saveSingleValueConfig(config)
+                dataController.updateBlock(block)
+            }
         }
     }
 

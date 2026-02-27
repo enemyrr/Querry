@@ -95,6 +95,43 @@ actor ChartDriverSession {
         return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
     }
 
+    func fetchSingleValue(
+        tableName: String,
+        schema: String?,
+        column: String,
+        aggregation: AggregationFunction,
+        filters: [ChartFilterCondition] = []
+    ) async throws -> Double? {
+        guard let driver else { throw ChartBlockError.notConnected }
+
+        let schemaPrefix = schema.map { "\"\($0)\"." } ?? ""
+        let expr = aggregation.sqlExpression(for: column)
+        var query = "SELECT \(expr) AS \"metric_value\" FROM \(schemaPrefix)\"\(tableName)\""
+
+        let validFilters = filters.filter(\.isComplete)
+        if !validFilters.isEmpty {
+            let whereClause = validFilters.map(\.sqlFragment).joined(separator: " AND ")
+            query += " WHERE \(whereClause)"
+        }
+
+        let results = try await driver.executeRawQuery(query, databaseSchema: schema)
+        guard let result = results.first,
+              let row = result.rows.first,
+              let info = row["metric_value"],
+              let value = info.value else { return nil }
+
+        switch value {
+        case let d as Double: return d
+        case let i as Int: return Double(i)
+        case let i as Int64: return Double(i)
+        case let i as Int32: return Double(i)
+        case let f as Float: return Double(f)
+        case let s as String: return Double(s)
+        case let d as Decimal: return NSDecimalNumber(decimal: d).doubleValue
+        default: return nil
+        }
+    }
+
     func getInformationSchema() async throws -> [InformationSchema] {
         guard let driver else { throw ChartBlockError.notConnected }
         return try await driver.getInformationSchema()

@@ -5,7 +5,7 @@ enum ToolMetadata {
 
     static func groupKey(for toolName: String) -> String {
         switch toolName {
-        case "create_chart_block", "create_text_block": return "create_block"
+        case "create_chart_block", "create_text_block", "create_single_value_block": return "create_block"
         default: return toolName
         }
     }
@@ -23,6 +23,7 @@ enum ToolMetadata {
         case "get_table_schema": return "square.stack.3d.up"
         case "run_query": return "rectangle.and.text.magnifyingglass"
         case "create_chart_block": return "chart.bar"
+        case "create_single_value_block": return "numbers.rectangle"
         case "create_text_block": return "text.append"
         case "create_block": return "chart.bar"
         default: return "gearshape"
@@ -34,7 +35,7 @@ enum ToolMetadata {
         case "list_tables": return "Exploring database"
         case "get_table_schema": return "Reading schema"
         case "run_query": return "Querying data"
-        case "create_chart_block", "create_text_block", "create_block": return "Building visualizations"
+        case "create_chart_block", "create_text_block", "create_single_value_block", "create_block": return "Building visualizations"
         default: return "Processing"
         }
     }
@@ -61,6 +62,10 @@ enum ToolMetadata {
         case "create_chart_block":
             let title = json["title"] as? String
             return (title ?? "Chart", icon(for: name))
+
+        case "create_single_value_block":
+            let title = json["title"] as? String
+            return (title ?? "Single Value", icon(for: name))
 
         case "create_text_block":
             return ("Text block", icon(for: name))

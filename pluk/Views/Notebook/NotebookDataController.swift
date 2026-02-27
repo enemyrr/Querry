@@ -21,6 +21,7 @@ final class NotebookDataController {
     var isScrolled = false
 
     private var chartViewModels: [UUID: ChartBlockViewModel] = [:]
+    private var singleValueViewModels: [UUID: SingleValueBlockViewModel] = [:]
 
     var hasBlocks: Bool { !blocks.isEmpty }
 
@@ -38,7 +39,7 @@ final class NotebookDataController {
     }
 
     var dashboardBlocks: [NotebookBlock] {
-        blocks.filter { !$0.isHiddenInDashboard }
+        blocks.filter { !$0.isHiddenInDashboard }.sorted { $0.dashboardSortOrder < $1.dashboardSortOrder }
     }
 
     func publishDashboard() {
@@ -107,6 +108,13 @@ final class NotebookDataController {
             sortBy: [SortDescriptor(\.sortOrder)]
         )
         blocks = (try? context.fetch(blockDescriptor)) ?? []
+
+        if blocks.count >= 2, blocks.allSatisfy({ $0.dashboardSortOrder == 0 }) {
+            for (i, block) in blocks.enumerated() {
+                block.dashboardSortOrder = i
+            }
+            save()
+        }
     }
 
     func addChartBlock() {
@@ -125,10 +133,23 @@ final class NotebookDataController {
         insertBlock(type: .text, at: index)
     }
 
+    func addSingleValueBlock() {
+        addBlock(type: .singleValue)
+    }
+
+    func insertSingleValueBlock(at index: Int) {
+        insertBlock(type: .singleValue, at: index)
+    }
+
     private func addBlock(type: NotebookBlockType) {
         guard let notebook else { return }
         let nextOrder = (blocks.map(\.sortOrder).max() ?? -1) + 1
         let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: nextOrder)
+        block.dashboardSortOrder = nextDashboardOrder()
+        if type == .singleValue {
+            block.blockHeight = 140
+            block.blockWidthFraction = 0.25
+        }
         modelContainer.mainContext.insert(block)
         blocks.append(block)
         save()
@@ -137,6 +158,11 @@ final class NotebookDataController {
     private func insertBlock(type: NotebookBlockType, at index: Int) {
         guard let notebook else { return }
         let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: index)
+        block.dashboardSortOrder = nextDashboardOrder()
+        if type == .singleValue {
+            block.blockHeight = 140
+            block.blockWidthFraction = 0.25
+        }
         modelContainer.mainContext.insert(block)
         blocks.insert(block, at: index)
         reindexSortOrders()
@@ -152,11 +178,22 @@ final class NotebookDataController {
         return vm
     }
 
+    func singleValueViewModel(for block: NotebookBlock) -> SingleValueBlockViewModel {
+        if let existing = singleValueViewModels[block.id] {
+            return existing
+        }
+        let vm = SingleValueBlockViewModel(block: block, dataController: self)
+        singleValueViewModels[block.id] = vm
+        return vm
+    }
+
     func deleteBlock(_ block: NotebookBlock) {
         chartViewModels.removeValue(forKey: block.id)
+        singleValueViewModels.removeValue(forKey: block.id)
         modelContainer.mainContext.delete(block)
         blocks.removeAll { $0.id == block.id }
         reindexSortOrders()
+        reindexDashboardSortOrders()
         save()
     }
 
@@ -168,9 +205,11 @@ final class NotebookDataController {
         newBlock.blockHeight = block.blockHeight
         newBlock.blockWidthFraction = block.blockWidthFraction
         newBlock.dashboardInline = block.dashboardInline
+        newBlock.dashboardSortOrder = nextDashboardOrder()
         modelContainer.mainContext.insert(newBlock)
         blocks.insert(newBlock, at: index + 1)
         reindexSortOrders()
+        reindexDashboardSortOrders()
         save()
     }
 
@@ -204,10 +243,34 @@ final class NotebookDataController {
         save()
     }
 
+    func moveDashboardBlock(from sourceIndex: Int, to destinationIndex: Int) {
+        var dash = dashboardBlocks
+        guard sourceIndex != destinationIndex,
+              sourceIndex >= 0, sourceIndex < dash.count,
+              destinationIndex >= 0, destinationIndex <= dash.count else { return }
+        let block = dash.remove(at: sourceIndex)
+        let insertIndex = destinationIndex > sourceIndex ? destinationIndex - 1 : destinationIndex
+        dash.insert(block, at: min(insertIndex, dash.count))
+        for (i, b) in dash.enumerated() {
+            b.dashboardSortOrder = i
+        }
+        save()
+    }
+
     private func reindexSortOrders() {
         for (i, block) in blocks.enumerated() {
             block.sortOrder = i
         }
+    }
+
+    private func reindexDashboardSortOrders() {
+        for (i, block) in dashboardBlocks.enumerated() {
+            block.dashboardSortOrder = i
+        }
+    }
+
+    private func nextDashboardOrder() -> Int {
+        (blocks.map(\.dashboardSortOrder).max() ?? -1) + 1
     }
 
     private func save() {
