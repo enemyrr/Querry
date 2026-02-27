@@ -16,11 +16,17 @@ struct BlockCreationRequest {
     var singleValueConfig: SingleValueBlockConfig?
 }
 
+struct NotebookInfoUpdate {
+    let title: String
+    let description: String
+}
+
 @Observable
 @MainActor
 final class NotebookAgentEngine {
 
     private(set) var pendingBlockCreations: [BlockCreationRequest] = []
+    private(set) var pendingNotebookInfoUpdate: NotebookInfoUpdate?
 
     private let driverSession = AgentDriverSession()
 
@@ -29,6 +35,7 @@ final class NotebookAgentEngine {
 
     func clearPendingCreations() {
         pendingBlockCreations.removeAll()
+        pendingNotebookInfoUpdate = nil
     }
 
     // MARK: - System Prompt
@@ -64,6 +71,7 @@ final class NotebookAgentEngine {
         | `list_tables` | Discover tables in a connection |
         | `get_table_schema` | Column names, types, keys, constraints |
         | `run_query` | Execute a read-only SQL query and get results (for exploration — results are NOT added to the notebook) |
+        | `set_notebook_info` | Set the notebook title and description |
         | `create_chart_block` | Add a chart visualization to the notebook |
         | `create_single_value_block` | Add a single-number KPI (e.g. total count, sum, average) |
         | `create_text_block` | Add markdown text (headings, analysis, commentary) |
@@ -90,13 +98,21 @@ final class NotebookAgentEngine {
         - For **line charts** showing trends over time, `sum` or `average` are typical — sum for cumulative metrics (daily revenue), average for rate metrics (avg response time per day).
         - When unsure, run a quick `run_query` (e.g., `SELECT column, COUNT(*) ... GROUP BY column`) to see what the data looks like before committing to an aggregation.
 
+        ## Single Value KPI Blocks — Placement Rules
+        - **Always create single value blocks FIRST**, before any chart or text blocks. They belong at the top of the notebook as a KPI summary row.
+        - Group them in a row of up to **4** single value blocks. If you have fewer than 4 relevant KPIs, that's fine — but always try to fill a full row of 4 when the data supports it.
+        - Pick the most important top-level metrics for the dataset (e.g., total rows, total revenue, unique customers, average order value).
+        - After the KPI row is complete, proceed with the text introduction and chart sections below it.
+
         ## Three-Phase Workflow
 
         ### Phase 1 — Discover, Explore & Plan
         1. Call `list_tables` to see available tables.
         2. Call `get_table_schema` on relevant tables to learn columns.
         3. Use `run_query` to run exploratory queries — row counts, date ranges, cardinalities, distributions, top-N breakdowns. Gather enough data to understand the shape and story of the dataset.
-        4. **Create the plan**: Once you understand the data, decide on 4-6 numbered analysis sections. Then call `create_text_block` to add a report introduction that includes a brief overview of the dataset (row count, date range, key dimensions — citing real numbers from your queries) and a numbered table of contents listing every section you will build. Example:
+        4. **Set the notebook title**: Call `set_notebook_info` with a concise, descriptive title and a 1-2 sentence description summarizing the analysis (e.g. title: "Sales Performance Report", description: "Analysis of 12,450 orders across 4 product categories from Jan 2019 – Dec 2023").
+        5. **Create KPI blocks**: Before writing the plan, create up to 4 `create_single_value_block` calls for the most important top-level metrics. These will appear as a summary row at the top of the notebook.
+        6. **Create the plan**: Once you understand the data, decide on 4-6 numbered analysis sections. Then call `create_text_block` to add a report introduction that includes a brief overview of the dataset (row count, date range, key dimensions — citing real numbers from your queries) and a numbered table of contents listing every section you will build. Example:
 
         ```
         # Sales Performance Report
@@ -159,6 +175,7 @@ final class NotebookAgentEngine {
             listTablesTool,
             getTableSchemaTool,
             runQueryTool,
+            setNotebookInfoTool,
         ]
         tools.append(contentsOf: NotebookBlockKind.allOpenAITools)
         return tools
@@ -260,6 +277,8 @@ final class NotebookAgentEngine {
             return executeCreateSingleValueBlock(json: json)
         case "create_text_block":
             return executeCreateTextBlock(json: json)
+        case "set_notebook_info":
+            return executeSetNotebookInfo(json: json)
         default:
             return "Unknown tool: \(toolCall.name)"
         }
@@ -596,6 +615,19 @@ final class NotebookAgentEngine {
         return "Text block created."
     }
 
+    // MARK: - Set Notebook Info
+
+    private func executeSetNotebookInfo(json: [String: Any]) -> String {
+        guard let title = json["title"] as? String else {
+            return "Error: title is required for set_notebook_info"
+        }
+        let description = json["description"] as? String ?? ""
+
+        pendingNotebookInfoUpdate = NotebookInfoUpdate(title: title, description: description)
+
+        return "Notebook info updated: title='\(title)'"
+    }
+
     // MARK: - Cleanup
 
     func cleanup() async {
@@ -659,6 +691,28 @@ final class NotebookAgentEngine {
             ],
             strict: false,
             description: "Execute a read-only SQL query to explore data. Use this to gather specific numbers, distributions, and statistics before building charts and writing commentary. Results are returned to you for analysis but are NOT added to the notebook."
+        )
+    )
+
+    private let setNotebookInfoTool = OpenAICreateResponseRequestBody.Tool.function(
+        OpenAICreateResponseRequestBody.FunctionTool(
+            name: "set_notebook_info",
+            parameters: [
+                "type": .string("object"),
+                "properties": .object([
+                    "title": .object([
+                        "type": .string("string"),
+                        "description": .string("A concise, descriptive title for the notebook (e.g. 'Sales Performance Report', 'User Growth Analysis')"),
+                    ]),
+                    "description": .object([
+                        "type": .string("string"),
+                        "description": .string("A 1-2 sentence description summarizing what this notebook analyzes"),
+                    ]),
+                ]),
+                "required": .array([.string("title")]),
+            ],
+            strict: false,
+            description: "Sets the notebook title and description. Call this early in the workflow to give the notebook a meaningful name based on the data being analyzed."
         )
     )
 

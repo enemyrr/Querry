@@ -22,6 +22,7 @@ enum ToolMetadata {
         case "list_tables": return "tablecells"
         case "get_table_schema": return "square.stack.3d.up"
         case "run_query": return "rectangle.and.text.magnifyingglass"
+        case "set_notebook_info": return "pencil"
         case "create_chart_block": return "chart.bar"
         case "create_single_value_block": return "numbers.rectangle"
         case "create_text_block": return "text.append"
@@ -35,6 +36,7 @@ enum ToolMetadata {
         case "list_tables": return "Exploring database"
         case "get_table_schema": return "Reading schema"
         case "run_query": return "Querying data"
+        case "set_notebook_info": return "Setting up notebook"
         case "create_chart_block", "create_text_block", "create_single_value_block", "create_block": return "Building visualizations"
         default: return "Processing"
         }
@@ -58,6 +60,10 @@ enum ToolMetadata {
             let query = json["query"] as? String ?? ""
             let preview = queryPreview(query)
             return (preview.isEmpty ? "Running query" : preview, icon(for: name))
+
+        case "set_notebook_info":
+            let title = json["title"] as? String
+            return (title != nil ? "Setting title: \(title!)" : "Setting notebook info", icon(for: name))
 
         case "create_chart_block":
             let title = json["title"] as? String

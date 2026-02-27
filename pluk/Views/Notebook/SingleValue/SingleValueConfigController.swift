@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 final class SingleValueConfigController: NSViewController {
 
@@ -8,7 +7,7 @@ final class SingleValueConfigController: NSViewController {
 
     private var connectionPickerView: NSView?
     private var pickerDropdownRef: ConnectionPickerDropdown?
-    private var singleValueHostingView: NSHostingView<AnyView>?
+    private var singleValueDisplayView: SingleValueDisplayView?
 
     init(viewModel: SingleValueBlockViewModel, connections: [Connection]) {
         self.viewModel = viewModel
@@ -98,19 +97,18 @@ final class SingleValueConfigController: NSViewController {
     // MARK: - Single Value Display
 
     private func setupSingleValueDisplay() {
-        guard singleValueHostingView == nil else { return }
+        guard singleValueDisplayView == nil else { return }
 
         let displayView = SingleValueDisplayView(viewModel: viewModel)
-        let hosting = NSHostingView(rootView: AnyView(displayView))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(hosting)
-        singleValueHostingView = hosting
+        displayView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(displayView)
+        singleValueDisplayView = displayView
 
         NSLayoutConstraint.activate([
-            hosting.topAnchor.constraint(equalTo: view.topAnchor),
-            hosting.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            hosting.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            displayView.topAnchor.constraint(equalTo: view.topAnchor),
+            displayView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            displayView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            displayView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }
 
@@ -323,52 +321,143 @@ final class SingleValueConfigPopoverController: NSViewController {
     }
 }
 
-// MARK: - Single Value Display View (SwiftUI)
+// MARK: - Single Value Display View (AppKit)
 
-struct SingleValueDisplayView: View {
-    @Bindable var viewModel: SingleValueBlockViewModel
-    @State private var labelText: String = ""
+final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
 
-    var body: some View {
-        VStack(spacing: 8) {
-            if viewModel.isLoadingSingleValue {
-                ProgressView()
-                    .controlSize(.small)
-            } else if let error = viewModel.singleValueError {
-                Text(error)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            } else if let value = viewModel.singleValueResult {
-                Text(formattedValue(value))
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText())
+    private let viewModel: SingleValueBlockViewModel
 
-                TextField("Add label", text: $labelText)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .textFieldStyle(.plain)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 200)
-                    .onSubmit {
-                        viewModel.setLabel(labelText)
-                    }
-                    .onChange(of: labelText) {
-                        viewModel.setLabel(labelText)
-                    }
-                    .onChange(of: viewModel.config?.label) { _, newValue in
-                        let incoming = newValue ?? ""
-                        if incoming != labelText {
-                            labelText = incoming
-                        }
-                    }
+    private let stackView = NSStackView()
+    private let spinner = NSProgressIndicator()
+    private let errorLabel = NSTextField(wrappingLabelWithString: "")
+    private let valueLabel = NSTextField(labelWithString: "")
+    private let labelField = NSTextField(string: "")
+
+    init(viewModel: SingleValueBlockViewModel) {
+        self.viewModel = viewModel
+        super.init(frame: .zero)
+        setupView()
+        observeViewModel()
+        updateContent()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    private func setupView() {
+        stackView.orientation = .vertical
+        stackView.alignment = .centerX
+        stackView.spacing = 8
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stackView)
+
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(spinner)
+
+        errorLabel.font = .systemFont(ofSize: 12)
+        errorLabel.textColor = .secondaryLabelColor
+        errorLabel.alignment = .center
+        errorLabel.maximumNumberOfLines = 0
+        errorLabel.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(errorLabel)
+
+        valueLabel.font = Self.roundedSystemFont(size: 48, weight: .bold)
+        valueLabel.textColor = .labelColor
+        valueLabel.alignment = .center
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(valueLabel)
+
+        labelField.placeholderString = "Add label"
+        labelField.font = .systemFont(ofSize: 13)
+        labelField.textColor = .secondaryLabelColor
+        labelField.alignment = .center
+        labelField.isBezeled = false
+        labelField.isBordered = false
+        labelField.drawsBackground = false
+        labelField.focusRingType = .none
+        labelField.isEditable = true
+        labelField.delegate = self
+        labelField.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(labelField)
+
+        NSLayoutConstraint.activate([
+            stackView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stackView.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16),
+            stackView.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+            labelField.widthAnchor.constraint(equalToConstant: 200),
+        ])
+    }
+
+    private func observeViewModel() {
+        withObservationTracking {
+            _ = viewModel.isLoadingSingleValue
+            _ = viewModel.singleValueError
+            _ = viewModel.singleValueResult
+            _ = viewModel.config?.label
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateContent()
+                self.observeViewModel()
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            labelText = viewModel.config?.label ?? ""
+    }
+
+    private func updateContent() {
+        if viewModel.isLoadingSingleValue {
+            spinner.isHidden = false
+            spinner.startAnimation(nil)
+            errorLabel.isHidden = true
+            valueLabel.isHidden = true
+            labelField.isHidden = true
+            return
         }
+
+        spinner.stopAnimation(nil)
+        spinner.isHidden = true
+
+        if let error = viewModel.singleValueError {
+            errorLabel.stringValue = error
+            errorLabel.isHidden = false
+            valueLabel.isHidden = true
+            labelField.isHidden = true
+            return
+        }
+
+        errorLabel.isHidden = true
+
+        if let value = viewModel.singleValueResult {
+            valueLabel.stringValue = formattedValue(value)
+            valueLabel.isHidden = false
+
+            labelField.isHidden = false
+            syncLabelFromConfig()
+            return
+        }
+
+        valueLabel.isHidden = true
+        labelField.isHidden = true
+    }
+
+    private func syncLabelFromConfig() {
+        let incoming = viewModel.config?.label ?? ""
+        if incoming != labelField.stringValue {
+            labelField.stringValue = incoming
+        }
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField, field === labelField else { return }
+        viewModel.setLabel(field.stringValue)
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField, field === labelField else { return }
+        viewModel.setLabel(field.stringValue)
     }
 
     private func formattedValue(_ value: Double) -> String {
@@ -383,5 +472,14 @@ struct SingleValueDisplayView: View {
         } else {
             return value.formatted(.number.precision(.fractionLength(2)))
         }
+    }
+
+    private static func roundedSystemFont(size: CGFloat, weight: NSFont.Weight) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        guard let descriptor = base.fontDescriptor.withDesign(.rounded),
+              let rounded = NSFont(descriptor: descriptor, size: size) else {
+            return base
+        }
+        return rounded
     }
 }

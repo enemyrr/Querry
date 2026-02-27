@@ -116,6 +116,7 @@ final class BlockInsertionView: NSView {
         isExpanded = true
 
         plusContentView.alphaValue = 0
+        plusContentView.isHidden = true
 
         let bar = NotebookActionBarView(
             dataController: dataController,
@@ -129,9 +130,10 @@ final class BlockInsertionView: NSView {
         actionBarView = bar
 
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: topAnchor),
             bar.centerXAnchor.constraint(equalTo: centerXAnchor),
-            bar.bottomAnchor.constraint(equalTo: bottomAnchor),
+            bar.centerYAnchor.constraint(equalTo: centerYAnchor),
+            bar.topAnchor.constraint(greaterThanOrEqualTo: topAnchor),
+            bar.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
         ])
 
         heightConstraint.constant = 68
@@ -150,6 +152,7 @@ final class BlockInsertionView: NSView {
         actionBarView?.removeFromSuperview()
         actionBarView = nil
 
+        plusContentView.isHidden = false
         heightConstraint.constant = 28
         updatePlusVisibility(animated: false)
 
@@ -197,10 +200,23 @@ final class BlockInsertionView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         if isExpanded {
+            if isMouseInsideActionBar(event.locationInWindow) {
+                return
+            }
             collapse()
         } else {
             expand()
         }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if isExpanded, let bar = actionBarView, !bar.isHidden {
+            let pointInSelf = convert(point, from: superview)
+            if let hit = bar.hitTest(pointInSelf) {
+                return hit
+            }
+        }
+        return super.hitTest(point)
     }
 
     // MARK: - Appearance
@@ -281,6 +297,12 @@ final class BlockInsertionView: NSView {
         }
 
         plusContentView.alphaValue = alpha
+    }
+
+    private func isMouseInsideActionBar(_ locationInWindow: NSPoint) -> Bool {
+        guard let bar = actionBarView, !bar.isHidden else { return false }
+        let pointInBar = bar.convert(locationInWindow, from: nil)
+        return bar.bounds.contains(pointInBar)
     }
 }
 

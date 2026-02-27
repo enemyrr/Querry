@@ -126,7 +126,7 @@ final class TextBlockController: NSViewController, MarkdownTextViewDelegate {
             blockContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
             blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             blockContainer.trailingAnchor.constraint(equalTo: menuButton.leadingAnchor, constant: -4),
-            blockContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            blockContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
         ])
     }
 
@@ -211,4 +211,3 @@ extension TextBlockController: NSTextFieldDelegate {
         dataController.updateBlock(block)
     }
 }
-

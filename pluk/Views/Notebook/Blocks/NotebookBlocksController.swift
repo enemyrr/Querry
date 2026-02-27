@@ -163,7 +163,9 @@ final class NotebookBlocksController: NSViewController {
         }
 
         if actionBarView == nil {
-            actionBarView = NotebookActionBarView(dataController: dataController)
+            actionBarView = NotebookActionBarView(dataController: dataController) { [weak self] in
+                self?.scrollToBottom()
+            }
         }
         if let bar = actionBarView {
             addFullWidthArrangedSubview(bar)
@@ -200,6 +202,15 @@ final class NotebookBlocksController: NSViewController {
                 self.rebuildBlocks()
                 self.observeBlocks()
             }
+        }
+    }
+
+    private func scrollToBottom() {
+        Task { @MainActor in
+            guard let documentView = self.scrollView.documentView else { return }
+            let bottomPoint = NSPoint(x: 0, y: documentView.frame.maxY)
+            self.scrollView.contentView.scroll(to: bottomPoint)
+            self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
         }
     }
 

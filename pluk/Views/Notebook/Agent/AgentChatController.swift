@@ -229,6 +229,9 @@ final class AgentChatController {
                     for creation in engine.pendingBlockCreations {
                         handleBlockCreation(creation)
                     }
+                    if let infoUpdate = engine.pendingNotebookInfoUpdate {
+                        handleNotebookInfoUpdate(infoUpdate)
+                    }
                     engine.clearPendingCreations()
 
                     let completeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: toolCall.arguments)
@@ -350,12 +353,22 @@ final class AgentChatController {
                 dataController.updateBlock(block)
             }
         case .singleValue:
-            dataController.addSingleValueBlock()
-            if let block = dataController.blocks.last, let config = request.singleValueConfig {
+            let insertIndex = dataController.blocks.lastIndex(where: { $0.blockType == .singleValue })
+                .map { $0 + 1 } ?? 0
+            dataController.insertSingleValueBlock(at: insertIndex)
+            if let block = dataController.blocks[safe: insertIndex], let config = request.singleValueConfig {
                 block.title = request.title
                 block.saveSingleValueConfig(config)
                 dataController.updateBlock(block)
             }
+        }
+    }
+
+    private func handleNotebookInfoUpdate(_ update: NotebookInfoUpdate) {
+        guard let dataController = notebookDataController else { return }
+        dataController.title = update.title
+        if !update.description.isEmpty {
+            dataController.descriptionText = update.description
         }
     }
 
