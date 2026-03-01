@@ -216,32 +216,30 @@ struct AISearchView: View {
         guard let selectedTab = instance.selectedTab?.name else {
             fatalError("Database driver not set yet")
         }
-        
+
         let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab, databaseSchema: instance.selectedTab?.databaseSchema)
-        
-        let openAIService = AIProxy.openAIService(
+
+        let anthropicService = AIProxy.anthropicService(
             partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",
             serviceURL: "https://api.aiproxy.pro/4c1638f9/2f62a0df"
         )
-        
-        let stream = try await openAIService.streamingChatCompletionRequest(
-            body: .init(
-                model: "gpt-4.1-mini",
+
+        let response = try await anthropicService.messageRequest(
+            body: AnthropicMessageRequestBody(
+                maxTokens: 4096,
                 messages: [
-                    .user(content: .text(search)),
-                    .system(content: .text(prompt))
-                ]
-            )
+                    AnthropicInputMessage(content: .text(search), role: .user)
+                ],
+                model: "claude-haiku-4-5-20241022",
+                system: .text(prompt)
+            ),
+            secondsToWait: 60
         )
-        
-        var result = ""
-        for try await chunk in stream {
-            if let content = chunk.choices.first?.delta.content {
-                result += content
-            }
-        }
-        
-        return result
+
+        return response.content.compactMap { content -> String? in
+            guard case .textBlock(let block) = content else { return nil }
+            return block.text
+        }.joined()
     }
     
     @MainActor

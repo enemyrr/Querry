@@ -1,11 +1,11 @@
 import Foundation
-import AIProxy
 
+// MainActor-only: produced and consumed within @MainActor engine/controller.
+// toolCalls uses [String: Any] because tool inputs pass through JSONSerialization before execution.
 struct AgentRoundResult {
-    let streamedText: String
-    let toolCalls: [(id: String, name: String, arguments: String)]
-    let reasoningSummary: String?
-    let responseId: String?
+    let text: String
+    let toolCalls: [(id: String, name: String, input: [String: Any])]
+    let responseContent: [ResponseContentBlock]
 }
 
 struct BlockCreationRequest {
@@ -29,9 +29,6 @@ final class NotebookAgentEngine {
     private(set) var pendingNotebookInfoUpdate: NotebookInfoUpdate?
 
     private let driverSession = AgentDriverSession()
-
-    private static let partialKey = "v2|3fe1f505|AS4tm59nSGxScFCN"
-    private static let serviceURL = "https://api.aiproxy.pro/4c1638f9/2f62a0df"
 
     func clearPendingCreations() {
         pendingBlockCreations.removeAll()
@@ -59,229 +56,200 @@ final class NotebookAgentEngine {
             .joined(separator: "\n")
 
         return """
-        You are an expert data analyst embedded in Pluk, a database notebook for macOS.
-        You build rich, narrative-driven notebook pages — combining charts, exploratory queries, and written commentary to tell a clear data story backed by real numbers.
+        You are an expert data analyst embedded in Pluk, a database notebook for macOS. You build narrative-driven notebook pages — combining charts, exploratory queries, and written commentary to tell a clear data story backed by real numbers.
 
-        ## Available Connections
+        <available_connections>
         \(connectionList)
+        </available_connections>
 
-        ## Your Tools
-        | Tool | Purpose |
-        |------|---------|
-        | `list_tables` | Discover tables in a connection |
-        | `get_table_schema` | Column names, types, keys, constraints |
-        | `run_query` | Execute a read-only SQL query and get results (for exploration — results are NOT added to the notebook) |
-        | `set_notebook_info` | Set the notebook title and description |
-        | `create_chart_block` | Add a chart visualization to the notebook |
-        | `create_single_value_block` | Add a single-number KPI (e.g. total count, sum, average) |
-        | `create_text_block` | Add markdown text (headings, analysis, commentary) |
+        <tools>
+        - `list_tables` — Discover tables in a connection
+        - `get_table_schema` — Column names, types, keys, constraints
+        - `run_query` — Execute a read-only SQL query (results returned to you only, not shown in notebook)
+        - `set_notebook_info` — Set the notebook title and description
+        - `create_chart_block` — Add a chart visualization to the notebook
+        - `create_single_value_block` — Add a single-number KPI (e.g. total count, sum, average)
+        - `create_text_block` — Add markdown text (headings, analysis, commentary)
+        </tools>
 
-        ## Chart Types
+        <chart_types>
         \(chartTypes)
+        </chart_types>
 
-        ## Aggregation Functions (for Y axis columns)
+        <aggregation_functions>
         \(aggregations)
 
-        ## Choosing the Right Aggregation
-        Think about what the chart is trying to answer before picking an aggregation:
-        - **"How many?"** → `count` — distribution of rows across categories (e.g., orders per status, users per plan)
-        - **"How much total?"** → `sum` — only when the column is an additive measure like revenue, quantity, or amount
-        - **"What's typical?"** → `average` — e.g., average order value, average response time
-        - **"What's the range?"** → `min` / `max` — e.g., earliest/latest date, cheapest/most expensive item
-        - **"How many unique?"** → `countDistinct` — e.g., unique customers per region
-        - **"Just plot raw values"** → `none` — when data is already one-row-per-point (rare, usually pre-aggregated)
+        Choose aggregation based on what the chart answers:
+        - "How many?" → `count` (orders per status, users per plan)
+        - "How much total?" → `sum` (only for additive measures: revenue, quantity, amount)
+        - "What's typical?" → `average` (average order value, response time)
+        - "What's the range?" → `min` / `max` (earliest date, cheapest item)
+        - "How many unique?" → `countDistinct` (unique customers per region)
+        - "Raw values" → `none` (pre-aggregated data, rare)
 
-        Key rules:
-        - `sum` only makes sense on columns that represent measurable quantities (revenue, weight, hours). Summing an ID, a rating, or a year column is meaningless — use `count` or `average` instead.
-        - For **pie charts**, prefer `count` as the default. Pie charts show parts of a whole, and counting rows per category naturally represents 100% of the data. Only use `sum` when the user explicitly asks for a totaled measure (e.g., "revenue share by region"). When using `count`, set `y_axis_columns` to the same column as `x_axis_column`.
-        - For **bar/column charts** showing "top N" or "breakdown by category", `count` is usually correct unless the user asks about a specific measure.
-        - For **line charts** showing trends over time, `sum` or `average` are typical — sum for cumulative metrics (daily revenue), average for rate metrics (avg response time per day).
-        - When unsure, run a quick `run_query` (e.g., `SELECT column, COUNT(*) ... GROUP BY column`) to see what the data looks like before committing to an aggregation.
+        `sum` only applies to measurable quantities. Summing IDs, ratings, or years is meaningless — use `count` or `average`.
+        Pie charts default to `count` (parts of a whole). Use `sum` only when the user asks for a totaled measure.
+        Line charts over time: `sum` for cumulative metrics, `average` for rate metrics.
+        When unsure, run a quick `run_query` to see the data before choosing.
+        </aggregation_functions>
 
-        ## Single Value KPI Blocks — Placement Rules
-        - **Always create single value blocks FIRST**, before any chart or text blocks. They belong at the top of the notebook as a KPI summary row.
-        - Group them in a row of up to **4** single value blocks. If you have fewer than 4 relevant KPIs, that's fine — but always try to fill a full row of 4 when the data supports it.
-        - Pick the most important top-level metrics for the dataset (e.g., total rows, total revenue, unique customers, average order value).
-        - After the KPI row is complete, proceed with the text introduction and chart sections below it.
+        <use_parallel_tool_calls>
+        If you intend to call multiple tools and there are no dependencies between them, make all independent calls in parallel. For example, call `get_table_schema` on several tables simultaneously, or run multiple `run_query` calls at once. Only call tools sequentially when one result is needed to inform the next call.
+        </use_parallel_tool_calls>
 
-        ## Three-Phase Workflow
+        <thinking_guidance>
+        After receiving tool results, reflect on their quality and determine optimal next steps before proceeding. Use your thinking to:
+        - Evaluate whether query results make sense or need investigation
+        - Plan which sections to build and in what order
+        - Decide on the right chart type and aggregation based on the data shape
+        - Identify anomalies or unexpected patterns worth highlighting
+        </thinking_guidance>
 
-        ### Phase 1 — Discover, Explore & Plan
-        1. Call `list_tables` to see available tables.
-        2. Call `get_table_schema` on relevant tables to learn columns.
-        3. Use `run_query` to run exploratory queries — row counts, date ranges, cardinalities, distributions, top-N breakdowns. Gather enough data to understand the shape and story of the dataset.
-        4. **Set the notebook title**: Call `set_notebook_info` with a concise, descriptive title and a 1-2 sentence description summarizing the analysis (e.g. title: "Sales Performance Report", description: "Analysis of 12,450 orders across 4 product categories from Jan 2019 – Dec 2023").
-        5. **Create KPI blocks**: Before writing the plan, create up to 4 `create_single_value_block` calls for the most important top-level metrics. These will appear as a summary row at the top of the notebook.
-        6. **Create the plan**: Once you understand the data, decide on 4-6 numbered analysis sections. Then call `create_text_block` to add a report introduction that includes a brief overview of the dataset (row count, date range, key dimensions — citing real numbers from your queries) and a numbered table of contents listing every section you will build. Example:
+        <workflow>
+        Work in three phases:
 
-        ```
-        # Sales Performance Report
-        This report analyzes **12,450 orders** spanning **Jan 2019 – Dec 2023** across **4 product categories** and **38 regions**.
+        Phase 1 — Discover & Plan:
+        1. Call `list_tables` and `get_table_schema` on relevant tables (in parallel when possible).
+        2. Run exploratory queries — row counts, date ranges, cardinalities, distributions.
+        3. Call `set_notebook_info` with a descriptive title and 1-2 sentence summary citing real numbers.
+        4. Create up to 4 `create_single_value_block` calls for the top-level KPIs. These appear as a summary row at the top.
+        5. Create an intro `create_text_block` with a dataset overview and numbered table of contents listing 4-6 sections you will build.
 
-        **Sections:**
-        1. Revenue by Category
-        2. Monthly Growth Trend
-        3. Regional Breakdown
-        4. Average Order Value Analysis
-        5. Top Customers
-        ```
+        Phase 2 — Build Each Section:
+        For each planned section, in order:
+        1. `run_query` to gather the data you need for commentary.
+        2. `create_chart_block` — visualization first.
+        3. `create_text_block` — commentary after the chart.
 
-        This intro block is your contract — you MUST build every section listed in it.
+        Always interleave: chart → text, chart → text. Keep calling tools until every planned section is complete.
 
-        ### Phase 2 — Build Every Planned Section
-        Work through the sections from your plan one by one. For EACH section:
-        1. `run_query` — gather the specific data points you need for commentary.
-        2. `create_chart_block` — add the visualization **first**.
-        3. `create_text_block` — add commentary **after** the chart.
+        Phase 3 — Wrap Up:
+        Only stop when every section from your plan has been created. If you want to share progress, include it alongside a tool call rather than as a standalone message.
+        When you are done, send a short completion message (2-3 sentences max). Mention what was built at a high level — e.g. the types of blocks created (KPIs, charts, commentary, tables) and total count. Do not list every block individually and do not create markdown tables or structured reports in the chat. Keep it casual and concise like: "Done — all 12 cells are now in the notebook: the intro, KPI metrics, charts, and commentary blocks. The underlying SQL queries are excluded since they're just intermediate data."
+        </workflow>
 
-        The chart always comes BEFORE its commentary text. Never reverse this.
-        NEVER batch all charts together or all text together. Always interleave: chart → text, chart → text.
-
-        **CRITICAL**: You MUST keep calling tools until every section from your plan is created. Do NOT emit a text-only response until the entire report — all sections plus the summary — is complete. Every response you send must include at least one tool call until you are completely done. If you want to share progress (e.g., "Now analyzing revenue trends..."), include it alongside a tool call in the same response, never as a standalone message.
-
-        ## Writing Style for Text Blocks
-        - Number section headings: "## 1. Revenue by Category", "## 2. Growth Over Time"
+        <writing_style>
+        - Do not use emoji anywhere — not in text blocks, chart titles, KPI labels, or chat messages. Keep a clean, professional tone throughout.
+        - Number section headings: "## 1. Revenue by Category"
         - Use em dashes (—) instead of parenthetical asides
-        - Always cite specific numbers: "Revenue grew 440x from $1.2K to $528K" not "Revenue grew significantly"
+        - Cite specific numbers: "Revenue grew 440x from $1.2K to $528K" not "Revenue grew significantly"
         - Bold key metrics: **$528K**, **3.2x growth**, **42% of total**
         - Keep commentary to 2-4 sentences per chart — dense with insight, no filler
         - End each section with a business conclusion or actionable takeaway
-        - Write in a professional but direct tone, like a senior analyst presenting to stakeholders
+        - Professional but direct tone, like a senior analyst presenting to stakeholders
+        </writing_style>
 
-        ## Anomaly Investigation
-        If a `run_query` returns unexpected data (nulls, zeros, extreme outliers, empty results), run a follow-up query to investigate before drawing conclusions. Surface anomalies explicitly in your commentary.
-
-        ## Comprehensive by Default
-        - Always produce a comprehensive, multi-chart report unless the user explicitly asks for something specific
-        - A comprehensive report should cover: overview/summary, key breakdowns by relevant dimensions, trends over time (if date columns exist), and notable outliers or comparisons
-        - Aim for 4-6 chart+text sections — enough to tell a complete story. You MUST create all planned sections before finishing.
-        - If the user asks a narrow question (e.g., "show me revenue by category"), just answer that — don't over-expand
-        - NEVER stop after creating just 1 or 2 sections when a comprehensive report was requested. Keep going until all sections are built.
-
-        ## Rules
-        - NEVER guess column names. Always call `get_table_schema` first.
-        - NEVER fabricate numbers. Every statistic must come from a `run_query` result.
+        <rules>
+        - Always call `get_table_schema` before using column names — do not guess.
+        - Every statistic in commentary must come from a `run_query` result.
         - Prefer numeric columns for Y axis, categorical/date for X axis.
         - If no connection is selected, ask the user to pick one from the connection picker.
-        - `run_query` is for exploration only — its results are returned to you but NOT shown in the notebook. Use `create_chart_block` and `create_text_block` for notebook content.
-        - You can call `list_tables` and `get_table_schema` in parallel when you already know the table name.
+        - `run_query` results are returned to you only. Use `create_chart_block` and `create_text_block` to add content to the notebook.
+        - If a query returns unexpected data (nulls, zeros, outliers, empty results), run a follow-up query to investigate before drawing conclusions. Surface anomalies in your commentary.
+        - For comprehensive reports, cover: overview/summary, key breakdowns, trends over time, and notable outliers. For narrow questions, just answer what was asked.
+        </rules>
         """
     }
 
     // MARK: - Tool Definitions
 
-    func buildTools(connections: [Connection]) -> [OpenAICreateResponseRequestBody.Tool] {
-        var tools: [OpenAICreateResponseRequestBody.Tool] = [
+    func buildTools(connections: [Connection]) -> [AnthropicToolDefinition] {
+        var tools: [AnthropicToolDefinition] = [
             listTablesTool,
             getTableSchemaTool,
             runQueryTool,
             setNotebookInfoTool,
         ]
-        tools.append(contentsOf: NotebookBlockKind.allOpenAITools)
+        tools.append(contentsOf: NotebookBlockKind.allToolDefinitions)
         return tools
     }
 
-    // MARK: - Streaming Round (Responses API)
+    // MARK: - API Round (Streaming)
 
     func performRound(
-        input: OpenAIResponse.Input,
-        previousResponseId: String?,
+        messages: [AnthropicMessage],
         connections: [Connection],
-        onToken: @escaping @MainActor @Sendable (String) -> Void,
-        onReasoning: @escaping @MainActor @Sendable (String) -> Void
+        onToken: @MainActor @Sendable (String) -> Void = { _ in },
+        onThinking: @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> AgentRoundResult {
-        let openAIService = AIProxy.openAIService(
-            partialKey: Self.partialKey,
-            serviceURL: Self.serviceURL
-        )
         let tools = buildTools(connections: connections)
+        let systemPrompt = buildSystemPrompt(connections: connections)
 
-        let requestBody = OpenAICreateResponseRequestBody(
-            input: input,
-            instructions: buildSystemPrompt(connections: connections),
-            model: "gpt-5.1",
-            parallelToolCalls: true,
-            previousResponseId: previousResponseId,
-            reasoning: .init(effort: .low, summary: .detailed),
+        print("[AgentEngine] performRound — sending \(messages.count) messages, \(tools.count) tools, \(connections.count) connections")
+
+        let response = try await BedrockService.shared.messageRequestStream(
+            messages: messages,
+            system: systemPrompt,
             tools: tools,
-            truncation: .auto
+            onTextDelta: onToken,
+            onThinkingDelta: onThinking
         )
 
-        let stream = try await openAIService.createStreamingResponse(
-            requestBody: requestBody,
-            secondsToWait: 60
-        )
-
-        var streamedContent = ""
-        var reasoningSummary = ""
-        var completedResponse: OpenAIResponse?
-
-        for try await event in stream {
-            guard !Task.isCancelled else { throw CancellationError() }
-
-            switch event {
-            case .outputTextDelta(let delta):
-                streamedContent += delta.delta
-                onToken(delta.delta)
-
-            case .reasoningSummaryTextDelta(let delta):
-                reasoningSummary += delta.delta
-                onReasoning(delta.delta)
-
-            case .responseCompleted(let completed):
-                completedResponse = completed.response
-
-            case .error(let errorEvent):
-                throw NSError(
-                    domain: "NotebookAgentEngine",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "API error (\(errorEvent.code)): \(errorEvent.message)"]
-                )
-
-            default:
-                break
+        print("[AgentEngine] response received — \(response.content.count) content blocks, stopReason: \(response.stopReason ?? "nil")")
+        for (i, block) in response.content.enumerated() {
+            switch block {
+            case .text(let t):
+                print("[AgentEngine]   block[\(i)] text (\(t.count) chars): \(String(t.prefix(200)))")
+            case .thinking(let t, let sig):
+                print("[AgentEngine]   block[\(i)] thinking (\(t.count) chars, sig: \(sig.prefix(20))...): \(String(t.prefix(200)))")
+            case .toolUse(let id, let name, let input):
+                let inputStr = input.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+                print("[AgentEngine]   block[\(i)] toolUse id=\(id) name=\(name) input={\(inputStr)}")
             }
         }
 
-        let toolCalls = (completedResponse?.output ?? []).compactMap { item -> (id: String, name: String, arguments: String)? in
-            guard case .functionCall(let fc) = item else { return nil }
-            return (id: fc.callId, name: fc.name, arguments: fc.arguments)
+        let text = response.content.compactMap { content -> String? in
+            guard case .text(let t) = content else { return nil }
+            return t
+        }.joined()
+
+        let toolCalls: [(id: String, name: String, input: [String: Any])] = response.content.compactMap { content in
+            guard case .toolUse(let id, let name, let input) = content else { return nil }
+            return (id: id, name: name, input: sendableToAny(input))
         }
 
+        print("[AgentEngine] parsed — text: \(text.count) chars, toolCalls: \(toolCalls.count)")
+
         return AgentRoundResult(
-            streamedText: streamedContent,
+            text: text,
             toolCalls: toolCalls,
-            reasoningSummary: reasoningSummary.isEmpty ? nil : reasoningSummary,
-            responseId: completedResponse?.id
+            responseContent: response.content
         )
     }
 
     // MARK: - Tool Execution
 
     func executeToolCall(
-        _ toolCall: (id: String, name: String, arguments: String),
+        _ toolCall: (id: String, name: String, input: [String: Any]),
         connections: [Connection]
     ) async -> String {
-        let json = parseArguments(toolCall.arguments)
+        let json = toolCall.input
 
+        let inputStr = json.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+        print("[AgentEngine] executeToolCall — name=\(toolCall.name) id=\(toolCall.id) input={\(inputStr)}")
+
+        let result: String
         switch toolCall.name {
         case "list_tables":
-            return await executeListTables(json: json, connections: connections)
+            result = await executeListTables(json: json, connections: connections)
         case "get_table_schema":
-            return await executeGetTableSchema(json: json, connections: connections)
+            result = await executeGetTableSchema(json: json, connections: connections)
         case "run_query":
-            return await executeRunQuery(json: json, connections: connections)
+            result = await executeRunQuery(json: json, connections: connections)
         case "create_chart_block":
-            return executeCreateChartBlock(json: json)
+            result = executeCreateChartBlock(json: json)
         case "create_single_value_block":
-            return executeCreateSingleValueBlock(json: json)
+            result = executeCreateSingleValueBlock(json: json)
         case "create_text_block":
-            return executeCreateTextBlock(json: json)
+            result = executeCreateTextBlock(json: json)
         case "set_notebook_info":
-            return executeSetNotebookInfo(json: json)
+            result = executeSetNotebookInfo(json: json)
         default:
-            return "Unknown tool: \(toolCall.name)"
+            result = "Unknown tool: \(toolCall.name)"
         }
+
+        print("[AgentEngine] toolResult — name=\(toolCall.name) result (\(result.count) chars): \(String(result.prefix(500)))")
+        return result
     }
 
     // MARK: - List Tables
@@ -331,16 +299,8 @@ final class NotebookAgentEngine {
         }
 
         let schemaName = json["schema_name"] as? String
-        let keychainId = json["connection_keychain_id"] as? String
 
-        let connection: Connection?
-        if let kid = keychainId {
-            connection = connections.first(where: { $0.keychainId == kid })
-        } else {
-            connection = connections.first
-        }
-
-        guard let conn = connection else {
+        guard let conn = resolveConnection(json: json, connections: connections) else {
             return "Error: No connection available"
         }
 
@@ -394,16 +354,8 @@ final class NotebookAgentEngine {
         }
 
         let schemaName = json["schema_name"] as? String
-        let keychainId = json["connection_keychain_id"] as? String
 
-        let connection: Connection?
-        if let kid = keychainId {
-            connection = connections.first(where: { $0.keychainId == kid })
-        } else {
-            connection = connections.first
-        }
-
-        guard let conn = connection else {
+        guard let conn = resolveConnection(json: json, connections: connections) else {
             return "Error: No connection available"
         }
 
@@ -636,109 +588,104 @@ final class NotebookAgentEngine {
 
     // MARK: - Helpers
 
-    private func parseArguments(_ arguments: String) -> [String: Any] {
-        guard let data = arguments.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return [:]
+    private func resolveConnection(json: [String: Any], connections: [Connection]) -> Connection? {
+        if let keychainId = json["connection_keychain_id"] as? String {
+            return connections.first { $0.keychainId == keychainId }
         }
-        return json
+        return connections.first
     }
 
-    // MARK: - Static Tool Definitions
+    private func sendableToAny(_ input: [String: any Sendable]) -> [String: Any] {
+        input.mapValues { $0 as Any }
+    }
 
-    private let listTablesTool = OpenAICreateResponseRequestBody.Tool.function(
-        OpenAICreateResponseRequestBody.FunctionTool(
-            name: "list_tables",
-            parameters: [
-                "type": .string("object"),
-                "properties": .object([
-                    "connection_keychain_id": .object([
-                        "type": .string("string"),
-                        "description": .string("The keychainId of the connection to query"),
-                    ]),
-                    "schema_name": .object([
-                        "type": .string("string"),
-                        "description": .string("Schema name to list tables from (optional, e.g. 'public' for PostgreSQL)"),
-                    ]),
+    nonisolated static func anyToJSONValues(_ input: [String: any Sendable]) -> [String: JSONValue] {
+        input.mapValues { JSONValue.fromAny($0) }
+    }
+
+    // MARK: - Anthropic Tool Definitions
+
+    private let listTablesTool = AnthropicToolDefinition(
+        name: "list_tables",
+        description: "Lists all tables and collections in a database connection. Call this first to discover available data.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "connection_keychain_id": .object([
+                    "type": .string("string"),
+                    "description": .string("The keychainId of the connection to query"),
                 ]),
-                "required": .array([.string("connection_keychain_id")]),
-            ],
-            strict: false,
-            description: "Lists all tables and collections in a database connection. Call this first to discover available data."
-        )
+                "schema_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Schema name to list tables from (optional, e.g. 'public' for PostgreSQL)"),
+                ]),
+            ]),
+            "required": .array([.string("connection_keychain_id")]),
+        ]
     )
 
-    private let runQueryTool = OpenAICreateResponseRequestBody.Tool.function(
-        OpenAICreateResponseRequestBody.FunctionTool(
-            name: "run_query",
-            parameters: [
-                "type": .string("object"),
-                "properties": .object([
-                    "connection_keychain_id": .object([
-                        "type": .string("string"),
-                        "description": .string("The keychainId of the connection to query"),
-                    ]),
-                    "query": .object([
-                        "type": .string("string"),
-                        "description": .string("A read-only SQL query (SELECT only). Used for data exploration — results are returned to you but NOT added to the notebook."),
-                    ]),
-                    "schema_name": .object([
-                        "type": .string("string"),
-                        "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
-                    ]),
+    private let runQueryTool = AnthropicToolDefinition(
+        name: "run_query",
+        description: "Execute a read-only SQL query to explore data. Use this to gather specific numbers, distributions, and statistics before building charts and writing commentary. Results are returned to you for analysis but are NOT added to the notebook.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "connection_keychain_id": .object([
+                    "type": .string("string"),
+                    "description": .string("The keychainId of the connection to query"),
                 ]),
-                "required": .array([.string("connection_keychain_id"), .string("query")]),
-            ],
-            strict: false,
-            description: "Execute a read-only SQL query to explore data. Use this to gather specific numbers, distributions, and statistics before building charts and writing commentary. Results are returned to you for analysis but are NOT added to the notebook."
-        )
+                "query": .object([
+                    "type": .string("string"),
+                    "description": .string("A read-only SQL query (SELECT only). Used for data exploration — results are returned to you but NOT added to the notebook."),
+                ]),
+                "schema_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                ]),
+            ]),
+            "required": .array([.string("connection_keychain_id"), .string("query")]),
+        ]
     )
 
-    private let setNotebookInfoTool = OpenAICreateResponseRequestBody.Tool.function(
-        OpenAICreateResponseRequestBody.FunctionTool(
-            name: "set_notebook_info",
-            parameters: [
-                "type": .string("object"),
-                "properties": .object([
-                    "title": .object([
-                        "type": .string("string"),
-                        "description": .string("A concise, descriptive title for the notebook (e.g. 'Sales Performance Report', 'User Growth Analysis')"),
-                    ]),
-                    "description": .object([
-                        "type": .string("string"),
-                        "description": .string("A 1-2 sentence description summarizing what this notebook analyzes"),
-                    ]),
+    private let setNotebookInfoTool = AnthropicToolDefinition(
+        name: "set_notebook_info",
+        description: "Sets the notebook title and description. Call this early in the workflow to give the notebook a meaningful name based on the data being analyzed.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "title": .object([
+                    "type": .string("string"),
+                    "description": .string("A concise, descriptive title for the notebook (e.g. 'Sales Performance Report', 'User Growth Analysis')"),
                 ]),
-                "required": .array([.string("title")]),
-            ],
-            strict: false,
-            description: "Sets the notebook title and description. Call this early in the workflow to give the notebook a meaningful name based on the data being analyzed."
-        )
+                "description": .object([
+                    "type": .string("string"),
+                    "description": .string("A 1-2 sentence description summarizing what this notebook analyzes"),
+                ]),
+            ]),
+            "required": .array([.string("title")]),
+        ]
     )
 
-    private let getTableSchemaTool = OpenAICreateResponseRequestBody.Tool.function(
-        OpenAICreateResponseRequestBody.FunctionTool(
-            name: "get_table_schema",
-            parameters: [
-                "type": .string("object"),
-                "properties": .object([
-                    "connection_keychain_id": .object([
-                        "type": .string("string"),
-                        "description": .string("The keychainId of the connection"),
-                    ]),
-                    "table_name": .object([
-                        "type": .string("string"),
-                        "description": .string("The table name to get schema for"),
-                    ]),
-                    "schema_name": .object([
-                        "type": .string("string"),
-                        "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
-                    ]),
+    private let getTableSchemaTool = AnthropicToolDefinition(
+        name: "get_table_schema",
+        description: "Gets detailed column information for a table: names, data types, primary keys, foreign keys, and constraints.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "connection_keychain_id": .object([
+                    "type": .string("string"),
+                    "description": .string("The keychainId of the connection"),
                 ]),
-                "required": .array([.string("connection_keychain_id"), .string("table_name")]),
-            ],
-            strict: false,
-            description: "Gets detailed column information for a table: names, data types, primary keys, foreign keys, and constraints."
-        )
+                "table_name": .object([
+                    "type": .string("string"),
+                    "description": .string("The table name to get schema for"),
+                ]),
+                "schema_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                ]),
+            ]),
+            "required": .array([.string("connection_keychain_id"), .string("table_name")]),
+        ]
     )
 }

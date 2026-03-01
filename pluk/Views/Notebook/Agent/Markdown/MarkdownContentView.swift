@@ -143,11 +143,11 @@ final class MarkdownContentView: NSView {
             return view
 
         case .toolCallGroup(let calls):
-            let group = ToolCallGroupView()
+            let view = ThinkingBlockView(text: "", finishedDuration: 0)
             for (i, call) in calls.enumerated() {
-                group.addRow(id: "persisted-\(i)", name: call.name, displayText: call.displayText, isComplete: true)
+                view.addToolCall(id: "persisted-\(i)", name: call.name, displayText: call.displayText, isComplete: true)
             }
-            return group
+            return view
         }
     }
 

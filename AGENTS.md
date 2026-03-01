@@ -137,7 +137,7 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
 | Writing, modifying, or refactoring **any SwiftUI view code**                               | `.agents/skills/swiftui-expert-skill/SKILL.md`       |
 | Writing, modifying, or refactoring **any macOS/AppKit code**                               | `.agents/skills/macos-development/SKILL.md`          |
-| Writing, modifying, or fixing **Swift concurrency** (async/await, actors, tasks, Sendable) | `.agents/skills/swift-concurrency/SKILL.md`          |
+| Writing, modifying, or refactoring **any Swift code**                                      | `.agents/skills/swift-concurrency/SKILL.md`          |
 | Adding or modifying **animations** (transitions, springs, gestures, matched geometry)      | `.agents/skills/emilkowal-animations-swift/SKILL.md` |
 | Building **UI components, pages, or web interfaces**                                       | `.agents/skills/frontend-design/SKILL.md`            |
 
@@ -145,7 +145,7 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 
 - **SwiftUI skill**: "view", "SwiftUI", "@State", "@Binding", "@Observable", "@Environment", "modifier", "List", "NavigationStack", "sheet", "overlay", "Liquid Glass"
 - **macOS skill**: "AppKit", "NSView", "NSViewController", "NSWindow", "NSTableView", "NSToolbar", "NSMenu", "titlebar", "NSHostingController", "window management"
-- **Swift concurrency skill**: "async", "await", "actor", "Task", "Sendable", "@MainActor", "concurrency", "data race", "thread safety", "nonisolated"
+- **Swift concurrency skill**: Always loaded when writing any Swift code (`.swift` files)
 - **Animation skill**: "animation", "transition", "spring", "gesture", "matchedGeometryEffect", "phaseAnimator", "keyframeAnimator", "withAnimation", "CALayer animation"
 - **Frontend skill**: "UI", "page", "component", "frontend", "web", "HTML", "CSS", "design", "layout", "dashboard"
 

@@ -18,20 +18,25 @@ final class ThinkingBlockView: NSView {
     private var isFinished = false
     private var extractedTitle: String?
     private let shimmer = ShimmerLayer()
+    private var hasReasoning = false
+    private var markdownLeadingToBullet: NSLayoutConstraint!
+    private var markdownLeadingToContainer: NSLayoutConstraint!
+    private var reasoningHeightConstraint: NSLayoutConstraint!
 
     // Tool calls
     private var toolCallContainer: NSView?
     private let timelineLine = NSView()
     private var timelineBottomConstraint: NSLayoutConstraint?
-    private var toolCallScrollView: NSScrollView?
     private var toolGroupStack: NSStackView?
-    private var scrollViewHeightConstraint: NSLayoutConstraint?
     private var toolCallGroups: [ToolCallGroup] = []
-    private static let maxVisibleRows = 8
     private static let pillHeight: CGFloat = 24
     private static let pillSpacing: CGFloat = 5
-    private static let groupHeaderHeight: CGFloat = 20
     private static let groupSpacing: CGFloat = 12
+    private static let maxScrollHeight: CGFloat = 178
+
+    private var toolScrollAnchor: ScrollAnchor?
+    private var reasoningScrollView: NSScrollView!
+    private var reasoningScrollAnchor: ScrollAnchor!
 
     private struct ToolCallRow {
         let id: String
@@ -58,7 +63,10 @@ final class ThinkingBlockView: NSView {
         super.init(frame: .zero)
         setupViews()
         extractedTitle = Self.extractTitle(text)
-        markdownView.update(content: Self.stripTitle(text))
+        let stripped = Self.stripTitle(text)
+        markdownView.update(content: stripped)
+        hasReasoning = !stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        updateReasoningLayout()
 
         chevronIcon.isHidden = true
 
@@ -77,15 +85,24 @@ final class ThinkingBlockView: NSView {
 
     func update(text: String) {
         extractedTitle = Self.extractTitle(text)
-        markdownView.update(content: Self.stripTitle(text))
+        let stripped = Self.stripTitle(text)
+        markdownView.update(content: stripped)
+        let newHasReasoning = !stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if newHasReasoning != hasReasoning {
+            hasReasoning = newHasReasoning
+            updateReasoningLayout()
+        }
         if isExpanded {
             updateExpandedHeight(animated: false)
         }
         invalidateIntrinsicContentSize()
+        reasoningScrollAnchor.scrollToBottom(layout: layoutAncestorTree)
     }
 
     func setActivelyStreaming(_ streaming: Bool) {
         if streaming && !isFinished {
+            toolScrollAnchor?.resetUserScroll()
+            reasoningScrollAnchor.resetUserScroll()
             startHeaderAnimations()
             chevronIcon.isHidden = false
             if streamingStartTime == nil {
@@ -115,7 +132,6 @@ final class ThinkingBlockView: NSView {
             setupToolCallSection()
         }
 
-        // Find existing group or create a new one for this tool's group key
         let key = ToolMetadata.groupKey(for: name)
         let groupIndex: Int
         if let existing = toolCallGroups.firstIndex(where: { $0.toolName == key }) {
@@ -193,19 +209,11 @@ final class ThinkingBlockView: NSView {
         pill.widthAnchor.constraint(lessThanOrEqualTo: pillStack.widthAnchor, multiplier: 0.85).isActive = true
         toolCallGroups[groupIndex].rows.append(ToolCallRow(id: id, pill: pill, spinner: spinner, checkmark: checkmark, label: label))
 
-        updateScrollViewHeight()
-
         if isExpanded {
-            updateExpandedHeight(animated: true)
+            updateExpandedHeight(animated: false)
         }
-
-        // Auto-scroll to show the latest pill
-        if let scrollView = toolCallScrollView {
-            toolGroupStack?.layoutSubtreeIfNeeded()
-            let docHeight = scrollView.documentView?.frame.height ?? 0
-            let bottomPoint = NSPoint(x: 0, y: max(0, docHeight - scrollView.contentView.bounds.height))
-            scrollView.contentView.scroll(to: bottomPoint)
-        }
+        invalidateIntrinsicContentSize()
+        toolScrollAnchor?.scrollToBottom(layout: layoutAncestorTree)
     }
 
     func containsToolCall(id: String) -> Bool {
@@ -228,58 +236,49 @@ final class ThinkingBlockView: NSView {
         container.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(container)
 
+        let documentView = FlippedView()
+        documentView.translatesAutoresizingMaskIntoConstraints = false
+
+        let scrollView = Self.makeOverlayScrollView(documentView: documentView)
+        container.addSubview(scrollView)
+
         let groupStack = NSStackView()
         groupStack.orientation = .vertical
         groupStack.alignment = .leading
         groupStack.spacing = Self.groupSpacing
         groupStack.translatesAutoresizingMaskIntoConstraints = false
         toolGroupStack = groupStack
+        documentView.addSubview(groupStack)
 
-        let scrollView = NSScrollView()
-        scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.automaticallyAdjustsContentInsets = false
-        scrollView.contentInsets = .init(top: 0, left: 0, bottom: 0, right: 0)
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-
-        let clipView = NSClipView()
-        clipView.drawsBackground = false
-        clipView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.contentView = clipView
-        scrollView.documentView = groupStack
-
-        container.addSubview(scrollView)
-        toolCallScrollView = scrollView
-
-        let totalMaxRows = Self.maxVisibleRows
-        let maxHeight = Self.pillHeight * CGFloat(totalMaxRows) + Self.pillSpacing * CGFloat(totalMaxRows - 1) + Self.groupHeaderHeight + Self.groupSpacing
-
-        let svHeight = scrollView.heightAnchor.constraint(equalToConstant: Self.groupHeaderHeight + Self.pillHeight)
-        scrollViewHeightConstraint = svHeight
-
-        // Extend the timeline line to cover tool calls
-        timelineBottomConstraint?.isActive = false
-        timelineBottomConstraint = timelineLine.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor)
-        timelineBottomConstraint?.isActive = true
+        if hasReasoning {
+            timelineBottomConstraint?.isActive = false
+            timelineBottomConstraint = timelineLine.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            timelineBottomConstraint?.isActive = true
+        }
 
         NSLayoutConstraint.activate([
-            groupStack.topAnchor.constraint(equalTo: clipView.topAnchor),
-            groupStack.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
-            groupStack.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
+            groupStack.topAnchor.constraint(equalTo: documentView.topAnchor),
+            groupStack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
+            groupStack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
+            groupStack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
 
-            container.topAnchor.constraint(equalTo: markdownView.bottomAnchor, constant: 8),
-            container.leadingAnchor.constraint(equalTo: markdownView.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
 
-            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: maxHeight),
-            svHeight,
+
+            container.topAnchor.constraint(
+                equalTo: hasReasoning ? reasoningScrollView.bottomAnchor : contentContainer.topAnchor,
+                constant: hasReasoning ? 8 : 0
+            ),
+            container.leadingAnchor.constraint(equalTo: reasoningScrollView.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
         ])
 
+        toolScrollAnchor = ScrollAnchor(scrollView: scrollView)
         toolCallContainer = container
     }
 
@@ -331,19 +330,6 @@ final class ThinkingBlockView: NSView {
         toolCallGroups.append(ToolCallGroup(toolName: toolName, container: groupContainer, pillStack: pillStack, rows: []))
     }
 
-    private func updateScrollViewHeight() {
-        var totalHeight: CGFloat = 0
-        for (i, group) in toolCallGroups.enumerated() {
-            if i > 0 { totalHeight += Self.groupSpacing }
-            totalHeight += Self.groupHeaderHeight + 10 // header + gap below header
-            let pillCount = CGFloat(group.rows.count)
-            totalHeight += Self.pillHeight * pillCount + Self.pillSpacing * max(0, pillCount - 1)
-        }
-        let totalMaxRows = Self.maxVisibleRows
-        let maxHeight = Self.pillHeight * CGFloat(totalMaxRows) + Self.pillSpacing * CGFloat(totalMaxRows - 1) + Self.groupHeaderHeight + Self.groupSpacing
-        scrollViewHeightConstraint?.constant = min(totalHeight, maxHeight)
-    }
-
     // MARK: - Header
 
     private func updateHeaderToFinished() {
@@ -378,12 +364,17 @@ final class ThinkingBlockView: NSView {
         isExpanded = false
         updateChevronImage()
         containerHeightConstraint.constant = 0
+        reasoningHeightConstraint.constant = 0
         contentTopConstraint.constant = 0
     }
 
     private func setExpanded(_ expanded: Bool, animated: Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
+        if expanded {
+            toolScrollAnchor?.resetUserScroll()
+            reasoningScrollAnchor.resetUserScroll()
+        }
         updateChevronImage()
 
         let targetHeight: CGFloat = isExpanded ? targetContentHeight() : 0
@@ -436,20 +427,28 @@ final class ThinkingBlockView: NSView {
     }
 
     private func targetContentHeight() -> CGFloat {
-        var height: CGFloat
-        let fitting = markdownView.fittingSize
-        if fitting.height > 0 {
-            height = ceil(fitting.height)
+        var height: CGFloat = 0
+
+        if hasReasoning {
+            let fitting = markdownView.fittingSize
+            var reasonHeight: CGFloat
+            if fitting.height > 0 {
+                reasonHeight = ceil(fitting.height)
+            } else {
+                let size = markdownView.intrinsicContentSize
+                reasonHeight = size.height > 0 ? ceil(size.height) : 20
+            }
+            let capped = min(reasonHeight, Self.maxScrollHeight)
+            reasoningHeightConstraint.constant = capped
+            height = capped
         } else {
-            let size = markdownView.intrinsicContentSize
-            height = size.height > 0 ? ceil(size.height) : 20
+            reasoningHeightConstraint.constant = 0
         }
 
-        if let tcContainer = toolCallContainer {
-            let tcFitting = tcContainer.fittingSize
-            let tcHeight = tcFitting.height > 0 ? ceil(tcFitting.height) : ceil(tcContainer.intrinsicContentSize.height)
-            if tcHeight > 0 {
-                height += 16 + tcHeight
+        if let groupStack = toolGroupStack {
+            let toolHeight = min(ceil(max(groupStack.fittingSize.height, 0)), Self.maxScrollHeight)
+            if toolHeight > 0 {
+                height += (hasReasoning ? 16 : 0) + toolHeight
             }
         }
 
@@ -483,6 +482,19 @@ final class ThinkingBlockView: NSView {
 
     // MARK: - Setup
 
+    private static func makeOverlayScrollView(documentView: NSView) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.contentView.drawsBackground = false
+        scrollView.documentView = documentView
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.scrollerStyle = .overlay
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        return scrollView
+    }
+
     private func setupViews() {
         titleLabel.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         titleLabel.textColor = .secondaryLabelColor
@@ -509,7 +521,6 @@ final class ThinkingBlockView: NSView {
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentContainer)
 
-        // Bullet dot: hollow outlined circle
         bulletDot.wantsLayer = true
         bulletDot.layer?.cornerRadius = 3.5
         bulletDot.layer?.backgroundColor = .clear
@@ -518,19 +529,29 @@ final class ThinkingBlockView: NSView {
         bulletDot.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(bulletDot)
 
-        // Timeline line: runs alongside content from the start
         timelineLine.wantsLayer = true
         timelineLine.layer?.backgroundColor = NSColor.separatorColor.cgColor
         timelineLine.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(timelineLine)
 
-        let tlBottom = timelineLine.bottomAnchor.constraint(equalTo: markdownView.bottomAnchor)
-        timelineBottomConstraint = tlBottom
+        let reasoningDocView = FlippedView()
+        reasoningDocView.translatesAutoresizingMaskIntoConstraints = false
+
+        let reasoningSV = Self.makeOverlayScrollView(documentView: reasoningDocView)
+        contentContainer.addSubview(reasoningSV)
+        reasoningScrollView = reasoningSV
+        reasoningScrollAnchor = ScrollAnchor(scrollView: reasoningSV)
 
         markdownView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         markdownView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         markdownView.translatesAutoresizingMaskIntoConstraints = false
-        contentContainer.addSubview(markdownView)
+        reasoningDocView.addSubview(markdownView)
+
+        let tlBottom = timelineLine.bottomAnchor.constraint(equalTo: reasoningSV.bottomAnchor)
+        timelineBottomConstraint = tlBottom
+
+        let reasoningHC = reasoningSV.heightAnchor.constraint(equalToConstant: 0)
+        reasoningHeightConstraint = reasoningHC
 
         let heightC = contentContainer.heightAnchor.constraint(equalToConstant: 0)
         containerHeightConstraint = heightC
@@ -538,7 +559,20 @@ final class ThinkingBlockView: NSView {
         let topC = contentContainer.topAnchor.constraint(equalTo: headerArea.bottomAnchor, constant: 0)
         contentTopConstraint = topC
 
+        let mdLeadingBullet = reasoningSV.leadingAnchor.constraint(equalTo: bulletDot.trailingAnchor, constant: 6)
+        markdownLeadingToBullet = mdLeadingBullet
+
+        let mdLeadingContainer = reasoningSV.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor)
+        markdownLeadingToContainer = mdLeadingContainer
+
         NSLayoutConstraint.activate([
+            markdownView.topAnchor.constraint(equalTo: reasoningDocView.topAnchor),
+            markdownView.leadingAnchor.constraint(equalTo: reasoningDocView.leadingAnchor),
+            markdownView.trailingAnchor.constraint(equalTo: reasoningDocView.trailingAnchor),
+            markdownView.bottomAnchor.constraint(equalTo: reasoningDocView.bottomAnchor),
+
+            reasoningDocView.widthAnchor.constraint(equalTo: reasoningSV.widthAnchor),
+
             headerArea.topAnchor.constraint(equalTo: topAnchor),
             headerArea.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -6),
             headerArea.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
@@ -568,15 +602,27 @@ final class ThinkingBlockView: NSView {
             timelineLine.topAnchor.constraint(equalTo: bulletDot.bottomAnchor, constant: 4),
             tlBottom,
 
-            markdownView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            markdownView.leadingAnchor.constraint(equalTo: bulletDot.trailingAnchor, constant: 6),
-            markdownView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            reasoningSV.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            reasoningSV.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            reasoningHC,
         ])
     }
 
     @objc private func toggleExpanded() {
         autoExpanded = false
         setExpanded(!isExpanded, animated: true)
+    }
+
+    private func updateReasoningLayout() {
+        bulletDot.isHidden = !hasReasoning
+        timelineLine.isHidden = !hasReasoning
+        if hasReasoning {
+            markdownLeadingToContainer.isActive = false
+            markdownLeadingToBullet.isActive = true
+        } else {
+            markdownLeadingToBullet.isActive = false
+            markdownLeadingToContainer.isActive = true
+        }
     }
 
     // MARK: - Header Hover
@@ -658,4 +704,73 @@ final class ThinkingBlockView: NSView {
         let trimmed = afterTitle.drop(while: { $0 == "\n" || $0 == "\r" })
         return String(trimmed)
     }
+}
+
+// MARK: - Scroll Tracking
+
+/// Tracks user scroll position for an NSScrollView, supporting auto-scroll-to-bottom
+/// with suppression during programmatic scrolls.
+private final class ScrollAnchor {
+
+    private let scrollView: NSScrollView
+    private var userScrolled = false
+    private var suppressTracking = false
+    private var observer: NSObjectProtocol?
+
+    init(scrollView: NSScrollView) {
+        self.scrollView = scrollView
+
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        observer = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, !self.suppressTracking else { return }
+            self.userScrolled = !self.isNearBottom()
+        }
+    }
+
+    deinit {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    func resetUserScroll() {
+        userScrolled = false
+    }
+
+    func scrollToBottom(layout: () -> Void) {
+        guard let documentView = scrollView.documentView,
+              !userScrolled else { return }
+
+        suppressTracking = true
+        layout()
+
+        let contentHeight = documentView.frame.height
+        let visibleHeight = scrollView.contentView.bounds.height
+        guard contentHeight > visibleHeight else {
+            suppressTracking = false
+            return
+        }
+
+        let bottomPoint = NSPoint(x: 0, y: contentHeight - visibleHeight)
+        scrollView.contentView.scroll(to: bottomPoint)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        Task { @MainActor [weak self] in
+            self?.suppressTracking = false
+        }
+    }
+
+    private func isNearBottom(threshold: CGFloat = 30) -> Bool {
+        guard let documentView = scrollView.documentView else { return true }
+        let contentHeight = documentView.frame.height
+        let visibleHeight = scrollView.contentView.bounds.height
+        let scrollY = scrollView.contentView.bounds.origin.y
+        return contentHeight - scrollY - visibleHeight <= threshold
+    }
+}
+
+private final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }

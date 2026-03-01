@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import AIProxy
 
 @Observable
 @MainActor
@@ -168,8 +167,7 @@ final class AgentChatController {
         error = nil
         engine.clearPendingCreations()
 
-        var input = buildResponseInput()
-        var previousResponseId: String?
+        var anthropicMessages = buildAnthropicMessages()
         var accumulatedAssistantText = ""
 
         do {
@@ -180,47 +178,55 @@ final class AgentChatController {
                 roundNumber += 1
 
                 let round = try await engine.performRound(
-                    input: input,
-                    previousResponseId: previousResponseId,
+                    messages: anthropicMessages,
                     connections: selectedConnections,
                     onToken: { [weak self] token in
-                        guard let self else { return }
-                        self.appendOrUpdateText(token)
+                        self?.appendOrUpdateText(token)
                     },
-                    onReasoning: { [weak self] text in
-                        guard let self else { return }
-                        self.appendOrUpdateThinking(text)
+                    onThinking: { [weak self] token in
+                        self?.appendOrUpdateThinking(token)
                     }
                 )
 
-                previousResponseId = round.responseId
+                print("[AgentChat] round \(roundNumber) complete — text: \(round.text.count) chars, toolCalls: \(round.toolCalls.count)")
 
-                print("[AgentChat] round \(roundNumber) complete — reasoning: \(round.reasoningSummary?.count ?? 0) chars, text: \(round.streamedText.count) chars, toolCalls: \(round.toolCalls.count)")
-
-                if let reasoning = round.reasoningSummary, !reasoning.isEmpty {
-                    let duration = reasoningStartTime.map { max(1, Int(Date().timeIntervalSince($0))) } ?? 0
-                    print("[AgentChat] saving thinking block (duration: \(duration)s)")
-                    accumulatedAssistantText += "<thinking duration=\"\(duration)\">\n\(reasoning)\n</thinking>\n"
-                    reasoningStartTime = nil
-                }
+                let thinkingSerialized = serializeThinking(from: round.responseContent)
 
                 if round.toolCalls.isEmpty {
-                    accumulatedAssistantText += round.streamedText
+                    accumulatedAssistantText += thinkingSerialized
+                    accumulatedAssistantText += round.text
                     print("[AgentChat] no tool calls, ending loop")
                     break
                 }
 
-                if !round.streamedText.isEmpty {
-                    accumulatedAssistantText += round.streamedText
-                }
+                accumulatedAssistantText += thinkingSerialized
+                accumulatedAssistantText += round.text
 
-                // Execute tools and send results back via previousResponseId
-                var toolOutputItems: [OpenAIResponse.Input.InputItem] = []
+                // Append assistant response to conversation for context
+                let assistantBlocks: [ContentBlock] = round.responseContent.compactMap { content in
+                    switch content {
+                    case .thinking(let text, let signature):
+                        return .thinking(text, signature: signature)
+                    case .text(let text):
+                        return .text(text)
+                    case .toolUse(let id, let name, let input):
+                        return .toolUse(
+                            id: id,
+                            name: name,
+                            input: NotebookAgentEngine.anyToJSONValues(input)
+                        )
+                    }
+                }
+                anthropicMessages.append(AnthropicMessage(role: .assistant, content: .blocks(assistantBlocks)))
+
+                // Execute tools and collect results
+                var toolResults: [ContentBlock] = []
 
                 for toolCall in round.toolCalls {
                     guard !Task.isCancelled else { break }
 
-                    let activeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: toolCall.arguments)
+                    let argumentsJSON = serializeToolInput(toolCall.input)
+                    let activeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: argumentsJSON)
                     appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeInfo.text, iconName: activeInfo.icon, round: roundNumber)
                     try? await Task.sleep(for: .milliseconds(50))
 
@@ -234,7 +240,7 @@ final class AgentChatController {
                     }
                     engine.clearPendingCreations()
 
-                    let completeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: toolCall.arguments)
+                    let completeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: argumentsJSON)
                     markToolCallComplete(id: toolCall.id, displayText: completeInfo.text)
                     if !accumulatedAssistantText.isEmpty && !accumulatedAssistantText.hasSuffix("\n") {
                         accumulatedAssistantText += "\n"
@@ -242,10 +248,11 @@ final class AgentChatController {
                     accumulatedAssistantText += "<tool_call name=\"\(toolCall.name)\">\(completeInfo.text)</tool_call>\n"
                     try? await Task.sleep(for: .milliseconds(50))
 
-                    toolOutputItems.append(.functionCallOutput(callID: toolCall.id, output: result))
+                    toolResults.append(.toolResult(toolUseId: toolCall.id, content: result))
                 }
 
-                input = .items(toolOutputItems)
+                // Append tool results as user message
+                anthropicMessages.append(AnthropicMessage(role: .user, content: .blocks(toolResults)))
             }
         } catch {
             if !Task.isCancelled {
@@ -323,7 +330,7 @@ final class AgentChatController {
         streamingParts.map { part in
             switch part {
             case .thinking(let text):
-                let duration = reasoningStartTime.map { max(1, Int(Date().timeIntervalSince($0))) } ?? 0
+                let duration = reasoningStartTime.map { max(1, Int(Date().timeIntervalSince($0))) } ?? 1
                 return "<thinking duration=\"\(duration)\">\n\(text)\n</thinking>\n"
             case .text(let text):
                 return text
@@ -372,22 +379,37 @@ final class AgentChatController {
         }
     }
 
-    // MARK: - Message Building (Responses API)
+    // MARK: - Message Building (Anthropic)
 
-    private func buildResponseInput() -> OpenAIResponse.Input {
-        var items: [OpenAIResponse.Input.InputItem] = []
-        for msg in messages {
+    private func buildAnthropicMessages() -> [AnthropicMessage] {
+        messages.compactMap { msg in
             switch msg.role {
             case .user:
-                items.append(.message(role: .user, content: .text(msg.content)))
+                return AnthropicMessage(role: .user, content: .text(msg.content))
             case .assistant:
                 let strippedContent = stripSerializedTags(from: msg.content)
-                if !strippedContent.isEmpty {
-                    items.append(.message(role: .assistant, content: .text(strippedContent)))
-                }
+                guard !strippedContent.isEmpty else { return nil }
+                return AnthropicMessage(role: .assistant, content: .text(strippedContent))
             }
         }
-        return .items(items)
+    }
+
+    private func serializeToolInput(_ input: [String: Any]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: input),
+              let str = String(data: data, encoding: .utf8) else { return "{}" }
+        return str
+    }
+
+    private func serializeThinking(from responseContent: [ResponseContentBlock]) -> String {
+        var result = ""
+        for content in responseContent {
+            if case .thinking(let text, _) = content {
+                let duration = reasoningStartTime.map { max(1, Int(Date().timeIntervalSince($0))) } ?? 1
+                result += "<thinking duration=\"\(duration)\">\n\(text)\n</thinking>\n"
+                reasoningStartTime = nil
+            }
+        }
+        return result
     }
 
     private static let toolCallTagRegex = try! Regex("<tool_call[^>]*>[^<]*</tool_call>\\n*")

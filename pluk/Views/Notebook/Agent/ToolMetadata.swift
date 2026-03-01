@@ -22,7 +22,7 @@ enum ToolMetadata {
         case "list_tables": return "tablecells"
         case "get_table_schema": return "square.stack.3d.up"
         case "run_query": return "rectangle.and.text.magnifyingglass"
-        case "set_notebook_info": return "pencil"
+        case "set_notebook_info": return "text.document"
         case "create_chart_block": return "chart.bar"
         case "create_single_value_block": return "numbers.rectangle"
         case "create_text_block": return "text.append"

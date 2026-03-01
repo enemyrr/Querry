@@ -13,17 +13,16 @@ class AIService {
     private static let serviceURL = "https://api.aiproxy.pro/4c1638f9/2f62a0df"
     
     static func analyzeError(query: String, error: Error, databaseType: String, databaseService: DatabaseService) async throws -> String {
-        // Get available tables list
         let collections = try await databaseService.listCollections(schema: nil)
         let tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
-        
+
         let systemPrompt = """
         You are a SQL error analysis assistant for \(databaseType). Your task is to analyze SQL errors and provide a corrected SQL query.
-        
+
         ## Available Tables
         The database contains the following tables:
         \(tablesList)
-        
+
         Instructions:
         - Analyze the SQL query and error message
         - Use the available tables list to check for table name typos or case issues
@@ -32,47 +31,45 @@ class AIService {
         - Do not include explanations, comments, or markdown formatting
         - Focus on fixing the specific error reported
         - Ensure the corrected query is syntactically valid
-        
+
         If you need detailed schema information about specific tables, use the get_table_schema tool.
-        
+
         Return only the corrected SQL query as plain text.
         """
-        
+
         let userPrompt = """
         Original SQL Query:
         \(query)
-        
+
         Error Message:
         \(error.localizedDescription)
-        
+
         IMPORTANT: Try to keep code comments and style as it so its easier to make a diff and find the changes
-        
+
         Please provide the corrected SQL query.
         """
-        
+
         return try await performAIRequestWithTools(
             systemPrompt: systemPrompt,
             userPrompt: userPrompt,
             databaseService: databaseService
         )
     }
-    
+
     static func generateSQL(prompt: String, selectedText: String? = nil, databaseService: DatabaseService) -> AsyncThrowingStream<String, Error> {
         return AsyncThrowingStream { continuation in
             Task {
                 do {
                     let systemPrompt = try await databaseService.buildAICommandPromptSystemPrompt(prompt)
-                    
-                    let openAIService = AIProxy.openAIService(
+
+                    let anthropicService = AIProxy.anthropicService(
                         partialKey: partialKey,
                         serviceURL: serviceURL
                     )
-        
-                    // Define the schema tool for accessing table schemas
-                    let getSchemaFunction = OpenAIChatCompletionRequestBody.Tool.function(
-                        name: "get_table_schema",
+
+                    let getSchemaFunction = AnthropicToolUnion(
                         description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
-                        parameters: [
+                        inputSchema: [
                             "type": .string("object"),
                             "properties": .object([
                                 "table_name": .object([
@@ -86,128 +83,99 @@ class AIService {
                             ]),
                             "required": .array([.string("table_name")])
                         ],
-                        strict: nil
+                        name: "get_table_schema"
                     )
-                    
-                    // Build user message with optional selected text context
+
                     var userMessage = prompt
                     if let selectedText = selectedText, !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         userMessage = """
                         User prompt: \(prompt)
-                        
+
                         Selected text context:
                         ```sql
                         \(selectedText)
                         ```
-                        
+
                         Please consider the selected text when generating the SQL query. If the prompt refers to modifying, explaining, or working with existing code, use the selected text as the base.
                         """
                     }
-                    
-                    let stream = try await openAIService.streamingChatCompletionRequest(
-                        body: .init(
-                            model: "gpt-4.1-mini",
-                            messages: [
-                                .user(content: .text(userMessage)),
-                                .system(content: .text(systemPrompt))
-                            ],
-                            parallelToolCalls: true,
+
+                    var messages: [AnthropicInputMessage] = [
+                        AnthropicInputMessage(content: .text(userMessage), role: .user)
+                    ]
+
+                    let response = try await anthropicService.messageRequest(
+                        body: AnthropicMessageRequestBody(
+                            maxTokens: 4096,
+                            messages: messages,
+                            model: "claude-haiku-4-5-20241022",
+                            system: .text(systemPrompt),
                             tools: [getSchemaFunction]
-                        )
+                        ),
+                        secondsToWait: 60
                     )
-                    
-                    var toolCalls: [(id: String, name: String, arguments: String)] = []
-                    
-                    for try await chunk in stream {
-                        if let content = chunk.choices.first?.delta.content {
-                            continuation.yield(content)
-                        }
-                        
-                        // Handle tool calls
-                        if let toolCallDeltas = chunk.choices.first?.delta.toolCalls {
-                            for toolCallDelta in toolCallDeltas {
-                                if let index = toolCallDelta.index,
-                                   let function = toolCallDelta.function {
-                                    
-                                    // Ensure we have enough space in the array
-                                    while toolCalls.count <= index {
-                                        toolCalls.append((id: "", name: "", arguments: ""))
-                                    }
-                                    
-                                    // Update the tool call at the correct index
-                                    var current = toolCalls[index]
-                                    
-                                    if let id = toolCallDelta.id {
-                                        current.id = id
-                                    }
-                                    
-                                    if let name = function.name {
-                                        current.name = name
-                                    }
-                                    
-                                    if let arguments = function.arguments {
-                                        current.arguments += arguments
-                                    }
-                                    
-                                    toolCalls[index] = current
-                                }
+
+                    var toolUses: [(id: String, name: String, input: [String: any Sendable])] = []
+                    for content in response.content {
+                        switch content {
+                        case .textBlock(let block):
+                            if !block.text.isEmpty {
+                                continuation.yield(block.text)
                             }
+                        case .toolUseBlock(let block):
+                            toolUses.append((block.id, block.name, block.input))
+                        default:
+                            break
                         }
                     }
-                    
-                    // Process any tool calls and stream final response
-                    if !toolCalls.isEmpty {
-                        var messages: [OpenAIChatCompletionRequestBody.Message] = [
-                            .user(content: .text(userMessage)),
-                            .system(content: .text(systemPrompt))
-                        ]
-                        
-                        // Create the assistant message with tool calls
-                        let assistantToolCalls = toolCalls.map { toolCall in
-                            OpenAIChatCompletionRequestBody.Message.ToolCall(
-                                id: toolCall.id,
-                                function: OpenAIChatCompletionRequestBody.Message.ToolCall.Function(
-                                    name: toolCall.name,
-                                    arguments: toolCall.arguments
-                                )
-                            )
+
+                    if !toolUses.isEmpty {
+                        let assistantBlocks: [AnthropicContentBlockParam] = response.content.compactMap { c in
+                            switch c {
+                            case .textBlock(let block):
+                                return .textBlock(AnthropicTextBlockParam(text: block.text))
+                            case .toolUseBlock(let block):
+                                return .toolUseBlock(AnthropicToolUseBlockParam(
+                                    id: block.id,
+                                    input: sendableToAIProxyJSONValues(block.input),
+                                    name: block.name
+                                ))
+                            default:
+                                return nil
+                            }
                         }
-                        
-                        messages.append(.assistant(
-                            content: nil,
-                            toolCalls: assistantToolCalls
-                        ))
-                        
-                        // Add tool call results
-                        for toolCall in toolCalls {
-                            if toolCall.name == "get_table_schema" {
+                        messages.append(AnthropicInputMessage(content: .blocks(assistantBlocks), role: .assistant))
+
+                        var toolResults: [AnthropicContentBlockParam] = []
+                        for toolUse in toolUses {
+                            if toolUse.name == "get_table_schema" {
+                                let inputDict = sendableToAny(toolUse.input)
                                 let toolResult = try await handleSchemaToolCall(
-                                    arguments: toolCall.arguments,
+                                    input: inputDict,
                                     databaseService: databaseService
                                 )
-                                
-                                messages.append(.tool(
-                                    content: .text(toolResult),
-                                    toolCallID: toolCall.id
-                                ))
+                                toolResults.append(.toolResultBlock(AnthropicToolResultBlockParam(toolUseId: toolUse.id, content: .text(toolResult))))
                             }
                         }
-                        
-                        // Stream final response with tool results
-                        let finalStream = try await openAIService.streamingChatCompletionRequest(
-                            body: .init(
-                                model: "gpt-4.1-mini",
-                                messages: messages
-                            )
+                        messages.append(AnthropicInputMessage(content: .blocks(toolResults), role: .user))
+
+                        let finalResponse = try await anthropicService.messageRequest(
+                            body: AnthropicMessageRequestBody(
+                                maxTokens: 4096,
+                                messages: messages,
+                                model: "claude-haiku-4-5-20241022",
+                                system: .text(systemPrompt)
+                            ),
+                            secondsToWait: 60
                         )
-                        
-                        for try await chunk in finalStream {
-                            if let content = chunk.choices.first?.delta.content {
-                                continuation.yield(content)
+
+                        for content in finalResponse.content {
+                            if case .textBlock(let block) = content, !block.text.isEmpty {
+                                continuation.yield(block.text)
                             }
                         }
                     }
-                    
+
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -215,45 +183,42 @@ class AIService {
             }
         }
     }
-    
-    
+
     private static func performAIRequest(systemPrompt: String, userPrompt: String) async throws -> String {
-        let openAIService = AIProxy.openAIService(
+        let anthropicService = AIProxy.anthropicService(
             partialKey: partialKey,
             serviceURL: serviceURL
         )
-        
-        let stream = try await openAIService.streamingChatCompletionRequest(
-            body: .init(
-                model: "gpt-4.1-mini",
+
+        let response = try await anthropicService.messageRequest(
+            body: AnthropicMessageRequestBody(
+                maxTokens: 4096,
                 messages: [
-                    .system(content: .text(systemPrompt)),
-                    .user(content: .text(userPrompt))
-                ]
-            )
+                    AnthropicInputMessage(content: .text(userPrompt), role: .user)
+                ],
+                model: "claude-haiku-4-5-20241022",
+                system: .text(systemPrompt)
+            ),
+            secondsToWait: 60
         )
-        
-        var result = ""
-        for try await chunk in stream {
-            if let content = chunk.choices.first?.delta.content {
-                result += content
-            }
-        }
-        
+
+        let result = response.content.compactMap { content -> String? in
+            guard case .textBlock(let block) = content else { return nil }
+            return block.text
+        }.joined()
+
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
+
     private static func performAIRequestWithTools(systemPrompt: String, userPrompt: String, databaseService: DatabaseService) async throws -> String {
-        let openAIService = AIProxy.openAIService(
+        let anthropicService = AIProxy.anthropicService(
             partialKey: partialKey,
             serviceURL: serviceURL
         )
-        
-        // Define the schema tool for accessing table schemas
-        let getSchemaFunction = OpenAIChatCompletionRequestBody.Tool.function(
-            name: "get_table_schema",
+
+        let getSchemaFunction = AnthropicToolUnion(
             description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
-            parameters: [
+            inputSchema: [
                 "type": .string("object"),
                 "properties": .object([
                     "table_name": .object([
@@ -267,145 +232,112 @@ class AIService {
                 ]),
                 "required": .array([.string("table_name")])
             ],
-            strict: nil
+            name: "get_table_schema"
         )
-        
-        let stream = try await openAIService.streamingChatCompletionRequest(
-            body: .init(
-                model: "gpt-4.1-mini",
-                messages: [
-                    .system(content: .text(systemPrompt)),
-                    .user(content: .text(userPrompt))
-                ],
-                parallelToolCalls: true,
+
+        var messages: [AnthropicInputMessage] = [
+            AnthropicInputMessage(content: .text(userPrompt), role: .user)
+        ]
+
+        let response = try await anthropicService.messageRequest(
+            body: AnthropicMessageRequestBody(
+                maxTokens: 4096,
+                messages: messages,
+                model: "claude-haiku-4-5-20241022",
+                system: .text(systemPrompt),
                 tools: [getSchemaFunction]
-            )
+            ),
+            secondsToWait: 60
         )
-        
+
         var result = ""
-        var toolCalls: [(id: String, name: String, arguments: String)] = []
-        
-        for try await chunk in stream {
-            if let content = chunk.choices.first?.delta.content {
-                result += content
-            }
-            
-            // Handle tool calls
-            if let toolCallDeltas = chunk.choices.first?.delta.toolCalls {
-                for toolCallDelta in toolCallDeltas {
-                    if let index = toolCallDelta.index,
-                       let function = toolCallDelta.function {
-                        
-                        // Ensure we have enough space in the array
-                        while toolCalls.count <= index {
-                            toolCalls.append((id: "", name: "", arguments: ""))
-                        }
-                        
-                        // Update the tool call at the correct index
-                        var current = toolCalls[index]
-                        
-                        if let id = toolCallDelta.id {
-                            current.id = id
-                        }
-                        
-                        if let name = function.name {
-                            current.name = name
-                        }
-                        
-                        if let arguments = function.arguments {
-                            current.arguments += arguments
-                        }
-                        
-                        toolCalls[index] = current
-                    }
-                }
+        var toolUses: [(id: String, name: String, input: [String: any Sendable])] = []
+
+        for content in response.content {
+            switch content {
+            case .textBlock(let block):
+                result += block.text
+            case .toolUseBlock(let block):
+                toolUses.append((block.id, block.name, block.input))
+            default:
+                break
             }
         }
-        
-        // Process any tool calls
-        if !toolCalls.isEmpty {
-            var messages: [OpenAIChatCompletionRequestBody.Message] = [
-                .system(content: .text(systemPrompt)),
-                .user(content: .text(userPrompt))
-            ]
-            
-            // Create the assistant message with tool calls
-            let assistantToolCalls = toolCalls.map { toolCall in
-                OpenAIChatCompletionRequestBody.Message.ToolCall(
-                    id: toolCall.id,
-                    function: OpenAIChatCompletionRequestBody.Message.ToolCall.Function(
-                        name: toolCall.name,
-                        arguments: toolCall.arguments
-                    )
-                )
+
+        if !toolUses.isEmpty {
+            let assistantBlocks: [AnthropicContentBlockParam] = response.content.compactMap { c in
+                switch c {
+                case .textBlock(let block):
+                    return .textBlock(AnthropicTextBlockParam(text: block.text))
+                case .toolUseBlock(let block):
+                    return .toolUseBlock(AnthropicToolUseBlockParam(
+                        id: block.id,
+                        input: sendableToAIProxyJSONValues(block.input),
+                        name: block.name
+                    ))
+                default:
+                    return nil
+                }
             }
-            
-            messages.append(.assistant(
-                content: nil,
-                toolCalls: assistantToolCalls
-            ))
-            
-            // Add tool call results
-            for toolCall in toolCalls {
-                if toolCall.name == "get_table_schema" {
+            messages.append(AnthropicInputMessage(content: .blocks(assistantBlocks), role: .assistant))
+
+            var toolResults: [AnthropicContentBlockParam] = []
+            for toolUse in toolUses {
+                if toolUse.name == "get_table_schema" {
+                    let inputDict = sendableToAny(toolUse.input)
                     let toolResult = try await handleSchemaToolCall(
-                        arguments: toolCall.arguments,
+                        input: inputDict,
                         databaseService: databaseService
                     )
-                    
-                    messages.append(.tool(
-                        content: .text(toolResult),
-                        toolCallID: toolCall.id
-                    ))
+                    toolResults.append(.toolResultBlock(AnthropicToolResultBlockParam(toolUseId: toolUse.id, content: .text(toolResult))))
                 }
             }
-            
-            // Get final response with tool results
-            let finalStream = try await openAIService.streamingChatCompletionRequest(
-                body: .init(
-                    model: "gpt-4.1-mini",
-                    messages: messages
-                )
+            messages.append(AnthropicInputMessage(content: .blocks(toolResults), role: .user))
+
+            let finalResponse = try await anthropicService.messageRequest(
+                body: AnthropicMessageRequestBody(
+                    maxTokens: 4096,
+                    messages: messages,
+                    model: "claude-haiku-4-5-20241022",
+                    system: .text(systemPrompt)
+                ),
+                secondsToWait: 60
             )
-            
+
             var finalResult = ""
-            for try await chunk in finalStream {
-                if let content = chunk.choices.first?.delta.content {
-                    finalResult += content
+            for content in finalResponse.content {
+                if case .textBlock(let block) = content {
+                    finalResult += block.text
                 }
             }
-            
+
             return finalResult.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        
+
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
-    private static func handleSchemaToolCall(arguments: String, databaseService: DatabaseService) async throws -> String {
-        // Parse the JSON arguments
-        guard let data = arguments.data(using: .utf8),
-              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tableName = json["table_name"] as? String else {
+
+    private static func handleSchemaToolCall(input: [String: Any], databaseService: DatabaseService) async throws -> String {
+        guard let tableName = input["table_name"] as? String else {
             return "Error: Invalid arguments for get_table_schema"
         }
-        
-        let schemaName = json["schema_name"] as? String
-        
+
+        let schemaName = input["schema_name"] as? String
+
         do {
             guard let schemaResult = try await databaseService.getSchema(for: tableName, databaseSchema: schemaName) else {
                 return "Error: Could not retrieve schema for table '\(tableName)'"
             }
-            
-            // Format the schema information as a readable string
+
             var schemaDescription = "Table: \(schemaResult.tableName)\n"
             if !schemaResult.schemaName.isEmpty {
                 schemaDescription += "Schema: \(schemaResult.schemaName)\n"
             }
             schemaDescription += "Columns (\(schemaResult.columnCount)):\n\n"
-            
+
             for column in schemaResult.columns {
                 schemaDescription += "- \(column.columnName): \(column.dataType)"
-                
+
                 if let precision = column.numericPrecision {
                     schemaDescription += "(\(precision)"
                     if let scale = column.numericScale {
@@ -413,20 +345,19 @@ class AIService {
                     }
                     schemaDescription += ")"
                 }
-                
+
                 if column.isNullable == "NO" {
                     schemaDescription += " NOT NULL"
                 }
-                
+
                 if let defaultValue = column.columnDefault {
                     schemaDescription += " DEFAULT \(defaultValue)"
                 }
-                
-                // Add constraint information
+
                 if column.isPrimaryKey {
                     schemaDescription += " [PRIMARY KEY]"
                 }
-                
+
                 if column.hasForeignKey {
                     for fk in column.foreignKeyConstraints {
                         if let refTable = fk.referencedTable {
@@ -438,22 +369,45 @@ class AIService {
                         }
                     }
                 }
-                
+
                 if !column.uniqueConstraints.isEmpty {
                     schemaDescription += " [UNIQUE]"
                 }
-                
+
                 if let comment = column.comment {
                     schemaDescription += " -- \(comment)"
                 }
-                
+
                 schemaDescription += "\n"
             }
-            
+
             return schemaDescription
-            
+
         } catch {
             return "Error retrieving schema for table '\(tableName)': \(error.localizedDescription)"
+        }
+    }
+
+    private static func sendableToAny(_ input: [String: any Sendable]) -> [String: Any] {
+        input.reduce(into: [String: Any]()) { $0[$1.key] = $1.value }
+    }
+
+    private static func anyToAIProxyJSONValue(_ value: Any) -> AIProxyJSONValue {
+        switch value {
+        case is NSNull: return .null(NSNull())
+        case let b as Bool: return .bool(b)
+        case let i as Int: return .int(i)
+        case let d as Double: return .double(d)
+        case let s as String: return .string(s)
+        case let arr as [Any]: return .array(arr.map { anyToAIProxyJSONValue($0) })
+        case let dict as [String: Any]: return .object(dict.mapValues { anyToAIProxyJSONValue($0) })
+        default: return .string("\(value)")
+        }
+    }
+
+    private static func sendableToAIProxyJSONValues(_ input: [String: any Sendable]) -> [String: AIProxyJSONValue] {
+        input.reduce(into: [String: AIProxyJSONValue]()) { result, pair in
+            result[pair.key] = anyToAIProxyJSONValue(pair.value)
         }
     }
 }

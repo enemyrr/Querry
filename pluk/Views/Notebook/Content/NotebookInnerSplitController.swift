@@ -6,7 +6,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
     private var inspectorItem: NSSplitViewItem!
     private var isProgrammaticCollapse = false
     private var isAnimating = false
-    private var lastExpandedWidth: CGFloat = 350
+    private var lastExpandedWidth: CGFloat = 300
 
     var onCollapseStateChanged: ((Bool) -> Void)?
 
@@ -34,7 +34,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
         inspectorItem.canCollapse = true
         inspectorItem.isCollapsed = true
         inspectorItem.minimumThickness = 350
-        inspectorItem.maximumThickness = 450
+        inspectorItem.maximumThickness = 600
         inspectorItem.holdingPriority = .defaultLow + 1
 
         splitViewItems = [contentItem, inspectorItem]
@@ -150,6 +150,7 @@ final class NotebookInnerSplitController: NSSplitViewController {
     private func syncCollapseState() {
         if dataController.isRightSidebarVisible {
             expand()
+            BedrockService.shared.warmUpCredentials()
         } else {
             collapse()
         }

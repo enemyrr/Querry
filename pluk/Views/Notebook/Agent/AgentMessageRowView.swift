@@ -395,161 +395,6 @@ final class AgentMessageRowView: NSView {
     }
 }
 
-// MARK: - Tool Call Group View
-
-final class ToolCallGroupView: NSView {
-
-    private let nodeCircle = NSView()
-    private let headerLabel: NSTextField
-    private let timelineLine = NSView()
-    private let childrenStack = NSStackView()
-
-    private static let nodeSize: CGFloat = 8
-
-    private struct ChildRow {
-        let id: String
-        let spinner: NSProgressIndicator
-        let checkmark: NSImageView
-        let label: NSTextField
-    }
-    private var rows: [ChildRow] = []
-    private var headerConfigured = false
-
-    override init(frame: NSRect) {
-        headerLabel = NSTextField(labelWithString: "")
-        super.init(frame: frame)
-
-        // Node circle at top of timeline
-        nodeCircle.wantsLayer = true
-        nodeCircle.layer?.cornerRadius = Self.nodeSize / 2
-        nodeCircle.layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
-        nodeCircle.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(nodeCircle)
-
-        // Header label (to the right of circle)
-        headerLabel.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
-        headerLabel.textColor = .secondaryLabelColor
-        headerLabel.lineBreakMode = .byTruncatingTail
-        headerLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(headerLabel)
-
-        // Timeline line (below circle)
-        timelineLine.wantsLayer = true
-        timelineLine.layer?.backgroundColor = NSColor.separatorColor.cgColor
-        timelineLine.translatesAutoresizingMaskIntoConstraints = false
-        timelineLine.isHidden = true
-        addSubview(timelineLine)
-
-        // Children stack (indented to the right of the line)
-        childrenStack.orientation = .vertical
-        childrenStack.alignment = .leading
-        childrenStack.spacing = 6
-        childrenStack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(childrenStack)
-
-        NSLayoutConstraint.activate([
-            // Circle: top-left
-            nodeCircle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            nodeCircle.topAnchor.constraint(equalTo: topAnchor, constant: 3),
-            nodeCircle.widthAnchor.constraint(equalToConstant: Self.nodeSize),
-            nodeCircle.heightAnchor.constraint(equalToConstant: Self.nodeSize),
-
-            // Header label: right of circle
-            headerLabel.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 6),
-            headerLabel.centerYAnchor.constraint(equalTo: nodeCircle.centerYAnchor),
-            headerLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
-
-            // Timeline line: centered on circle, below it
-            timelineLine.widthAnchor.constraint(equalToConstant: 1),
-            timelineLine.centerXAnchor.constraint(equalTo: nodeCircle.centerXAnchor),
-            timelineLine.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 3),
-            timelineLine.bottomAnchor.constraint(equalTo: childrenStack.bottomAnchor),
-
-            // Children stack: indented right of the line
-            childrenStack.leadingAnchor.constraint(equalTo: nodeCircle.trailingAnchor, constant: 10),
-            childrenStack.topAnchor.constraint(equalTo: nodeCircle.bottomAnchor, constant: 5),
-            childrenStack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            childrenStack.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    func addRow(id: String, name: String, displayText: String, isComplete: Bool) {
-        if !headerConfigured {
-            headerLabel.stringValue = ToolMetadata.groupHeader(for: name)
-            headerConfigured = true
-        }
-
-        // Spinner (in-progress)
-        let spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        spinner.isIndeterminate = true
-
-        // Checkmark (complete)
-        let checkmark = NSImageView()
-        checkmark.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)
-        checkmark.contentTintColor = .tertiaryLabelColor
-        checkmark.symbolConfiguration = .init(pointSize: 11, weight: .medium)
-        checkmark.translatesAutoresizingMaskIntoConstraints = false
-
-        // Label
-        let label = NSTextField(labelWithString: displayText)
-        label.font = .systemFont(ofSize: 11.5)
-        label.textColor = .secondaryLabelColor
-        label.lineBreakMode = .byTruncatingTail
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let row = NSStackView(views: [spinner, checkmark, label])
-        row.orientation = .horizontal
-        row.spacing = 4
-        row.alignment = .centerY
-        row.translatesAutoresizingMaskIntoConstraints = false
-
-        NSLayoutConstraint.activate([
-            spinner.widthAnchor.constraint(equalToConstant: 13),
-            spinner.heightAnchor.constraint(equalToConstant: 13),
-            checkmark.widthAnchor.constraint(equalToConstant: 13),
-            checkmark.heightAnchor.constraint(equalToConstant: 13),
-        ])
-
-        if isComplete {
-            spinner.isHidden = true
-            checkmark.isHidden = false
-        } else {
-            spinner.startAnimation(nil)
-            spinner.isHidden = false
-            checkmark.isHidden = true
-        }
-
-        childrenStack.addArrangedSubview(row)
-        row.leadingAnchor.constraint(equalTo: childrenStack.leadingAnchor).isActive = true
-        row.trailingAnchor.constraint(equalTo: childrenStack.trailingAnchor).isActive = true
-
-        rows.append(ChildRow(id: id, spinner: spinner, checkmark: checkmark, label: label))
-        timelineLine.isHidden = false
-    }
-
-    func containsRow(id: String) -> Bool {
-        rows.contains { $0.id == id }
-    }
-
-    func markRowComplete(id: String, displayText: String) {
-        guard let entry = rows.first(where: { $0.id == id }) else { return }
-        entry.spinner.stopAnimation(nil)
-        entry.spinner.isHidden = true
-        entry.checkmark.isHidden = false
-        entry.label.stringValue = displayText
-    }
-
-    var rowCount: Int { rows.count }
-
-}
-
 // MARK: - Streaming Parts View
 
 final class StreamingPartsView: NSView {
@@ -560,7 +405,7 @@ final class StreamingPartsView: NSView {
 
     private enum DisplayEntry {
         case single(part: StreamingPart, view: NSView)
-        case toolGroup(round: Int, parts: [StreamingPart], view: ToolCallGroupView)
+        case toolGroup(round: Int, parts: [StreamingPart], view: ThinkingBlockView)
     }
     private var entries: [DisplayEntry] = []
 
@@ -662,8 +507,7 @@ final class StreamingPartsView: NSView {
             case .toolCall:
                 if case .thinking = sections.last?.kind {
                     sections[sections.count - 1].parts.append(part)
-                } else if case .toolGroup(let round) = sections.last?.kind,
-                          case .toolCall(_, _, _, _, _, let r) = part, r == round {
+                } else if case .toolGroup = sections.last?.kind {
                     sections[sections.count - 1].parts.append(part)
                 } else {
                     if case .toolCall(_, _, _, _, _, let round) = part {
@@ -718,18 +562,18 @@ final class StreamingPartsView: NSView {
                 (view as? MarkdownContentView)?.update(content: text)
                 entries[index] = .single(part: section.parts[0], view: view)
             }
-        case (.toolGroup(let round, _, let groupView), .toolGroup):
+        case (.toolGroup(let round, _, let tbView), .toolGroup):
             for part in section.parts {
                 guard case .toolCall(let id, let name, let displayText, _, let isComplete, _) = part else { continue }
-                if groupView.containsRow(id: id) {
+                if tbView.containsToolCall(id: id) {
                     if isComplete {
-                        groupView.markRowComplete(id: id, displayText: displayText)
+                        tbView.markToolCallComplete(id: id, displayText: displayText)
                     }
                 } else {
-                    groupView.addRow(id: id, name: name, displayText: displayText, isComplete: isComplete)
+                    tbView.addToolCall(id: id, name: name, displayText: displayText, isComplete: isComplete)
                 }
             }
-            entries[index] = .toolGroup(round: round, parts: section.parts, view: groupView)
+            entries[index] = .toolGroup(round: round, parts: section.parts, view: tbView)
         default:
             break
         }
@@ -740,7 +584,7 @@ final class StreamingPartsView: NSView {
         case .thinking, .text:
             return .single(part: section.parts[0], view: view)
         case .toolGroup(let round):
-            return .toolGroup(round: round, parts: section.parts, view: view as! ToolCallGroupView)
+            return .toolGroup(round: round, parts: section.parts, view: view as! ThinkingBlockView)
         }
     }
 
@@ -764,12 +608,12 @@ final class StreamingPartsView: NSView {
             }
             return mdView
         case .toolGroup:
-            let group = ToolCallGroupView()
+            let view = ThinkingBlockView(text: "")
             for part in section.parts {
                 guard case .toolCall(let id, let name, let displayText, _, let isComplete, _) = part else { continue }
-                group.addRow(id: id, name: name, displayText: displayText, isComplete: isComplete)
+                view.addToolCall(id: id, name: name, displayText: displayText, isComplete: isComplete)
             }
-            return group
+            return view
         }
     }
 
@@ -787,9 +631,22 @@ final class StreamingPartsView: NSView {
     // MARK: - Thinking State
 
     private func updateThinkingStreamState(_ parts: [StreamingPart]) {
-        guard case .single(let part, let view) = entries.last,
-              case .thinking = part,
-              let thinkingView = view as? ThinkingBlockView else {
+        let thinkingView: ThinkingBlockView?
+
+        switch entries.last {
+        case .single(let part, let view):
+            if case .thinking = part {
+                thinkingView = view as? ThinkingBlockView
+            } else {
+                thinkingView = nil
+            }
+        case .toolGroup(_, _, let view):
+            thinkingView = view
+        case .none:
+            thinkingView = nil
+        }
+
+        guard let thinkingView else {
             activeThinkingView?.finishAll()
             activeThinkingView = nil
             return
