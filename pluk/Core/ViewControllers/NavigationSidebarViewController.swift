@@ -364,7 +364,8 @@ private final class SidebarIconButton: NSButton {
         switch style {
         case .bordered where isSelected:
             ctx.addPath(backgroundPath)
-            NSColor.controlColor.withAlphaComponent(0.4).setFill()
+            let selectedAlpha: CGFloat = effectiveAppearance.isDarkMode ? 0.1 : 0.4
+            NSColor.controlColor.withAlphaComponent(selectedAlpha).setFill()
             ctx.fillPath()
 
             ctx.addPath(backgroundPath)
