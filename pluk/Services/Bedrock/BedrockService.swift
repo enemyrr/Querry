@@ -16,10 +16,11 @@ final class BedrockService: Sendable {
         messages: [AnthropicMessage],
         system: String,
         tools: [AnthropicToolDefinition],
-        maxTokens: Int = 8192
+        maxTokens: Int = 8192,
+        modelId: String = BedrockConfig.modelId
     ) async throws -> BedrockAnthropicResponse {
         let (request, body) = try await buildSignedRequest(
-            url: BedrockConfig.bedrockEndpoint,
+            url: BedrockConfig.bedrockEndpoint(for: modelId),
             messages: messages,
             system: system,
             tools: tools,
@@ -44,11 +45,12 @@ final class BedrockService: Sendable {
         tools: [AnthropicToolDefinition],
         maxTokens: Int = 64_000,
         thinking: ThinkingConfig? = .adaptive,
+        modelId: String = BedrockConfig.modelId,
         onTextDelta: @MainActor @Sendable (String) -> Void,
         onThinkingDelta: @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> BedrockAnthropicResponse {
         let (request, body) = try await buildSignedRequest(
-            url: BedrockConfig.bedrockStreamEndpoint,
+            url: BedrockConfig.bedrockStreamEndpoint(for: modelId),
             messages: messages,
             system: system,
             tools: tools,

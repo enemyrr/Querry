@@ -353,7 +353,7 @@ struct FloatingActionBar: View {
                 errorTask?.cancel()
                 debounceTask?.cancel()
             }
-        }.onTapOutsideGesture {
+        }.onTapOutside {
             withAnimation(.spring(response: 0.3)) {
                 action = .main
             }

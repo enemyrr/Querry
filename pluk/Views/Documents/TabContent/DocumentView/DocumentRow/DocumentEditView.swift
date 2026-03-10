@@ -7,7 +7,6 @@
 import SwiftUI
 import MongoKitten
 import LanguageSupport
-import OnTapOutsideGesture
 
 struct DocumentEditView: View {
     @Environment(\.colorScheme) var colorScheme

@@ -175,7 +175,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
                 "content": .object([
                     "type": .string("string"),
-                    "description": .string("Markdown content (headings, paragraphs, bold/italic). Must NOT contain markdown tables — use charts or single value blocks for data."),
+                    "description": .string("Markdown prose content (headings, paragraphs, bold/italic). Must NOT contain markdown tables — use charts or single value blocks for data."),
                 ]),
             ]),
             "required": .array([.string("title"), .string("content")]),

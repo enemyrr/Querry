@@ -6,50 +6,43 @@
 //
 
 import Foundation
-import AIProxy
 
 class AIService {
-    private static let partialKey = "v2|3fe1f505|AS4tm59nSGxScFCN"
-    private static let serviceURL = "https://api.aiproxy.pro/4c1638f9/2f62a0df"
-    
+
+    private static let modelId = BedrockConfig.haikuModelId
+
+    private static let schemaToolName = "get_table_schema"
+
     static func analyzeError(query: String, error: Error, databaseType: String, databaseService: DatabaseService) async throws -> String {
         let collections = try await databaseService.listCollections(schema: nil)
         let tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
 
         let systemPrompt = """
-        You are a SQL error analysis assistant for \(databaseType). Your task is to analyze SQL errors and provide a corrected SQL query.
+        You are a \(databaseType) error analysis assistant. Your output replaces the broken query in a SQL editor, so respond with only the corrected SQL query as plain text. Preserve the original comments and formatting style so the user can easily diff the change.
 
-        ## Available Tables
-        The database contains the following tables:
+        <available_tables>
         \(tablesList)
+        </available_tables>
 
-        Instructions:
-        - Analyze the SQL query and error message
-        - Use the available tables list to check for table name typos or case issues
-        - Use schema information when needed to understand table structures
-        - Return ONLY the corrected SQL query
-        - Do not include explanations, comments, or markdown formatting
-        - Focus on fixing the specific error reported
-        - Ensure the corrected query is syntactically valid
-
-        If you need detailed schema information about specific tables, use the get_table_schema tool.
-
-        Return only the corrected SQL query as plain text.
+        <instructions>
+        1. Analyze the query and error message to identify the cause.
+        2. Check the available tables list for table name typos or case mismatches.
+        3. If you need column-level detail, call the \(schemaToolName) tool.
+        4. Return only the corrected, syntactically valid SQL query.
+        </instructions>
         """
 
         let userPrompt = """
-        Original SQL Query:
+        <query>
         \(query)
+        </query>
 
-        Error Message:
+        <error>
         \(error.localizedDescription)
-
-        IMPORTANT: Try to keep code comments and style as it so its easier to make a diff and find the changes
-
-        Please provide the corrected SQL query.
+        </error>
         """
 
-        return try await performAIRequestWithTools(
+        return try await performRequestWithTools(
             systemPrompt: systemPrompt,
             userPrompt: userPrompt,
             databaseService: databaseService
@@ -57,123 +50,62 @@ class AIService {
     }
 
     static func generateSQL(prompt: String, selectedText: String? = nil, databaseService: DatabaseService) -> AsyncThrowingStream<String, Error> {
-        return AsyncThrowingStream { continuation in
+        AsyncThrowingStream { continuation in
             Task {
                 do {
                     let systemPrompt = try await databaseService.buildAICommandPromptSystemPrompt(prompt)
 
-                    let anthropicService = AIProxy.anthropicService(
-                        partialKey: partialKey,
-                        serviceURL: serviceURL
-                    )
-
-                    let getSchemaFunction = AnthropicToolUnion(
-                        description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
-                        inputSchema: [
-                            "type": .string("object"),
-                            "properties": .object([
-                                "table_name": .object([
-                                    "type": .string("string"),
-                                    "description": .string("The name of the table to get schema information for")
-                                ]),
-                                "schema_name": .object([
-                                    "type": .string("string"),
-                                    "description": .string("The schema/database name (optional, will use current schema if not provided)")
-                                ])
-                            ]),
-                            "required": .array([.string("table_name")])
-                        ],
-                        name: "get_table_schema"
-                    )
-
                     var userMessage = prompt
-                    if let selectedText = selectedText, !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if let selectedText, !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         userMessage = """
                         User prompt: \(prompt)
 
-                        Selected text context:
-                        ```sql
+                        <selected_text>
                         \(selectedText)
-                        ```
+                        </selected_text>
 
-                        Please consider the selected text when generating the SQL query. If the prompt refers to modifying, explaining, or working with existing code, use the selected text as the base.
+                        Consider the selected text when generating the SQL query. If the prompt refers to modifying, explaining, or working with existing code, use the selected text as the base.
                         """
                     }
 
-                    var messages: [AnthropicInputMessage] = [
-                        AnthropicInputMessage(content: .text(userMessage), role: .user)
+                    var messages: [AnthropicMessage] = [
+                        AnthropicMessage(role: .user, content: .text(userMessage))
                     ]
 
-                    let response = try await anthropicService.messageRequest(
-                        body: AnthropicMessageRequestBody(
-                            maxTokens: 4096,
-                            messages: messages,
-                            model: "claude-haiku-4-5-20241022",
-                            system: .text(systemPrompt),
-                            tools: [getSchemaFunction]
-                        ),
-                        secondsToWait: 60
+                    // First request (non-streaming) to check for tool use
+                    let response = try await BedrockService.shared.messageRequest(
+                        messages: messages,
+                        system: systemPrompt,
+                        tools: [schemaTool],
+                        maxTokens: 4096,
+                        modelId: modelId
                     )
 
-                    var toolUses: [(id: String, name: String, input: [String: any Sendable])] = []
-                    for content in response.content {
-                        switch content {
-                        case .textBlock(let block):
-                            if !block.text.isEmpty {
-                                continuation.yield(block.text)
-                            }
-                        case .toolUseBlock(let block):
-                            toolUses.append((block.id, block.name, block.input))
-                        default:
-                            break
-                        }
-                    }
+                    let toolUses = extractToolUses(from: response.content)
 
-                    if !toolUses.isEmpty {
-                        let assistantBlocks: [AnthropicContentBlockParam] = response.content.compactMap { c in
-                            switch c {
-                            case .textBlock(let block):
-                                return .textBlock(AnthropicTextBlockParam(text: block.text))
-                            case .toolUseBlock(let block):
-                                return .toolUseBlock(AnthropicToolUseBlockParam(
-                                    id: block.id,
-                                    input: sendableToAIProxyJSONValues(block.input),
-                                    name: block.name
-                                ))
-                            default:
-                                return nil
+                    if toolUses.isEmpty {
+                        for block in response.content {
+                            if case .text(let text) = block, !text.isEmpty {
+                                continuation.yield(text)
                             }
                         }
-                        messages.append(AnthropicInputMessage(content: .blocks(assistantBlocks), role: .assistant))
+                    } else {
+                        messages.append(AnthropicMessage(role: .assistant, content: .blocks(buildAssistantBlocks(from: response.content))))
 
-                        var toolResults: [AnthropicContentBlockParam] = []
-                        for toolUse in toolUses {
-                            if toolUse.name == "get_table_schema" {
-                                let inputDict = sendableToAny(toolUse.input)
-                                let toolResult = try await handleSchemaToolCall(
-                                    input: inputDict,
-                                    databaseService: databaseService
-                                )
-                                toolResults.append(.toolResultBlock(AnthropicToolResultBlockParam(toolUseId: toolUse.id, content: .text(toolResult))))
+                        let toolResults = try await collectToolResults(for: toolUses, databaseService: databaseService)
+                        messages.append(AnthropicMessage(role: .user, content: .blocks(toolResults)))
+
+                        _ = try await BedrockService.shared.messageRequestStream(
+                            messages: messages,
+                            system: systemPrompt,
+                            tools: [],
+                            maxTokens: 4096,
+                            thinking: nil,
+                            modelId: modelId,
+                            onTextDelta: { delta in
+                                continuation.yield(delta)
                             }
-                        }
-                        messages.append(AnthropicInputMessage(content: .blocks(toolResults), role: .user))
-
-                        let finalResponse = try await anthropicService.messageRequest(
-                            body: AnthropicMessageRequestBody(
-                                maxTokens: 4096,
-                                messages: messages,
-                                model: "claude-haiku-4-5-20241022",
-                                system: .text(systemPrompt)
-                            ),
-                            secondsToWait: 60
                         )
-
-                        for content in finalResponse.content {
-                            if case .textBlock(let block) = content, !block.text.isEmpty {
-                                continuation.yield(block.text)
-                            }
-                        }
                     }
 
                     continuation.finish()
@@ -184,137 +116,100 @@ class AIService {
         }
     }
 
-    private static func performAIRequest(systemPrompt: String, userPrompt: String) async throws -> String {
-        let anthropicService = AIProxy.anthropicService(
-            partialKey: partialKey,
-            serviceURL: serviceURL
-        )
+    // MARK: - Private
 
-        let response = try await anthropicService.messageRequest(
-            body: AnthropicMessageRequestBody(
-                maxTokens: 4096,
-                messages: [
-                    AnthropicInputMessage(content: .text(userPrompt), role: .user)
+    private static let schemaTool = AnthropicToolDefinition(
+        name: schemaToolName,
+        description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
+        inputSchema: [
+            "type": "object",
+            "properties": [
+                "table_name": [
+                    "type": "string",
+                    "description": "The name of the table to get schema information for"
                 ],
-                model: "claude-haiku-4-5-20241022",
-                system: .text(systemPrompt)
-            ),
-            secondsToWait: 60
-        )
+                "schema_name": [
+                    "type": "string",
+                    "description": "The schema/database name (optional, will use current schema if not provided)"
+                ]
+            ],
+            "required": ["table_name"]
+        ]
+    )
 
-        let result = response.content.compactMap { content -> String? in
-            guard case .textBlock(let block) = content else { return nil }
-            return block.text
-        }.joined()
-
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func extractToolUses(from content: [ResponseContentBlock]) -> [(id: String, name: String, input: [String: any Sendable])] {
+        content.compactMap { block in
+            guard case .toolUse(let id, let name, let input) = block else { return nil }
+            return (id, name, input)
+        }
     }
 
-    private static func performAIRequestWithTools(systemPrompt: String, userPrompt: String, databaseService: DatabaseService) async throws -> String {
-        let anthropicService = AIProxy.anthropicService(
-            partialKey: partialKey,
-            serviceURL: serviceURL
-        )
+    private static func buildAssistantBlocks(from content: [ResponseContentBlock]) -> [ContentBlock] {
+        content.compactMap { block in
+            switch block {
+            case .text(let text): .text(text)
+            case .toolUse(let id, let name, let input):
+                .toolUse(id: id, name: name, input: input.mapValues { JSONValue.fromAny($0) })
+            case .thinking: nil
+            }
+        }
+    }
 
-        let getSchemaFunction = AnthropicToolUnion(
-            description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
-            inputSchema: [
-                "type": .string("object"),
-                "properties": .object([
-                    "table_name": .object([
-                        "type": .string("string"),
-                        "description": .string("The name of the table to get schema information for")
-                    ]),
-                    "schema_name": .object([
-                        "type": .string("string"),
-                        "description": .string("The schema/database name (optional, will use current schema if not provided)")
-                    ])
-                ]),
-                "required": .array([.string("table_name")])
-            ],
-            name: "get_table_schema"
-        )
+    private static func collectToolResults(for toolUses: [(id: String, name: String, input: [String: any Sendable])], databaseService: DatabaseService) async throws -> [ContentBlock] {
+        var results: [ContentBlock] = []
+        for toolUse in toolUses {
+            if toolUse.name == schemaToolName {
+                let inputDict = toolUse.input.mapValues { $0 as Any }
+                let toolResult = try await handleSchemaToolCall(
+                    input: inputDict,
+                    databaseService: databaseService
+                )
+                results.append(.toolResult(toolUseId: toolUse.id, content: toolResult))
+            }
+        }
+        return results
+    }
 
-        var messages: [AnthropicInputMessage] = [
-            AnthropicInputMessage(content: .text(userPrompt), role: .user)
+    private static func extractText(from content: [ResponseContentBlock]) -> String {
+        content.compactMap { block in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }.joined()
+    }
+
+    private static func performRequestWithTools(systemPrompt: String, userPrompt: String, databaseService: DatabaseService) async throws -> String {
+        var messages: [AnthropicMessage] = [
+            AnthropicMessage(role: .user, content: .text(userPrompt))
         ]
 
-        let response = try await anthropicService.messageRequest(
-            body: AnthropicMessageRequestBody(
-                maxTokens: 4096,
-                messages: messages,
-                model: "claude-haiku-4-5-20241022",
-                system: .text(systemPrompt),
-                tools: [getSchemaFunction]
-            ),
-            secondsToWait: 60
+        let response = try await BedrockService.shared.messageRequest(
+            messages: messages,
+            system: systemPrompt,
+            tools: [schemaTool],
+            maxTokens: 4096,
+            modelId: modelId
         )
 
-        var result = ""
-        var toolUses: [(id: String, name: String, input: [String: any Sendable])] = []
+        let toolUses = extractToolUses(from: response.content)
 
-        for content in response.content {
-            switch content {
-            case .textBlock(let block):
-                result += block.text
-            case .toolUseBlock(let block):
-                toolUses.append((block.id, block.name, block.input))
-            default:
-                break
-            }
+        if toolUses.isEmpty {
+            return extractText(from: response.content).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        if !toolUses.isEmpty {
-            let assistantBlocks: [AnthropicContentBlockParam] = response.content.compactMap { c in
-                switch c {
-                case .textBlock(let block):
-                    return .textBlock(AnthropicTextBlockParam(text: block.text))
-                case .toolUseBlock(let block):
-                    return .toolUseBlock(AnthropicToolUseBlockParam(
-                        id: block.id,
-                        input: sendableToAIProxyJSONValues(block.input),
-                        name: block.name
-                    ))
-                default:
-                    return nil
-                }
-            }
-            messages.append(AnthropicInputMessage(content: .blocks(assistantBlocks), role: .assistant))
+        messages.append(AnthropicMessage(role: .assistant, content: .blocks(buildAssistantBlocks(from: response.content))))
 
-            var toolResults: [AnthropicContentBlockParam] = []
-            for toolUse in toolUses {
-                if toolUse.name == "get_table_schema" {
-                    let inputDict = sendableToAny(toolUse.input)
-                    let toolResult = try await handleSchemaToolCall(
-                        input: inputDict,
-                        databaseService: databaseService
-                    )
-                    toolResults.append(.toolResultBlock(AnthropicToolResultBlockParam(toolUseId: toolUse.id, content: .text(toolResult))))
-                }
-            }
-            messages.append(AnthropicInputMessage(content: .blocks(toolResults), role: .user))
+        let toolResults = try await collectToolResults(for: toolUses, databaseService: databaseService)
+        messages.append(AnthropicMessage(role: .user, content: .blocks(toolResults)))
 
-            let finalResponse = try await anthropicService.messageRequest(
-                body: AnthropicMessageRequestBody(
-                    maxTokens: 4096,
-                    messages: messages,
-                    model: "claude-haiku-4-5-20241022",
-                    system: .text(systemPrompt)
-                ),
-                secondsToWait: 60
-            )
+        let finalResponse = try await BedrockService.shared.messageRequest(
+            messages: messages,
+            system: systemPrompt,
+            tools: [],
+            maxTokens: 4096,
+            modelId: modelId
+        )
 
-            var finalResult = ""
-            for content in finalResponse.content {
-                if case .textBlock(let block) = content {
-                    finalResult += block.text
-                }
-            }
-
-            return finalResult.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        return extractText(from: finalResponse.content).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func handleSchemaToolCall(input: [String: Any], databaseService: DatabaseService) async throws -> String {
@@ -388,26 +283,4 @@ class AIService {
         }
     }
 
-    private static func sendableToAny(_ input: [String: any Sendable]) -> [String: Any] {
-        input.reduce(into: [String: Any]()) { $0[$1.key] = $1.value }
-    }
-
-    private static func anyToAIProxyJSONValue(_ value: Any) -> AIProxyJSONValue {
-        switch value {
-        case is NSNull: return .null(NSNull())
-        case let b as Bool: return .bool(b)
-        case let i as Int: return .int(i)
-        case let d as Double: return .double(d)
-        case let s as String: return .string(s)
-        case let arr as [Any]: return .array(arr.map { anyToAIProxyJSONValue($0) })
-        case let dict as [String: Any]: return .object(dict.mapValues { anyToAIProxyJSONValue($0) })
-        default: return .string("\(value)")
-        }
-    }
-
-    private static func sendableToAIProxyJSONValues(_ input: [String: any Sendable]) -> [String: AIProxyJSONValue] {
-        input.reduce(into: [String: AIProxyJSONValue]()) { result, pair in
-            result[pair.key] = anyToAIProxyJSONValue(pair.value)
-        }
-    }
 }

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AIProxy
 import Combine
 import PostHog
 
@@ -22,7 +21,6 @@ struct AISearchView: View {
     
     @Environment(ConnectionInstance.self) private var instance
     @FocusState private var isSearchFocused: Bool
-    @State private var filterQuery: String = ""
     @State private var search: String = ""
     
     var body: some View {
@@ -214,48 +212,38 @@ struct AISearchView: View {
     
     private func performAIQuery(databaseService: DatabaseService, search: String) async throws -> String {
         guard let selectedTab = instance.selectedTab?.name else {
-            fatalError("Database driver not set yet")
+            throw BedrockError.invalidResponse
         }
 
         let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab, databaseSchema: instance.selectedTab?.databaseSchema)
 
-        let anthropicService = AIProxy.anthropicService(
-            partialKey: "v2|3fe1f505|AS4tm59nSGxScFCN",
-            serviceURL: "https://api.aiproxy.pro/4c1638f9/2f62a0df"
+        let response = try await BedrockService.shared.messageRequest(
+            messages: [AnthropicMessage(role: .user, content: .text(search))],
+            system: prompt,
+            tools: [],
+            maxTokens: 4096,
+            modelId: BedrockConfig.haikuModelId
         )
 
-        let response = try await anthropicService.messageRequest(
-            body: AnthropicMessageRequestBody(
-                maxTokens: 4096,
-                messages: [
-                    AnthropicInputMessage(content: .text(search), role: .user)
-                ],
-                model: "claude-haiku-4-5-20241022",
-                system: .text(prompt)
-            ),
-            secondsToWait: 60
-        )
-
-        return response.content.compactMap { content -> String? in
-            guard case .textBlock(let block) = content else { return nil }
-            return block.text
+        return response.content.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
         }.joined()
     }
     
     @MainActor
     private func processQueryResult(_ result: String) async {
-        filterQuery = result
         search = ""
-        
-        onLoadDocuments(filterQuery)
+
+        onLoadDocuments(result)
         
         // Trigger scale animation on submit
         withAnimation(.easeInOut(duration: 0.15)) {
             isSubmitAnimating = true
         }
         
-        // Reset animation after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
             withAnimation(.easeInOut(duration: 0.15)) {
                 isSubmitAnimating = false
                 processingStage = .idle
@@ -267,9 +255,8 @@ struct AISearchView: View {
     
     @MainActor
     private func handleQueryError(_ error: Error) async {
-        if let aiError = error as? AIProxyError,
-           case .unsuccessfulRequest(let statusCode, let responseBody) = aiError {
-            debugLog("Error: Received \(statusCode) status code with response body: \(responseBody)")
+        if let bedrockError = error as? BedrockError {
+            debugLog("Error: \(bedrockError.localizedDescription)")
         } else {
             debugLog("Error: Could not create Message: \(error.localizedDescription)")
         }

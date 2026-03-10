@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AIProxy
 import PostHog
 
 struct AICommandPrompt: View {

@@ -7,7 +7,6 @@
 
 import SwiftUI
 import LanguageSupport
-import OnTapOutsideGesture
 import MongoKitten
 
 struct CreateEditor: View {
@@ -39,7 +38,7 @@ struct CreateEditor: View {
                     fullQueryEditorView()
                         .opacity(showEditor ? 1 : 0)
                         .animation(.easeInOut(duration: 0.3), value: showEditor)
-                        .onTapOutsideGesture {
+                        .onTapOutside {
                             closeWithAnimation()
                         }
                         .onKeyPress(.escape) {

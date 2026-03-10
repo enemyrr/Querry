@@ -7,7 +7,6 @@
 
 import SwiftUI
 import LanguageSupport
-import OnTapOutsideGesture
 
 struct QueryEditor: View {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
@@ -21,27 +20,13 @@ struct QueryEditor: View {
     @State private var messages: Set<TextLocated<Message>> = Set()
     @State private var isExpanded: Bool = false
     @State private var showEditor: Bool = false
-    @State private var showClearQueryButton: Bool = false
-    @State private var queryStartTime: Date?
-    @State private var lastExecutionTime: TimeInterval = 0
-    @State private var displayedQueryExecutionTime: String = ""
-    
-    private var queryExecutionTime: String {
-        if isLoading && displayedQueryExecutionTime.isEmpty {
-            return "executing..."
-        } else if !displayedQueryExecutionTime.isEmpty {
-            return displayedQueryExecutionTime
-        } else {
-            return ""
-        }
-    }
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
             VStack {
                 if isExpanded {
                     fullQueryEditorView()
-                        .onTapOutsideGesture {
+                        .onTapOutside {
                             closeWithAnimation()
                         }
                         .onKeyPress(.escape) {
@@ -54,7 +39,7 @@ struct QueryEditor: View {
             .padding(.vertical, 4)
             .padding(.horizontal, 6)
             .modifier(GlassBackgroundStyle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+            .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(.separator)
@@ -67,8 +52,8 @@ struct QueryEditor: View {
                 isExpanded = true
             }
             
-            // This will run approximately when the animation finishes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+            Task {
+                try? await Task.sleep(for: .milliseconds(100))
                 showEditor = true
             }
         }
@@ -83,15 +68,13 @@ struct QueryEditor: View {
             opacityValue = 0.0
         }
         
-        // Dismiss after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.11) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(110))
             showEditor = false
             showQueryEditor = false
             opacityValue = 1.0
         }
     }
-    
-    @State private var displayedIcon: String = "play.fill"
     
     private func fullQueryEditorView() -> some View {
         VStack(spacing: 0) {
@@ -104,7 +87,7 @@ struct QueryEditor: View {
                 
                 Spacer()
                 
-                Text("\(totalCount) rows \(queryExecutionTime)")
+                Text("\(totalCount) rows")
                     .foregroundColor(.secondary)
                     .font(.subheadline)
                 
@@ -116,13 +99,12 @@ struct QueryEditor: View {
                 
                 Button(action: {
                     filter = ""
-                    queryStartTime = Date()
                     onLoadDocuments(filter)
                 }) {
                     Text("Clear")
                         .font(.system(size: 12))
                 }
-                .buttonStyle(OutlineSecondaryButtonStyle())
+                .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)))
                 .opacity(filter.isEmpty ? 0.5 : 1)
                 .transition(.asymmetric(
                     insertion: .scale.combined(with: .opacity),
@@ -131,17 +113,31 @@ struct QueryEditor: View {
                 .animation(.spring(response: 0.3), value: filter.isEmpty)
                 
                 Button(action: {
-                    queryStartTime = Date()
                     onLoadDocuments(filter)
                 }) {
-                    Image(systemName: displayedIcon)
-                        .foregroundColor(.secondary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: 10)
-                    Text("Run")
+                    HStack {
+                        Text("Run")
+
+                        if isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .colorMultiply(.black)
+                                .padding(.horizontal, 4.5)
+                        } else {
+                            Text("⌘⏎")
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .foregroundStyle(Color(.textBackgroundColor))
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.primaryButton)
+                    )
                 }
+                .buttonStyle(.plain)
                 .keyboardShortcut(.return, modifiers: .command)
-                .buttonStyle(OutlineButtonStyle())
                 .disabled(isLoading)
                 .customHelp("Run current query", delay: 1.5, position: .left, shortcut: KeyboardShortcut(
                     modifiers: [.command],
@@ -149,27 +145,6 @@ struct QueryEditor: View {
                 ), spacing: 8)
             }
             .padding([.top, .horizontal, .bottom], 8)
-            .onChange(of: isLoading) { oldValue, newValue in
-                if oldValue != newValue {
-                    // When returning to idle from any non-idle state, delay the icon change
-                    // Keep showing the stop icon for a bit longer
-                    withAnimation {
-                        displayedIcon = "stop.fill"
-                    }
-                    
-                    // Then change back to play icon after delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.50) { // Adjust delay time as needed
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            displayedIcon = "play.fill"
-                        }
-                    }
-                } else {
-                    // Immediately show stop icon when starting a query
-                    withAnimation {
-                        displayedIcon = "stop.fill"
-                    }
-                }
-            }
             
             CodeEditor(text: $filter, position: $position, messages: $messages, language: .mongodb())
                 .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)

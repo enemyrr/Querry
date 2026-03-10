@@ -10,7 +10,6 @@ import MongoKitten
 import MongoCore
 import SwiftUI
 import SwiftData
-import AIProxy
 
 @Observable class ConnectionInstance: Identifiable {
     let id = UUID()
