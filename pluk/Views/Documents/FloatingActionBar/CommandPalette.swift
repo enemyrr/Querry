@@ -230,10 +230,27 @@ struct CommandPalette: View {
         private func selectActiveItem() {
             guard activeIndex < filteredCollections.count,
                   let collection = filteredCollections[safe: activeIndex] else { return }
-            
-            instance.createNewTab(name: collection.name, databaseSchema: collection.schema)
+
+            let isFunction = collection.type == "function" || collection.type == "procedure"
+            if isFunction, let pgWrapper = collection as? PostgreSQLCollectionWrapper {
+                openFunction(name: pgWrapper.name, oid: pgWrapper.oid, schema: pgWrapper.schema)
+            } else {
+                instance.createNewTab(name: collection.name, databaseSchema: collection.schema)
+            }
             onBack()
             searchText = ""
+        }
+
+        private func openFunction(name: String, oid: String, schema: String?) {
+            Task {
+                guard let driver = instance.databaseService.driver as? PostgreSQLDriver else { return }
+                do {
+                    let definition = try await driver.getFunctionDefinition(oid: oid)
+                    instance.createFunctionEditorTab(name: name, definition: definition, oid: oid, schema: schema)
+                } catch {
+                    debugLog("Failed to open function: \(error)")
+                }
+            }
         }
         
         private func backgroundColorForItem(at index: Int) -> Color {
