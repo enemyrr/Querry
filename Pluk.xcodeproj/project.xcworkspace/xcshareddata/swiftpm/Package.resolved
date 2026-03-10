@@ -1,5 +1,5 @@
 {
-  "originHash" : "867ec66c08ade8da246c73740b2523eed20a2c7976275503170e753d73c5e034",
+  "originHash" : "a392779bef198a68d623bc59c427b18e96ae2265d3b0abb40858f7c4aa6d748c",
   "pins" : [
     {
       "identity" : "codeeditorview",
@@ -35,15 +35,6 @@
       "state" : {
         "revision" : "d60444dc7b1525000eb443baa08bf79f059202ad",
         "version" : "1.7.2"
-      }
-    },
-    {
-      "identity" : "ontapoutsidegesture",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kuglee/OnTapOutsideGesture.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "85598d1e10e8d67cc01aabac2024b8267806d31c"
       }
     },
     {

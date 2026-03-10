@@ -24,7 +24,6 @@
 		9AEDB42C2F3C9B5400F0E0E1 /* BSON in Frameworks */ = {isa = PBXBuildFile; productRef = 9AEDB42B2F3C9B5400F0E0E1 /* BSON */; };
 		9AF175BD2D895D7200351A82 /* CodeEditorView in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF175BC2D895D7200351A82 /* CodeEditorView */; };
 		9AF175BF2D895DB500351A82 /* LanguageSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF175BE2D895DB500351A82 /* LanguageSupport */; };
-		9AF1769A2D8B0FEC00351A82 /* OnTapOutsideGesture in Frameworks */ = {isa = PBXBuildFile; productRef = 9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -95,7 +94,6 @@
 				9A7F9FD52E902EC00072BA52 /* ConvexMobile in Frameworks */,
 				9A0216502DFD9BF300F7FCF3 /* BSON in Frameworks */,
 				9AF175BF2D895DB500351A82 /* LanguageSupport in Frameworks */,
-				9AF1769A2D8B0FEC00351A82 /* OnTapOutsideGesture in Frameworks */,
 				9A9882FE2E05800B00F74AC3 /* Sentry in Frameworks */,
 				9A2923052DBBA5830032F301 /* PostHog in Frameworks */,
 				9AEDB42C2F3C9B5400F0E0E1 /* BSON in Frameworks */,
@@ -180,7 +178,6 @@
 				9A44A0BD2D2E91F900E04DC8 /* UInt128 */,
 				9AF175BC2D895D7200351A82 /* CodeEditorView */,
 				9AF175BE2D895DB500351A82 /* LanguageSupport */,
-				9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */,
 				9A9B35C22DA543A50052B366 /* yyjson */,
 				9A2923042DBBA5830032F301 /* PostHog */,
 				9AC676C42DEAD6DB009B6D2A /* PostgresNIO */,
@@ -279,7 +276,6 @@
 				9AE4BF6F2D25269A00EA996E /* XCRemoteSwiftPackageReference "MongoKitten" */,
 				9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */,
 				9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */,
-				9AF176982D8B0FEC00351A82 /* XCRemoteSwiftPackageReference "OnTapOutsideGesture" */,
 				9A9B35C12DA543A50052B366 /* XCRemoteSwiftPackageReference "yyjson" */,
 				9A2923032DBBA5830032F301 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				9AC676C32DEAD6DB009B6D2A /* XCRemoteSwiftPackageReference "postgres-nio" */,
@@ -777,14 +773,6 @@
 				minimumVersion = 0.15.3;
 			};
 		};
-		9AF176982D8B0FEC00351A82 /* XCRemoteSwiftPackageReference "OnTapOutsideGesture" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kuglee/OnTapOutsideGesture.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -869,11 +857,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9AF175BB2D895D7200351A82 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
 			productName = LanguageSupport;
-		};
-		9AF176992D8B0FEC00351A82 /* OnTapOutsideGesture */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9AF176982D8B0FEC00351A82 /* XCRemoteSwiftPackageReference "OnTapOutsideGesture" */;
-			productName = OnTapOutsideGesture;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
