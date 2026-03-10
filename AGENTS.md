@@ -40,6 +40,7 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 - Always ask the user to test the product and see if its working fine instead of you trying to build
 - Do not add comments unless its complex or info that's needed for user reference
 - Always use github cli instead of API
+- When the user asks anything about **prompts** or **prompt engineering**, always fetch and follow the guidance from `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices` before responding
 
 ## GitHub Workflow
 

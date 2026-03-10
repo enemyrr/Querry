@@ -4,6 +4,7 @@ private final class DashboardFlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
+
 final class DashboardGridController: NSViewController {
 
     private let dataController: NotebookDataController
@@ -11,19 +12,16 @@ final class DashboardGridController: NSViewController {
     private var collectionView: NSCollectionView!
     private var scrollView: NSScrollView!
     private var collectionHeightConstraint: NSLayoutConstraint?
-    private var isDragging = false
     private var scrollBoundsObserver: Any?
 
-    private var dragSourceIndex: Int?
-    private var dragSnapshotLayer: CALayer?
-    private var dragOffset: NSPoint = .zero
+    private let dragController = BlockDragController()
     private var currentDropIntent: DashboardDropIntent?
     private var dropIndicatorLayer: CAShapeLayer?
-    private var itemHighlightLayers: [CAShapeLayer] = []
-    private var lastDragPoint: NSPoint = .zero
     private var dimOverlayLayer: CALayer?
+    private var itemHighlightLayers: [CAShapeLayer] = []
     private var divisionPreviewLayers: [CAShapeLayer] = []
-    private var autoScrollTimer: Timer?
+    private var isLayoutFrozen = false
+    private var lastKnownWidth: CGFloat = 0
 
     var onScrollOffsetChanged: ((CGFloat) -> Void)?
 
@@ -43,11 +41,47 @@ final class DashboardGridController: NSViewController {
         self.view = root
 
         setupCollectionView()
-        observeBlocks()
-        observePublishedState()
+        observeState()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLayoutFreeze),
+            name: .notebookChartFreeze,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLayoutUnfreeze),
+            name: .notebookChartUnfreeze,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func handleLayoutFreeze(_ notification: Notification) {
+        guard notification.object as? NSWindow == view.window else { return }
+        isLayoutFrozen = true
+    }
+
+    @objc private func handleLayoutUnfreeze(_ notification: Notification) {
+        guard notification.object as? NSWindow == view.window else { return }
+        isLayoutFrozen = false
+        let currentWidth = collectionView.bounds.width
+        if currentWidth != lastKnownWidth, currentWidth > 0 {
+            lastKnownWidth = currentWidth
+            invalidateLayoutAndHeight()
+        }
     }
 
     // MARK: - Setup
+
+    func setTopContentInset(_ inset: CGFloat) {
+        scrollView.contentInsets.top = inset
+        scrollView.scrollerInsets.top = inset
+    }
 
     private func setupCollectionView() {
         let layout = DashboardGridLayout()
@@ -61,6 +95,7 @@ final class DashboardGridController: NSViewController {
         collectionView.register(DashboardChartItem.self, forItemWithIdentifier: DashboardChartItem.identifier)
         collectionView.register(DashboardTextItem.self, forItemWithIdentifier: DashboardTextItem.identifier)
         collectionView.register(DashboardSingleValueItem.self, forItemWithIdentifier: DashboardSingleValueItem.identifier)
+        collectionView.register(DashboardQueryItem.self, forItemWithIdentifier: DashboardQueryItem.identifier)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
 
         let documentView = DashboardFlippedView()
@@ -98,6 +133,7 @@ final class DashboardGridController: NSViewController {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
+        scrollView.automaticallyAdjustsContentInsets = false
         scrollView.contentView.drawsBackground = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -150,7 +186,7 @@ final class DashboardGridController: NSViewController {
         let availableWidth = availableContentWidth
         guard availableWidth > 0 else { return }
 
-        let dashBlocks = dataController.dashboardBlocks
+        let dashBlocks = dataController.cachedDashboardBlocks
         guard let blockIndex = dashBlocks.firstIndex(where: { $0.id == block.id }) else { return }
 
         let rowBlocks = blocksInSameRow(as: blockIndex, in: dashBlocks)
@@ -197,36 +233,47 @@ final class DashboardGridController: NSViewController {
 
     // MARK: - Observation
 
+    private var needsReloadOnVisible = false
+
     override func viewDidLayout() {
         super.viewDidLayout()
-        updateCollectionHeight()
-    }
 
-    private func observeBlocks() {
-        withObservationTracking {
-            _ = self.dataController.dashboardBlocks.map(\.id)
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self, !self.isDragging else {
-                    self?.observeBlocks()
-                    return
-                }
-                self.collectionView.reloadData()
-                self.updateCollectionHeight()
-                self.observeBlocks()
+        if needsReloadOnVisible, view.window != nil, collectionView.bounds.width > 0 {
+            needsReloadOnVisible = false
+            collectionView.reloadData()
+        }
+
+        if !isLayoutFrozen {
+            let currentWidth = collectionView.bounds.width
+            if currentWidth != lastKnownWidth, currentWidth > 0 {
+                lastKnownWidth = currentWidth
+                invalidateLayoutAndHeight()
+            } else {
+                updateCollectionHeight()
             }
         }
     }
 
-    private func observePublishedState() {
+    private func observeState() {
         withObservationTracking {
+            _ = self.dataController.cachedDashboardBlocks
+            _ = self.dataController.viewMode
             _ = self.dataController.isDashboardPublished
+            _ = self.dataController.isPublishPreviewing
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.collectionView.reloadData()
-                self.updateCollectionHeight()
-                self.observePublishedState()
+                guard !self.dragController.isDragging else {
+                    self.observeState()
+                    return
+                }
+                if self.view.window != nil, self.collectionView.bounds.width > 0 {
+                    self.collectionView.reloadData()
+                    self.updateCollectionHeight()
+                } else {
+                    self.needsReloadOnVisible = true
+                }
+                self.observeState()
             }
         }
     }
@@ -238,7 +285,7 @@ final class DashboardGridController: NSViewController {
         case insertInRow(rowIndex: Int, hoveredItemIndex: Int)
     }
 
-    private func wireItemCallbacks(on item: DashboardBaseItem, at index: Int) {
+    private func wireItemCallbacks(on item: DashboardBaseItem, at index: Int, block: NotebookBlock) {
         item.onResize = { [weak self] block, newHeight in
             self?.handleBlockResize(block: block, newHeight: newHeight)
         }
@@ -248,35 +295,22 @@ final class DashboardGridController: NSViewController {
         item.onDragBegan = { [weak self] event in self?.beginDrag(itemIndex: index, event: event) }
         item.onDragMoved = { [weak self] event in self?.updateDrag(event: event) }
         item.onDragEnded = { [weak self] event in self?.endDrag(event: event) }
+        item.onToggleDashboardVisibility = { [weak self] in
+            self?.dataController.toggleBlockDashboardVisibility(block)
+        }
     }
 
     private func beginDrag(itemIndex: Int, event: NSEvent) {
-        guard !dataController.isDashboardPublished else { return }
+        guard !dataController.isDashboardPublished, !dataController.isPublishPreviewing else { return }
 
-        isDragging = true
-        dragSourceIndex = itemIndex
-
-        let dashBlocks = dataController.dashboardBlocks
-        let block = dashBlocks[itemIndex]
-
-        let title = block.title.isEmpty ? "Untitled \(block.blockType.displayName)" : block.title
-        let iconName: String
-        switch block.blockType {
-        case .chart: iconName = "chart.bar.fill"
-        case .singleValue: iconName = "numbers.rectangle"
-        case .text: iconName = "doc.text.fill"
-        }
-        let card = createDragCard(title: title, iconName: iconName)
-
-        let locationInCollection = collectionView.convert(event.locationInWindow, from: nil)
-        card.frame.origin = NSPoint(
-            x: locationInCollection.x - 16,
-            y: locationInCollection.y - card.frame.height / 2
+        let block = dataController.cachedDashboardBlocks[itemIndex]
+        dragController.beginDrag(
+            sourceIndex: itemIndex,
+            block: block,
+            event: event,
+            snapshotContainer: collectionView,
+            dimContainer: collectionView
         )
-
-        collectionView.layer?.addSublayer(card)
-        dragSnapshotLayer = card
-        dragOffset = NSPoint(x: 16, y: card.frame.height / 2)
 
         if let item = collectionView.item(at: itemIndex) {
             item.view.alphaValue = 0.15
@@ -300,62 +334,17 @@ final class DashboardGridController: NSViewController {
         dropIndicatorLayer = indicator
     }
 
-    private func createDragCard(title: String, iconName: String) -> CALayer {
-        let card = CALayer()
-        let cardWidth: CGFloat = 180
-        let cardHeight: CGFloat = 36
-        card.frame = NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight)
-        card.cornerRadius = 8
-        card.masksToBounds = false
-
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let isDark = NSAppearance.currentDrawing().isDarkMode
-            card.backgroundColor = isDark
-                ? NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
-                : NSColor.white.withAlphaComponent(0.95).cgColor
-        }
-
-        card.shadowColor = NSColor.black.cgColor
-        card.shadowOpacity = 0.2
-        card.shadowOffset = CGSize(width: 0, height: -1)
-        card.shadowRadius = 6
-
-        if let image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil) {
-            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
-            let configured = image.withSymbolConfiguration(config) ?? image
-            let iconLayer = CALayer()
-            iconLayer.frame = NSRect(x: 10, y: (cardHeight - 16) / 2, width: 16, height: 16)
-            iconLayer.contents = configured.cgImage(forProposedRect: nil, context: nil, hints: nil)
-            iconLayer.contentsGravity = .resizeAspect
-            card.addSublayer(iconLayer)
-        }
-
-        let textLayer = CATextLayer()
-        textLayer.string = title
-        textLayer.fontSize = 12
-        textLayer.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        textLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
-        textLayer.truncationMode = .end
-        textLayer.frame = NSRect(x: 32, y: (cardHeight - 16) / 2, width: cardWidth - 44, height: 16)
-
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            textLayer.foregroundColor = NSColor.labelColor.cgColor
-        }
-
-        card.addSublayer(textLayer)
-        return card
-    }
-
     // MARK: - Layer Helpers
 
-    private static let titleOffset: CGFloat = 21
+    private static let titleOffset: CGFloat = 30
     private static let resizeOffset: CGFloat = 12
+    private static let handleWidth: CGFloat = 12
 
     private func contentRect(from frame: NSRect) -> NSRect {
         NSRect(
             x: frame.minX,
             y: frame.minY + Self.titleOffset,
-            width: frame.width,
+            width: frame.width - Self.handleWidth,
             height: frame.height - Self.titleOffset - Self.resizeOffset
         )
     }
@@ -367,12 +356,7 @@ final class DashboardGridController: NSViewController {
         strokeAlpha: CGFloat,
         color: NSColor = .controlAccentColor
     ) {
-        let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
-        shape.path = path.cgPath
-        shape.fillColor = fillAlpha.map { color.withAlphaComponent($0).cgColor }
-        shape.strokeColor = color.withAlphaComponent(strokeAlpha).cgColor
-        shape.lineWidth = 1.5
-        shape.lineDashPattern = [4, 3]
+        BlockDragController.applyDashedStyle(to: shape, rect: rect, fillAlpha: fillAlpha, strokeAlpha: strokeAlpha, color: color)
     }
 
     private func makeDashedShape(
@@ -381,25 +365,18 @@ final class DashboardGridController: NSViewController {
         strokeAlpha: CGFloat,
         color: NSColor = .controlAccentColor
     ) -> CAShapeLayer {
-        let shape = CAShapeLayer()
-        applyDashedStyle(to: shape, rect: rect, fillAlpha: fillAlpha, strokeAlpha: strokeAlpha, color: color)
-        return shape
-    }
-
-    private func removeLayers(_ layers: inout [CAShapeLayer]) {
-        for layer in layers { layer.removeFromSuperlayer() }
-        layers.removeAll()
+        BlockDragController.makeDashedShape(rect: rect, fillAlpha: fillAlpha, strokeAlpha: strokeAlpha, color: color)
     }
 
     private func addItemHighlights(onlyRange: ClosedRange<Int>? = nil) {
         guard let layout = collectionView.collectionViewLayout as? DashboardGridLayout else { return }
 
-        for i in 0..<dataController.dashboardBlocks.count {
-            guard i != dragSourceIndex else { continue }
+        for i in 0..<dataController.cachedDashboardBlocks.count {
+            guard i != dragController.dragSourceIndex else { continue }
             if let only = onlyRange, !only.contains(i) { continue }
             guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
 
-            let rect = contentRect(from: attrs.frame).insetBy(dx: 4, dy: 0.5)
+            let rect = contentRect(from: attrs.frame).insetBy(dx: -0.5, dy: -0.5)
             let shape = makeDashedShape(rect: rect, fillAlpha: nil, strokeAlpha: 0.25)
             collectionView.layer?.addSublayer(shape)
             itemHighlightLayers.append(shape)
@@ -407,22 +384,16 @@ final class DashboardGridController: NSViewController {
     }
 
     private func updateDrag(event: NSEvent) {
-        guard let snapshot = dragSnapshotLayer else { return }
+        guard dragController.isDragging else { return }
 
+        dragController.updateSnapshotPosition(event: event, containerView: collectionView)
+
+        dragController.updateAutoScroll(scrollView: scrollView, sourceView: collectionView) { [weak self] in
+            // no-op: auto-scroll tick doesn't need to recompute drop for dashboard
+        }
+
+        guard let sourceIndex = dragController.dragSourceIndex else { return }
         let locationInCollection = collectionView.convert(event.locationInWindow, from: nil)
-        lastDragPoint = locationInCollection
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        snapshot.frame.origin = NSPoint(
-            x: locationInCollection.x - dragOffset.x,
-            y: locationInCollection.y - dragOffset.y
-        )
-        CATransaction.commit()
-
-        autoScrollIfNeeded(event: event)
-
-        guard let sourceIndex = dragSourceIndex else { return }
         let newIntent = computeDropIntent(at: locationInCollection, sourceIndex: sourceIndex)
 
         if newIntent != currentDropIntent {
@@ -432,15 +403,12 @@ final class DashboardGridController: NSViewController {
     }
 
     private func endDrag(event: NSEvent) {
-        autoScrollTimer?.invalidate()
-        autoScrollTimer = nil
-
-        guard let sourceIndex = dragSourceIndex else {
+        guard let sourceIndex = dragController.dragSourceIndex else {
             cleanupDrag()
             return
         }
 
-        let dashBlocks = dataController.dashboardBlocks
+        let dashBlocks = dataController.cachedDashboardBlocks
         guard sourceIndex < dashBlocks.count else {
             cleanupDrag()
             return
@@ -494,7 +462,7 @@ final class DashboardGridController: NSViewController {
                 if destIndex > sourceIndex { destIndex += 1 }
                 dataController.moveDashboardBlock(from: sourceIndex, to: destIndex)
 
-                let updatedDashBlocks = dataController.dashboardBlocks
+                let updatedDashBlocks = dataController.cachedDashboardBlocks
                 for i in row.startIndex...row.endIndex {
                     guard i < updatedDashBlocks.count else { break }
                     updatedDashBlocks[i].dashboardInline = (i != row.startIndex)
@@ -511,7 +479,7 @@ final class DashboardGridController: NSViewController {
             }
         }
 
-        let newIds = dataController.dashboardBlocks.map(\.id)
+        let newIds = dataController.cachedDashboardBlocks.map(\.id)
 
         collectionView.performBatchUpdates {
             for (oldIndex, id) in oldIds.enumerated() {
@@ -546,23 +514,20 @@ final class DashboardGridController: NSViewController {
             updateCollectionHeight()
         }
 
-        dimOverlayLayer?.removeFromSuperlayer()
-        dimOverlayLayer = nil
-        dragSnapshotLayer?.removeFromSuperlayer()
-        dragSnapshotLayer = nil
-        dropIndicatorLayer?.removeFromSuperlayer()
-        dropIndicatorLayer = nil
-        removeLayers(&itemHighlightLayers)
-        removeLayers(&divisionPreviewLayers)
-        currentDropIntent = nil
-
-        if let sourceIndex = dragSourceIndex,
+        if let sourceIndex = dragController.dragSourceIndex,
            let item = collectionView.item(at: sourceIndex) {
             item.view.alphaValue = 1
         }
 
-        dragSourceIndex = nil
-        isDragging = false
+        dragController.cleanup()
+
+        dimOverlayLayer?.removeFromSuperlayer()
+        dimOverlayLayer = nil
+        dropIndicatorLayer?.removeFromSuperlayer()
+        dropIndicatorLayer = nil
+        BlockDragController.removeLayers(&itemHighlightLayers)
+        BlockDragController.removeLayers(&divisionPreviewLayers)
+        currentDropIntent = nil
     }
 
     // MARK: - Drop Intent
@@ -622,7 +587,7 @@ final class DashboardGridController: NSViewController {
         var closest = row.endIndex
         var closestDist = CGFloat.greatestFiniteMagnitude
         for i in row.startIndex...row.endIndex {
-            guard i != dragSourceIndex else { continue }
+            guard i != dragController.dragSourceIndex else { continue }
             guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
             if x >= attrs.frame.minX, x <= attrs.frame.maxX {
                 return i
@@ -651,6 +616,10 @@ final class DashboardGridController: NSViewController {
     }
 
     // MARK: - Drop Indicator
+
+    private func removeLayers(_ layers: inout [CAShapeLayer]) {
+        BlockDragController.removeLayers(&layers)
+    }
 
     private func updateDropIndicator(for intent: DashboardDropIntent?) {
         removeLayers(&divisionPreviewLayers)
@@ -693,7 +662,7 @@ final class DashboardGridController: NSViewController {
             dimOverlayLayer?.isHidden = true
 
         case .insertInRow(let rowIndex, let hoveredItemIndex):
-            guard rowIndex < rows.count, let sourceIndex = dragSourceIndex else {
+            guard rowIndex < rows.count, let sourceIndex = dragController.dragSourceIndex else {
                 indicator.isHidden = true
                 dimOverlayLayer?.isHidden = true
                 break
@@ -714,7 +683,7 @@ final class DashboardGridController: NSViewController {
                     break
                 }
 
-                let rect = contentRect(from: attrs.frame).insetBy(dx: 4, dy: 0.75)
+                let rect = contentRect(from: attrs.frame).insetBy(dx: -0.5, dy: -0.5)
                 applyDashedStyle(to: indicator, rect: rect, fillAlpha: 0.06, strokeAlpha: 0.35)
                 indicator.isHidden = false
             } else {
@@ -730,80 +699,36 @@ final class DashboardGridController: NSViewController {
         guard let hoveredAttrs = (collectionView.collectionViewLayout as? DashboardGridLayout)?
             .layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else { return }
 
-        let insertBefore = lastDragPoint.x < hoveredAttrs.frame.midX
+        let insertBefore = dragController.lastDragPoint.x < hoveredAttrs.frame.midX
         let insertionCol = insertBefore
             ? hoveredItemIndex - row.startIndex
             : hoveredItemIndex - row.startIndex + 1
 
-        let dashBlocks = dataController.dashboardBlocks
+        let dashBlocks = dataController.cachedDashboardBlocks
         var existingFractions = (row.startIndex...row.endIndex).map { dashBlocks[$0].blockWidthFraction }
         let usedFraction = existingFractions.reduce(0, +)
         let newFraction = max(0.2, 1.0 - usedFraction)
         existingFractions.insert(newFraction, at: insertionCol)
 
-        let totalFraction = existingFractions.reduce(0, +)
-        let normalized: [Double] = totalFraction > 1.0
-            ? existingFractions.map { $0 / totalFraction }
-            : existingFractions
+        var columns: [BlockDragController.DivisionColumn] = []
+        for (col, fraction) in existingFractions.enumerated() {
+            columns.append(.init(fraction: fraction, isInsertionTarget: col == insertionCol))
+        }
 
-        let handleWidth: CGFloat = 12
-        let totalHandleWidth = handleWidth * CGFloat(normalized.count)
-        let distributableWidth = (collectionView.bounds.width - insets.left - insets.right) - totalHandleWidth
+        let containerRect = NSRect(
+            x: insets.left,
+            y: row.frame.minY + Self.titleOffset,
+            width: collectionView.bounds.width - insets.left - insets.right,
+            height: row.frame.height - Self.titleOffset - Self.resizeOffset
+        )
 
-        var xOffset = insets.left
-        for (col, fraction) in normalized.enumerated() {
-            let colWidth = distributableWidth * fraction + handleWidth
-            let rect = NSRect(
-                x: xOffset,
-                y: row.frame.minY + Self.titleOffset,
-                width: colWidth,
-                height: row.frame.height - Self.titleOffset - Self.resizeOffset
-            ).insetBy(dx: 4, dy: 0.75)
-
-            let isInsertionTarget = col == insertionCol
-            let shape = makeDashedShape(
-                rect: rect,
-                fillAlpha: isInsertionTarget ? 0.04 : nil,
-                strokeAlpha: isInsertionTarget ? 0.3 : 0.15
-            )
+        let shapes = BlockDragController.divisionPreviewShapes(columns: columns, containerRect: containerRect)
+        for shape in shapes {
             collectionView.layer?.addSublayer(shape)
             divisionPreviewLayers.append(shape)
-
-            xOffset += colWidth
         }
     }
 
-    // MARK: - Auto-scroll
-
-    private func autoScrollIfNeeded(event: NSEvent) {
-        let locationInScroll = scrollView.convert(event.locationInWindow, from: nil)
-        let visibleHeight = scrollView.bounds.height
-        let edgeZone: CGFloat = 40
-        var scrollDelta: CGFloat = 0
-
-        if locationInScroll.y < edgeZone {
-            scrollDelta = -((edgeZone - locationInScroll.y) / edgeZone) * 10
-        } else if locationInScroll.y > visibleHeight - edgeZone {
-            scrollDelta = ((locationInScroll.y - (visibleHeight - edgeZone)) / edgeZone) * 10
-        }
-
-        if abs(scrollDelta) > 0.5 {
-            if autoScrollTimer == nil {
-                autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    let clipView = self.scrollView.contentView
-                    var origin = clipView.bounds.origin
-                    let maxY = max(0, (self.scrollView.documentView?.frame.height ?? 0) - clipView.bounds.height)
-                    origin.y = min(max(origin.y + scrollDelta, 0), maxY)
-                    clipView.scroll(to: origin)
-                    self.scrollView.reflectScrolledClipView(clipView)
-                }
-            }
-        } else {
-            autoScrollTimer?.invalidate()
-            autoScrollTimer = nil
-        }
-    }
 }
 
 // MARK: - NSCollectionViewDataSource
@@ -811,32 +736,42 @@ final class DashboardGridController: NSViewController {
 extension DashboardGridController: NSCollectionViewDataSource {
 
     func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
-        dataController.dashboardBlocks.count
+        dataController.cachedDashboardBlocks.count
     }
 
     func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
-        let block = dataController.dashboardBlocks[indexPath.item]
-        let published = dataController.isPublished
+        let block = dataController.cachedDashboardBlocks[indexPath.item]
+        let published = dataController.isDashboardPublished || dataController.isPublishPreviewing
 
         switch block.blockType {
         case .chart:
             let item = collectionView.makeItem(withIdentifier: DashboardChartItem.identifier, for: indexPath) as! DashboardChartItem
             let vm = dataController.chartViewModel(for: block)
+            vm.loadDataIfNeeded()
             item.configure(block: block, viewModel: vm, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item, at: indexPath.item, block: block)
             item.onRun = { Task { await vm.fetchChartData() } }
             return item
         case .text:
             let item = collectionView.makeItem(withIdentifier: DashboardTextItem.identifier, for: indexPath) as! DashboardTextItem
             item.configure(block: block, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item, at: indexPath.item, block: block)
             return item
         case .singleValue:
             let item = collectionView.makeItem(withIdentifier: DashboardSingleValueItem.identifier, for: indexPath) as! DashboardSingleValueItem
             let vm = dataController.singleValueViewModel(for: block)
+            vm.loadDataIfNeeded()
             item.configure(block: block, viewModel: vm, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item, at: indexPath.item, block: block)
             item.onRun = { Task { await vm.fetchSingleValue() } }
+            return item
+        case .query:
+            let item = collectionView.makeItem(withIdentifier: DashboardQueryItem.identifier, for: indexPath) as! DashboardQueryItem
+            let vm = dataController.queryViewModel(for: block)
+            vm.loadDataIfNeeded()
+            item.configure(block: block, viewModel: vm, isPublished: published)
+            wireItemCallbacks(on: item, at: indexPath.item, block: block)
+            item.onRun = { Task { await vm.executeQuery() } }
             return item
         }
     }

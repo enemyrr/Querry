@@ -6,7 +6,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     var totalCount: Int
     var queryResult: QueryResult?
 
-    private let paddingRowCount = 3
+    private var paddingRowCount: Int { showPaddingRows ? 3 : 0 }
+    private let showPaddingRows: Bool
+    private let isReadOnly: Bool
 
     func isPaddingRow(_ row: Int) -> Bool {
         return row >= totalCount
@@ -69,7 +71,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         highlightedRows: Set<Int> = [],
         cacheNamespace: String = "",
         onRowSelected: (([String: QueryRowInfo]?) -> Void)? = nil,
-        onUndoRowInsert: ((Int) -> Void)? = nil
+        onUndoRowInsert: ((Int) -> Void)? = nil,
+        showPaddingRows: Bool = true,
+        isReadOnly: Bool = false
     ) {
         self.schema = schema
         self.queryResult = queryResult
@@ -84,6 +88,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         self.cacheNamespace = cacheNamespace
         self.onRowSelected = onRowSelected
         self.onUndoRowInsert = onUndoRowInsert
+        self.showPaddingRows = showPaddingRows
+        self.isReadOnly = isReadOnly
 
         if let queryResult = queryResult {
             self.rows = queryResult.rawRows
@@ -901,7 +907,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         }
 
         let schemaColumn = schema?.column(named: columnName)
-        let isReadOnly = schemaColumn?.isReadOnly ?? false
+        let isReadOnly = self.isReadOnly || (schemaColumn?.isReadOnly ?? false)
         let isNullable = schemaColumn?.isNullable.uppercased() == "YES"
 
         if let schemaColumn = schemaColumn,
@@ -1001,9 +1007,9 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         let hasData = totalCount > 0
         let hasSelectedRows = !tableView.selectedRowIndexes.isEmpty
 
-        editMenuItem?.isEnabled = hasValidCell
-        deleteMenuItem?.isEnabled = hasValidRow && hasData
-        addRowMenuItem?.isEnabled = true
+        editMenuItem?.isEnabled = hasValidCell && !isReadOnly
+        deleteMenuItem?.isEnabled = hasValidRow && hasData && !isReadOnly
+        addRowMenuItem?.isEnabled = !isReadOnly
         refreshMenuItem?.isEnabled = true
         quickLookMenuItem?.isEnabled = hasValidCell
         copyMenuItem?.isEnabled = hasSelectedRows && hasData

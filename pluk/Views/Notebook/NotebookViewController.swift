@@ -27,17 +27,17 @@ final class NotebookViewController: NSViewController {
 
         dataController.load()
         setupContent()
-        observePublishedState()
     }
 
     override func viewDidAppear() {
         super.viewDidAppear()
+        showBetaNoticeIfNeeded()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self,
                   self.view.window == event.window else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if flags == .command && event.charactersIgnoringModifiers == "e" {
-                guard !self.dataController.isDashboardPublished else { return event }
+                guard !self.dataController.isDashboardPublished, !self.dataController.isPublishPreviewing else { return event }
                 self.dataController.isRightSidebarVisible.toggle()
                 return nil
             }
@@ -53,22 +53,24 @@ final class NotebookViewController: NSViewController {
         }
     }
 
-    private func observePublishedState() {
-        withObservationTracking {
-            _ = self.dataController.isDashboardPublished
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if self.dataController.isDashboardPublished {
-                    self.splitViewController?.collapse()
-                }
-                self.observePublishedState()
-            }
+    private func showBetaNoticeIfNeeded() {
+        let key = "hasAcknowledgedNotebookBeta"
+        guard !UserDefaults.standard.bool(forKey: key),
+              let window = view.window else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Notebooks is in Beta"
+        alert.informativeText = "This feature is still under active development. Some things may not work as expected.\n\nHelp us improve by sharing your feedback!"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Got it")
+        alert.beginSheetModal(for: window) { _ in
+            UserDefaults.standard.set(true, forKey: key)
         }
     }
 
     private func setupContent() {
-        let sidebarVC = NotebookDataBrowserController(dataController: dataController)
+        let sidebarVC = NotebookDataBrowserController()
+
         let contentVC = NotebookContentController(dataController: dataController)
 
         let splitVC = SidebarSplitViewController(

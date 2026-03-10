@@ -3,6 +3,7 @@ import Foundation
 actor ChartDriverSession {
     private var driver: (any DatabaseDriver)?
     private var connectedUri: String?
+    private var databaseType: DatabaseType = .sqlite
 
     func connect(databaseType: DatabaseType, uri: String) async throws {
         if connectedUri == uri { return }
@@ -11,6 +12,7 @@ actor ChartDriverSession {
         _ = try await newDriver.connect(to: uri)
         driver = newDriver
         connectedUri = uri
+        self.databaseType = databaseType
     }
 
     func switchDatabase(to name: String) async throws {
@@ -38,6 +40,21 @@ actor ChartDriverSession {
 
         let validFilters = filters.filter(\.isComplete)
 
+        if databaseType == .convex {
+            let filterDict = convexFilterDict(from: validFilters, tableName: tableName)
+            let convexSchema = (schema == "app") ? nil : schema
+            let result = try await driver.findDocuments(
+                in: tableName,
+                databaseSchema: convexSchema,
+                filter: filterDict,
+                skip: 0,
+                limit: limit,
+                sortBy: nil,
+                ascending: nil
+            )
+            return result
+        }
+
         if validFilters.isEmpty {
             return try await driver.findDocuments(
                 in: tableName,
@@ -57,6 +74,8 @@ actor ChartDriverSession {
         return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
     }
 
+    private static let convexAggregationFetchLimit = 100
+
     func fetchAggregatedData(
         tableName: String,
         schema: String?,
@@ -66,6 +85,25 @@ actor ChartDriverSession {
         filters: [ChartFilterCondition] = []
     ) async throws -> QueryResult {
         guard let driver else { throw ChartBlockError.notConnected }
+
+        let validFilters = filters.filter(\.isComplete)
+
+        if databaseType == .convex {
+            let filterDict = convexFilterDict(from: validFilters, tableName: tableName)
+            // Convex root "app" component does not need componentId — pass nil to avoid it
+            let convexSchema = (schema == "app") ? nil : schema
+            let raw = try await driver.findDocuments(
+                in: tableName,
+                databaseSchema: convexSchema,
+                filter: filterDict,
+                skip: 0,
+                limit: Self.convexAggregationFetchLimit,
+                sortBy: nil,
+                ascending: nil
+            )
+            let aggregated = ConvexAggregator.aggregate(raw, dimensions: dimensions, measures: measures)
+            return aggregated
+        }
 
         let schemaPrefix = schema.map { "\"\($0)\"." } ?? ""
 
@@ -78,7 +116,6 @@ actor ChartDriverSession {
 
         var query = "SELECT \(selectParts.joined(separator: ", ")) FROM \(schemaPrefix)\"\(tableName)\""
 
-        let validFilters = filters.filter(\.isComplete)
         if !validFilters.isEmpty {
             let whereClause = validFilters.map(\.sqlFragment).joined(separator: " AND ")
             query += " WHERE \(whereClause)"
@@ -104,11 +141,28 @@ actor ChartDriverSession {
     ) async throws -> Double? {
         guard let driver else { throw ChartBlockError.notConnected }
 
+        let validFilters = filters.filter(\.isComplete)
+
+        if databaseType == .convex {
+            let filterDict = convexFilterDict(from: validFilters, tableName: tableName)
+            let convexSchema = (schema == "app") ? nil : schema
+            let raw = try await driver.findDocuments(
+                in: tableName,
+                databaseSchema: convexSchema,
+                filter: filterDict,
+                skip: 0,
+                limit: Self.convexAggregationFetchLimit,
+                sortBy: nil,
+                ascending: nil
+            )
+            let value = ConvexAggregator.singleValue(raw, column: column, aggregation: aggregation)
+            return value
+        }
+
         let schemaPrefix = schema.map { "\"\($0)\"." } ?? ""
         let expr = aggregation.sqlExpression(for: column)
         var query = "SELECT \(expr) AS \"metric_value\" FROM \(schemaPrefix)\"\(tableName)\""
 
-        let validFilters = filters.filter(\.isComplete)
         if !validFilters.isEmpty {
             let whereClause = validFilters.map(\.sqlFragment).joined(separator: " AND ")
             query += " WHERE \(whereClause)"
@@ -132,6 +186,11 @@ actor ChartDriverSession {
         }
     }
 
+    func executeRawQuery(_ query: String, schema: String?) async throws -> [QueryResult] {
+        guard let driver else { throw ChartBlockError.notConnected }
+        return try await driver.executeRawQuery(query, databaseSchema: schema)
+    }
+
     func getInformationSchema() async throws -> [InformationSchema] {
         guard let driver else { throw ChartBlockError.notConnected }
         return try await driver.getInformationSchema()
@@ -141,6 +200,44 @@ actor ChartDriverSession {
         await driver?.disconnect()
         driver = nil
         connectedUri = nil
+        databaseType = .sqlite
+    }
+
+    // MARK: - Convex Filter Helpers
+
+    private func convexFilterDict(from filters: [ChartFilterCondition], tableName: String) -> [String: Any] {
+        guard !filters.isEmpty else { return [:] }
+
+        guard let convexDriver = driver as? ConvexDriver else { return [:] }
+
+        let conditions = filters.map { filter -> FilterCondition in
+            FilterCondition(
+                conjunction: .and,
+                field: filter.field,
+                filterOperator: filter.filterOperator.toFilterOperator,
+                value: filter.value
+            )
+        }
+
+        let json = convexDriver.generateFilterQuery(from: conditions, tableName: tableName)
+        guard !json.isEmpty else { return [:] }
+        return ["rawQuery": json]
+    }
+}
+
+extension ChartFilterCondition.ChartFilterOperator {
+    var toFilterOperator: FilterOperator {
+        switch self {
+        case .equals: .equals
+        case .notEquals: .notEquals
+        case .greaterThan: .greaterThan
+        case .greaterThanOrEquals: .greaterThanOrEquals
+        case .lessThan: .lessThan
+        case .lessThanOrEquals: .lessThanOrEquals
+        case .like: .ilike
+        case .isNull: .isNull
+        case .isNotNull: .isNotNull
+        }
     }
 }
 

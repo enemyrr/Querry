@@ -5,12 +5,15 @@ final class NotebookMainPaneController: NSViewController {
     private let dataController: NotebookDataController
 
     private var mainContentView: NSView!
+    private var notebookContainer: NSView!
+    private var dashboardContainer: NSView!
     private var toolbarController: NotebookToolbarController?
     private var headerController: NotebookHeaderViewController?
     private var dashboardHeaderController: NotebookHeaderViewController?
     private var emptyStateController: NotebookEmptyStateController?
     private var blocksController: NotebookBlocksController?
     private var dashboardController: DashboardGridController?
+    private var emptyStateTopConstraint: NSLayoutConstraint?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -61,12 +64,11 @@ final class NotebookMainPaneController: NSViewController {
         setupEmptyState()
         setupBlocksView()
         setupDashboard()
+        setupTabView()
         setupToolbar()
         setupConstraints()
         updateBlocksVisibility()
         observeBlocksState()
-        observeViewMode()
-        observePublishedState()
     }
 
     func updateCornerRadius(_ radius: CGFloat, animated: Bool) {
@@ -120,7 +122,6 @@ final class NotebookMainPaneController: NSViewController {
         let emptyStateVC = NotebookEmptyStateController(dataController: dataController)
         addChild(emptyStateVC)
         emptyStateVC.view.translatesAutoresizingMaskIntoConstraints = false
-        mainContentView.addSubview(emptyStateVC.view)
         emptyStateController = emptyStateVC
     }
 
@@ -135,7 +136,6 @@ final class NotebookMainPaneController: NSViewController {
         }
         addChild(blocksVC)
         blocksVC.view.translatesAutoresizingMaskIntoConstraints = false
-        mainContentView.addSubview(blocksVC.view)
         blocksController = blocksVC
     }
 
@@ -150,37 +150,68 @@ final class NotebookMainPaneController: NSViewController {
         }
         addChild(dashVC)
         dashVC.view.translatesAutoresizingMaskIntoConstraints = false
-        dashVC.view.isHidden = true
-        mainContentView.addSubview(dashVC.view)
         dashboardController = dashVC
     }
 
-    private func setupConstraints() {
-        guard let toolbar = toolbarController?.view,
-              let emptyState = emptyStateController?.view,
+    private func setupTabView() {
+        guard let emptyState = emptyStateController?.view,
               let blocks = blocksController?.view,
               let dashboard = dashboardController?.view else { return }
 
+        notebookContainer = NSView()
+        notebookContainer.translatesAutoresizingMaskIntoConstraints = false
+        notebookContainer.addSubview(blocks)
+        notebookContainer.addSubview(emptyState)
+        mainContentView.addSubview(notebookContainer)
+
+        let emptyTop = emptyState.topAnchor.constraint(equalTo: notebookContainer.topAnchor)
+        emptyStateTopConstraint = emptyTop
+
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: mainContentView.topAnchor),
-            toolbar.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
-            toolbar.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
+            blocks.topAnchor.constraint(equalTo: notebookContainer.topAnchor),
+            blocks.leadingAnchor.constraint(equalTo: notebookContainer.leadingAnchor),
+            blocks.trailingAnchor.constraint(equalTo: notebookContainer.trailingAnchor),
+            blocks.bottomAnchor.constraint(equalTo: notebookContainer.bottomAnchor),
 
-            emptyState.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
-            emptyState.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
-            emptyState.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
-            emptyState.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
-
-            blocks.topAnchor.constraint(equalTo: mainContentView.topAnchor),
-            blocks.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
-            blocks.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
-            blocks.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
-
-            dashboard.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
-            dashboard.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
-            dashboard.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
-            dashboard.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
+            emptyTop,
+            emptyState.leadingAnchor.constraint(equalTo: notebookContainer.leadingAnchor),
+            emptyState.trailingAnchor.constraint(equalTo: notebookContainer.trailingAnchor),
+            emptyState.bottomAnchor.constraint(equalTo: notebookContainer.bottomAnchor),
         ])
+
+        dashboardContainer = NSView()
+        dashboardContainer.translatesAutoresizingMaskIntoConstraints = false
+        dashboardContainer.addSubview(dashboard)
+        mainContentView.addSubview(dashboardContainer)
+
+        NSLayoutConstraint.activate([
+            dashboard.topAnchor.constraint(equalTo: dashboardContainer.topAnchor),
+            dashboard.leadingAnchor.constraint(equalTo: dashboardContainer.leadingAnchor),
+            dashboard.trailingAnchor.constraint(equalTo: dashboardContainer.trailingAnchor),
+            dashboard.bottomAnchor.constraint(equalTo: dashboardContainer.bottomAnchor),
+        ])
+    }
+
+    private func setupConstraints() {
+        NSLayoutConstraint.activate([
+            notebookContainer.topAnchor.constraint(equalTo: mainContentView.topAnchor),
+            notebookContainer.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
+            notebookContainer.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
+            notebookContainer.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
+
+            dashboardContainer.topAnchor.constraint(equalTo: mainContentView.topAnchor),
+            dashboardContainer.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
+            dashboardContainer.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
+            dashboardContainer.bottomAnchor.constraint(equalTo: mainContentView.bottomAnchor),
+        ])
+
+        if let toolbar = toolbarController?.view {
+            NSLayoutConstraint.activate([
+                toolbar.topAnchor.constraint(equalTo: mainContentView.topAnchor),
+                toolbar.leadingAnchor.constraint(equalTo: mainContentView.leadingAnchor),
+                toolbar.trailingAnchor.constraint(equalTo: mainContentView.trailingAnchor),
+            ])
+        }
     }
 
     // MARK: - Block State Management
@@ -189,43 +220,24 @@ final class NotebookMainPaneController: NSViewController {
         let hasBlocks = dataController.hasBlocks
         let isDashboard = dataController.viewMode == .dashboard
 
-        emptyStateController?.view.isHidden = hasBlocks || isDashboard
-        blocksController?.view.isHidden = !hasBlocks || isDashboard
-        dashboardController?.view.isHidden = !isDashboard
+        notebookContainer.isHidden = isDashboard
+        dashboardContainer.isHidden = !isDashboard
+
+        emptyStateController?.view.isHidden = hasBlocks
+        blocksController?.view.isHidden = !hasBlocks
     }
 
     private func observeBlocksState() {
         withObservationTracking {
             _ = self.dataController.hasBlocks
+            _ = self.dataController.viewMode
+            _ = self.dataController.isDashboardPublished
+            _ = self.dataController.isPublishPreviewing
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.updateBlocksVisibility()
                 self.observeBlocksState()
-            }
-        }
-    }
-
-    private func observeViewMode() {
-        withObservationTracking {
-            _ = self.dataController.viewMode
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.updateBlocksVisibility()
-                self.observeViewMode()
-            }
-        }
-    }
-
-    private func observePublishedState() {
-        withObservationTracking {
-            _ = self.dataController.isDashboardPublished
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.updateBlocksVisibility()
-                self.observePublishedState()
             }
         }
     }
@@ -236,6 +248,8 @@ final class NotebookMainPaneController: NSViewController {
         guard let toolbar = toolbarController?.view else { return }
         let toolbarHeight = toolbar.fittingSize.height
         blocksController?.setTopContentInset(toolbarHeight)
+        dashboardController?.setTopContentInset(toolbarHeight)
+        emptyStateTopConstraint?.constant = toolbarHeight
     }
 
     // MARK: - Appearance

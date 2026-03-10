@@ -124,7 +124,9 @@ final class NotebookArtworkView: NSView {
 final class ConnectionPickerDropdown: NSView, NSPopoverDelegate {
 
     private let connections: [Connection]
+    private let queryDataSourcesProvider: (() -> [NotebookDataController.QueryDataSource])?
     private let onSelect: (Connection) -> Void
+    private let onSelectQuerySource: ((NotebookDataController.QueryDataSource) -> Void)?
     private let iconView: NSImageView
     private let label: NSTextField
     private let chevron: NSImageView
@@ -136,9 +138,16 @@ final class ConnectionPickerDropdown: NSView, NSPopoverDelegate {
     private var labelLeadingNoIcon: NSLayoutConstraint!
     private var labelLeadingWithIcon: NSLayoutConstraint!
 
-    init(connections: [Connection], onSelect: @escaping (Connection) -> Void) {
+    init(
+        connections: [Connection],
+        queryDataSourcesProvider: (() -> [NotebookDataController.QueryDataSource])? = nil,
+        onSelect: @escaping (Connection) -> Void,
+        onSelectQuerySource: ((NotebookDataController.QueryDataSource) -> Void)? = nil
+    ) {
         self.connections = connections
+        self.queryDataSourcesProvider = queryDataSourcesProvider
         self.onSelect = onSelect
+        self.onSelectQuerySource = onSelectQuerySource
         self.iconView = NSImageView()
         self.label = NSTextField(labelWithString: "Choose a data source")
         self.chevron = NSImageView()
@@ -294,12 +303,19 @@ final class ConnectionPickerDropdown: NSView, NSPopoverDelegate {
 
     private func showConnectionsPopover() {
         let popoverVC = SourceConnectionsPopoverController(
-            connections: connections
-        ) { [weak self] connection in
-            self?.popover?.performClose(nil)
-            self?.popover = nil
-            self?.onSelect(connection)
-        }
+            connections: connections,
+            queryDataSources: queryDataSourcesProvider?() ?? [],
+            onSelect: { [weak self] connection in
+                self?.popover?.performClose(nil)
+                self?.popover = nil
+                self?.onSelect(connection)
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.popover?.performClose(nil)
+                self?.popover = nil
+                self?.onSelectQuerySource?(source)
+            }
+        )
 
         let pop = NSPopover()
         pop.delegate = self

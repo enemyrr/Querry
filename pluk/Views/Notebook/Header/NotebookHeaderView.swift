@@ -6,7 +6,7 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
 
     private var statusButton: StatusDropdownButton!
     private var titleField: NSTextField!
-    private var descriptionField: NSTextField!
+    private var descriptionField: DescriptionTextView!
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -54,17 +54,12 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
     }
 
     private func setupDescriptionField() {
-        descriptionField = NSTextField()
-        descriptionField.stringValue = dataController.descriptionText
-        descriptionField.placeholderString = "Add a description..."
-        descriptionField.font = .systemFont(ofSize: 13)
-        descriptionField.textColor = .secondaryLabelColor
-        descriptionField.backgroundColor = .clear
-        descriptionField.isBordered = false
-        descriptionField.isBezeled = false
-        descriptionField.focusRingType = .none
-        descriptionField.isEditable = true
-        descriptionField.delegate = self
+        descriptionField = DescriptionTextView(
+            text: dataController.descriptionText,
+            onTextChange: { [weak self] text in
+                self?.dataController.descriptionText = text
+            }
+        )
         descriptionField.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(descriptionField)
     }
@@ -81,8 +76,8 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
 
             descriptionField.topAnchor.constraint(equalTo: titleField.bottomAnchor, constant: 4),
             descriptionField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            descriptionField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            descriptionField.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
+            descriptionField.widthAnchor.constraint(equalToConstant: 550),
+            descriptionField.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -20),
         ])
     }
 
@@ -92,8 +87,6 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
         guard let field = obj.object as? NSTextField else { return }
         if field === titleField {
             dataController.title = field.stringValue
-        } else if field === descriptionField {
-            dataController.descriptionText = field.stringValue
         }
     }
 
@@ -126,8 +119,8 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if self.descriptionField.currentEditor() == nil {
-                    self.descriptionField.stringValue = self.dataController.descriptionText
+                if !self.descriptionField.isEditing {
+                    self.descriptionField.setText(self.dataController.descriptionText)
                 }
                 self.observeDescription()
             }
@@ -149,6 +142,7 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
     private func observePublishedState() {
         withObservationTracking {
             _ = self.dataController.isDashboardPublished
+            _ = self.dataController.isPublishPreviewing
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -159,14 +153,10 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
     }
 
     private func applyPublishedState() {
-        let published = dataController.isDashboardPublished
-        titleField.isEditable = !published
-        descriptionField.isEditable = !published
-        if published {
-            statusButton.isHidden = true
-        } else {
-            statusButton.isHidden = false
-        }
+        let readonly = dataController.isDashboardPublished || dataController.isPublishPreviewing
+        titleField.isEditable = !readonly
+        descriptionField.setEditable(!readonly)
+        statusButton.isHidden = readonly
     }
 }
 
@@ -233,8 +223,8 @@ final class StatusDropdownButton: NSView, NSPopoverDelegate {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -243,12 +233,12 @@ final class StatusDropdownButton: NSView, NSPopoverDelegate {
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        updateHoverBackground()
+        applyHoverBackground(true)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateHoverBackground()
+        applyHoverBackground(false)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -258,17 +248,6 @@ final class StatusDropdownButton: NSView, NSPopoverDelegate {
             return
         }
         showStatusPopover()
-    }
-
-    private func updateHoverBackground() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
-        }
     }
 
     // MARK: - Popover
@@ -399,8 +378,8 @@ private final class StatusOptionItem: NSView {
         super.updateTrackingAreas()
         if let existing = trackingArea { removeTrackingArea(existing) }
         let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -409,26 +388,118 @@ private final class StatusOptionItem: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        updateHoverBackground()
+        applyHoverBackground(true)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateHoverBackground()
+        applyHoverBackground(false)
     }
 
     override func mouseDown(with event: NSEvent) {
         action()
     }
+}
 
-    private func updateHoverBackground() {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if isHovering {
-            layer?.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.06).cgColor
-                : NSColor.black.withAlphaComponent(0.04).cgColor
-        } else {
-            layer?.backgroundColor = nil
+// MARK: - Description Text View
+
+private final class DescriptionTextView: NSView, NSTextViewDelegate {
+
+    private let textView: NSTextView
+    private let placeholderLabel: NSTextField
+    private var onTextChange: ((String) -> Void)?
+    private var heightConstraint: NSLayoutConstraint!
+    private(set) var isEditing = false
+
+    init(text: String, onTextChange: @escaping (String) -> Void) {
+        self.onTextChange = onTextChange
+        textView = NSTextView()
+        placeholderLabel = NSTextField(labelWithString: "Add a description...")
+        super.init(frame: .zero)
+
+        textView.string = text
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = .secondaryLabelColor
+        textView.backgroundColor = .clear
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.delegate = self
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(textView)
+
+        placeholderLabel.font = .systemFont(ofSize: 13)
+        placeholderLabel.textColor = .placeholderTextColor
+        placeholderLabel.isHidden = !text.isEmpty
+        placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(placeholderLabel)
+
+        heightConstraint = heightAnchor.constraint(equalToConstant: 18)
+
+        NSLayoutConstraint.activate([
+            textView.topAnchor.constraint(equalTo: topAnchor),
+            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            placeholderLabel.topAnchor.constraint(equalTo: topAnchor),
+            placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+
+            heightConstraint,
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func layout() {
+        super.layout()
+        updateHeight()
+    }
+
+    func setText(_ text: String) {
+        textView.string = text
+        placeholderLabel.isHidden = !text.isEmpty
+        updateHeight()
+    }
+
+    func setEditable(_ editable: Bool) {
+        textView.isEditable = editable
+    }
+
+    private func updateHeight() {
+        guard let layoutManager = textView.layoutManager,
+              let container = textView.textContainer else { return }
+        layoutManager.ensureLayout(for: container)
+        let height = layoutManager.usedRect(for: container).height
+        let newHeight = max(18, ceil(height))
+        if heightConstraint.constant != newHeight {
+            heightConstraint.constant = newHeight
         }
+    }
+
+    // MARK: - NSTextViewDelegate
+
+    func textDidChange(_ notification: Notification) {
+        placeholderLabel.isHidden = !textView.string.isEmpty
+        updateHeight()
+        onTextChange?(textView.string)
+    }
+
+    func textDidBeginEditing(_ notification: Notification) {
+        isEditing = true
+    }
+
+    func textDidEndEditing(_ notification: Notification) {
+        isEditing = false
+        onTextChange?(textView.string)
     }
 }

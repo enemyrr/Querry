@@ -11,6 +11,14 @@ final class AgentHeaderView: NSView {
     private let closeButton: AgentHeaderIconButton
     private let rightStack: NSStackView
 
+    private var topPadding: CGFloat {
+        if #available(macOS 26, *) { 14 } else { 12 }
+    }
+
+    private var leadingPadding: CGFloat {
+        if #available(macOS 26, *) { 0 } else { 4 }
+    }
+
     override init(frame: NSRect) {
         newChatButton = AgentHeaderTextButton(label: "New AI Chat")
         composeButton = AgentHeaderIconButton(symbolName: "square.and.pencil", pointSize: 13, weight: .medium, yOffset: -1)
@@ -59,14 +67,14 @@ final class AgentHeaderView: NSView {
         addSubview(rightStack)
 
         NSLayoutConstraint.activate([
-            newChatButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            newChatButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: leadingPadding),
             newChatButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             newChatButton.trailingAnchor.constraint(lessThanOrEqualTo: rightStack.leadingAnchor, constant: -8),
 
             rightStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             rightStack.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            heightAnchor.constraint(equalToConstant: 12 + 26 + 10),
+            heightAnchor.constraint(equalToConstant: topPadding + 26 + 10),
         ])
     }
 }

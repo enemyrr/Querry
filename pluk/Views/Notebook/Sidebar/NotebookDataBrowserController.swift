@@ -1,12 +1,8 @@
 import AppKit
-import SwiftUI
 
 final class NotebookDataBrowserController: NSViewController {
 
-    private let dataController: NotebookDataController
-
-    init(dataController: NotebookDataController) {
-        self.dataController = dataController
+    init() {
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -15,8 +11,6 @@ final class NotebookDataBrowserController: NSViewController {
     }
 
     override func loadView() {
-        let rootView = DataBrowserView(dataController: dataController)
-        let hostingView = NSHostingView(rootView: AnyView(rootView))
-        self.view = hostingView
+        self.view = NSView()
     }
 }

@@ -12,7 +12,6 @@ final class NotebookContentController: NSViewController {
     private var containerLeadingConstraint: NSLayoutConstraint?
     private var containerTrailingConstraint: NSLayoutConstraint?
     private var containerBottomConstraint: NSLayoutConstraint?
-    private var isLeftSidebarVisible = false
 
     private var topInset: CGFloat {
         if #available(macOS 26, *) { 52 } else { 50 }
@@ -25,10 +24,6 @@ final class NotebookContentController: NSViewController {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
     }
 
     override func loadView() {
@@ -48,13 +43,6 @@ final class NotebookContentController: NSViewController {
         contentContainer.wantsLayer = true
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(contentContainer)
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleSidebarAnimationWillStart(_:)),
-            name: .sidebarAnimationWillStart,
-            object: nil
-        )
     }
 
     private func setupInnerSplit() {
@@ -101,32 +89,15 @@ final class NotebookContentController: NSViewController {
         NSLayoutConstraint.activate([top, leading, trailing, bottom])
     }
 
-    // MARK: - Sidebar Notifications
-
-    @objc private func handleSidebarAnimationWillStart(_ notification: Notification) {
-        guard notification.object as? NSWindow == view.window else { return }
-        let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
-        isLeftSidebarVisible = !isCollapsing
-
-        let isRightOpen = !(innerSplitController?.isInspectorCollapsed ?? true)
-
-        NotificationCenter.default.post(name: .notebookChartFreeze, object: view.window)
-        updateLayoutForSidebarState(isRightSidebarOpen: isRightOpen) { [weak self] in
-            guard let self else { return }
-            NotificationCenter.default.post(name: .notebookChartUnfreeze, object: self.view.window)
-        }
-    }
-
     // MARK: - Layout Updates
 
-    private func updateLayoutForSidebarState(isRightSidebarOpen: Bool, completion: (() -> Void)? = nil) {
-        let anySidebarOpen = isLeftSidebarVisible || isRightSidebarOpen
-        let radius: CGFloat = anySidebarOpen ? 10 : 16
+    private func updateLayoutForSidebarState(isRightSidebarOpen: Bool) {
+        let radius: CGFloat = isRightSidebarOpen ? 10 : 16
         mainPaneController?.updateCornerRadius(radius, animated: true)
-        animateContainerInsets(anySidebarOpen: anySidebarOpen, completion: completion)
+        animateContainerInsets(anySidebarOpen: isRightSidebarOpen)
     }
 
-    private func animateContainerInsets(anySidebarOpen: Bool, completion: (() -> Void)? = nil) {
+    private func animateContainerInsets(anySidebarOpen: Bool) {
         let topValue: CGFloat = anySidebarOpen ? topInset - 4 : topInset - 10
         let leadingValue: CGFloat = anySidebarOpen ? 2 : -4
         let trailingValue: CGFloat = anySidebarOpen ? -8 : -2
@@ -141,8 +112,6 @@ final class NotebookContentController: NSViewController {
             self.containerTrailingConstraint?.animator().constant = trailingValue
             self.containerBottomConstraint?.animator().constant = bottomValue
             self.view.layoutSubtreeIfNeeded()
-        } completionHandler: {
-            completion?()
         }
     }
 }

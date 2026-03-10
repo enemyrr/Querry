@@ -42,7 +42,7 @@ struct RecentsSection: View {
     }
 
     private var cardRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             LazyHStack(spacing: 12) {
                 ForEach(items) { item in
                     RecentCard(item: item) {
@@ -53,6 +53,19 @@ struct RecentsSection: View {
             }
             .padding(.vertical, 6)
         }
+        .scrollIndicators(.hidden)
+        .contentMargins(.horizontal, 28, for: .scrollContent)
+        .padding(.horizontal, -28)
+        .mask(
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 12)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 12)
+            }
+            .padding(.horizontal, -6)
+        )
     }
 }
 
@@ -112,10 +125,9 @@ struct RecentCard: View {
         .padding(14)
         .frame(height: 120)
         .background(cardBackground)
+        .clipShape(.rect(cornerRadius: 12))
         .overlay(cardBorder)
         .offset(y: isHovering ? -2 : 0)
-        .shadow(color: .black.opacity(isHovering ? 0.12 : 0.05), radius: isHovering ? 8 : 3, y: isHovering ? 4 : 2)
-        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isHovering)
     }
 
     @ViewBuilder
@@ -140,16 +152,10 @@ struct RecentCard: View {
         }
     }
 
-    @ViewBuilder
     private var cardBackground: some View {
-        if #available(macOS 26.0, *) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.clear)
-                .glassEffect(.regular.tint(Color(.controlColor).opacity(0.1)), in: .rect(cornerRadius: 12))
-        } else {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(cardFillColor)
-        }
+        RoundedRectangle(cornerRadius: 12)
+            .fill(cardFillColor)
+            .shadow(color: .black.opacity(isHovering ? 0.15 : 0.10), radius: isHovering ? 2 : 1, y: isHovering ? 1 : 0.5)
     }
 
     private var cardFillColor: Color {
@@ -157,14 +163,22 @@ struct RecentCard: View {
         if isHovering {
             return isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
         }
-        return isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
+        
+        if #available(macOS 26, *) {
+            return isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
+        } else {
+            return isDark ? Color.white.opacity(0.04) : Color.white
+        }
     }
 
     private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: 12)
+        let isDark = colorScheme == .dark
+        return RoundedRectangle(cornerRadius: 12)
             .stroke(
-                Color(.separatorColor).opacity(isHovering ? 0.6 : 0.3),
-                lineWidth: 1
+                isDark
+                    ? Color.white.opacity(isHovering ? 0.12 : 0.06)
+                    : Color.black.opacity(isHovering ? 0.12 : 0.08),
+                lineWidth: 0.5
             )
     }
 

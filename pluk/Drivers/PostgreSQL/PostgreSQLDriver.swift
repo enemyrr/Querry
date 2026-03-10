@@ -746,15 +746,6 @@ class PostgreSQLDriver: DatabaseDriver {
     }
     
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
-        let client = try requireClient()
-        return try await withPoolTimeout {
-            try await client.withConnection { connection in
-                try await self._executeRawQuery(query, connection: connection)
-            }
-        }
-    }
-
-    private func _executeRawQuery(_ query: String, connection: PostgresConnection) async throws -> [QueryResult] {
         let statements = splitSQLStatements(query)
 
         if statements.isEmpty {
@@ -766,7 +757,7 @@ class PostgreSQLDriver: DatabaseDriver {
         for statement in statements {
             do {
                 let postgresQuery = PostgresQuery(stringLiteral: statement)
-                let queryResults = try await connection.query(postgresQuery, logger: Logger(label: "postgres"))
+                let queryResults = try await poolQuery(postgresQuery)
 
                 var queryColumns: [QueryColumnInfo] = []
                 var convertedRows: [[String: QueryRowInfo]] = []

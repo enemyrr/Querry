@@ -45,6 +45,8 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         syncHeaderActions()
         observeEmptyState()
         observeCurrentChat()
+        observePendingMessage()
+        handlePendingMessage()
     }
 
     override func viewDidAppear() {
@@ -83,6 +85,16 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         }
         chatInputView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(chatInputView)
+
+        selectDefaultConnection()
+    }
+
+    private func selectDefaultConnection() {
+        guard chatController.selectedConnections.isEmpty,
+              let first = dataController.connections.first else { return }
+        let connections = [first]
+        chatInputView.setSelectedConnections(connections)
+        chatController.selectedConnections = connections
     }
 
     private func setupConstraints() {
@@ -171,6 +183,31 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
     private func syncHeaderActions() {
         let canCreateNewChat = !chatController.messages.isEmpty
         headerView.setNewChatEnabled(canCreateNewChat)
+    }
+
+    private func observePendingMessage() {
+        withObservationTracking {
+            _ = self.dataController.pendingAgentMessage
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.handlePendingMessage()
+                self.observePendingMessage()
+            }
+        }
+    }
+
+    private func handlePendingMessage() {
+        guard let text = dataController.pendingAgentMessage else { return }
+        dataController.pendingAgentMessage = nil
+
+        if let connections = dataController.pendingAgentConnections {
+            dataController.pendingAgentConnections = nil
+            chatController.selectedConnections = connections
+            chatInputView.setSelectedConnections(connections)
+        }
+
+        chatController.send(text: text)
     }
 
     // MARK: - Chat History Popover

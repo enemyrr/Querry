@@ -10,6 +10,8 @@ enum NotebookViewMode: String {
 @MainActor
 final class NotebookDataController {
 
+    private static let defaultTextBlockHeight = 140.0
+
     let notebookId: UUID
     let modelContainer: ModelContainer
 
@@ -17,13 +19,20 @@ final class NotebookDataController {
     private(set) var connections: [Connection] = []
     private(set) var blocks: [NotebookBlock] = []
     var isRightSidebarVisible = false
+    var pendingAgentMessage: String?
+    var pendingAgentConnections: [Connection]?
     var viewMode: NotebookViewMode = .notebook
     var isScrolled = false
+    var isPublishPreviewing = false
+    var isViewingPublished = false
 
     private var chartViewModels: [UUID: ChartBlockViewModel] = [:]
     private var singleValueViewModels: [UUID: SingleValueBlockViewModel] = [:]
+    private var queryViewModels: [UUID: QueryBlockViewModel] = [:]
 
     var hasBlocks: Bool { !blocks.isEmpty }
+
+    private(set) var cachedDashboardBlocks: [NotebookBlock] = []
 
     var isPublished: Bool {
         get { notebook?.isPublished ?? false }
@@ -35,25 +44,55 @@ final class NotebookDataController {
     }
 
     var isDashboardPublished: Bool {
-        viewMode == .dashboard && isPublished
+        isViewingPublished
     }
 
-    var dashboardBlocks: [NotebookBlock] {
-        blocks.filter { !$0.isHiddenInDashboard }.sorted { $0.dashboardSortOrder < $1.dashboardSortOrder }
+    func invalidateDashboardBlocks() {
+        cachedDashboardBlocks = blocks.filter { !$0.isHiddenInDashboard }.sorted { $0.dashboardSortOrder < $1.dashboardSortOrder }
     }
 
     func publishDashboard() {
         isPublished = true
+        isViewingPublished = true
         isRightSidebarVisible = false
     }
 
     func unpublishDashboard() {
         isPublished = false
+        isViewingPublished = false
+    }
+
+    var isRefreshing = false
+
+    var lastRefreshedAt: Date? {
+        notebook?.lastRefreshedAt
+    }
+
+    func rerunAllQueries() {
+        isRefreshing = true
+        let chartTasks = chartViewModels.values.map { vm in
+            Task { await vm.reconnectAndRefresh() }
+        }
+        let singleValueTasks = singleValueViewModels.values.map { vm in
+            Task { await vm.reconnectAndRefresh() }
+        }
+        let queryTasks = queryViewModels.values.map { vm in
+            Task { await vm.reconnectAndRefresh() }
+        }
+        Task {
+            for task in chartTasks { await task.value }
+            for task in singleValueTasks { await task.value }
+            for task in queryTasks { await task.value }
+            notebook?.lastRefreshedAt = Date()
+            save()
+            isRefreshing = false
+        }
     }
 
     func toggleBlockDashboardVisibility(_ block: NotebookBlock) {
         block.isHiddenInDashboard.toggle()
         block.updatedAt = Date()
+        invalidateDashboardBlocks()
         save()
     }
 
@@ -115,6 +154,12 @@ final class NotebookDataController {
             }
             save()
         }
+        invalidateDashboardBlocks()
+
+        if isPublished {
+            viewMode = .dashboard
+            isViewingPublished = true
+        }
     }
 
     func addChartBlock() {
@@ -141,17 +186,30 @@ final class NotebookDataController {
         insertBlock(type: .singleValue, at: index)
     }
 
+    func addQueryBlock() {
+        addBlock(type: .query)
+    }
+
+    func insertQueryBlock(at index: Int) {
+        insertBlock(type: .query, at: index)
+    }
+
     private func addBlock(type: NotebookBlockType) {
         guard let notebook else { return }
         let nextOrder = (blocks.map(\.sortOrder).max() ?? -1) + 1
         let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: nextOrder)
         block.dashboardSortOrder = nextDashboardOrder()
         if type == .singleValue {
-            block.blockHeight = 140
+            block.blockHeight = 120
             block.blockWidthFraction = 0.25
+        } else if type == .query {
+            block.blockHeight = 380
+        } else if type == .text {
+            block.blockHeight = Self.defaultTextBlockHeight
         }
         modelContainer.mainContext.insert(block)
         blocks.append(block)
+        invalidateDashboardBlocks()
         save()
     }
 
@@ -160,12 +218,17 @@ final class NotebookDataController {
         let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: index)
         block.dashboardSortOrder = nextDashboardOrder()
         if type == .singleValue {
-            block.blockHeight = 140
+            block.blockHeight = 120
             block.blockWidthFraction = 0.25
+        } else if type == .query {
+            block.blockHeight = 380
+        } else if type == .text {
+            block.blockHeight = Self.defaultTextBlockHeight
         }
         modelContainer.mainContext.insert(block)
         blocks.insert(block, at: index)
         reindexSortOrders()
+        invalidateDashboardBlocks()
         save()
     }
 
@@ -187,12 +250,67 @@ final class NotebookDataController {
         return vm
     }
 
+    func queryViewModel(for block: NotebookBlock) -> QueryBlockViewModel {
+        if let existing = queryViewModels[block.id] {
+            return existing
+        }
+        let vm = QueryBlockViewModel(block: block, dataController: self)
+        queryViewModels[block.id] = vm
+        return vm
+    }
+
+    // MARK: - Query Data Source Registry
+
+    struct QueryDataSource {
+        let blockId: UUID
+        let outputName: String
+        let result: QueryResult
+    }
+
+    var availableQueryDataSources: [QueryDataSource] {
+        queryViewModels.compactMap { (id, vm) in
+            guard let result = vm.queryResult,
+                  let config = vm.config,
+                  !config.outputName.isEmpty else { return nil }
+            return QueryDataSource(blockId: id, outputName: config.outputName, result: result)
+        }
+    }
+
+    func queryResult(for blockId: UUID) -> QueryResult? {
+        queryViewModels[blockId]?.queryResult
+    }
+
+    func queryBlockDidUpdate(blockId: UUID) {
+        let blockIdString = blockId.uuidString
+        for (_, vm) in chartViewModels {
+            if vm.config?.sourceQueryBlockId == blockIdString {
+                vm.refreshQuerySourceSchema()
+                Task { await vm.fetchChartData() }
+            }
+        }
+        for (_, vm) in singleValueViewModels {
+            if vm.config?.sourceQueryBlockId == blockIdString {
+                Task { await vm.fetchSingleValue() }
+            }
+        }
+    }
+
     func deleteBlock(_ block: NotebookBlock) {
+        if let index = blocks.firstIndex(where: { $0.id == block.id }) {
+            if !block.notebookInline, index + 1 < blocks.count, blocks[index + 1].notebookInline {
+                blocks[index + 1].notebookInline = false
+            }
+            if !block.dashboardInline, index + 1 < blocks.count, blocks[index + 1].dashboardInline {
+                blocks[index + 1].dashboardInline = false
+            }
+        }
         chartViewModels.removeValue(forKey: block.id)
         singleValueViewModels.removeValue(forKey: block.id)
+        queryViewModels.removeValue(forKey: block.id)
         modelContainer.mainContext.delete(block)
         blocks.removeAll { $0.id == block.id }
         reindexSortOrders()
+        invalidateDashboardBlocks()
         reindexDashboardSortOrders()
         save()
     }
@@ -205,24 +323,36 @@ final class NotebookDataController {
         newBlock.blockHeight = block.blockHeight
         newBlock.blockWidthFraction = block.blockWidthFraction
         newBlock.dashboardInline = block.dashboardInline
+        newBlock.notebookInline = false
         newBlock.dashboardSortOrder = nextDashboardOrder()
         modelContainer.mainContext.insert(newBlock)
         blocks.insert(newBlock, at: index + 1)
         reindexSortOrders()
+        invalidateDashboardBlocks()
         reindexDashboardSortOrders()
         save()
     }
 
     func moveBlockUp(_ block: NotebookBlock) {
         guard let index = blocks.firstIndex(where: { $0.id == block.id }), index > 0 else { return }
+        if !block.notebookInline, index + 1 < blocks.count, blocks[index + 1].notebookInline {
+            blocks[index + 1].notebookInline = false
+        }
         blocks.swapAt(index, index - 1)
+        if blocks[index].notebookInline, index > 0, !blocks[index - 1].notebookInline {
+            blocks[index].notebookInline = false
+        }
         reindexSortOrders()
         save()
     }
 
     func moveBlockDown(_ block: NotebookBlock) {
         guard let index = blocks.firstIndex(where: { $0.id == block.id }), index < blocks.count - 1 else { return }
+        if !block.notebookInline, index + 1 < blocks.count, blocks[index + 1].notebookInline {
+            blocks[index + 1].notebookInline = false
+        }
         blocks.swapAt(index, index + 1)
+        block.notebookInline = false
         reindexSortOrders()
         save()
     }
@@ -243,8 +373,26 @@ final class NotebookDataController {
         save()
     }
 
+    func saveContext() {
+        save()
+    }
+
+    func refreshChartViewModel(for blockId: UUID, config: ChartBlockConfig) {
+        guard let vm = chartViewModels[blockId] else { return }
+        vm.config = config
+        Task { await vm.fetchChartData() }
+    }
+
+    func refreshSingleValueViewModel(for blockId: UUID) {
+        singleValueViewModels[blockId]?.reloadConfig()
+    }
+
+    func refreshQueryViewModel(for blockId: UUID) {
+        queryViewModels[blockId]?.reloadConfig()
+    }
+
     func moveDashboardBlock(from sourceIndex: Int, to destinationIndex: Int) {
-        var dash = dashboardBlocks
+        var dash = cachedDashboardBlocks
         guard sourceIndex != destinationIndex,
               sourceIndex >= 0, sourceIndex < dash.count,
               destinationIndex >= 0, destinationIndex <= dash.count else { return }
@@ -254,6 +402,7 @@ final class NotebookDataController {
         for (i, b) in dash.enumerated() {
             b.dashboardSortOrder = i
         }
+        invalidateDashboardBlocks()
         save()
     }
 
@@ -264,7 +413,7 @@ final class NotebookDataController {
     }
 
     private func reindexDashboardSortOrders() {
-        for (i, block) in dashboardBlocks.enumerated() {
+        for (i, block) in cachedDashboardBlocks.enumerated() {
             block.dashboardSortOrder = i
         }
     }

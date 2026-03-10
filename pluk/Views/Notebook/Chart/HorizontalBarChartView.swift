@@ -20,8 +20,15 @@ struct HorizontalBarChartView: View {
         return data
     }
 
-    private var categoryCount: Int {
-        Set(data.map(\.x)).count
+    private var categories: [String] {
+        var ordered: [String] = []
+        var seen: Set<String> = []
+        for point in data {
+            if seen.insert(point.x).inserted {
+                ordered.append(point.x)
+            }
+        }
+        return ordered
     }
 
     private var barThickness: CGFloat {
@@ -31,27 +38,38 @@ struct HorizontalBarChartView: View {
         return seriesCount > 2 ? 8 : 20
     }
 
+    private var labelAreaWidth: CGFloat {
+        let maxChars = min(categories.map(\.count).max() ?? 8, 16)
+        return CGFloat(maxChars) * 7 + 12
+    }
+
     var body: some View {
-        GeometryReader { geo in
-            let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.height)
+        GeometryReader { _ in
             let series = ChartDataPoint.seriesNames(data)
             let colors = series.indices.map { ChartDataPoint.seriesPalette[$0 % ChartDataPoint.seriesPalette.count] }
 
-            Chart(displayData) { point in
-                if isMultiSeries {
-                    if chartType == .groupedBar {
-                        BarMark(
-                            x: .value("Y", point.y),
-                            y: .value("X", point.x),
-                            height: .fixed(barThickness)
-                        )
-                        .foregroundStyle(by: .value("Series", point.series))
-                        .position(by: .value("Series", point.series))
-                        .clipShape(.rect(cornerRadius: 3))
-                        .annotation(position: .trailing, spacing: 4) {
-                            Text(point.y.formatted(.number.notation(.compactName)))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                chartLabels
+                    .frame(width: labelAreaWidth)
+
+                Chart(displayData) { point in
+                    if isMultiSeries {
+                        if chartType == .groupedBar {
+                            BarMark(
+                                x: .value("Y", point.y),
+                                y: .value("X", point.x),
+                                height: .fixed(barThickness)
+                            )
+                            .foregroundStyle(by: .value("Series", point.series))
+                            .position(by: .value("Series", point.series))
+                            .clipShape(.rect(cornerRadius: 3))
+                        } else {
+                            BarMark(
+                                x: .value("Y", point.y),
+                                y: .value("X", point.x),
+                                height: .fixed(barThickness)
+                            )
+                            .foregroundStyle(by: .value("Series", point.series))
                         }
                     } else {
                         BarMark(
@@ -59,59 +77,48 @@ struct HorizontalBarChartView: View {
                             y: .value("X", point.x),
                             height: .fixed(barThickness)
                         )
-                        .foregroundStyle(by: .value("Series", point.series))
-                    }
-                } else {
-                    BarMark(
-                        x: .value("Y", point.y),
-                        y: .value("X", point.x),
-                        height: .fixed(barThickness)
-                    )
-                    .foregroundStyle(Color.accentColor)
-                    .clipShape(.rect(cornerRadius: 3))
-                    .annotation(position: .trailing, spacing: 4) {
-                        Text(point.y.formatted(.number.notation(.compactName)))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.accentColor)
+                        .clipShape(.rect(cornerRadius: 3))
                     }
                 }
-            }
-            .chartForegroundStyleScale(domain: series, range: colors)
-            .hundredPercentXScale(isActive: isHundredPercent)
-            .chartXAxis {
-                AxisMarks(position: .bottom) { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        if let number = value.as(Double.self) {
-                            if isHundredPercent {
-                                Text(number.formatted(.percent))
-                                    .font(.caption)
-                            } else {
-                                Text(number.formatted(.number.notation(.compactName)))
-                                    .font(.caption)
+                .chartForegroundStyleScale(domain: series, range: colors)
+                .hundredPercentXScale(isActive: isHundredPercent)
+                .chartXAxis {
+                    AxisMarks(position: .bottom) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let number = value.as(Double.self) {
+                                if isHundredPercent {
+                                    Text(number.formatted(.percent))
+                                        .font(.caption)
+                                } else {
+                                    Text(number.formatted(.number.notation(.compactName)))
+                                        .font(.caption)
+                                }
                             }
                         }
                     }
                 }
-            }
-            .chartYAxis {
-                AxisMarks(values: .automatic) { value in
-                    if let label = value.as(String.self),
-                       let index = data.firstIndex(where: { $0.x == label }),
-                       index % stride == 0 {
-                        AxisValueLabel {
-                            Text(data[index].truncatedX)
-                                .font(.caption)
-                                .lineLimit(1)
-                        }
-                    }
+                .chartYAxis(.hidden)
+                .chartLegend(isMultiSeries ? .visible : .hidden)
+                .transaction { transaction in
+                    transaction.animation = nil
                 }
             }
-            .chartLegend(isMultiSeries ? .visible : .hidden)
-            .transaction { transaction in
-                transaction.animation = nil
+        }
+    }
+
+    private var chartLabels: some View {
+        VStack(spacing: 0) {
+            ForEach(categories, id: \.self) { category in
+                Text(category.count > 16 ? String(category.prefix(14)) + "…" : category)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             }
         }
+        .padding(.bottom, 20)
     }
 }
 

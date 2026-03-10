@@ -122,12 +122,29 @@ final class ChartBlockViewModel {
     var isConnecting = false
     var connectionError: String?
 
+    private(set) var hasStartedLoading = false
+
     init(block: NotebookBlock, dataController: NotebookDataController) {
         self.block = block
         self.dataController = dataController
         self.config = block.chartConfig()
+    }
 
-        if let cfg = config, !cfg.tableName.isEmpty {
+    func loadDataIfNeeded() {
+        guard !hasStartedLoading else { return }
+        hasStartedLoading = true
+
+        if dataController?.isDashboardPublished == true,
+           let cached = block.cachedChartData() {
+            chartData = cached.toChartData()
+            return
+        }
+
+        guard let cfg = config, !cfg.tableName.isEmpty else { return }
+        if let queryBlockIdStr = cfg.sourceQueryBlockId,
+           let queryBlockId = UUID(uuidString: queryBlockIdStr) {
+            loadFromQuerySource(blockId: queryBlockId, cfg: cfg)
+        } else {
             Task {
                 await reconnectAndLoad(cfg)
             }
@@ -138,6 +155,48 @@ final class ChartBlockViewModel {
 
     private func resolveConnectionUri(_ cfg: ChartBlockConfig) -> String? {
         dataController?.connections.first(where: { $0.keychainId == cfg.connectionKeychainId })?.connectionUri
+    }
+
+    func refreshQuerySourceSchema() {
+        guard let cfg = config,
+              let queryBlockIdStr = cfg.sourceQueryBlockId,
+              let queryBlockId = UUID(uuidString: queryBlockIdStr),
+              schemaResult == nil else { return }
+        loadFromQuerySource(blockId: queryBlockId, cfg: cfg)
+    }
+
+    private func loadFromQuerySource(blockId: UUID, cfg: ChartBlockConfig) {
+        guard let result = dataController?.queryResult(for: blockId) else {
+            chartError = "Run the source query block first"
+            return
+        }
+
+        schemaResult = DatabaseSchemaResult(
+            tableName: cfg.tableName,
+            schemaName: "",
+            columns: result.columns.map { col in
+                DatabaseSchemaInfo(
+                    columnName: col.name,
+                    dataType: col.dataType,
+                    formatType: col.format ?? col.dataType,
+                    typeOid: 0
+                )
+            },
+            totalCount: result.columns.count
+        )
+
+        if cfg.xAxisColumn != nil && cfg.yAxisColumn != nil {
+            Task { await fetchChartData() }
+        }
+    }
+
+    func reconnectAndRefresh() async {
+        guard let cfg = config, !cfg.tableName.isEmpty else { return }
+        if cfg.sourceQueryBlockId != nil {
+            await fetchChartData()
+        } else {
+            await reconnectAndLoad(cfg)
+        }
     }
 
     private func reconnectAndLoad(_ cfg: ChartBlockConfig) async {
@@ -170,6 +229,39 @@ final class ChartBlockViewModel {
     }
 
     private static let environmentCapableTypes: Set<DatabaseType> = [.convex]
+
+    func connectToQuerySource(blockId: UUID, outputName: String) {
+        guard let result = dataController?.queryResult(for: blockId) else {
+            chartError = "Run the source query block first"
+            return
+        }
+
+        let cfg = ChartBlockConfig(
+            connectionKeychainId: "",
+            connectionName: outputName,
+            databaseType: "",
+            databaseName: "",
+            tableName: outputName,
+            sourceQueryBlockId: blockId.uuidString
+        )
+        config = cfg
+
+        schemaResult = DatabaseSchemaResult(
+            tableName: outputName,
+            schemaName: "",
+            columns: result.columns.map { col in
+                DatabaseSchemaInfo(
+                    columnName: col.name,
+                    dataType: col.dataType,
+                    formatType: col.format ?? col.dataType,
+                    typeOid: 0
+                )
+            },
+            totalCount: result.columns.count
+        )
+
+        persistConfig()
+    }
 
     func connectToSource(_ connection: Connection) async {
         isConnecting = true
@@ -476,6 +568,40 @@ final class ChartBlockViewModel {
             chartError = ChartBlockError.noAxesConfigured.localizedDescription
             return
         }
+
+        // If sourced from a query block, use its in-memory result
+        if let queryBlockIdStr = cfg.sourceQueryBlockId,
+           let queryBlockId = UUID(uuidString: queryBlockIdStr) {
+            isLoadingChart = true
+            chartError = nil
+            defer { isLoadingChart = false }
+
+            guard let result = dataController?.queryResult(for: queryBlockId) else {
+                chartError = "Run the source query block first"
+                return
+            }
+
+            let allYCols = cfg.fields["yAxis"] ?? [yCol]
+            var points: [ChartDataPoint] = []
+            let multiSeries = allYCols.count > 1
+            for row in result.rows {
+                guard let xRaw = row[xCol]?.value else { continue }
+                let xStr = String(describing: xRaw)
+                for col in allYCols {
+                    guard let yRaw = row[col]?.value,
+                          let yNum = toDouble(yRaw) else { continue }
+                    points.append(ChartDataPoint(
+                        x: xStr,
+                        y: yNum,
+                        series: multiSeries ? col : ""
+                    ))
+                }
+            }
+            chartData = reduceChartData(points, maxPoints: 160)
+            saveChartCache()
+            return
+        }
+
         isLoadingChart = true
         chartError = nil
         defer { isLoadingChart = false }
@@ -524,6 +650,7 @@ final class ChartBlockViewModel {
                     }
                 }
                 chartData = reduceChartData(points, maxPoints: 160)
+                saveChartCache()
             } else {
                 let allYCols = cfg.fields["yAxis"] ?? [yCol]
                 let result = try await session.fetchTableData(
@@ -548,10 +675,16 @@ final class ChartBlockViewModel {
                     }
                 }
                 chartData = reduceChartData(points, maxPoints: 160)
+                saveChartCache()
             }
         } catch {
             chartError = error.localizedDescription
         }
+    }
+
+    private func saveChartCache() {
+        block.saveCachedResult(CachedChartData(from: chartData))
+        dataController?.saveContext()
     }
 
     // MARK: - Persistence

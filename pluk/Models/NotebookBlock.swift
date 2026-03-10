@@ -16,6 +16,8 @@ final class NotebookBlock {
     var isHiddenInDashboard: Bool = false
     var dashboardInline: Bool = false
     var dashboardSortOrder: Int = 0
+    var notebookInline: Bool = false
+    var cachedResultJSON: String = ""
 
     init(notebookId: UUID, blockType: NotebookBlockType, sortOrder: Int) {
         self.notebookId = notebookId

@@ -98,6 +98,12 @@ final class MainContentViewController: NSViewController {
             }
             layer.addSublayer(baseTint)
 
+            if isDark && tabType == .home {
+                let homeDarken = makeFullSizeLayer()
+                homeDarken.backgroundColor = NSColor.black.withAlphaComponent(0.25).cgColor
+                layer.addSublayer(homeDarken)
+            }
+
             if let connectionInstance {
                 let colorLayer = makeFullSizeLayer()
                 colorLayer.backgroundColor = NSColor(connectionInstance.connection.color.color)
@@ -346,7 +352,7 @@ final class BackgroundPanelView: NSView {
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             let isDark = NSAppearance.currentDrawing().isDarkMode
             panelLayer.backgroundColor = isDark
-                ? NSColor.black.withAlphaComponent(0.40).cgColor
+                ? NSColor.black.withAlphaComponent(0.25).cgColor
                 : NSColor.controlBackgroundColor.withAlphaComponent(0.86).cgColor
             shadowLayer.backgroundColor = nil
         }

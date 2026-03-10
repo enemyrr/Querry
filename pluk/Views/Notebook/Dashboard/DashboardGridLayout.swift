@@ -12,6 +12,7 @@ final class DashboardGridLayout: NSCollectionViewLayout {
 
     var sectionInsets = NSEdgeInsets(top: 8, left: 20, bottom: 32, right: 20)
     var lineSpacing: CGFloat = 16
+    var interitemSpacing: CGFloat = 12
     var handleWidth: CGFloat = 12
 
     var insertRowGapBeforeIndex: Int?
@@ -33,13 +34,13 @@ final class DashboardGridLayout: NSCollectionViewLayout {
             return
         }
 
-        let blocks = dataController.dashboardBlocks
+        let blocks = dataController.cachedDashboardBlocks
         guard !blocks.isEmpty else {
             cachedContentSize = NSSize(width: collectionView.bounds.width, height: sectionInsets.top + sectionInsets.bottom)
             return
         }
 
-        let isPublished = dataController.isPublished
+        let isPublished = dataController.isDashboardPublished || dataController.isPublishPreviewing
         let totalWidth = collectionView.bounds.width
         let availableWidth = totalWidth - sectionInsets.left - sectionInsets.right
 
@@ -58,7 +59,8 @@ final class DashboardGridLayout: NSCollectionViewLayout {
             let blockCount = row.count
             let isSingleItem = blockCount == 1
             let totalHandleWidth = isPublished ? 0 : handleWidth * CGFloat(blockCount)
-            let distributableWidth = availableWidth - totalHandleWidth
+            let totalInteritemSpacing = isPublished && blockCount > 1 ? interitemSpacing * CGFloat(blockCount - 1) : 0
+            let distributableWidth = availableWidth - totalHandleWidth - totalInteritemSpacing
 
             var xOffset = sectionInsets.left
             var maxHeight: CGFloat = 0
@@ -66,34 +68,34 @@ final class DashboardGridLayout: NSCollectionViewLayout {
             let rowStartIndex = globalIndex
 
             for block in row {
-                let isSingleValue = block.blockType == .singleValue
-                let itemHandleWidth: CGFloat = (isPublished || isSingleValue) ? 0 : handleWidth
+                let canResizeHeight = !isPublished
+                let itemHandleWidth: CGFloat = isPublished ? 0 : handleWidth
                 let itemWidth: CGFloat
-                if isSingleValue {
-                    itemWidth = 240
-                } else if isSingleItem || totalFraction <= 1.0 {
+                if isSingleItem || totalFraction <= 1.0 {
                     itemWidth = distributableWidth * block.blockWidthFraction + itemHandleWidth
                 } else {
                     let fraction = block.blockWidthFraction / totalFraction
                     itemWidth = distributableWidth * fraction + itemHandleWidth
                 }
 
-                let titleHeight: CGFloat = isPublished ? 0 : 18
-                let resizeHandleHeight: CGFloat = (isPublished || isSingleValue) ? 0 : 12
+                let isText = block.blockType == .text
+                let titleHeight: CGFloat = (isPublished && isText) ? 0 : 29
+                let resizeHandleHeight: CGFloat = canResizeHeight ? 12 : 0
                 let minContentHeight: CGFloat
                 switch block.blockType {
                 case .chart: minContentHeight = 280
-                case .singleValue: minContentHeight = 140
+                case .singleValue: minContentHeight = 120
                 case .text: minContentHeight = 80
+                case .query: minContentHeight = 200
                 }
-                let contentHeight: CGFloat = isSingleValue ? 140 : max(minContentHeight, block.blockHeight)
+                let contentHeight: CGFloat = max(minContentHeight, block.blockHeight)
                 let itemHeight = titleHeight + contentHeight + resizeHandleHeight
 
                 let attrs = NSCollectionViewLayoutAttributes(forItemWith: IndexPath(item: globalIndex, section: 0))
                 attrs.frame = NSRect(x: xOffset, y: yOffset, width: itemWidth, height: itemHeight)
                 cachedAttributes.append(attrs)
 
-                xOffset += itemWidth + (isSingleValue ? 12 : 0)
+                xOffset += itemWidth + (isPublished && !isSingleItem ? interitemSpacing : 0)
                 maxHeight = max(maxHeight, itemHeight)
                 globalIndex += 1
             }

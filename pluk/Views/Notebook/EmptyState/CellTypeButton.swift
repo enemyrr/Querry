@@ -24,6 +24,7 @@ enum NotebookCellType: String, CaseIterable {
         case .chart: .chart
         case .text: .text
         case .singleValue: .singleValue
+        case .query: .query
         default: nil
         }
     }

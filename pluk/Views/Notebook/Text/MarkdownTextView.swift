@@ -3,20 +3,20 @@ import AppKit
 @MainActor
 protocol MarkdownTextViewDelegate: AnyObject {
     func markdownTextViewDidChange(_ textView: MarkdownTextView)
-    func markdownTextViewDidChangeHeight(_ textView: MarkdownTextView)
 }
+
 
 @MainActor
 final class MarkdownTextView: NSView, NSTextViewDelegate {
 
     weak var delegate: MarkdownTextViewDelegate?
 
+    private let scrollView: NSScrollView
     private let textView: NSTextView
     private let codeBlockTracker = MarkdownCodeBlockTracker()
-    private var heightConstraint: NSLayoutConstraint!
-    private var lastKnownHeight: CGFloat = 0
     private var isUpdatingText = false
     private var activeLine: Int = -1
+    private var pendingText: String?
 
     private let defaultFont = NSFont.systemFont(ofSize: 14)
     private let defaultTextColor = NSColor.labelColor
@@ -27,29 +27,20 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
     }()
 
     var string: String {
-        get { textView.string }
+        get { pendingText ?? textView.string }
         set {
-            guard newValue != textView.string else { return }
-            isUpdatingText = true
-            textView.string = newValue
-            applyMarkdownStyling()
-            isUpdatingText = false
+            guard newValue != string else { return }
+            if bounds.width > 0, bounds.height > 0 {
+                commitText(newValue)
+            } else {
+                pendingText = newValue
+            }
             updatePlaceholder()
-            recalculateHeight()
         }
     }
 
     override init(frame: NSRect) {
-        let textStorage = NSTextStorage()
-        let layoutManager = NSLayoutManager()
-        textStorage.addLayoutManager(layoutManager)
-
-        let textContainer = NSTextContainer(containerSize: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
-        textContainer.widthTracksTextView = true
-        textContainer.lineFragmentPadding = 0
-        layoutManager.addTextContainer(textContainer)
-
-        textView = NSTextView(frame: .zero, textContainer: textContainer)
+        textView = NSTextView()
         textView.isRichText = false
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -62,25 +53,34 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
         textView.backgroundColor = .clear
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 16, height: 12)
-        textView.isVerticallyResizable = false
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+
+        scrollView = PassthroughScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.documentView = textView
 
         super.init(frame: frame)
 
         textView.delegate = self
         wantsLayer = true
 
-        textView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(textView)
-
-        heightConstraint = heightAnchor.constraint(equalToConstant: 44)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            textView.topAnchor.constraint(equalTo: topAnchor),
-            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            heightConstraint,
+            scrollView.topAnchor.constraint(equalTo: topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
 
         setupPlaceholder()
@@ -90,46 +90,31 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
         fatalError("init(coder:) is not supported")
     }
 
-    // MARK: - Scroll Override
-
-    override func scrollWheel(with event: NSEvent) {
-        nextResponder?.scrollWheel(with: event)
-    }
-
-    // MARK: - Focus
-
     func focus() {
         window?.makeFirstResponder(textView)
     }
 
-    // MARK: - Height
+    func setNeedsTextLayoutRefresh() {
+        flushPendingText()
+    }
 
     override func layout() {
         super.layout()
-
-        if let textContainer = textView.textContainer {
-            let insets = textView.textContainerInset
-            let containerWidth = max(0, bounds.width - insets.width * 2)
-            if abs(textContainer.containerSize.width - containerWidth) > 1 {
-                textContainer.containerSize = NSSize(width: containerWidth, height: CGFloat.greatestFiniteMagnitude)
-            }
-        }
-
-        recalculateHeight()
+        flushPendingText()
     }
 
-    private func recalculateHeight() {
-        guard let layoutManager = textView.layoutManager, let textContainer = textView.textContainer else { return }
-        layoutManager.ensureLayout(for: textContainer)
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        let insets = textView.textContainerInset
-        let newHeight = max(44, ceil(usedRect.height + insets.height * 2))
+    private func commitText(_ text: String) {
+        pendingText = nil
+        isUpdatingText = true
+        textView.string = text
+        applyMarkdownStyling()
+        isUpdatingText = false
+    }
 
-        guard abs(newHeight - lastKnownHeight) > 0.5 else { return }
-        lastKnownHeight = newHeight
-        heightConstraint.constant = newHeight
-        textView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: newHeight)
-        delegate?.markdownTextViewDidChangeHeight(self)
+    private func flushPendingText() {
+        guard let text = pendingText, bounds.width > 0, bounds.height > 0 else { return }
+        commitText(text)
+        updatePlaceholder()
     }
 
     // MARK: - NSTextViewDelegate
@@ -138,7 +123,6 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
         guard !isUpdatingText else { return }
         applyMarkdownStyling()
         updatePlaceholder()
-        recalculateHeight()
         delegate?.markdownTextViewDidChange(self)
     }
 
@@ -148,11 +132,10 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
         if cursorLine != activeLine {
             activeLine = cursorLine
             applyMarkdownStyling()
-            recalculateHeight()
         }
     }
 
-    // MARK: - Cursor Line Detection
+    // MARK: - Markdown Styling
 
     private func currentCursorLine() -> Int {
         let text = textView.string as NSString
@@ -167,8 +150,6 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
             var contentsEnd = 0
             text.getLineStart(nil, end: &lineEnd, contentsEnd: &contentsEnd, for: NSRange(location: lineStart, length: 0))
 
-            // Cursor is on this line if it's within [lineStart, lineEnd)
-            // or at contentsEnd (end of line content)
             if cursorLocation >= lineStart && cursorLocation < lineEnd {
                 return lineIndex
             }
@@ -177,11 +158,8 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
             lineStart = lineEnd
         }
 
-        // Cursor is at the very end
         return max(0, lineIndex - 1)
     }
-
-    // MARK: - Styling
 
     private func applyMarkdownStyling() {
         guard let textStorage = textView.textStorage else { return }
@@ -191,21 +169,15 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
         let selectedRanges = textView.selectedRanges
 
         textStorage.beginEditing()
-
-        // Reset to default
         textStorage.setAttributes([
             .font: defaultFont,
             .foregroundColor: defaultTextColor,
             .paragraphStyle: defaultParagraphStyle,
         ], range: fullRange)
 
-        // Track code blocks
         codeBlockTracker.update(text: textStorage.string)
-
-        // Apply code block body styling first
         applyCodeBlockBodyStyling(textStorage)
 
-        // Get styled ranges from parser
         let styledRanges = MarkdownParser.styledRanges(for: textStorage.string, defaultFont: defaultFont)
         let text = textStorage.string as NSString
 
@@ -213,12 +185,9 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
             guard styled.range.location + styled.range.length <= textStorage.length else { continue }
 
             let lineIndex = lineIndexForLocation(styled.range.location, in: text)
-
-            // Skip inline styling inside code blocks
             if codeBlockTracker.isInsideCodeBlock(lineIndex: lineIndex) { continue }
 
             if styled.isMarker && lineIndex != activeLine {
-                // Hide markers on non-active lines
                 textStorage.addAttributes(MarkdownParser.hiddenMarkerAttributes, range: styled.range)
             } else {
                 textStorage.addAttributes(styled.attributes, range: styled.range)
@@ -297,6 +266,7 @@ final class MarkdownTextView: NSView, NSTextViewDelegate {
     }
 
     private func updatePlaceholder() {
-        placeholderField?.isHidden = !textView.string.isEmpty
+        let isEmpty = (pendingText ?? textView.string).isEmpty
+        placeholderField?.isHidden = !isEmpty
     }
 }

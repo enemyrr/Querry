@@ -30,15 +30,27 @@ final class SingleValueBlockViewModel {
     var isConnecting = false
     var connectionError: String?
 
+    private(set) var hasStartedLoading = false
+
     init(block: NotebookBlock, dataController: NotebookDataController) {
         self.block = block
         self.dataController = dataController
         self.config = block.singleValueConfig()
+    }
 
-        if let cfg = config, !cfg.tableName.isEmpty {
-            Task {
-                await reconnectAndLoad(cfg)
-            }
+    func loadDataIfNeeded() {
+        guard !hasStartedLoading else { return }
+        hasStartedLoading = true
+
+        if dataController?.isDashboardPublished == true,
+           let cached = block.cachedSingleValue() {
+            singleValueResult = cached.value
+            return
+        }
+
+        guard let cfg = config, !cfg.connectionKeychainId.isEmpty else { return }
+        Task {
+            await reconnectAndLoad(cfg)
         }
     }
 
@@ -48,9 +60,20 @@ final class SingleValueBlockViewModel {
         dataController?.connections.first(where: { $0.keychainId == cfg.connectionKeychainId })?.connectionUri
     }
 
+    func reconnectAndRefresh() async {
+        guard let cfg = config else { return }
+        if cfg.sourceQueryBlockId != nil {
+            await fetchSingleValue()
+        } else if !cfg.connectionKeychainId.isEmpty {
+            await reconnectAndLoad(cfg)
+        }
+    }
+
     private func reconnectAndLoad(_ cfg: SingleValueBlockConfig) async {
         guard let dbType = DatabaseType(rawValue: cfg.databaseType),
               let uri = resolveConnectionUri(cfg) else { return }
+        isConnecting = true
+        defer { isConnecting = false }
         do {
             try await session.connect(databaseType: dbType, uri: uri)
 
@@ -68,16 +91,52 @@ final class SingleValueBlockViewModel {
 
             try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: cfg.schemaName)
 
+            guard !cfg.tableName.isEmpty else { return }
+
             schemaResult = try await session.getSchema(tableName: cfg.tableName, schema: cfg.schemaName)
-            if cfg.column != nil {
-                await fetchSingleValue()
-            }
+
+            guard cfg.column != nil else { return }
+
+            await fetchSingleValue()
         } catch {
             singleValueError = error.localizedDescription
         }
     }
 
     private static let environmentCapableTypes: Set<DatabaseType> = [.convex]
+
+    func connectToQuerySource(blockId: UUID, outputName: String) {
+        guard let result = dataController?.queryResult(for: blockId) else {
+            singleValueError = "Run the source query block first"
+            return
+        }
+
+        let cfg = SingleValueBlockConfig(
+            connectionKeychainId: "",
+            connectionName: outputName,
+            databaseType: "",
+            databaseName: "",
+            tableName: outputName,
+            sourceQueryBlockId: blockId.uuidString
+        )
+        config = cfg
+
+        schemaResult = DatabaseSchemaResult(
+            tableName: outputName,
+            schemaName: "",
+            columns: result.columns.map { col in
+                DatabaseSchemaInfo(
+                    columnName: col.name,
+                    dataType: col.dataType,
+                    formatType: col.format ?? col.dataType,
+                    typeOid: 0
+                )
+            },
+            totalCount: result.columns.count
+        )
+
+        persistConfig()
+    }
 
     func connectToSource(_ connection: Connection) async {
         isConnecting = true
@@ -290,6 +349,45 @@ final class SingleValueBlockViewModel {
             singleValueError = "Select a column to display"
             return
         }
+
+        // If sourced from a query block, compute aggregation from in-memory result
+        if let queryBlockIdStr = cfg.sourceQueryBlockId,
+           let queryBlockId = UUID(uuidString: queryBlockIdStr) {
+            isLoadingSingleValue = true
+            singleValueError = nil
+            defer { isLoadingSingleValue = false }
+
+            guard let result = dataController?.queryResult(for: queryBlockId) else {
+                singleValueError = "Run the source query block first"
+                return
+            }
+
+            let values: [Double] = result.rows.compactMap { row in
+                guard let info = row[column], let value = info.value else { return nil }
+                switch value {
+                case let d as Double: return d
+                case let i as Int: return Double(i)
+                case let i as Int64: return Double(i)
+                case let f as Float: return Double(f)
+                case let s as String: return Double(s)
+                case let d as Decimal: return NSDecimalNumber(decimal: d).doubleValue
+                default: return nil
+                }
+            }
+
+            switch cfg.aggregation {
+            case .count: singleValueResult = Double(values.count)
+            case .countDistinct: singleValueResult = Double(Set(values).count)
+            case .sum: singleValueResult = values.reduce(0, +)
+            case .average: singleValueResult = values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+            case .min: singleValueResult = values.min()
+            case .max: singleValueResult = values.max()
+            case .none: singleValueResult = values.first
+            }
+            saveSingleValueCache()
+            return
+        }
+
         isLoadingSingleValue = true
         singleValueError = nil
         defer { isLoadingSingleValue = false }
@@ -302,9 +400,39 @@ final class SingleValueBlockViewModel {
                 aggregation: cfg.aggregation,
                 filters: validFilters
             )
+            saveSingleValueCache()
         } catch {
             singleValueError = error.localizedDescription
         }
+    }
+
+    private func saveSingleValueCache() {
+        guard let value = singleValueResult else { return }
+        block.saveCachedResult(CachedSingleValue(value: value))
+        dataController?.saveContext()
+    }
+
+    func reloadConfig() {
+        config = block.singleValueConfig()
+        if let cfg = config, !cfg.tableName.isEmpty {
+            Task { await reconnectAndLoad(cfg) }
+        }
+    }
+
+    func resetConfig() {
+        config = nil
+        availableCollections = []
+        availableSchemas = []
+        selectedPickerSchema = nil
+        availableEnvironments = []
+        selectedEnvironment = nil
+        schemaResult = nil
+        singleValueResult = nil
+        singleValueError = nil
+        connectionError = nil
+        block.configJSON = ""
+        dataController?.updateBlock(block)
+        Task { await session.disconnect() }
     }
 
     // MARK: - Persistence

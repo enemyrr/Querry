@@ -43,7 +43,7 @@ final class AgentMessageListController: NSViewController {
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 2
-        stackView.edgeInsets = NSEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
+        stackView.edgeInsets = NSEdgeInsets(top: 12, left: 0, bottom: 56, right: 0)
         stackView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         stackView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         stackView.translatesAutoresizingMaskIntoConstraints = false
@@ -75,7 +75,7 @@ final class AgentMessageListController: NSViewController {
             stackView.topAnchor.constraint(equalTo: documentView.topAnchor),
             stackView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 12),
             stackView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -12),
-            stackView.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
+            stackView.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -56),
 
             documentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
         ])

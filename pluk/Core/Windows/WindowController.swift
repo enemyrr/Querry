@@ -224,7 +224,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             }
             return [.collapseSidebarItem]
         case .notebook:
-            return [.collapseSidebarItem]
+            return []
         case .home:
             return []
         }
@@ -312,6 +312,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
     @objc func toggleSidebarNatively(_ sender: Any?) {
         guard let window = self.window else { return }
+        if case .notebook = tabType { return }
 
         NotificationCenter.default.post(name: .toggleLeftSidebar, object: window)
 

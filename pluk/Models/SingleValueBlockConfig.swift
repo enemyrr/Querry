@@ -11,6 +11,7 @@ struct SingleValueBlockConfig: Codable {
     var aggregation: AggregationFunction = .count
     var filters: [ChartFilterCondition] = []
     var label: String?
+    var sourceQueryBlockId: String?
 }
 
 extension NotebookBlock {

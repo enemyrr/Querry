@@ -172,7 +172,7 @@ final class UserMessageActionBar: NSView {
 
         let stack = NSStackView(views: [timestampLabel, copyButton])
         stack.orientation = .horizontal
-        stack.spacing = 10
+        stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
@@ -221,7 +221,7 @@ final class AssistantMessageActionBar: NSView {
 
         let stack = NSStackView(views: [thumbsUpButton, thumbsDownButton, copyTextButton, retryButton])
         stack.orientation = .horizontal
-        stack.spacing = 0
+        stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 

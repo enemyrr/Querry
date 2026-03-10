@@ -138,7 +138,7 @@ final class AgentMessageRowView: NSView {
             }
             addSubview(bar)
 
-            containerBottomConstraint?.constant = -26
+            containerBottomConstraint?.constant = -28
 
             NSLayoutConstraint.activate([
                 bar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
@@ -168,7 +168,7 @@ final class AgentMessageRowView: NSView {
             bar.onRetry = { [weak self] in self?.onRetry?() }
             addSubview(bar)
 
-            mdBottomConstraint?.constant = -26
+            mdBottomConstraint?.constant = -28
 
             NSLayoutConstraint.activate([
                 bar.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -368,7 +368,7 @@ final class AgentMessageRowView: NSView {
     }
 
     private func pinAssistantContentView(_ contentView: NSView) {
-        let bottomC = contentView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+        let bottomC = contentView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6)
         mdBottomConstraint = bottomC
         NSLayoutConstraint.activate([
             contentView.topAnchor.constraint(equalTo: topAnchor, constant: 4),

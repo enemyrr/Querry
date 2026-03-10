@@ -4,6 +4,7 @@ final class DashboardTextItem: DashboardBaseItem {
 
     static let identifier = NSUserInterfaceItemIdentifier("DashboardTextItem")
 
+    private var scrollView: NSScrollView!
     private var textView: NSTextView!
 
     private let defaultParagraphStyle: NSParagraphStyle = {
@@ -13,6 +14,15 @@ final class DashboardTextItem: DashboardBaseItem {
     }()
 
     override func setupContent() {
+        scrollView = PassthroughScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        blockContainer.addSubview(scrollView)
+
         textView = NSTextView()
         textView.isEditable = false
         textView.isSelectable = false
@@ -22,21 +32,24 @@ final class DashboardTextItem: DashboardBaseItem {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
-        textView.translatesAutoresizingMaskIntoConstraints = false
-        blockContainer.addSubview(textView)
+        scrollView.documentView = textView
 
         NSLayoutConstraint.activate([
-            textView.topAnchor.constraint(equalTo: blockContainer.topAnchor),
-            textView.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
-            textView.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
-            textView.bottomAnchor.constraint(equalTo: blockContainer.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: blockContainer.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: blockContainer.bottomAnchor),
         ])
     }
 
     func configure(block: NotebookBlock, isPublished: Bool = false) {
         configureBase(block: block, isPublished: isPublished)
+        scrollView.hasVerticalScroller = !isPublished
+        (scrollView as? PassthroughScrollView)?.isScrollingEnabled = !isPublished
 
         let text = block.textContent
         let defaultFont = NSFont.systemFont(ofSize: 14)
@@ -56,5 +69,20 @@ final class DashboardTextItem: DashboardBaseItem {
         }
 
         textView.textStorage?.setAttributedString(attrString)
+        if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
+            layoutManager.ensureLayout(for: textContainer)
+        }
+        resetScrollPosition()
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        textView.textStorage?.setAttributedString(NSAttributedString(string: ""))
+        resetScrollPosition()
+    }
+
+    private func resetScrollPosition() {
+        scrollView.contentView.scroll(to: .zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 }

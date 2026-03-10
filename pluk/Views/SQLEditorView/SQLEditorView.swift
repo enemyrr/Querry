@@ -567,7 +567,8 @@ extension SQLEditorView {
                 TableListViewController(
                     queryResult: result,
                     tableName: "SQL Query Result",
-                    cacheNamespace: UUID().uuidString
+                    cacheNamespace: UUID().uuidString,
+                    showPaddingRows: false
                 )
             }
         }

@@ -62,6 +62,17 @@ final class FilterChipView: NSView {
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)
         addTrackingArea(area)
         trackingArea = area
+        refreshHoverState()
+    }
+
+    private func refreshHoverState() {
+        guard let window else { return }
+        let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let inside = bounds.contains(loc)
+        if isHovering != inside {
+            isHovering = inside
+            updateHover()
+        }
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -198,6 +209,17 @@ final class FilterPillView: NSView {
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)
         addTrackingArea(area)
         trackingArea = area
+        refreshHoverState()
+    }
+
+    private func refreshHoverState() {
+        guard let window else { return }
+        let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let inside = bounds.contains(loc)
+        if isHovering != inside {
+            isHovering = inside
+            updateHover()
+        }
     }
 
     override func mouseEntered(with event: NSEvent) {

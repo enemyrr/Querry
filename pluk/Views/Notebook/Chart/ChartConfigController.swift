@@ -5,6 +5,7 @@ final class ChartConfigController: NSViewController {
 
     private let viewModel: ChartBlockViewModel
     private let connections: [Connection]
+    private weak var dataController: NotebookDataController?
     private static let leftPanelWidth: CGFloat = 250
     private static let centerPanelWidth: CGFloat = 250
 
@@ -23,6 +24,7 @@ final class ChartConfigController: NSViewController {
     private var environmentDropdown: StyledDropdown!
     private var environmentLabel: NSTextField!
     private var tableDropdown: StyledDropdown!
+    private var tableLabel_: NSTextField!
     private var schemaDropdown: StyledDropdown!
     private var schemaLabel: NSTextField!
     private var tableLabelTopToSchemaConstraint: NSLayoutConstraint?
@@ -30,6 +32,8 @@ final class ChartConfigController: NSViewController {
     private var tableLabelTopToConnectionConstraint: NSLayoutConstraint?
     private var schemaLabelTopToEnvironmentConstraint: NSLayoutConstraint?
     private var schemaLabelTopToConnectionConstraint: NSLayoutConstraint?
+    private var fieldsLabelTopToTableConstraint: NSLayoutConstraint?
+    private var fieldsLabelTopToConnectionConstraint: NSLayoutConstraint?
     private var collapseButton: HoverIconButton!
     private var expandButton: HoverIconButton!
     private var columnPanelContainer: NSView!
@@ -51,9 +55,10 @@ final class ChartConfigController: NSViewController {
     private var filterLeadingToConnectionConstraint: NSLayoutConstraint!
     private var filterLeadingToSpinnerConstraint: NSLayoutConstraint!
 
-    init(viewModel: ChartBlockViewModel, connections: [Connection]) {
+    init(viewModel: ChartBlockViewModel, connections: [Connection], dataController: NotebookDataController?) {
         self.viewModel = viewModel
         self.connections = connections
+        self.dataController = dataController
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -137,9 +142,15 @@ final class ChartConfigController: NSViewController {
 
         let pickerDropdown = ConnectionPickerDropdown(
             connections: connections,
+            queryDataSourcesProvider: { [weak self] in
+                self?.dataController?.availableQueryDataSources ?? []
+            },
             onSelect: { [weak self] connection in
                 guard let self else { return }
                 Task { await self.viewModel.connectToSource(connection) }
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.viewModel.connectToQuerySource(blockId: source.blockId, outputName: source.outputName)
             }
         )
         pickerDropdown.translatesAutoresizingMaskIntoConstraints = false
@@ -200,6 +211,7 @@ final class ChartConfigController: NSViewController {
                 if self.viewModel.config != nil, self.connectionPickerView != nil {
                     self.dismissConnectionPicker()
                 }
+                self.updateConnectionState()
                 self.observeConfig()
             }
         }
@@ -243,9 +255,15 @@ final class ChartConfigController: NSViewController {
 
         headerConnectionDropdown = SourceDropdownButton(
             connections: connections,
+            queryDataSourcesProvider: { [weak self] in
+                self?.dataController?.availableQueryDataSources ?? []
+            },
             onSelect: { [weak self] connection in
                 guard let self else { return }
                 Task { await self.viewModel.connectToSource(connection) }
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.viewModel.connectToQuerySource(blockId: source.blockId, outputName: source.outputName)
             }
         )
         headerConnectionDropdown.translatesAutoresizingMaskIntoConstraints = false
@@ -262,8 +280,12 @@ final class ChartConfigController: NSViewController {
         headerBar.addSubview(headerSpinner)
 
         if let cfg = viewModel.config, !cfg.connectionName.isEmpty {
-            let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
-            headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            if cfg.sourceQueryBlockId != nil {
+                headerConnectionDropdown.updateLabel(cfg.connectionName, systemSymbol: "tablecells")
+            } else {
+                let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
+                headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            }
         }
 
         setupFilterBar()
@@ -342,17 +364,27 @@ final class ChartConfigController: NSViewController {
 
         connectionDropdown = SourceDropdownButton(
             connections: connections,
+            queryDataSourcesProvider: { [weak self] in
+                self?.dataController?.availableQueryDataSources ?? []
+            },
             onSelect: { [weak self] connection in
                 guard let self else { return }
                 Task { await self.viewModel.connectToSource(connection) }
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.viewModel.connectToQuerySource(blockId: source.blockId, outputName: source.outputName)
             }
         )
         connectionDropdown.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(connectionDropdown)
 
         if let cfg = viewModel.config, !cfg.connectionName.isEmpty {
-            let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
-            connectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            if cfg.sourceQueryBlockId != nil {
+                connectionDropdown.updateLabel(cfg.connectionName, systemSymbol: "tablecells")
+            } else {
+                let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
+                connectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            }
         }
 
         connectionSpinner = NSProgressIndicator()
@@ -387,6 +419,7 @@ final class ChartConfigController: NSViewController {
         tableLabel.textColor = .tertiaryLabelColor
         tableLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(tableLabel)
+        tableLabel_ = tableLabel
 
         tableDropdown = StyledDropdown(placeholder: "Select a table") { [weak self] title in
             self?.viewModel.confirmTableSelection(tableName: title)
@@ -505,7 +538,6 @@ final class ChartConfigController: NSViewController {
             tableDropdown.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad - 2),
             tableDropdownTrailing,
 
-            fieldsLabel.topAnchor.constraint(equalTo: tableDropdown.bottomAnchor, constant: 10),
             fieldsLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: hPad),
 
             scrollView.topAnchor.constraint(equalTo: fieldsLabel.bottomAnchor, constant: 4),
@@ -513,6 +545,14 @@ final class ChartConfigController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -(hPad - 2)),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
         ])
+
+        let fieldsToTable = fieldsLabel.topAnchor.constraint(equalTo: tableDropdown.bottomAnchor, constant: 10)
+        fieldsToTable.isActive = true
+        fieldsLabelTopToTableConstraint = fieldsToTable
+
+        let fieldsToConnection = fieldsLabel.topAnchor.constraint(equalTo: connectionDropdown.bottomAnchor, constant: 10)
+        fieldsToConnection.isActive = false
+        fieldsLabelTopToConnectionConstraint = fieldsToConnection
 
         rebuildFieldsList()
 
@@ -815,6 +855,12 @@ final class ChartConfigController: NSViewController {
             view.removeFromSuperview()
         }
 
+        let isQuerySource = viewModel.config?.sourceQueryBlockId != nil
+        let hasConnection = viewModel.config.map { !$0.connectionKeychainId.isEmpty } ?? false
+        filterContainer.isHidden = isQuerySource || !hasConnection
+
+        guard !filterContainer.isHidden else { return }
+
         let filters = viewModel.config?.filters ?? []
 
         let addButton = FilterChipView(
@@ -918,6 +964,7 @@ final class ChartConfigController: NSViewController {
 
     private func updateConnectionState() {
         let connecting = viewModel.isConnecting
+        let isQuerySource = viewModel.config?.sourceQueryBlockId != nil
         connectionDropdown.isEnabled = !connecting
 
         connectionSpinner.isHidden = !connecting || isColumnPanelCollapsed
@@ -932,13 +979,31 @@ final class ChartConfigController: NSViewController {
         }
 
         if let cfg = viewModel.config, !cfg.connectionName.isEmpty {
-            let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
-            connectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
-            headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            if isQuerySource {
+                connectionDropdown.updateLabel(cfg.connectionName, systemSymbol: "tablecells")
+                headerConnectionDropdown.updateLabel(cfg.connectionName, systemSymbol: "tablecells")
+            } else {
+                let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
+                connectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+                headerConnectionDropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            }
+            let iconName = isQuerySource ? nil : DatabaseType(rawValue: cfg.databaseType)?.icon
             pickerDropdownRef?.setConnecting(connecting, name: cfg.connectionName, iconName: iconName)
         } else {
             pickerDropdownRef?.setConnecting(connecting)
         }
+
+        tableDropdown.isHidden = isQuerySource
+        tableLabel_?.isHidden = isQuerySource
+        fieldsLabelTopToTableConstraint?.isActive = !isQuerySource
+        fieldsLabelTopToConnectionConstraint?.isActive = isQuerySource
+        if isQuerySource {
+            schemaDropdown.isHidden = true
+            schemaLabel.isHidden = true
+            environmentDropdown.isHidden = true
+            environmentLabel.isHidden = true
+        }
+
         updateFilterLeadingConstraint()
     }
 
@@ -1292,6 +1357,17 @@ final class FieldColumnChipView: NSView {
         )
         addTrackingArea(area)
         trackingArea = area
+        refreshHoverState()
+    }
+
+    private func refreshHoverState() {
+        guard let window else { return }
+        let loc = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let inside = bounds.contains(loc)
+        if isHovering != inside {
+            isHovering = inside
+            applyHoverBackground(isHovering)
+        }
     }
 
     override func mouseEntered(with event: NSEvent) {

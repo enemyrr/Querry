@@ -31,6 +31,17 @@ extension Color {
     }
 }
 
+extension NSColor {
+    static var primaryButton: NSColor {
+        NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                return NSColor(red: 0xE5 / 255.0, green: 0x7E / 255.0, blue: 0x52 / 255.0, alpha: 1.0)
+            }
+            return NSColor(red: 0xB9 / 255.0, green: 0x55 / 255.0, blue: 0x31 / 255.0, alpha: 1.0)
+        }
+    }
+}
+
 extension Color {
     init(hex: UInt32) {
         let red = Double((hex >> 16) & 0xFF) / 255.0

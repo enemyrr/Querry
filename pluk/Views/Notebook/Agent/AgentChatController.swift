@@ -177,9 +177,11 @@ final class AgentChatController {
                 guard !Task.isCancelled else { break }
                 roundNumber += 1
 
+                let currentBlocks = notebookDataController?.blocks ?? []
                 let round = try await engine.performRound(
                     messages: anthropicMessages,
                     connections: selectedConnections,
+                    blocks: currentBlocks,
                     onToken: { [weak self] token in
                         self?.appendOrUpdateText(token)
                     },
@@ -230,13 +232,16 @@ final class AgentChatController {
                     appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeInfo.text, iconName: activeInfo.icon, round: roundNumber)
                     try? await Task.sleep(for: .milliseconds(50))
 
-                    let result = await engine.executeToolCall(toolCall, connections: selectedConnections)
+                    let result = await engine.executeToolCall(toolCall, connections: selectedConnections, blocks: currentBlocks)
 
                     for creation in engine.pendingBlockCreations {
                         handleBlockCreation(creation)
                     }
                     if let infoUpdate = engine.pendingNotebookInfoUpdate {
                         handleNotebookInfoUpdate(infoUpdate)
+                    }
+                    if let arrangement = engine.pendingDashboardArrangement {
+                        handleDashboardArrangement(arrangement)
                     }
                     engine.clearPendingCreations()
 
@@ -343,19 +348,33 @@ final class AgentChatController {
     // MARK: - Block Creation
 
     private func handleBlockCreation(_ request: BlockCreationRequest) {
+        if let targetId = request.targetBlockId {
+            handleBlockUpdate(request, targetId: targetId)
+            return
+        }
+
         guard let dataController = notebookDataController else { return }
 
         switch request.kind {
         case .chart:
             dataController.addChartBlock()
-            if let block = dataController.blocks.last, let config = request.config {
+            if let block = dataController.blocks.last, var config = request.config {
                 block.title = request.title
+
+                if let outputName = request.sourceQueryOutputName,
+                   let queryBlock = dataController.blocks.first(where: {
+                       $0.blockType == .query && $0.queryBlockConfig()?.outputName == outputName
+                   }) {
+                    config.sourceQueryBlockId = queryBlock.id.uuidString
+                }
+
                 block.saveChartConfig(config)
                 dataController.updateBlock(block)
             }
         case .text:
             dataController.addTextBlock()
             if let block = dataController.blocks.last {
+                block.title = request.title
                 block.textContent = request.textContent ?? ""
                 dataController.updateBlock(block)
             }
@@ -365,7 +384,17 @@ final class AgentChatController {
             dataController.insertSingleValueBlock(at: insertIndex)
             if let block = dataController.blocks[safe: insertIndex], let config = request.singleValueConfig {
                 block.title = request.title
+                if insertIndex > 0, dataController.blocks[insertIndex - 1].blockType == .singleValue {
+                    block.notebookInline = true
+                }
                 block.saveSingleValueConfig(config)
+                dataController.updateBlock(block)
+            }
+        case .query:
+            dataController.addQueryBlock()
+            if let block = dataController.blocks.last, let config = request.queryBlockConfig {
+                block.title = request.title
+                block.saveQueryBlockConfig(config)
                 dataController.updateBlock(block)
             }
         }
@@ -377,6 +406,74 @@ final class AgentChatController {
         if !update.description.isEmpty {
             dataController.descriptionText = update.description
         }
+    }
+
+    private func handleBlockUpdate(_ request: BlockCreationRequest, targetId: UUID) {
+        guard let dataController = notebookDataController,
+              let block = dataController.blocks.first(where: { $0.id == targetId }) else { return }
+
+        switch request.kind {
+        case .chart:
+            guard var config = request.config else { return }
+            if let outputName = request.sourceQueryOutputName,
+               let queryBlock = dataController.blocks.first(where: {
+                   $0.blockType == .query && $0.queryBlockConfig()?.outputName == outputName
+               }) {
+                config.sourceQueryBlockId = queryBlock.id.uuidString
+            }
+            if !request.title.isEmpty { block.title = request.title }
+            block.saveChartConfig(config)
+            dataController.updateBlock(block)
+            dataController.refreshChartViewModel(for: targetId, config: config)
+
+        case .text:
+            block.textContent = request.textContent ?? ""
+            dataController.updateBlock(block)
+
+        case .singleValue:
+            guard let config = request.singleValueConfig else { return }
+            if !request.title.isEmpty { block.title = request.title }
+            block.saveSingleValueConfig(config)
+            dataController.updateBlock(block)
+            dataController.refreshSingleValueViewModel(for: targetId)
+
+        case .query:
+            guard let config = request.queryBlockConfig else { return }
+            if !request.title.isEmpty { block.title = request.title }
+            block.saveQueryBlockConfig(config)
+            dataController.updateBlock(block)
+            dataController.refreshQueryViewModel(for: targetId)
+        }
+    }
+
+    private func handleDashboardArrangement(_ arrangement: DashboardArrangementRequest) {
+        guard let dataController = notebookDataController else { return }
+
+        for (sortOrder, layout) in arrangement.layouts.enumerated() {
+            guard let blockId = UUID(uuidString: layout.blockId),
+                  let block = dataController.blocks.first(where: { $0.id == blockId }) else { continue }
+
+            block.dashboardSortOrder = sortOrder
+            if let width = layout.widthFraction {
+                block.blockWidthFraction = max(0.1, min(1.0, width))
+            }
+            if let height = layout.height {
+                block.blockHeight = max(80, height)
+            }
+            if let inline = layout.inline {
+                block.dashboardInline = inline
+            }
+            if let hidden = layout.hidden {
+                block.isHiddenInDashboard = hidden
+            }
+        }
+
+        if arrangement.switchToDashboard {
+            dataController.viewMode = .dashboard
+        }
+
+        dataController.invalidateDashboardBlocks()
+        dataController.saveContext()
     }
 
     // MARK: - Message Building (Anthropic)

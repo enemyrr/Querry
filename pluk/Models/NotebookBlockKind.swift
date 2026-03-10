@@ -4,12 +4,14 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
     case chart
     case text
     case singleValue = "metric"
+    case query
 
     var displayName: String {
         switch self {
         case .chart: "Chart"
         case .text: "Text"
         case .singleValue: "Single Value"
+        case .query: "Query"
         }
     }
 
@@ -18,6 +20,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         case .chart: "chart.bar"
         case .text: "doc.text"
         case .singleValue: "numbers.rectangle"
+        case .query: "terminal"
         }
     }
 
@@ -25,7 +28,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
 
     var isAICreatable: Bool {
         switch self {
-        case .chart, .text, .singleValue: true
+        case .chart, .text, .singleValue, .query: true
         }
     }
 
@@ -43,11 +46,26 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         case .chart: return Self.chartToolDefinition
         case .text: return Self.textToolDefinition
         case .singleValue: return Self.singleValueToolDefinition
+        case .query: return Self.queryToolDefinition
         }
     }
 
     static var allToolDefinitions: [AnthropicToolDefinition] {
         allCases.compactMap(\.toolDefinition)
+    }
+
+    var updateToolDefinition: AnthropicToolDefinition? {
+        guard isAICreatable else { return nil }
+        switch self {
+        case .chart: return Self.updateChartToolDefinition
+        case .text: return Self.updateTextToolDefinition
+        case .singleValue: return Self.updateSingleValueToolDefinition
+        case .query: return Self.updateQueryToolDefinition
+        }
+    }
+
+    static var allUpdateToolDefinitions: [AnthropicToolDefinition] {
+        allCases.compactMap(\.updateToolDefinition)
     }
 
     static func kindForToolName(_ name: String) -> NotebookBlockKind? {
@@ -60,7 +78,9 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         name: "create_chart_block",
         description: """
         Creates a chart visualization block in the notebook. \
-        Requires knowing the connection, table, and which columns to use for axes. \
+        Two modes: (1) Direct connection — provide connection details and table_name to query the database directly. \
+        (2) Query source — provide source_query_output with the output_name of a previously created query block to chart its results. \
+        When using source_query_output, omit connection_keychain_id, connection_name, database_type, database_name, and table_name. \
         Always call get_table_schema first to understand available columns before creating a chart.
         """,
         inputSchema: [
@@ -70,21 +90,25 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                     "type": .string("string"),
                     "description": .string("A short descriptive title for the chart block"),
                 ]),
+                "source_query_output": .object([
+                    "type": .string("string"),
+                    "description": .string("The output_name of a previously created query block to use as the chart's data source. When provided, omit connection and table fields."),
+                ]),
                 "connection_keychain_id": .object([
                     "type": .string("string"),
-                    "description": .string("The keychainId of the connection to use"),
+                    "description": .string("The keychainId of the connection to use (omit when using source_query_output)"),
                 ]),
                 "connection_name": .object([
                     "type": .string("string"),
-                    "description": .string("Human-readable connection name for display"),
+                    "description": .string("Human-readable connection name for display (omit when using source_query_output)"),
                 ]),
                 "database_type": .object([
                     "type": .string("string"),
-                    "description": .string("Database type raw value: postgres, mysql, sqlite, MongoDB, supabase, convex"),
+                    "description": .string("Database type raw value: postgres, mysql, sqlite, MongoDB, supabase, convex (omit when using source_query_output)"),
                 ]),
                 "database_name": .object([
                     "type": .string("string"),
-                    "description": .string("The database name"),
+                    "description": .string("The database name (omit when using source_query_output)"),
                 ]),
                 "schema_name": .object([
                     "type": .string("string"),
@@ -92,7 +116,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
                 "table_name": .object([
                     "type": .string("string"),
-                    "description": .string("The table or collection to query"),
+                    "description": .string("The table or collection to query (omit when using source_query_output)"),
                 ]),
                 "chart_type": .object([
                     "type": .string("string"),
@@ -133,9 +157,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
             ]),
             "required": .array([
-                .string("title"), .string("connection_keychain_id"), .string("connection_name"),
-                .string("database_type"), .string("database_name"),
-                .string("table_name"), .string("chart_type"),
+                .string("title"), .string("chart_type"),
                 .string("x_axis_column"), .string("y_axis_columns"),
             ]),
         ]
@@ -143,16 +165,20 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
 
     private static let textToolDefinition = AnthropicToolDefinition(
         name: "create_text_block",
-        description: "Creates a markdown text block in the notebook for titles, explanations, analysis commentary, or section headers.",
+        description: "Creates a markdown text block in the notebook for written analysis, commentary, or section headers. Content must be prose only — NEVER include markdown tables (| col | col |). Use create_chart_block or create_single_value_block to present data.",
         inputSchema: [
             "type": .string("object"),
             "properties": .object([
+                "title": .object([
+                    "type": .string("string"),
+                    "description": .string("A short descriptive title for the text block (e.g. 'Revenue Analysis', 'Dataset Overview')"),
+                ]),
                 "content": .object([
                     "type": .string("string"),
-                    "description": .string("Markdown content for the text block"),
+                    "description": .string("Markdown content (headings, paragraphs, bold/italic). Must NOT contain markdown tables — use charts or single value blocks for data."),
                 ]),
             ]),
-            "required": .array([.string("content")]),
+            "required": .array([.string("title"), .string("content")]),
         ]
     )
 
@@ -229,6 +255,122 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 .string("table_name"), .string("column"), .string("aggregation"),
             ]),
         ]
+    )
+
+    private static let queryToolDefinition = AnthropicToolDefinition(
+        name: "create_query_block",
+        description: """
+        Creates a SQL query block in the notebook that displays results as an inline table. \
+        Use this when you want SQL results visible in the notebook for the user to see. \
+        Unlike `run_query` (which returns results only to you), this adds a persistent query cell \
+        that the user can re-run and whose output can feed into chart or single value blocks.
+        """,
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "title": .object([
+                    "type": .string("string"),
+                    "description": .string("A short descriptive title for the query block"),
+                ]),
+                "connection_keychain_id": .object([
+                    "type": .string("string"),
+                    "description": .string("The keychainId of the connection to use"),
+                ]),
+                "connection_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Human-readable connection name for display"),
+                ]),
+                "database_type": .object([
+                    "type": .string("string"),
+                    "description": .string("Database type raw value: postgres, mysql, sqlite, MongoDB, supabase, convex"),
+                ]),
+                "database_name": .object([
+                    "type": .string("string"),
+                    "description": .string("The database name"),
+                ]),
+                "schema_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Schema name (e.g. 'public' for PostgreSQL). Omit for MySQL/SQLite/MongoDB."),
+                ]),
+                "query": .object([
+                    "type": .string("string"),
+                    "description": .string("The SQL query to execute and display results for"),
+                ]),
+                "output_name": .object([
+                    "type": .string("string"),
+                    "description": .string("A short identifier for this query's output (e.g. 'revenue_data', 'order_status'). Other blocks can reference this output as a data source."),
+                ]),
+            ]),
+            "required": .array([
+                .string("title"), .string("connection_keychain_id"), .string("connection_name"),
+                .string("database_type"), .string("database_name"), .string("query"),
+            ]),
+        ]
+    )
+
+    // MARK: - Update Tool Definitions
+
+    private static func addBlockIdToSchema(_ base: AnthropicToolDefinition, name: String, description: String) -> AnthropicToolDefinition {
+        let blockIdProp: [String: JSONValue] = [
+            "type": .string("string"),
+            "description": .string("The UUID of the existing block to modify. Get this from list_notebook_blocks or <existing_notebook_blocks>."),
+        ]
+
+        var props: [String: JSONValue] = [:]
+        if case .object(let p) = base.inputSchema["properties"] {
+            props = p
+        }
+        props["block_id"] = .object(blockIdProp)
+
+        var required: [JSONValue] = []
+        if case .array(let r) = base.inputSchema["required"] {
+            required = r
+        }
+        required.insert(.string("block_id"), at: 0)
+
+        return AnthropicToolDefinition(
+            name: name,
+            description: description,
+            inputSchema: [
+                "type": .string("object"),
+                "properties": .object(props),
+                "required": .array(required),
+            ]
+        )
+    }
+
+    private static let updateChartToolDefinition = addBlockIdToSchema(
+        chartToolDefinition,
+        name: "update_chart_block",
+        description: """
+        Modifies an existing chart block. Provide the block_id from list_notebook_blocks plus the complete new chart configuration. \
+        The entire config is replaced — provide all fields, not just the ones you want to change. \
+        Always call get_table_schema first to understand available columns before updating a chart.
+        """
+    )
+
+    private static let updateSingleValueToolDefinition = addBlockIdToSchema(
+        singleValueToolDefinition,
+        name: "update_single_value_block",
+        description: """
+        Modifies an existing single value block. Provide the block_id plus the complete new configuration. \
+        The entire config is replaced.
+        """
+    )
+
+    private static let updateTextToolDefinition = addBlockIdToSchema(
+        textToolDefinition,
+        name: "update_text_block",
+        description: "Replaces the content of an existing text block. Provide the block_id plus the new markdown content."
+    )
+
+    private static let updateQueryToolDefinition = addBlockIdToSchema(
+        queryToolDefinition,
+        name: "update_query_block",
+        description: """
+        Modifies an existing query block's SQL, connection, or output name. Provide the block_id plus the complete new configuration. \
+        The entire config is replaced.
+        """
     )
 }
 

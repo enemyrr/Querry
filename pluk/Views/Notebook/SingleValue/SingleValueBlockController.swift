@@ -5,8 +5,9 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
 
     let viewModel: SingleValueBlockViewModel
     private let dataController: NotebookDataController
+    private let showChrome: Bool
 
-    private var titleLabel: NSTextField!
+    private(set) var titleLabel: NSTextField!
     private var runButton: NSButton!
     private var configButton: NSButton!
     private var blockContainer: NSView!
@@ -16,9 +17,10 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
     private var configController: SingleValueConfigController?
     private var configPopover: NSPopover?
 
-    init(block: NotebookBlock, dataController: NotebookDataController) {
+    init(block: NotebookBlock, dataController: NotebookDataController, showChrome: Bool = true) {
         self.dataController = dataController
-        self.viewModel = SingleValueBlockViewModel(block: block, dataController: dataController)
+        self.viewModel = dataController.singleValueViewModel(for: block)
+        self.showChrome = showChrome
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -27,38 +29,57 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
     }
 
     override func loadView() {
-        let wrapper = BlockHoverTrackingView { [weak self] isHovered in
-            guard let self,
-                  let blockIndex = self.dataController.blocks.firstIndex(where: { $0.id == self.viewModel.block.id }) else { return }
-            let showButtons = isHovered || self.configPopover?.isShown == true || self.popover?.isShown == true
-            self.runButton.isHidden = !showButtons
-            self.configButton.isHidden = !showButtons
-            self.menuButton.isHidden = !showButtons
-            NotificationCenter.default.post(
-                name: .notebookBlockHoverChanged,
-                object: nil,
-                userInfo: ["blockIndex": blockIndex, "isHovered": isHovered]
+        if showChrome {
+            let wrapper = BlockHoverTrackingView { [weak self] isHovered in
+                guard let self,
+                      let blockIndex = self.dataController.blocks.firstIndex(where: { $0.id == self.viewModel.block.id }) else { return }
+                let showButtons = isHovered || self.configPopover?.isShown == true || self.popover?.isShown == true
+                self.runButton.isHidden = !showButtons
+                self.configButton.isHidden = !showButtons
+                self.menuButton.isHidden = !showButtons
+                NotificationCenter.default.post(
+                    name: .notebookBlockHoverChanged,
+                    object: nil,
+                    userInfo: ["blockIndex": blockIndex, "isHovered": isHovered]
+                )
+            }
+            wrapper.wantsLayer = true
+            wrapper.translatesAutoresizingMaskIntoConstraints = false
+            self.view = wrapper
+
+            setupTitleLabel()
+            setupRunButton()
+            setupConfigButton()
+            setupBlockContainer()
+            setupMenuButton()
+            setupResizeHandle()
+            setupWrapperConstraints()
+            setupConfigView()
+
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleAppearanceChange),
+                name: .appAppearanceDidChange,
+                object: nil
             )
+        } else {
+            let wrapper = NSView()
+            wrapper.wantsLayer = true
+            wrapper.translatesAutoresizingMaskIntoConstraints = false
+            self.view = wrapper
+
+            setupBlockContainer()
+            blockContainer.layer?.borderWidth = 0
+
+            NSLayoutConstraint.activate([
+                blockContainer.topAnchor.constraint(equalTo: view.topAnchor),
+                blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                blockContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                blockContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ])
+
+            setupConfigView()
         }
-        wrapper.wantsLayer = true
-        wrapper.translatesAutoresizingMaskIntoConstraints = false
-        self.view = wrapper
-
-        setupTitleLabel()
-        setupRunButton()
-        setupConfigButton()
-        setupBlockContainer()
-        setupMenuButton()
-        setupResizeHandle()
-        setupWrapperConstraints()
-        setupConfigView()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAppearanceChange),
-            name: .appAppearanceDidChange,
-            object: nil
-        )
     }
 
     deinit {
@@ -90,10 +111,10 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
         runButton.bezelStyle = .accessoryBar
         runButton.isBordered = false
         runButton.imagePosition = .imageOnly
-        runButton.contentTintColor = .tertiaryLabelColor
+        runButton.contentTintColor = .white
         runButton.wantsLayer = true
         runButton.layer?.cornerRadius = 4
-        runButton.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.06).cgColor
+        runButton.layer?.backgroundColor = NSColor.primaryButton.cgColor
         runButton.translatesAutoresizingMaskIntoConstraints = false
         runButton.isHidden = true
         runButton.target = self
@@ -124,7 +145,8 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
     @objc private func showConfigPopover(_ sender: NSButton) {
         let popoverVC = SingleValueConfigPopoverController(
             viewModel: viewModel,
-            connections: dataController.connections
+            connections: dataController.connections,
+            dataController: dataController
         )
 
         let pop = NSPopover()
@@ -180,7 +202,7 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.topAnchor),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
             menuButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             menuButton.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
@@ -199,7 +221,7 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
 
             blockContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
             blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            blockContainer.widthAnchor.constraint(equalToConstant: 240),
+            blockContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             blockHeightConstraint,
 
             resizeHandle.topAnchor.constraint(equalTo: blockContainer.bottomAnchor),
@@ -274,7 +296,7 @@ final class SingleValueBlockController: NSViewController, NSTextFieldDelegate {
     // MARK: - Content
 
     private func setupConfigView() {
-        let configVC = SingleValueConfigController(viewModel: viewModel, connections: dataController.connections)
+        let configVC = SingleValueConfigController(viewModel: viewModel, connections: dataController.connections, dataController: dataController)
         addChild(configVC)
         configVC.view.translatesAutoresizingMaskIntoConstraints = false
         blockContainer.addSubview(configVC.view)

@@ -4,14 +4,16 @@ final class SingleValueConfigController: NSViewController {
 
     private let viewModel: SingleValueBlockViewModel
     private let connections: [Connection]
+    private weak var dataController: NotebookDataController?
 
     private var connectionPickerView: NSView?
     private var pickerDropdownRef: ConnectionPickerDropdown?
     private var singleValueDisplayView: SingleValueDisplayView?
 
-    init(viewModel: SingleValueBlockViewModel, connections: [Connection]) {
+    init(viewModel: SingleValueBlockViewModel, connections: [Connection], dataController: NotebookDataController?) {
         self.viewModel = viewModel
         self.connections = connections
+        self.dataController = dataController
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -56,9 +58,15 @@ final class SingleValueConfigController: NSViewController {
 
         let pickerDropdown = ConnectionPickerDropdown(
             connections: connections,
+            queryDataSourcesProvider: { [weak self] in
+                self?.dataController?.availableQueryDataSources ?? []
+            },
             onSelect: { [weak self] connection in
                 guard let self else { return }
                 Task { await self.viewModel.connectToSource(connection) }
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.viewModel.connectToQuerySource(blockId: source.blockId, outputName: source.outputName)
             }
         )
         pickerDropdown.translatesAutoresizingMaskIntoConstraints = false
@@ -135,10 +143,14 @@ final class SingleValueConfigPopoverController: NSViewController {
 
     private let viewModel: SingleValueBlockViewModel
     private let connections: [Connection]
+    private weak var dataController: NotebookDataController?
+    private var stack: NSStackView!
+    private var rebuildScheduled = false
 
-    init(viewModel: SingleValueBlockViewModel, connections: [Connection]) {
+    init(viewModel: SingleValueBlockViewModel, connections: [Connection], dataController: NotebookDataController?) {
         self.viewModel = viewModel
         self.connections = connections
+        self.dataController = dataController
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -151,10 +163,10 @@ final class SingleValueConfigPopoverController: NSViewController {
         container.wantsLayer = true
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        let stack = NSStackView()
+        stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 12
+        stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         container.addSubview(stack)
@@ -166,6 +178,15 @@ final class SingleValueConfigPopoverController: NSViewController {
             stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             container.widthAnchor.constraint(equalToConstant: 260),
         ])
+
+        rebuildRows()
+        observeViewModel()
+
+        self.view = container
+    }
+
+    private func rebuildRows() {
+        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         addConnectionRow(to: stack)
 
@@ -180,32 +201,108 @@ final class SingleValueConfigPopoverController: NSViewController {
         addTableRow(to: stack)
         addColumnRow(to: stack)
         addAggregationRow(to: stack)
+    }
 
-        self.view = container
+    private func observeViewModel() {
+        withObservationTracking {
+            _ = self.viewModel.config
+            _ = self.viewModel.availableCollections
+            _ = self.viewModel.availableSchemas
+            _ = self.viewModel.availableEnvironments
+            _ = self.viewModel.selectedPickerSchema
+            _ = self.viewModel.selectedEnvironment
+            _ = self.viewModel.schemaResult
+            _ = self.viewModel.isConnecting
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.scheduleRebuild()
+                self.observeViewModel()
+            }
+        }
+    }
+
+    private func scheduleRebuild() {
+        guard !rebuildScheduled else { return }
+        rebuildScheduled = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.rebuildScheduled = false
+            self.rebuildRows()
+        }
     }
 
     // MARK: - Rows
 
     private func addConnectionRow(to stack: NSStackView) {
-        let label = sectionLabel("Connection")
+        let label = sectionLabel("Data Source")
         let dropdown = SourceDropdownButton(
             connections: connections,
+            queryDataSourcesProvider: { [weak self] in
+                self?.dataController?.availableQueryDataSources ?? []
+            },
             onSelect: { [weak self] connection in
                 guard let self else { return }
                 Task { await self.viewModel.connectToSource(connection) }
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.viewModel.connectToQuerySource(blockId: source.blockId, outputName: source.outputName)
             }
         )
         dropdown.translatesAutoresizingMaskIntoConstraints = false
 
         if let cfg = viewModel.config, !cfg.connectionName.isEmpty {
-            let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
-            dropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            if let sourceBlockId = cfg.sourceQueryBlockId, !sourceBlockId.isEmpty {
+                dropdown.updateLabel(cfg.connectionName, systemSymbol: "doc.text")
+            } else {
+                let iconName = DatabaseType(rawValue: cfg.databaseType)?.icon
+                dropdown.updateLabel(cfg.connectionName, iconName: iconName)
+            }
+        } else {
+            dropdown.updateLabel("Select data source")
         }
 
-        stack.addArrangedSubview(label)
-        stack.addArrangedSubview(dropdown)
-        pinWidth(dropdown, to: stack)
+        let controlRow = NSStackView()
+        controlRow.orientation = .horizontal
+        controlRow.alignment = .centerY
+        controlRow.spacing = 6
+        controlRow.translatesAutoresizingMaskIntoConstraints = false
+        controlRow.addArrangedSubview(dropdown)
+
+        if viewModel.isConnecting {
+            let spinner = NSProgressIndicator()
+            spinner.style = .spinning
+            spinner.controlSize = .mini
+            spinner.translatesAutoresizingMaskIntoConstraints = false
+            spinner.startAnimation(nil)
+            controlRow.addArrangedSubview(spinner)
+        }
+
+        if viewModel.config != nil {
+            let spacer = NSView()
+            spacer.translatesAutoresizingMaskIntoConstraints = false
+            spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            controlRow.addArrangedSubview(spacer)
+
+            let resetButton = BlockActionButton(
+                iconName: "arrow.counterclockwise",
+                size: 10,
+                action: { [weak self] _ in self?.viewModel.resetConfig() }
+            )
+            resetButton.translatesAutoresizingMaskIntoConstraints = false
+            resetButton.installCustomTooltip("Reset", position: .top, delay: 0)
+            controlRow.addArrangedSubview(resetButton)
+            NSLayoutConstraint.activate([
+                resetButton.widthAnchor.constraint(equalToConstant: 24),
+                resetButton.heightAnchor.constraint(equalToConstant: 24),
+            ])
+        }
+
+        let row = makeRow(label: label, control: controlRow, fillWidth: true)
+        stack.addArrangedSubview(row)
+        pinWidth(row, to: stack)
     }
+
 
     private func addSchemaRow(to stack: NSStackView) {
         let label = sectionLabel("Schema")
@@ -219,9 +316,9 @@ final class SingleValueConfigPopoverController: NSViewController {
             dropdown.selectItem(selected)
         }
 
-        stack.addArrangedSubview(label)
-        stack.addArrangedSubview(dropdown)
-        pinWidth(dropdown, to: stack)
+        let row = makeRow(label: label, control: dropdown)
+        stack.addArrangedSubview(row)
+        pinWidth(row, to: stack)
     }
 
     private func addEnvironmentRow(to stack: NSStackView) {
@@ -236,9 +333,9 @@ final class SingleValueConfigPopoverController: NSViewController {
             dropdown.selectItem(selected)
         }
 
-        stack.addArrangedSubview(label)
-        stack.addArrangedSubview(dropdown)
-        pinWidth(dropdown, to: stack)
+        let row = makeRow(label: label, control: dropdown)
+        stack.addArrangedSubview(row)
+        pinWidth(row, to: stack)
     }
 
     private func addTableRow(to stack: NSStackView) {
@@ -252,9 +349,9 @@ final class SingleValueConfigPopoverController: NSViewController {
             dropdown.selectItem(tableName)
         }
 
-        stack.addArrangedSubview(label)
-        stack.addArrangedSubview(dropdown)
-        pinWidth(dropdown, to: stack)
+        let row = makeRow(label: label, control: dropdown)
+        stack.addArrangedSubview(row)
+        pinWidth(row, to: stack)
     }
 
     private func addColumnRow(to stack: NSStackView) {
@@ -269,9 +366,9 @@ final class SingleValueConfigPopoverController: NSViewController {
             dropdown.selectItem(column)
         }
 
-        stack.addArrangedSubview(label)
-        stack.addArrangedSubview(dropdown)
-        pinWidth(dropdown, to: stack)
+        let row = makeRow(label: label, control: dropdown)
+        stack.addArrangedSubview(row)
+        pinWidth(row, to: stack)
     }
 
     private func addAggregationRow(to stack: NSStackView) {
@@ -299,12 +396,29 @@ final class SingleValueConfigPopoverController: NSViewController {
             dropdown.selectItem(currentAgg.displayName)
         }
 
-        stack.addArrangedSubview(label)
-        stack.addArrangedSubview(dropdown)
-        pinWidth(dropdown, to: stack)
+        let row = makeRow(label: label, control: dropdown)
+        stack.addArrangedSubview(row)
+        pinWidth(row, to: stack)
     }
 
     // MARK: - Helpers
+
+    private func makeRow(label: NSView, control: NSView, fillWidth: Bool = true) -> NSStackView {
+        let row = NSStackView(views: [label, control])
+        row.orientation = .vertical
+        row.alignment = .leading
+        row.spacing = 4
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 0)
+        control.translatesAutoresizingMaskIntoConstraints = false
+        if fillWidth {
+            NSLayoutConstraint.activate([
+                control.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 2),
+                control.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            ])
+        }
+        return row
+    }
 
     private func sectionLabel(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
@@ -431,7 +545,7 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         errorLabel.isHidden = true
 
         if let value = viewModel.singleValueResult {
-            valueLabel.stringValue = formattedValue(value)
+            valueLabel.stringValue = value.abbreviatedString
             valueLabel.isHidden = false
 
             labelField.isHidden = false
@@ -460,19 +574,6 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         viewModel.setLabel(field.stringValue)
     }
 
-    private func formattedValue(_ value: Double) -> String {
-        if value >= 1_000_000 {
-            return (value / 1_000_000).formatted(.number.precision(.fractionLength(1))) + "M"
-        } else if value >= 10_000 {
-            return (value / 1_000).formatted(.number.precision(.fractionLength(0))) + "K"
-        } else if value >= 1_000 {
-            return (value / 1_000).formatted(.number.precision(.fractionLength(1))) + "K"
-        } else if value == value.rounded() {
-            return Int(value).formatted(.number)
-        } else {
-            return value.formatted(.number.precision(.fractionLength(2)))
-        }
-    }
 
     private static func roundedSystemFont(size: CGFloat, weight: NSFont.Weight) -> NSFont {
         let base = NSFont.systemFont(ofSize: size, weight: weight)
@@ -483,3 +584,4 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         return rounded
     }
 }
+

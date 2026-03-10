@@ -209,6 +209,7 @@ struct ChartBlockConfig: Codable {
     var chartType: ChartType = .groupedColumn
     var rowLimit: Int = 500
     var filters: [ChartFilterCondition] = []
+    var sourceQueryBlockId: String?
 
     func aggregation(forField fieldKey: String, column: String) -> AggregationFunction? {
         fieldAggregations[fieldKey]?[column]
@@ -241,7 +242,8 @@ struct ChartBlockConfig: Codable {
         fieldAggregations: [String: [String: AggregationFunction]] = [:],
         chartType: ChartType = .groupedColumn,
         rowLimit: Int = 500,
-        filters: [ChartFilterCondition] = []
+        filters: [ChartFilterCondition] = [],
+        sourceQueryBlockId: String? = nil
     ) {
         self.connectionKeychainId = connectionKeychainId
         self.connectionName = connectionName
@@ -254,6 +256,7 @@ struct ChartBlockConfig: Codable {
         self.chartType = chartType
         self.rowLimit = rowLimit
         self.filters = filters
+        self.sourceQueryBlockId = sourceQueryBlockId
     }
 
     init(from decoder: Decoder) throws {
@@ -268,6 +271,7 @@ struct ChartBlockConfig: Codable {
         rowLimit = try container.decodeIfPresent(Int.self, forKey: .rowLimit) ?? 500
         filters = try container.decodeIfPresent([ChartFilterCondition].self, forKey: .filters) ?? []
         fieldAggregations = try container.decodeIfPresent([String: [String: AggregationFunction]].self, forKey: .fieldAggregations) ?? [:]
+        sourceQueryBlockId = try container.decodeIfPresent(String.self, forKey: .sourceQueryBlockId)
 
         if let decoded = try container.decodeIfPresent([String: [String]].self, forKey: .fields) {
             fields = decoded
@@ -296,11 +300,13 @@ struct ChartBlockConfig: Codable {
         try container.encode(chartType, forKey: .chartType)
         try container.encode(rowLimit, forKey: .rowLimit)
         try container.encode(filters, forKey: .filters)
+        try container.encodeIfPresent(sourceQueryBlockId, forKey: .sourceQueryBlockId)
     }
 
     private enum CodingKeys: String, CodingKey {
         case connectionKeychainId, connectionName, databaseType, databaseName
         case schemaName, tableName, fields, fieldAggregations, chartType, rowLimit, filters
+        case sourceQueryBlockId
         case legacyXAxis = "xAxisColumn"
         case legacyYAxis = "yAxisColumn"
     }

@@ -17,19 +17,25 @@ class DashboardBaseItem: NSCollectionViewItem {
     var onDragMoved: ((NSEvent) -> Void)?
     var onDragEnded: ((NSEvent) -> Void)?
     var onRun: (() -> Void)?
+    var onToggleDashboardVisibility: (() -> Void)?
 
     private(set) var dragHandle: DashboardDragHandle!
     private(set) var titleLabel: NSTextField!
-    private(set) var runButton: NSButton!
+    private(set) var actionBar: BlockActionBar!
     private(set) var blockContainer: NSView!
     private(set) var resizeHandle: BlockResizeHandle!
     private(set) var widthResizeHandle: BlockWidthResizeHandle!
     private(set) var handleWidthConstraint: NSLayoutConstraint!
+    private var blockContainerTopToActionBar: NSLayoutConstraint!
+    private var blockContainerTopToView: NSLayoutConstraint!
+    private var resizeHandleHeightConstraint: NSLayoutConstraint!
 
     weak var currentBlock: NotebookBlock?
     private(set) var isPublished = false
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
+    private var isResizing = false
+    private var lastTrackedBounds: NSRect = .zero
 
     var minimumContentHeight: CGFloat { 80 }
 
@@ -43,7 +49,7 @@ class DashboardBaseItem: NSCollectionViewItem {
 
         setupDragHandle()
         setupTitleLabel()
-        setupRunButton()
+        setupActionBar()
         setupBlockContainer()
         setupContent()
         setupResizeHandle()
@@ -69,20 +75,27 @@ class DashboardBaseItem: NSCollectionViewItem {
     func configureBase(block: NotebookBlock, isPublished: Bool) {
         currentBlock = block
         self.isPublished = isPublished
+        isHovered = false
 
         titleLabel.stringValue = block.title.isEmpty ? "Untitled \(block.blockType.displayName)" : block.title
-        let isSingleValue = block.blockType == .singleValue
         let isText = block.blockType == .text
-        titleLabel.isHidden = isPublished
+        let showsHeightResizeHandle = !isPublished
+        let showsWidthResizeHandle = !isPublished
+        titleLabel.isHidden = isPublished && isText
         dragHandle.isHidden = isPublished
-        runButton.isHidden = isPublished || isText
-        resizeHandle.isHidden = isPublished || isSingleValue
-        widthResizeHandle.isHidden = isPublished || isSingleValue
-        handleWidthConstraint.constant = (isPublished || isSingleValue) ? 0 : 12
+        actionBar.isHidden = isPublished
+        actionBar.setRunButtonHidden(isText)
+        actionBar.setDashboardHidden(block.isHiddenInDashboard)
+        resizeHandle.isHidden = !showsHeightResizeHandle
+        widthResizeHandle.isHidden = !showsWidthResizeHandle
+        handleWidthConstraint.constant = showsWidthResizeHandle ? 12 : 0
+        resizeHandleHeightConstraint.constant = showsHeightResizeHandle ? 12 : 0
 
-        if isSingleValue && !isPublished {
-            blockContainer.layer?.borderColor = borderColorForAppearance()
-        }
+        let hideTitle = isPublished && isText
+        blockContainerTopToActionBar.isActive = !hideTitle
+        blockContainerTopToView.isActive = hideTitle
+
+        updateChrome(animated: false)
     }
 
     // MARK: - Setup
@@ -107,28 +120,15 @@ class DashboardBaseItem: NSCollectionViewItem {
         view.addSubview(titleLabel)
     }
 
-    private func setupRunButton() {
-        runButton = NSButton(frame: .zero)
-        runButton.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Run")
-        runButton.symbolConfiguration = .init(pointSize: 9, weight: .medium)
-        runButton.bezelStyle = .accessoryBar
-        runButton.isBordered = false
-        runButton.imagePosition = .imageOnly
-        runButton.contentTintColor = .tertiaryLabelColor
-        runButton.wantsLayer = true
-        runButton.layer?.cornerRadius = 4
-        runButton.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.06).cgColor
-        runButton.translatesAutoresizingMaskIntoConstraints = false
-        runButton.alphaValue = 0
-        runButton.target = self
-        runButton.action = #selector(handleRunTapped)
-        view.addSubview(runButton)
+    private func setupActionBar() {
+        actionBar = BlockActionBar(
+            onRun: { [weak self] in self?.onRun?() },
+            onToggleDashboard: { [weak self] in self?.onToggleDashboardVisibility?() }
+        )
+        actionBar.translatesAutoresizingMaskIntoConstraints = false
+        actionBar.alphaValue = 0
+        view.addSubview(actionBar)
     }
-
-    @objc private func handleRunTapped() {
-        onRun?()
-    }
-
 
     private func setupBlockContainer() {
         blockContainer = NSView()
@@ -147,6 +147,9 @@ class DashboardBaseItem: NSCollectionViewItem {
             let newHeight = max(self.minimumContentHeight, block.blockHeight + Double(delta))
             self.onResize?(block, newHeight)
         })
+        resizeHandle.onDragStateChanged = { [weak self] isDragging in
+            self?.setResizing(isDragging)
+        }
         resizeHandle.translatesAutoresizingMaskIntoConstraints = false
         resizeHandle.alphaValue = 0
         view.addSubview(resizeHandle)
@@ -157,6 +160,9 @@ class DashboardBaseItem: NSCollectionViewItem {
             guard let self, let block = self.currentBlock else { return }
             self.onWidthResize?(block, delta)
         })
+        widthResizeHandle.onDragStateChanged = { [weak self] isDragging in
+            self?.setResizing(isDragging)
+        }
         widthResizeHandle.translatesAutoresizingMaskIntoConstraints = false
         widthResizeHandle.alphaValue = 0
         view.addSubview(widthResizeHandle)
@@ -164,6 +170,11 @@ class DashboardBaseItem: NSCollectionViewItem {
 
     private func setupBaseConstraints() {
         handleWidthConstraint = widthResizeHandle.widthAnchor.constraint(equalToConstant: 12)
+        blockContainerTopToActionBar = blockContainer.topAnchor.constraint(equalTo: actionBar.bottomAnchor, constant: 4)
+        blockContainerTopToView = blockContainer.topAnchor.constraint(equalTo: view.topAnchor)
+        resizeHandleHeightConstraint = resizeHandle.heightAnchor.constraint(equalToConstant: 12)
+
+        blockContainerTopToActionBar.isActive = true
 
         NSLayoutConstraint.activate([
             dragHandle.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
@@ -171,16 +182,13 @@ class DashboardBaseItem: NSCollectionViewItem {
             dragHandle.widthAnchor.constraint(equalToConstant: 14),
             dragHandle.heightAnchor.constraint(equalToConstant: 14),
 
-            titleLabel.topAnchor.constraint(equalTo: view.topAnchor),
+            actionBar.topAnchor.constraint(equalTo: view.topAnchor),
+            actionBar.trailingAnchor.constraint(equalTo: widthResizeHandle.leadingAnchor),
+
+            titleLabel.bottomAnchor.constraint(equalTo: actionBar.bottomAnchor),
             titleLabel.leadingAnchor.constraint(equalTo: dragHandle.trailingAnchor, constant: 2),
-            titleLabel.trailingAnchor.constraint(equalTo: runButton.leadingAnchor, constant: -2),
+            titleLabel.trailingAnchor.constraint(equalTo: actionBar.leadingAnchor, constant: -8),
 
-            runButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
-            runButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
-            runButton.widthAnchor.constraint(equalToConstant: 18),
-            runButton.heightAnchor.constraint(equalToConstant: 12),
-
-            blockContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
             blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             blockContainer.trailingAnchor.constraint(equalTo: widthResizeHandle.leadingAnchor),
 
@@ -192,7 +200,7 @@ class DashboardBaseItem: NSCollectionViewItem {
             resizeHandle.topAnchor.constraint(equalTo: blockContainer.bottomAnchor),
             resizeHandle.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
             resizeHandle.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
-            resizeHandle.heightAnchor.constraint(equalToConstant: 12),
+            resizeHandleHeightConstraint,
             resizeHandle.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }
@@ -201,8 +209,11 @@ class DashboardBaseItem: NSCollectionViewItem {
 
     override func viewDidLayout() {
         super.viewDidLayout()
-        refreshTrackingArea()
-        refreshHoverState()
+        if view.bounds != lastTrackedBounds {
+            lastTrackedBounds = view.bounds
+            refreshTrackingArea()
+            refreshHoverState()
+        }
     }
 
     private func refreshTrackingArea() {
@@ -235,18 +246,43 @@ class DashboardBaseItem: NSCollectionViewItem {
     private func setHovered(_ hovered: Bool) {
         guard hovered != isHovered else { return }
         isHovered = hovered
-        guard !isPublished else { return }
-        let isSingleValue = currentBlock?.blockType == .singleValue
-        blockContainer.layer?.borderColor = (hovered || isSingleValue) ? borderColorForAppearance() : NSColor.clear.cgColor
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            let alpha: CGFloat = hovered ? 1 : 0
-            dragHandle.animator().alphaValue = alpha
-            runButton.animator().alphaValue = alpha
-            if !isSingleValue {
-                resizeHandle.animator().alphaValue = alpha
-                widthResizeHandle.animator().alphaValue = alpha
+        updateChrome(animated: true)
+    }
+
+    private func setResizing(_ resizing: Bool) {
+        guard resizing != isResizing else { return }
+        isResizing = resizing
+        updateChrome(animated: true)
+    }
+
+    private func updateChrome(animated: Bool) {
+        let alwaysShowsBorder = currentBlock?.blockType == .singleValue || currentBlock?.blockType == .query
+        if isPublished {
+            let showBorder = isHovered || currentBlock?.blockType == .singleValue || currentBlock?.blockType == .query
+            blockContainer.layer?.borderColor = showBorder ? borderColorForAppearance() : NSColor.clear.cgColor
+            return
+        }
+        let isActive = isHovered || isResizing
+        blockContainer.layer?.borderColor = (isActive || alwaysShowsBorder) ? borderColorForAppearance() : NSColor.clear.cgColor
+
+        let updates = {
+            let alpha: CGFloat = isActive ? 1 : 0
+            self.dragHandle.animator().alphaValue = alpha
+            self.actionBar.animator().alphaValue = alpha
+            self.resizeHandle.animator().alphaValue = alpha
+            self.widthResizeHandle.animator().alphaValue = alpha
+        }
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                updates()
             }
+        } else {
+            NSAnimationContext.beginGrouping()
+            NSAnimationContext.current.duration = 0
+            updates()
+            NSAnimationContext.endGrouping()
         }
     }
 
@@ -264,8 +300,8 @@ class DashboardBaseItem: NSCollectionViewItem {
     }
 
     @objc private func handleAppearanceChange() {
-        let isSingleValue = currentBlock?.blockType == .singleValue
-        if isHovered || (isSingleValue && !isPublished) {
+        let alwaysShowsBorder = currentBlock?.blockType == .singleValue || currentBlock?.blockType == .query
+        if isHovered || isResizing || (alwaysShowsBorder && !isPublished) {
             blockContainer.layer?.borderColor = borderColorForAppearance()
         }
     }

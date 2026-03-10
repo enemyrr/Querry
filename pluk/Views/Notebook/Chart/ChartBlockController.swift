@@ -5,8 +5,9 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 
     let viewModel: ChartBlockViewModel
     private let dataController: NotebookDataController
+    private let showChrome: Bool
 
-    private var titleLabel: NSTextField!
+    private(set) var titleLabel: NSTextField!
     private var blockContainer: NSView!
     private var runButton: NSButton!
     private var menuButton: NSButton!
@@ -14,9 +15,10 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
     private var blockHeightConstraint: NSLayoutConstraint!
     private var configController: ChartConfigController?
 
-    init(block: NotebookBlock, dataController: NotebookDataController) {
+    init(block: NotebookBlock, dataController: NotebookDataController, showChrome: Bool = true) {
         self.dataController = dataController
         self.viewModel = dataController.chartViewModel(for: block)
+        self.showChrome = showChrome
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -25,36 +27,55 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
     }
 
     override func loadView() {
-        let wrapper = BlockHoverTrackingView { [weak self] isHovered in
-            guard let self,
-                  let blockIndex = self.dataController.blocks.firstIndex(where: { $0.id == self.viewModel.block.id }) else { return }
-            let showButtons = isHovered || self.popover?.isShown == true
-            self.runButton.isHidden = !showButtons
-            self.menuButton.isHidden = !showButtons
-            NotificationCenter.default.post(
-                name: .notebookBlockHoverChanged,
-                object: nil,
-                userInfo: ["blockIndex": blockIndex, "isHovered": isHovered]
+        if showChrome {
+            let wrapper = BlockHoverTrackingView { [weak self] isHovered in
+                guard let self,
+                      let blockIndex = self.dataController.blocks.firstIndex(where: { $0.id == self.viewModel.block.id }) else { return }
+                let showButtons = isHovered || self.popover?.isShown == true
+                self.runButton.isHidden = !showButtons
+                self.menuButton.isHidden = !showButtons
+                NotificationCenter.default.post(
+                    name: .notebookBlockHoverChanged,
+                    object: nil,
+                    userInfo: ["blockIndex": blockIndex, "isHovered": isHovered]
+                )
+            }
+            wrapper.wantsLayer = true
+            wrapper.translatesAutoresizingMaskIntoConstraints = false
+            self.view = wrapper
+
+            setupTitleLabel()
+            setupBlockContainer()
+            setupRunButton()
+            setupMenuButton()
+            setupResizeHandle()
+            setupWrapperConstraints()
+            setupConfigView()
+
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleAppearanceChange),
+                name: .appAppearanceDidChange,
+                object: nil
             )
+        } else {
+            let wrapper = NSView()
+            wrapper.wantsLayer = true
+            wrapper.translatesAutoresizingMaskIntoConstraints = false
+            self.view = wrapper
+
+            setupBlockContainer()
+            blockContainer.layer?.borderWidth = 0
+
+            NSLayoutConstraint.activate([
+                blockContainer.topAnchor.constraint(equalTo: view.topAnchor),
+                blockContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                blockContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                blockContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ])
+
+            setupConfigView()
         }
-        wrapper.wantsLayer = true
-        wrapper.translatesAutoresizingMaskIntoConstraints = false
-        self.view = wrapper
-
-        setupTitleLabel()
-        setupBlockContainer()
-        setupRunButton()
-        setupMenuButton()
-        setupResizeHandle()
-        setupWrapperConstraints()
-        setupConfigView()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAppearanceChange),
-            name: .appAppearanceDidChange,
-            object: nil
-        )
     }
 
     deinit {
@@ -96,10 +117,10 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
         runButton.bezelStyle = .accessoryBar
         runButton.isBordered = false
         runButton.imagePosition = .imageOnly
-        runButton.contentTintColor = .tertiaryLabelColor
+        runButton.contentTintColor = .white
         runButton.wantsLayer = true
         runButton.layer?.cornerRadius = 4
-        runButton.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.06).cgColor
+        runButton.layer?.backgroundColor = NSColor.primaryButton.cgColor
         runButton.isHidden = true
         runButton.translatesAutoresizingMaskIntoConstraints = false
         runButton.target = self
@@ -147,7 +168,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.topAnchor),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
 
             runButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
@@ -239,7 +260,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
     // MARK: - Content
 
     private func setupConfigView() {
-        let configVC = ChartConfigController(viewModel: viewModel, connections: dataController.connections)
+        let configVC = ChartConfigController(viewModel: viewModel, connections: dataController.connections, dataController: dataController)
         addChild(configVC)
         configVC.view.translatesAutoresizingMaskIntoConstraints = false
         blockContainer.addSubview(configVC.view)
@@ -265,17 +286,28 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
 final class SourceDropdownButton: NSView, NSPopoverDelegate {
 
     private let connections: [Connection]
+    private let queryDataSourcesProvider: (() -> [NotebookDataController.QueryDataSource])?
     private let onSelect: (Connection) -> Void
+    private let onSelectQuerySource: ((NotebookDataController.QueryDataSource) -> Void)?
     private let iconView: NSImageView
     private let label: NSTextField
     private let chevron: NSImageView
     private var trackingArea: NSTrackingArea?
     private var isHovering = false
+    private var labelLeadingWithIcon: NSLayoutConstraint!
+    private var labelLeadingWithoutIcon: NSLayoutConstraint!
     var isEnabled = true
 
-    init(connections: [Connection], onSelect: @escaping (Connection) -> Void) {
+    init(
+        connections: [Connection],
+        queryDataSourcesProvider: (() -> [NotebookDataController.QueryDataSource])? = nil,
+        onSelect: @escaping (Connection) -> Void,
+        onSelectQuerySource: ((NotebookDataController.QueryDataSource) -> Void)? = nil
+    ) {
         self.connections = connections
+        self.queryDataSourcesProvider = queryDataSourcesProvider
         self.onSelect = onSelect
+        self.onSelectQuerySource = onSelectQuerySource
         self.iconView = NSImageView()
         self.label = NSTextField(labelWithString: "Select connection")
         self.chevron = NSImageView()
@@ -303,13 +335,16 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
         chevron.translatesAutoresizingMaskIntoConstraints = false
         addSubview(chevron)
 
+        labelLeadingWithIcon = label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4)
+        labelLeadingWithoutIcon = label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6)
+        labelLeadingWithoutIcon.isActive = true
+
         NSLayoutConstraint.activate([
             iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 16),
             iconView.heightAnchor.constraint(equalToConstant: 16),
 
-            label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             chevron.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 4),
@@ -325,7 +360,7 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
     }
 
     override var intrinsicContentSize: NSSize {
-        let iconSectionWidth: CGFloat = 20
+        let iconSectionWidth: CGFloat = iconView.isHidden ? 0 : 20
         let labelWidth = ceil(label.intrinsicContentSize.width)
         let chevronSectionWidth: CGFloat = 16
         let horizontalInsets: CGFloat = 12
@@ -333,7 +368,7 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
         return NSSize(width: width, height: 24)
     }
 
-    func updateLabel(_ text: String, iconName: String? = nil) {
+    func updateLabel(_ text: String, iconName: String? = nil, systemSymbol: String? = nil) {
         label.stringValue = text
         label.textColor = .secondaryLabelColor
         if let iconName {
@@ -341,10 +376,19 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
             img?.size = NSSize(width: 14, height: 14)
             iconView.image = img
             iconView.isHidden = false
+        } else if let systemSymbol {
+            iconView.image = NSImage(systemSymbolName: systemSymbol, accessibilityDescription: nil)
+            iconView.symbolConfiguration = .init(pointSize: 11, weight: .medium)
+            iconView.contentTintColor = .secondaryLabelColor
+            iconView.isHidden = false
         } else {
             iconView.image = nil
             iconView.isHidden = true
         }
+
+        let showIcon = !iconView.isHidden
+        labelLeadingWithIcon.isActive = showIcon
+        labelLeadingWithoutIcon.isActive = !showIcon
         invalidateIntrinsicContentSize()
     }
 
@@ -403,12 +447,19 @@ final class SourceDropdownButton: NSView, NSPopoverDelegate {
 
     private func showConnectionsPopover() {
         let popoverVC = SourceConnectionsPopoverController(
-            connections: connections
-        ) { [weak self] connection in
-            self?.popover?.performClose(nil)
-            self?.popover = nil
-            self?.onSelect(connection)
-        }
+            connections: connections,
+            queryDataSources: queryDataSourcesProvider?() ?? [],
+            onSelect: { [weak self] connection in
+                self?.popover?.performClose(nil)
+                self?.popover = nil
+                self?.onSelect(connection)
+            },
+            onSelectQuerySource: { [weak self] source in
+                self?.popover?.performClose(nil)
+                self?.popover = nil
+                self?.onSelectQuerySource?(source)
+            }
+        )
 
         let pop = NSPopover()
         pop.delegate = self
@@ -641,11 +692,20 @@ final class StyledDropdown: NSView {
 final class SourceConnectionsPopoverController: NSViewController {
 
     private let connections: [Connection]
+    private let queryDataSources: [NotebookDataController.QueryDataSource]
     private let onSelect: (Connection) -> Void
+    private let onSelectQuerySource: ((NotebookDataController.QueryDataSource) -> Void)?
 
-    init(connections: [Connection], onSelect: @escaping (Connection) -> Void) {
+    init(
+        connections: [Connection],
+        queryDataSources: [NotebookDataController.QueryDataSource] = [],
+        onSelect: @escaping (Connection) -> Void,
+        onSelectQuerySource: ((NotebookDataController.QueryDataSource) -> Void)? = nil
+    ) {
         self.connections = connections
+        self.queryDataSources = queryDataSources
         self.onSelect = onSelect
+        self.onSelectQuerySource = onSelectQuerySource
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -661,20 +721,70 @@ final class SourceConnectionsPopoverController: NSViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.edgeInsets = NSEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
 
-        for connection in connections {
-            let item = ConnectionMenuItem(connection: connection) { [weak self] in
-                self?.onSelect(connection)
-            }
-            item.translatesAutoresizingMaskIntoConstraints = false
-            stack.addArrangedSubview(item)
+        if !queryDataSources.isEmpty {
+            let header = makeSectionHeader("QUERY OUTPUTS")
+            stack.addArrangedSubview(header)
             NSLayoutConstraint.activate([
-                item.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
-                item.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+                header.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 3),
+                header.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
             ])
+
+            for source in queryDataSources {
+                let item = QuerySourceMenuItem(outputName: source.outputName) { [weak self] in
+                    self?.onSelectQuerySource?(source)
+                }
+                item.translatesAutoresizingMaskIntoConstraints = false
+                stack.addArrangedSubview(item)
+                NSLayoutConstraint.activate([
+                    item.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
+                    item.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+                ])
+            }
+
+        }
+
+        if !connections.isEmpty {
+            if !queryDataSources.isEmpty {
+                let header = makeSectionHeader("CONNECTIONS")
+                stack.addArrangedSubview(header)
+                NSLayoutConstraint.activate([
+                    header.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 3),
+                    header.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+                ])
+            }
+
+            for connection in connections {
+                let item = ConnectionMenuItem(connection: connection) { [weak self] in
+                    self?.onSelect(connection)
+                }
+                item.translatesAutoresizingMaskIntoConstraints = false
+                stack.addArrangedSubview(item)
+                NSLayoutConstraint.activate([
+                    item.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: 6),
+                    item.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -6),
+                ])
+            }
         }
 
         stack.widthAnchor.constraint(equalToConstant: 220).isActive = true
         self.view = stack
+    }
+
+    private func makeSectionHeader(_ title: String) -> NSView {
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 10, weight: .medium)
+        label.textColor = .tertiaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let wrapper = NSView()
+        wrapper.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor, constant: 10),
+            label.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor, constant: -10),
+            label.topAnchor.constraint(equalTo: wrapper.topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor, constant: -2),
+        ])
+        return wrapper
     }
 }
 
@@ -701,6 +811,80 @@ final class ConnectionMenuItem: NSView {
         addSubview(iconView)
 
         let label = NSTextField(labelWithString: connection.name)
+        label.font = .systemFont(ofSize: 13)
+        label.textColor = .labelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
+
+            label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        applyHoverBackground(isHovering)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        applyHoverBackground(isHovering)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        action()
+    }
+}
+
+// MARK: - Query source menu item
+
+final class QuerySourceMenuItem: NSView {
+
+    private let action: () -> Void
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    init(outputName: String, action: @escaping () -> Void) {
+        self.action = action
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        let iconView = NSImageView()
+        let icon = NSImage(systemSymbolName: "tablecells", accessibilityDescription: nil)
+        iconView.image = icon
+        iconView.symbolConfiguration = .init(pointSize: 12, weight: .medium)
+        iconView.contentTintColor = .secondaryLabelColor
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+
+        let label = NSTextField(labelWithString: outputName)
         label.font = .systemFont(ofSize: 13)
         label.textColor = .labelColor
         label.lineBreakMode = .byTruncatingTail
@@ -933,6 +1117,7 @@ final class BlockResizeHandle: NSView {
     private var lastY: CGFloat = 0
     private var isDragging = false
     private let indicator = NSView()
+    var onDragStateChanged: ((Bool) -> Void)?
 
     init(onDrag: @escaping (CGFloat) -> Void) {
         self.onDrag = onDrag
@@ -991,6 +1176,7 @@ final class BlockResizeHandle: NSView {
     override func mouseDown(with event: NSEvent) {
         lastY = event.locationInWindow.y
         isDragging = true
+        onDragStateChanged?(true)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -1002,6 +1188,7 @@ final class BlockResizeHandle: NSView {
 
     override func mouseUp(with event: NSEvent) {
         isDragging = false
+        onDragStateChanged?(false)
         if !bounds.contains(convert(event.locationInWindow, from: nil)) {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.15
@@ -1019,6 +1206,7 @@ final class BlockWidthResizeHandle: NSView {
     private var lastX: CGFloat = 0
     private var isDragging = false
     private let indicator = NSView()
+    var onDragStateChanged: ((Bool) -> Void)?
 
     init(onDrag: @escaping (CGFloat) -> Void) {
         self.onDrag = onDrag
@@ -1071,6 +1259,7 @@ final class BlockWidthResizeHandle: NSView {
     override func mouseDown(with event: NSEvent) {
         lastX = event.locationInWindow.x
         isDragging = true
+        onDragStateChanged?(true)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -1081,6 +1270,7 @@ final class BlockWidthResizeHandle: NSView {
 
     override func mouseUp(with event: NSEvent) {
         isDragging = false
+        onDragStateChanged?(false)
         if !bounds.contains(convert(event.locationInWindow, from: nil)) {
             fadeIndicator(to: 0)
         }

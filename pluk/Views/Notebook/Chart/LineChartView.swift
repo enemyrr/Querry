@@ -4,24 +4,49 @@ import Charts
 struct LineChartView: View {
     let data: [ChartDataPoint]
 
+    private var isMultiSeries: Bool {
+        ChartDataPoint.hasMultipleSeries(data)
+    }
+
     var body: some View {
         GeometryReader { geo in
             let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
-            Chart(data) { point in
-                LineMark(
-                    x: .value("X", point.x),
-                    y: .value("Y", point.y)
-                )
-                .foregroundStyle(Color.accentColor)
-                .interpolationMethod(.catmullRom)
+            let series = ChartDataPoint.seriesNames(data)
+            let colors = series.indices.map { ChartDataPoint.seriesPalette[$0 % ChartDataPoint.seriesPalette.count] }
 
-                PointMark(
-                    x: .value("X", point.x),
-                    y: .value("Y", point.y)
-                )
-                .foregroundStyle(Color.accentColor)
-                .symbolSize(20)
+            Chart(data) { point in
+                if isMultiSeries {
+                    LineMark(
+                        x: .value("X", point.x),
+                        y: .value("Y", point.y)
+                    )
+                    .foregroundStyle(by: .value("Series", point.series))
+                    .interpolationMethod(.linear)
+
+                    PointMark(
+                        x: .value("X", point.x),
+                        y: .value("Y", point.y)
+                    )
+                    .foregroundStyle(by: .value("Series", point.series))
+                    .symbolSize(20)
+                } else {
+                    LineMark(
+                        x: .value("X", point.x),
+                        y: .value("Y", point.y)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .interpolationMethod(.linear)
+
+                    PointMark(
+                        x: .value("X", point.x),
+                        y: .value("Y", point.y)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .symbolSize(20)
+                }
             }
+            .chartForegroundStyleScale(domain: series, range: colors)
+            .chartLegend(isMultiSeries ? .visible : .hidden)
             .chartXAxis {
                 AxisMarks(values: .automatic) { value in
                     if let label = value.as(String.self),

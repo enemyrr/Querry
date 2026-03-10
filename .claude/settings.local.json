@@ -14,7 +14,11 @@
       "Read",
       "Bash(wc:*)",
       "Bash(test:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(xctrace export:*)",
+      "Bash(/Applications/Xcode.app/Contents/Developer/usr/bin/xctrace export:*)"
     ],
     "deny": [],
     "ask": [],

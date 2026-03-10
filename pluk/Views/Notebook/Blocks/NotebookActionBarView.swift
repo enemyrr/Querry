@@ -72,8 +72,8 @@ final class NotebookActionBarView: NSView {
         ]
 
         if insertionIndex == nil {
-            constraints.append(chromeView.topAnchor.constraint(equalTo: topAnchor, constant: 16))
-            constraints.append(chromeView.bottomAnchor.constraint(equalTo: bottomAnchor))
+            constraints.append(chromeView.topAnchor.constraint(equalTo: topAnchor, constant: -16))
+            constraints.append(chromeView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -26))
         } else {
             constraints.append(chromeView.topAnchor.constraint(equalTo: topAnchor))
             constraints.append(chromeView.bottomAnchor.constraint(equalTo: bottomAnchor))
@@ -103,6 +103,12 @@ final class NotebookActionBarView: NSView {
                 dataController.insertSingleValueBlock(at: index)
             } else {
                 dataController.addSingleValueBlock()
+            }
+        case .query:
+            if let index = insertionIndex {
+                dataController.insertQueryBlock(at: index)
+            } else {
+                dataController.addQueryBlock()
             }
         default:
             break
@@ -166,13 +172,8 @@ private final class NotebookActionBarChromeView: NSView {
             layer?.borderWidth = isDark ? 1 : 0.5
 
             if isDark {
-                backgroundLayer.backgroundColor = NSColor.controlColor.withAlphaComponent(0.16).cgColor
-                gradientLayer.startPoint = CGPoint(x: 0.5, y: 1)
-                gradientLayer.endPoint = CGPoint(x: 0.5, y: 0)
-                gradientLayer.colors = [
-                    NSColor.controlBackgroundColor.withAlphaComponent(0.08).cgColor,
-                    NSColor.clear.cgColor,
-                ]
+                backgroundLayer.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+                gradientLayer.colors = nil
                 layer?.backgroundColor = NSColor.clear.cgColor
             } else {
                 backgroundLayer.backgroundColor = NSColor.white.cgColor
@@ -216,6 +217,251 @@ private final class NotebookActionDividerView: NSView {
 
     private func updateColor() {
         layer?.backgroundColor = NSColor.separatorColor.cgColor
+    }
+}
+
+// MARK: - Fade Line
+
+final class BlockInsertionFadeLine: NSView {
+
+    enum FadeEdge { case leading, trailing }
+
+    private let fadeEdge: FadeEdge
+    private let colorLayer = CALayer()
+    private let gradientMask = CAGradientLayer()
+
+    init(fadeEdge: FadeEdge) {
+        self.fadeEdge = fadeEdge
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.masksToBounds = true
+
+        layer?.addSublayer(colorLayer)
+
+        gradientMask.colors = [
+            NSColor.black.withAlphaComponent(0).cgColor,
+            NSColor.black.cgColor,
+        ]
+        gradientMask.startPoint = fadeEdge == .leading ? CGPoint(x: 0, y: 0.5) : CGPoint(x: 1, y: 0.5)
+        gradientMask.endPoint = fadeEdge == .leading ? CGPoint(x: 1, y: 0.5) : CGPoint(x: 0, y: 0.5)
+        layer?.mask = gradientMask
+
+        updateColor()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppearanceChange),
+            name: .appAppearanceDidChange,
+            object: nil
+        )
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        colorLayer.frame = bounds
+        gradientMask.frame = bounds
+        CATransaction.commit()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColor()
+    }
+
+    @objc private func handleAppearanceChange() {
+        updateColor()
+    }
+
+    private func updateColor() {
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+            colorLayer.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.08).cgColor
+                : NSColor.black.withAlphaComponent(0.06).cgColor
+        }
+    }
+}
+
+// MARK: - Block Insertion Indicator (between blocks)
+
+final class BlockInsertionIndicatorView: NSView {
+
+    private let leftLine = BlockInsertionFadeLine(fadeEdge: .leading)
+    private let rightLine = BlockInsertionFadeLine(fadeEdge: .trailing)
+    private let chrome = NSView()
+    private let iconView = NSImageView()
+    private let label = NSTextField(labelWithString: "Add new")
+    private let contentStack = NSStackView()
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    var onPlusTapped: ((NSView) -> Void)?
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    private func setup() {
+        wantsLayer = true
+
+        for line in [leftLine, rightLine] {
+            line.alphaValue = 0
+            line.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(line)
+        }
+
+        chrome.wantsLayer = true
+        chrome.layer?.cornerRadius = 7
+        chrome.layer?.masksToBounds = true
+        chrome.alphaValue = 0
+        chrome.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(chrome)
+
+        let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .medium)
+        iconView.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add block")?
+            .withSymbolConfiguration(config)
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        contentStack.orientation = .horizontal
+        contentStack.alignment = .centerY
+        contentStack.spacing = 3
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        contentStack.addArrangedSubview(iconView)
+        contentStack.addArrangedSubview(label)
+        chrome.addSubview(contentStack)
+
+        NSLayoutConstraint.activate([
+            leftLine.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            leftLine.trailingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: -6),
+            leftLine.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            leftLine.heightAnchor.constraint(equalToConstant: 1),
+
+            rightLine.leadingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: 6),
+            rightLine.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            rightLine.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            rightLine.heightAnchor.constraint(equalToConstant: 1),
+
+            chrome.centerXAnchor.constraint(equalTo: centerXAnchor),
+            chrome.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            chrome.heightAnchor.constraint(equalToConstant: 26),
+
+            contentStack.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 5),
+            contentStack.leadingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: 10),
+            contentStack.trailingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: -10),
+            contentStack.bottomAnchor.constraint(equalTo: chrome.bottomAnchor, constant: -5),
+
+            iconView.widthAnchor.constraint(equalToConstant: 12),
+            iconView.heightAnchor.constraint(equalToConstant: 12),
+        ])
+
+        updateAppearance()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppearanceChange),
+            name: .appAppearanceDidChange,
+            object: nil
+        )
+    }
+
+    // MARK: - Tracking
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+        refreshHoverState()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        setHovered(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setHovered(false)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if isHovering {
+            onPlusTapped?(chrome)
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
+    }
+
+    @objc private func handleAppearanceChange() {
+        updateAppearance()
+    }
+
+    private func refreshHoverState() {
+        guard let window else {
+            if isHovering { setHovered(false) }
+            return
+        }
+        let mousePoint = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setHovered(bounds.contains(mousePoint))
+    }
+
+    private func setHovered(_ hovered: Bool) {
+        guard hovered != isHovering else { return }
+        isHovering = hovered
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = hovered ? 0.15 : 0.1
+            let alpha: CGFloat = hovered ? 1 : 0
+            leftLine.animator().alphaValue = alpha
+            rightLine.animator().alphaValue = alpha
+            chrome.animator().alphaValue = alpha
+        }
+    }
+
+    // MARK: - Appearance
+
+    private func updateAppearance() {
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+
+            chrome.layer?.borderColor = NSColor.separatorColor.cgColor
+            chrome.layer?.borderWidth = isDark ? 1 : 0.5
+            chrome.layer?.backgroundColor = isDark
+                ? NSColor.white.withAlphaComponent(0.06).cgColor
+                : NSColor.white.cgColor
+
+            iconView.contentTintColor = .secondaryLabelColor
+            label.textColor = .secondaryLabelColor
+        }
     }
 }
 
@@ -385,9 +631,7 @@ private final class NotebookActionButtonView: NSView {
                 label.textColor = .secondaryLabelColor
             }
 
-            layer?.transform = isPressed
-                ? CATransform3DMakeScale(0.9, 0.9, 1)
-                : CATransform3DIdentity
+            layer?.transform = CATransform3DIdentity
         }
     }
 }
