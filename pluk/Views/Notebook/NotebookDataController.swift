@@ -55,11 +55,13 @@ final class NotebookDataController {
         isPublished = true
         isViewingPublished = true
         isRightSidebarVisible = false
+        AnalyticsService.shared.trackNotebookPublished(blockCount: blocks.count)
     }
 
     func unpublishDashboard() {
         isPublished = false
         isViewingPublished = false
+        AnalyticsService.shared.trackNotebookUnpublished()
     }
 
     var isRefreshing = false

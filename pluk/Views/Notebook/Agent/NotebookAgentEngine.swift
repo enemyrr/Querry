@@ -367,8 +367,6 @@ final class NotebookAgentEngine {
         let tools = buildTools(connections: connections)
         let systemPrompt = buildSystemPrompt(connections: connections, blocks: blocks)
 
-        print("[AgentEngine] performRound — sending \(messages.count) messages, \(tools.count) tools, \(connections.count) connections")
-
         let response = try await BedrockService.shared.messageRequestStream(
             messages: messages,
             system: systemPrompt,
@@ -376,19 +374,6 @@ final class NotebookAgentEngine {
             onTextDelta: onToken,
             onThinkingDelta: onThinking
         )
-
-        print("[AgentEngine] response received — \(response.content.count) content blocks, stopReason: \(response.stopReason ?? "nil")")
-        for (i, block) in response.content.enumerated() {
-            switch block {
-            case .text(let t):
-                print("[AgentEngine]   block[\(i)] text (\(t.count) chars): \(String(t.prefix(200)))")
-            case .thinking(let t, let sig):
-                print("[AgentEngine]   block[\(i)] thinking (\(t.count) chars, sig: \(sig.prefix(20))...): \(String(t.prefix(200)))")
-            case .toolUse(let id, let name, let input):
-                let inputStr = input.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
-                print("[AgentEngine]   block[\(i)] toolUse id=\(id) name=\(name) input={\(inputStr)}")
-            }
-        }
 
         let text = response.content.compactMap { content -> String? in
             guard case .text(let t) = content else { return nil }
@@ -399,8 +384,6 @@ final class NotebookAgentEngine {
             guard case .toolUse(let id, let name, let input) = content else { return nil }
             return (id: id, name: name, input: sendableToAny(input))
         }
-
-        print("[AgentEngine] parsed — text: \(text.count) chars, toolCalls: \(toolCalls.count)")
 
         return AgentRoundResult(
             text: text,
@@ -417,9 +400,6 @@ final class NotebookAgentEngine {
         blocks: [NotebookBlock] = []
     ) async -> String {
         let json = toolCall.input
-
-        let inputStr = json.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
-        print("[AgentEngine] executeToolCall — name=\(toolCall.name) id=\(toolCall.id) input={\(inputStr)}")
 
         let result: String
         switch toolCall.name {
@@ -455,7 +435,6 @@ final class NotebookAgentEngine {
             result = "Unknown tool: \(toolCall.name)"
         }
 
-        print("[AgentEngine] toolResult — name=\(toolCall.name) result (\(result.count) chars): \(String(result.prefix(500)))")
         return result
     }
 

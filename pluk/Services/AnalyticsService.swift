@@ -242,6 +242,26 @@ final class AnalyticsService {
         ])
     }
 
+    // MARK: - Notebook Events
+
+    func trackNotebookCreated() {
+        PostHogSDK.shared.capture("notebook_created")
+
+        trackFirstEvent("first_notebook_created")
+    }
+
+    func trackNotebookPublished(blockCount: Int) {
+        PostHogSDK.shared.capture("notebook_published", properties: [
+            "block_count": blockCount
+        ])
+
+        trackFirstEvent("first_notebook_published")
+    }
+
+    func trackNotebookUnpublished() {
+        PostHogSDK.shared.capture("notebook_unpublished")
+    }
+
     // MARK: - Query Type Detection
 
     nonisolated static func detectQueryType(from query: String) -> String {

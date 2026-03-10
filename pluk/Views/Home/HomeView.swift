@@ -148,6 +148,7 @@ struct HomeView: View {
         let notebook = Notebook()
         modelContext.insert(notebook)
         handleNotebookOpen(notebook)
+        AnalyticsService.shared.trackNotebookCreated()
     }
 
     private func handleNotebookOpen(_ notebook: Notebook) {

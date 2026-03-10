@@ -190,14 +190,11 @@ final class AgentChatController {
                     }
                 )
 
-                print("[AgentChat] round \(roundNumber) complete — text: \(round.text.count) chars, toolCalls: \(round.toolCalls.count)")
-
                 let thinkingSerialized = serializeThinking(from: round.responseContent)
 
                 if round.toolCalls.isEmpty {
                     accumulatedAssistantText += thinkingSerialized
                     accumulatedAssistantText += round.text
-                    print("[AgentChat] no tool calls, ending loop")
                     break
                 }
 
@@ -272,15 +269,12 @@ final class AgentChatController {
         }
 
         if !accumulatedAssistantText.isEmpty {
-            print("[AgentChat] saving assistant message (\(accumulatedAssistantText.count) chars)")
-            print("[AgentChat] content preview:\n\(String(accumulatedAssistantText.prefix(500)))")
             let assistantMessage = AgentMessage(chatId: chat.id, role: .assistant, content: accumulatedAssistantText)
             modelContainer.mainContext.insert(assistantMessage)
             save()
             messages.append(assistantMessage)
         }
 
-        print("[AgentChat] streaming finished, parts: \(streamingParts.count)")
         streamingParts = []
         isStreaming = false
     }
@@ -291,7 +285,6 @@ final class AgentChatController {
         if case .text(let existing) = streamingParts.last {
             streamingParts[streamingParts.count - 1] = .text(existing + token)
         } else {
-            print("[AgentChat] +text part (total parts: \(streamingParts.count + 1))")
             streamingParts.append(.text(token))
         }
     }
@@ -300,14 +293,12 @@ final class AgentChatController {
         if case .thinking(let existing) = streamingParts.last {
             streamingParts[streamingParts.count - 1] = .thinking(existing + token)
         } else {
-            print("[AgentChat] +thinking part (total parts: \(streamingParts.count + 1))")
             reasoningStartTime = Date()
             streamingParts.append(.thinking(token))
         }
     }
 
     private func appendToolCall(id: String, name: String, displayText: String, iconName: String?, round: Int) {
-        print("[AgentChat] +toolCall: \(name) id=\(id) round=\(round) displayText=\"\(displayText)\" (total parts: \(streamingParts.count + 1))")
         streamingParts.append(.toolCall(
             id: id,
             name: name,
@@ -324,10 +315,8 @@ final class AgentChatController {
             return false
         }),
         case .toolCall(let tcId, let name, _, let icon, _, let round) = streamingParts[idx] else {
-            print("[AgentChat] markToolCallComplete FAILED: id=\(id) not found")
             return
         }
-        print("[AgentChat] toolCall complete: \(name) id=\(tcId) round=\(round) displayText=\"\(displayText)\"")
         streamingParts[idx] = .toolCall(id: tcId, name: name, displayText: displayText, iconName: icon, isComplete: true, round: round)
     }
 
