@@ -171,13 +171,7 @@ final class DocumentViewController: NSViewController {
     private func setupEmptyState() {
         removeTabsLayout()
 
-        let emptyView = EmptyDocumentStateView(
-            instance: instance,
-            injectEnvironments: { [weak self] view in
-                guard let self else { return view }
-                return AnyView(self.injectEnvironments(view))
-            }
-        )
+        let emptyView = EmptyDocumentStateView(instance: instance)
         emptyView.translatesAutoresizingMaskIntoConstraints = false
         emptyStateView = emptyView
 
@@ -511,19 +505,14 @@ extension DocumentViewController: NSTabViewDelegate {
 private final class EmptyDocumentStateView: NSView {
 
     private let instance: ConnectionInstance
-    private let injectEnvironments: (AnyView) -> AnyView
+    private var emptyStateVC: EmptyStateViewController?
 
-    private var commandPaletteHostingView: NSHostingView<AnyView>?
-    private var isCommandBarVisible = false
-    private var eventMonitor: Any?
-
-    init(instance: ConnectionInstance, injectEnvironments: @escaping (AnyView) -> AnyView) {
+    init(instance: ConnectionInstance) {
         self.instance = instance
-        self.injectEnvironments = injectEnvironments
         super.init(frame: .zero)
         wantsLayer = true
         setupAppearance()
-        setupEventMonitor()
+        setupEmptyStateContent()
 
         NotificationCenter.default.addObserver(
             self,
@@ -568,97 +557,36 @@ private final class EmptyDocumentStateView: NSView {
         updateBackgroundColor()
     }
 
-    // MARK: Command Palette
+    // MARK: Empty State Content
 
-    private func toggleCommandBar() {
-        isCommandBarVisible.toggle()
-        if isCommandBarVisible {
-            showCommandPalette()
-        } else {
-            hideCommandPalette()
-        }
-    }
+    private func setupEmptyStateContent() {
+        let vc = EmptyStateViewController(instance: instance)
+        emptyStateVC = vc
 
-    private func showCommandPalette() {
-        guard commandPaletteHostingView == nil else { return }
+        let contentView = vc.view
+        contentView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(contentView)
 
-        let content = EmptyStateCommandPaletteContent()
-        let hostingView = NSHostingView(rootView: injectEnvironments(AnyView(content)))
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        commandPaletteHostingView = hostingView
-        addSubview(hostingView)
+        let preferredWidth = contentView.widthAnchor.constraint(equalToConstant: 500)
+        preferredWidth.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
-            hostingView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            hostingView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            contentView.topAnchor.constraint(equalTo: topAnchor, constant: 180),
+            contentView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            preferredWidth,
+            contentView.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, constant: -40),
+            contentView.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -20),
         ])
     }
 
-    private func hideCommandPalette() {
-        commandPaletteHostingView?.removeFromSuperview()
-        commandPaletteHostingView = nil
-    }
-
-    // MARK: Event Monitor
-
-    private func setupEventMonitor() {
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            guard let self else { return event }
-
-            switch event.keyCode {
-            case 17 where event.modifierFlags.contains(.command):
-                self.instance.createSQLEditorTab()
-                return nil
-            case 35 where event.modifierFlags.contains(.command):
-                self.toggleCommandBar()
-                return nil
-            case 53 where self.isCommandBarVisible:
-                self.isCommandBarVisible = false
-                self.hideCommandPalette()
-                return nil
-            default:
-                return event
-            }
-        }
-    }
-
     func tearDown() {
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
-        }
-        hideCommandPalette()
+        emptyStateVC?.tearDown()
+        emptyStateVC?.view.removeFromSuperview()
+        emptyStateVC = nil
     }
 
     deinit {
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
+        emptyStateVC?.tearDown()
         NotificationCenter.default.removeObserver(self)
-    }
-}
-
-private struct EmptyStateCommandPaletteContent: View {
-    @State private var commandFilter = ""
-
-    var body: some View {
-        VStack(spacing: 0) {
-            CommandPalette.CollectionsList(
-                searchText: $commandFilter,
-                onBack: {}
-            )
-
-            CommandPalette(
-                searchText: $commandFilter,
-                onBack: {},
-                isBackButtonEnabled: false
-            )
-            .modifier(GlassBackgroundStyle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(.separator)
-            )
-        }
-        .padding(.bottom, 10)
     }
 }

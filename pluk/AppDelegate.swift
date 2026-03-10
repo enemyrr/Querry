@@ -25,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NotebookBlock.self,
             AgentChat.self,
             AgentMessage.self,
+            RecentTableEntry.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

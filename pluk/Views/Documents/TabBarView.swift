@@ -917,7 +917,7 @@ final class TabButtonView: NSView {
 
             if isSelected {
                 tabShapeLayer.fillColor = isDark
-                    ? NSColor.black.withAlphaComponent(0.40).cgColor
+                    ? NSColor.black.withAlphaComponent(0.30).cgColor
                     : NSColor.controlBackgroundColor.withAlphaComponent(0.86).cgColor
                 if isDark {
                     tabShapeLayer.shadowOpacity = 0

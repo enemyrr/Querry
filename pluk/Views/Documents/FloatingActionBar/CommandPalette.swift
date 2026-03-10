@@ -77,7 +77,7 @@ struct CommandPalette: View {
                 return collections
             }
             
-            return collections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            return collections.filter { $0.name.localizedStandardContains(searchText) }
         }
         
         

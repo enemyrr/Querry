@@ -17,6 +17,7 @@ import SwiftData
     private var _databaseDriver: (any DatabaseDriver)?
     var databaseService = DatabaseService()
     var queryHistoryService: QueryHistoryService?
+    var recentTablesService: RecentTablesService?
     
     // Public getter for database driver (needed by ConnectionService)
     var databaseDriver: (any DatabaseDriver)? {
@@ -73,6 +74,10 @@ import SwiftData
             connectionKeychainId: connection.keychainId
         )
         databaseService.queryHistoryService = queryHistoryService
+        recentTablesService = RecentTablesService(
+            modelContext: modelContext,
+            connectionKeychainId: connection.keychainId
+        )
     }
 
     private func setupNotificationObservation() {
@@ -234,9 +239,10 @@ import SwiftData
             existingTab.forceFetch = hasFilterChanged
 
             selectedTab = existingTab
+            recordRecentTable(name: cleanName, schema: databaseSchema ?? existingTab.databaseSchema)
             return
         }
-        
+
         // Create new tab if none exists for this table
         let newTab = DatabaseTab(
             name: cleanName,
@@ -247,10 +253,11 @@ import SwiftData
             databaseSchema: databaseSchema
         )
         tabs.append(newTab)
-        
+
         selectedTab = newTab
+        recordRecentTable(name: cleanName, schema: databaseSchema)
     }
-    
+
     func createSQLEditorTab(withQuery query: String? = nil) {
         let newTab = DatabaseTab(
             name: "Query Editor",
@@ -261,6 +268,19 @@ import SwiftData
         tabs.append(newTab)
 
         selectedTab = newTab
+    }
+
+    private func recordRecentTable(name: String, schema: String?) {
+        let dbName = connectedDatabase?.name ?? ""
+        let tableType = collections[dbName]?.first(where: { $0.name == name })?.type ?? "table"
+        Task { @MainActor [recentTablesService] in
+            recentTablesService?.recordTableOpened(
+                tableName: name,
+                databaseName: dbName,
+                schemaName: schema,
+                tableType: tableType
+            )
+        }
     }
 
     func createFunctionEditorTab(name: String, definition: String, oid: String, schema: String?) {
