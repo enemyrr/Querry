@@ -167,6 +167,7 @@ struct WorkspaceList: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .padding(.trailing, 8)
                 }
             } else {
                 searchToggleButton
