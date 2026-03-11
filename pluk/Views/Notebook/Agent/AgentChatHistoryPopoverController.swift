@@ -178,10 +178,12 @@ private final class ChatHistoryRowView: NSView {
     private var isHovering = false
 
     init(chat: AgentChat, isSelected: Bool, width: CGFloat) {
-        titleLabel = NSTextField(labelWithString: chat.title)
+        titleLabel = NSTextField(labelWithString: Self.singleLineTitle(from: chat.title))
         titleLabel.font = .systemFont(ofSize: 13)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
+        titleLabel.cell?.wraps = false
+        titleLabel.cell?.usesSingleLineMode = true
 
         super.init(frame: .zero)
 
@@ -297,5 +299,11 @@ private final class ChatHistoryRowView: NSView {
 
     @objc private func handleDelete() {
         onDelete()
+    }
+
+    private static func singleLineTitle(from title: String) -> String {
+        let flattened = title.split(whereSeparator: \.isNewline).joined(separator: " ")
+        let normalized = flattened.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return normalized.isEmpty ? "New Chat" : normalized
     }
 }

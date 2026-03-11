@@ -1,14 +1,17 @@
 import AppKit
 
-final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate {
+final class NotebookEmptyStateController: NSViewController {
 
     private let dataController: NotebookDataController
-    private var inputField: NSTextField!
+    private var inputTextView: EmptyStateInputTextView!
+    private var inputPlaceholderLabel: NSTextField!
     private var sendButton: EmptyStateSendButton!
     private var inputContainer: NSView!
 
     private var selectedConnections: [Connection] = []
     private var pendingAtDetection = false
+    private var suppressNextReturnSend = false
+    private var isConnectionMenuOpen = false
     private var inputRowView: NSView!
     private var actionBarView: NSView!
     private var connectionButton: EmptyStateConnectionButton!
@@ -108,7 +111,7 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        view.window?.makeFirstResponder(inputField)
+        view.window?.makeFirstResponder(inputTextView.textView)
         selectFirstConnectionIfNeeded()
     }
 
@@ -141,21 +144,37 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
         inputContainer = container
         updateContainerAppearance()
 
-        inputField = NSTextField()
-        inputField.placeholderString = "Ask a data question..."
-        inputField.font = .systemFont(ofSize: 15)
-        inputField.isBordered = false
-        inputField.isBezeled = false
-        inputField.drawsBackground = false
-        inputField.focusRingType = .none
-        inputField.lineBreakMode = .byTruncatingTail
-        inputField.cell?.wraps = false
-        inputField.cell?.isScrollable = true
-        inputField.translatesAutoresizingMaskIntoConstraints = false
-        inputField.delegate = self
-        inputField.target = self
-        inputField.action = #selector(handleSend)
-        container.addSubview(inputField)
+        inputTextView = EmptyStateInputTextView()
+        inputTextView.translatesAutoresizingMaskIntoConstraints = false
+        inputTextView.onTextChanged = { [weak self] in
+            guard let self else { return }
+            self.inputPlaceholderLabel.isHidden = !self.inputMessage.isEmpty
+            self.refreshSendButton()
+            self.handleAtDetection()
+        }
+        inputTextView.onReturn = { [weak self] in
+            guard let self else { return }
+            if self.isConnectionMenuOpen || self.pendingAtDetection {
+                return
+            }
+            if self.suppressNextReturnSend {
+                self.suppressNextReturnSend = false
+                return
+            }
+            self.handleSend()
+        }
+        container.addSubview(inputTextView)
+
+        let placeholder = NSTextField(labelWithString: "Ask a data question...")
+        placeholder.font = .systemFont(ofSize: 15)
+        placeholder.textColor = .placeholderTextColor
+        placeholder.backgroundColor = .clear
+        placeholder.isBordered = false
+        placeholder.isBezeled = false
+        placeholder.isEditable = false
+        placeholder.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(placeholder)
+        inputPlaceholderLabel = placeholder
 
         let connButton = EmptyStateConnectionButton()
         connButton.translatesAutoresizingMaskIntoConstraints = false
@@ -172,18 +191,24 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
         sendButton = button
 
         NSLayoutConstraint.activate([
-            container.heightAnchor.constraint(equalToConstant: 56),
+            container.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
-            inputField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            inputField.trailingAnchor.constraint(equalTo: connButton.leadingAnchor, constant: -8),
-            inputField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            inputTextView.topAnchor.constraint(equalTo: container.topAnchor, constant: 18),
+            inputTextView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            inputTextView.trailingAnchor.constraint(equalTo: connButton.leadingAnchor, constant: -8),
+            inputTextView.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -18),
+
+            placeholder.centerYAnchor.constraint(equalTo: inputTextView.centerYAnchor),
+            placeholder.leadingAnchor.constraint(equalTo: inputTextView.leadingAnchor),
+            placeholder.trailingAnchor.constraint(lessThanOrEqualTo: inputTextView.trailingAnchor),
 
             connButton.trailingAnchor.constraint(equalTo: button.leadingAnchor, constant: -4),
-            connButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            connButton.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+            connButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -15),
             connButton.heightAnchor.constraint(equalToConstant: 26),
 
             button.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
-            button.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            button.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
             button.widthAnchor.constraint(equalToConstant: 32),
             button.heightAnchor.constraint(equalToConstant: 32),
 
@@ -193,41 +218,40 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
         return container
     }
 
-    func controlTextDidChange(_ obj: Notification) {
-        refreshSendButton()
-        handleAtDetection()
+    private func refreshSendButton() {
+        let hasText = !inputMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        sendButton.isActive = hasText || !selectedConnections.isEmpty
     }
 
-    private func refreshSendButton() {
-        let hasText = !inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        sendButton.isActive = hasText || !selectedConnections.isEmpty
+    private var inputMessage: String {
+        inputTextView.textView.string
     }
 
     // MARK: - @ Connection Menu
 
     private func handleAtDetection() {
         guard !dataController.connections.isEmpty else { return }
-        let text = inputField.stringValue
-        guard let editor = inputField.currentEditor() else { return }
-
-        let cursorLocation = editor.selectedRange.location
-        guard cursorLocation > 0 else { return }
+        let text = inputMessage
+        let selectedRange = inputTextView.textView.selectedRange()
+        guard selectedRange.length == 0, selectedRange.location > 0 else { return }
 
         let nsText = text as NSString
-        let charBeforeCursor = nsText.substring(with: NSRange(location: cursorLocation - 1, length: 1))
+        let charBeforeCursor = nsText.substring(with: NSRange(location: selectedRange.location - 1, length: 1))
         guard charBeforeCursor == "@" else { return }
         guard !pendingAtDetection else { return }
         pendingAtDetection = true
-        showConnectionMenu(atRange: NSRange(location: cursorLocation - 1, length: 1))
+        showConnectionMenu(atRange: NSRange(location: selectedRange.location - 1, length: 1))
     }
 
     private func showConnectionMenu(atRange: NSRange) {
-        var text = inputField.stringValue
-        let nsText = text as NSString
-        if NSMaxRange(atRange) <= nsText.length,
-           nsText.substring(with: atRange) == "@" {
-            text = nsText.replacingCharacters(in: atRange, with: "")
-            inputField.stringValue = text
+        let textView = inputTextView.textView
+        let text = textView.string as NSString
+        if NSMaxRange(atRange) <= text.length,
+           text.substring(with: atRange) == "@" {
+            textView.textStorage?.replaceCharacters(in: atRange, with: "")
+            textView.setSelectedRange(NSRange(location: atRange.location, length: 0))
+            inputTextView.recalculateHeight()
+            inputPlaceholderLabel.isHidden = !inputMessage.isEmpty
         }
         pendingAtDetection = false
 
@@ -269,8 +293,16 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
             y: positioningView.frame.maxY + gap + menuHeight
         )
 
+        isConnectionMenuOpen = true
+        suppressNextReturnSend = true
         _ = menu.popUp(positioning: nil, at: menuPoint, in: inputContainer)
-        view.window?.makeFirstResponder(inputField)
+        pendingAtDetection = false
+        isConnectionMenuOpen = false
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.suppressNextReturnSend = false
+        }
+        view.window?.makeFirstResponder(inputTextView.textView)
     }
 
     @objc private func connectionPickerItemClicked(_ sender: NSMenuItem) {
@@ -288,7 +320,7 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
     }
 
     @objc private func handleSend() {
-        let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = inputMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
         if !selectedConnections.isEmpty {
@@ -299,7 +331,9 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
 
         inputRowView.isHidden = true
 
-        inputField.stringValue = ""
+        inputTextView.textView.string = ""
+        inputTextView.recalculateHeight()
+        inputPlaceholderLabel.isHidden = false
         selectedConnections.removeAll()
         updateConnectionButton()
         sendButton.isActive = false
@@ -326,6 +360,128 @@ final class NotebookEmptyStateController: NSViewController, NSTextFieldDelegate 
 
     @objc private func handleAppearanceChange() {
         updateContainerAppearance()
+    }
+}
+
+private final class EmptyStatePlainPasteTextView: NSTextView {
+    override func paste(_ sender: Any?) {
+        pasteAsPlainText(sender)
+    }
+}
+
+private final class EmptyStateInputTextView: NSView, NSTextViewDelegate {
+
+    let textView: NSTextView
+    var onTextChanged: (() -> Void)?
+    var onReturn: (() -> Void)?
+
+    private static let fontSize: CGFloat = 15
+    private static let inputFont: NSFont = .systemFont(ofSize: fontSize)
+
+    private var heightConstraint: NSLayoutConstraint!
+    private var lastKnownHeight: CGFloat = 0
+    private let singleLineHeight: CGFloat = inputFont.lineHeight
+
+    override init(frame: NSRect) {
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+
+        let textContainer = NSTextContainer(containerSize: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        textContainer.lineFragmentPadding = 0
+        textContainer.lineBreakMode = .byWordWrapping
+        layoutManager.addTextContainer(textContainer)
+
+        textView = EmptyStatePlainPasteTextView(frame: .zero, textContainer: textContainer)
+        textView.isRichText = true
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.isAutomaticLinkDetectionEnabled = false
+        textView.font = Self.inputFont
+        textView.textColor = .labelColor
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
+        textView.textContainerInset = .zero
+        textView.isVerticallyResizable = false
+        textView.isHorizontallyResizable = false
+        textView.typingAttributes = [
+            .font: Self.inputFont,
+            .foregroundColor: NSColor.labelColor,
+        ]
+
+        super.init(frame: frame)
+
+        textView.delegate = self
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(textView)
+
+        heightConstraint = heightAnchor.constraint(equalToConstant: singleLineHeight)
+
+        NSLayoutConstraint.activate([
+            textView.topAnchor.constraint(equalTo: topAnchor),
+            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            heightConstraint,
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        nextResponder?.scrollWheel(with: event)
+    }
+
+    override func layout() {
+        super.layout()
+
+        if let textContainer = textView.textContainer {
+            let containerWidth = max(0, bounds.width)
+            if abs(textContainer.containerSize.width - containerWidth) > 1 {
+                textContainer.containerSize = NSSize(width: containerWidth, height: CGFloat.greatestFiniteMagnitude)
+            }
+        }
+
+        recalculateHeight()
+    }
+
+    func recalculateHeight() {
+        guard bounds.width > 0,
+              let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else { return }
+
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        let newHeight = max(singleLineHeight, min(280, ceil(usedRect.height)))
+
+        guard abs(newHeight - lastKnownHeight) > 0.5 else { return }
+        lastKnownHeight = newHeight
+        heightConstraint.constant = newHeight
+        textView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: newHeight)
+    }
+
+    func textDidChange(_ notification: Notification) {
+        recalculateHeight()
+        onTextChanged?()
+    }
+
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            let shiftPressed = NSApp.currentEvent?.modifierFlags.contains(.shift) == true
+            if shiftPressed {
+                textView.insertNewlineIgnoringFieldEditor(nil)
+                return true
+            }
+            onReturn?()
+            return true
+        }
+        return false
     }
 }
 
