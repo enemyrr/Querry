@@ -81,7 +81,7 @@ class DashboardBaseItem: NSCollectionViewItem {
         let isText = block.blockType == .text
         let showsHeightResizeHandle = !isPublished
         let showsWidthResizeHandle = !isPublished
-        titleLabel.isHidden = isPublished && isText
+        titleLabel.isHidden = false
         dragHandle.isHidden = isPublished
         actionBar.isHidden = isPublished
         actionBar.setRunButtonHidden(isText)
@@ -91,9 +91,8 @@ class DashboardBaseItem: NSCollectionViewItem {
         handleWidthConstraint.constant = showsWidthResizeHandle ? 12 : 0
         resizeHandleHeightConstraint.constant = showsHeightResizeHandle ? 12 : 0
 
-        let hideTitle = isPublished && isText
-        blockContainerTopToActionBar.isActive = !hideTitle
-        blockContainerTopToView.isActive = hideTitle
+        blockContainerTopToActionBar.isActive = true
+        blockContainerTopToView.isActive = false
 
         updateChrome(animated: false)
     }

@@ -78,8 +78,7 @@ final class DashboardGridLayout: NSCollectionViewLayout {
                     itemWidth = distributableWidth * fraction + itemHandleWidth
                 }
 
-                let isText = block.blockType == .text
-                let titleHeight: CGFloat = (isPublished && isText) ? 0 : 29
+                let titleHeight: CGFloat = 29
                 let resizeHandleHeight: CGFloat = canResizeHeight ? 12 : 0
                 let minContentHeight: CGFloat
                 switch block.blockType {
