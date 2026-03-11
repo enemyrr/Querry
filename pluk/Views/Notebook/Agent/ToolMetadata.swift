@@ -20,6 +20,7 @@ enum ToolMetadata {
 
     static func icon(for toolName: String) -> String {
         switch toolName {
+        case "list_databases": return "cylinder.split.1x2"
         case "list_tables": return "tablecells"
         case "get_table_schema": return "square.stack.3d.up"
         case "run_query": return "rectangle.and.text.magnifyingglass"
@@ -38,6 +39,7 @@ enum ToolMetadata {
 
     static func groupHeader(for toolName: String) -> String {
         switch toolName {
+        case "list_databases": return "Listing databases"
         case "list_tables": return "Exploring database"
         case "get_table_schema": return "Reading schema"
         case "run_query": return "Querying data"
@@ -54,6 +56,9 @@ enum ToolMetadata {
         let json = parseToolArguments(arguments)
 
         switch name {
+        case "list_databases":
+            return ("Listing databases", icon(for: name))
+
         case "list_tables":
             let schema = json["schema_name"] as? String
             let label = schema != nil ? "Listing tables in \(schema!)" : "Listing all tables"

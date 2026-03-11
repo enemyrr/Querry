@@ -116,9 +116,10 @@ final class NotebookAgentEngine {
 
         <tools>
         Database exploration:
-        - `list_tables` — Discover tables in a connection
-        - `get_table_schema` — Column names, types, keys, constraints
-        - `run_query` — Execute a read-only SQL query (results returned to you only, not shown in notebook)
+        - `list_databases` — Discover all databases on a connection
+        - `list_tables` — Discover tables in a connection (supports `database_name` param)
+        - `get_table_schema` — Column names, types, keys, constraints (supports `database_name` param)
+        - `run_query` — Execute a read-only SQL query (results returned to you only, not shown in notebook; supports `database_name` param)
 
         Notebook management:
         - `set_notebook_info` — Set the notebook title and description
@@ -149,6 +150,10 @@ final class NotebookAgentEngine {
 
         When a query block has an `output_name`, you can reference it as `source_query_output` in `create_chart_block` to chart its results directly. Use `source_query_output` only when the chart needs complex SQL (JOINs, CTEs, subqueries, window functions) that the chart's built-in table + filters + aggregation cannot express. For simple single-table visualizations, create the chart directly with connection details.
         </query_block_guidance>
+
+        <database_exploration_guidance>
+        When a user asks about tables or data that may be in a different database, call `list_databases` to discover available databases, then use the `database_name` parameter on `list_tables`, `get_table_schema`, and `run_query` to explore that database.
+        </database_exploration_guidance>
 
         <modification_guidance>
         When the user asks to modify, update, change, or fix an existing block:
@@ -344,6 +349,7 @@ final class NotebookAgentEngine {
     func buildTools(connections: [Connection]) -> [AnthropicToolDefinition] {
         var tools: [AnthropicToolDefinition] = [
             listTablesTool,
+            listDatabasesTool,
             getTableSchemaTool,
             runQueryTool,
             setNotebookInfoTool,
@@ -405,6 +411,8 @@ final class NotebookAgentEngine {
         switch toolCall.name {
         case "list_tables":
             result = await executeListTables(json: json, connections: connections)
+        case "list_databases":
+            result = await executeListDatabases(json: json, connections: connections)
         case "get_table_schema":
             result = await executeGetTableSchema(json: json, connections: connections)
         case "run_query":
@@ -441,23 +449,24 @@ final class NotebookAgentEngine {
     // MARK: - List Tables
 
     private func executeListTables(json: [String: Any], connections: [Connection]) async -> String {
+        let databaseName = json["database_name"] as? String
         guard let keychainId = json["connection_keychain_id"] as? String,
               let connection = connections.first(where: { $0.keychainId == keychainId }) else {
             if let conn = connections.first {
-                return await fetchTables(connection: conn, schema: json["schema_name"] as? String)
+                return await fetchTables(connection: conn, schema: json["schema_name"] as? String, databaseName: databaseName)
             }
             return "Error: No connection available. Ask the user to select a connection."
         }
-        return await fetchTables(connection: connection, schema: json["schema_name"] as? String)
+        return await fetchTables(connection: connection, schema: json["schema_name"] as? String, databaseName: databaseName)
     }
 
-    private func fetchTables(connection: Connection, schema: String?) async -> String {
+    private func fetchTables(connection: Connection, schema: String?, databaseName: String? = nil) async -> String {
         do {
             try await driverSession.connect(
                 databaseType: connection.databaseType,
                 uri: connection.connectionUri,
                 keychainId: connection.keychainId,
-                databaseName: connection.defaultDatabase ?? ""
+                databaseName: databaseName ?? connection.defaultDatabase ?? ""
             )
 
             var schemaInfo = ""
@@ -477,6 +486,27 @@ final class NotebookAgentEngine {
         }
     }
 
+    // MARK: - List Databases
+
+    private func executeListDatabases(json: [String: Any], connections: [Connection]) async -> String {
+        guard let conn = resolveConnection(json: json, connections: connections) else {
+            return "Error: No connection available. Ask the user to select a connection."
+        }
+        do {
+            try await driverSession.connect(
+                databaseType: conn.databaseType,
+                uri: conn.connectionUri,
+                keychainId: conn.keychainId,
+                databaseName: conn.defaultDatabase ?? ""
+            )
+            let databases = try await driverSession.listDatabases()
+            let list = databases.map { "- \($0.name)" }.joined(separator: "\n")
+            return "Databases on \(conn.name):\n\(list)"
+        } catch {
+            return "Error listing databases: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Get Table Schema
 
     private func executeGetTableSchema(json: [String: Any], connections: [Connection]) async -> String {
@@ -491,11 +521,12 @@ final class NotebookAgentEngine {
         }
 
         do {
+            let databaseName = (json["database_name"] as? String) ?? conn.defaultDatabase ?? ""
             try await driverSession.connect(
                 databaseType: conn.databaseType,
                 uri: conn.connectionUri,
                 keychainId: conn.keychainId,
-                databaseName: conn.defaultDatabase ?? ""
+                databaseName: databaseName
             )
             let result = try await driverSession.getSchema(tableName: tableName, schema: schemaName)
             return formatSchemaResult(result)
@@ -546,11 +577,12 @@ final class NotebookAgentEngine {
         }
 
         do {
+            let databaseName = (json["database_name"] as? String) ?? conn.defaultDatabase ?? ""
             try await driverSession.connect(
                 databaseType: conn.databaseType,
                 uri: conn.connectionUri,
                 keychainId: conn.keychainId,
-                databaseName: conn.defaultDatabase ?? ""
+                databaseName: databaseName
             )
             let results = try await driverSession.executeRawQuery(query, schema: schemaName)
             return formatQueryResults(results)
@@ -1141,6 +1173,10 @@ final class NotebookAgentEngine {
                     "type": .string("string"),
                     "description": .string("Schema name to list tables from (optional, e.g. 'public' for PostgreSQL)"),
                 ]),
+                "database_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Database name to connect to. If omitted, uses the connection's default database. Use list_databases to discover available databases."),
+                ]),
             ]),
             "required": .array([.string("connection_keychain_id")]),
         ]
@@ -1163,6 +1199,10 @@ final class NotebookAgentEngine {
                 "schema_name": .object([
                     "type": .string("string"),
                     "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                ]),
+                "database_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Database name to connect to. If omitted, uses the connection's default database. Use list_databases to discover available databases."),
                 ]),
             ]),
             "required": .array([.string("connection_keychain_id"), .string("query")]),
@@ -1214,6 +1254,10 @@ final class NotebookAgentEngine {
                 "schema_name": .object([
                     "type": .string("string"),
                     "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                ]),
+                "database_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Database name to connect to. If omitted, uses the connection's default database. Use list_databases to discover available databases."),
                 ]),
             ]),
             "required": .array([.string("connection_keychain_id"), .string("table_name")]),
@@ -1267,6 +1311,21 @@ final class NotebookAgentEngine {
                 ]),
             ]),
             "required": .array([.string("blocks")]),
+        ]
+    )
+
+    private let listDatabasesTool = AnthropicToolDefinition(
+        name: "list_databases",
+        description: "Lists all databases available on a connection. Use this when the user references a table that may be in a different database.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "connection_keychain_id": .object([
+                    "type": .string("string"),
+                    "description": .string("The keychainId of the connection to query"),
+                ]),
+            ]),
+            "required": .array([.string("connection_keychain_id")]),
         ]
     )
 
