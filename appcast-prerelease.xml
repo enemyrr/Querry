@@ -6,6 +6,28 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 30</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.30.dmg</link>
+            <sparkle:version>289</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.30</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 30</h2><div>Pluk v0.0.1-beta.30 continues to improve stability and polish across the board.
+<ul>
+<li><strong>Bug fixes & improvements.</strong> Resolved several issues affecting search, navigation, and general UI responsiveness. Things should feel more reliable across the board.</li>
+<li><strong>Performance tweaks.</strong> Continued under-the-hood optimizations for a smoother experience, especially when working with larger databases.</li>
+<li><strong>A little something hidden.</strong> We snuck in a small easter egg—not an official feature just yet. If you find it, send us a review before we push the real update.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Wed, 11 Mar 2026 12:15:21 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.30.dmg"
+                length="50688774"
+                type="application/octet-stream"
+                sparkle:edSignature="XDyFcdHvc9tyjK7jqVqrgQ+S8WXM6s1ncP+ipNlgQUTFxIYB7rgbz2RbDwWM452Oy2zkLJI31fX1Y4nWe/x8AA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 29</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.29.dmg</link>
             <sparkle:version>288</sparkle:version>
