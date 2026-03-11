@@ -2,6 +2,14 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.30] – 2026-03-11
+
+Pluk v0.0.1-beta.30 continues to improve stability and polish across the board.
+
+- **Bug fixes & improvements.** Resolved several issues affecting search, navigation, and general UI responsiveness. Things should feel more reliable across the board.
+- **Performance tweaks.** Continued under-the-hood optimizations for a smoother experience, especially when working with larger databases.
+- **A little something hidden.** We snuck in a small easter egg—not an official feature just yet. If you find it, send us a review before we push the real update.
+
 ## [0.0.1-beta.29] – 2026-03-10
 
 Pluk v0.0.1-beta.29 continues to improve stability and polish across the board.
