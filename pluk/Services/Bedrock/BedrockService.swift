@@ -14,7 +14,7 @@ final class BedrockService: Sendable {
 
     func messageRequest(
         messages: [AnthropicMessage],
-        system: String,
+        system: [SystemContentBlock],
         tools: [AnthropicToolDefinition],
         maxTokens: Int = 8192,
         modelId: String = BedrockConfig.modelId
@@ -41,7 +41,7 @@ final class BedrockService: Sendable {
 
     func messageRequestStream(
         messages: [AnthropicMessage],
-        system: String,
+        system: [SystemContentBlock],
         tools: [AnthropicToolDefinition],
         maxTokens: Int = 64_000,
         thinking: ThinkingConfig? = .adaptive,
@@ -82,6 +82,8 @@ final class BedrockService: Sendable {
         var stopReason: String?
         var inputTokens = 0
         var outputTokens = 0
+        var cacheCreationInputTokens: Int?
+        var cacheReadInputTokens: Int?
         var textBlocks: [Int: String] = [:]
         var thinkingBlocks: [Int: (text: String, signature: String)] = [:]
         var toolUseBlocks: [Int: (id: String, name: String, inputJSON: String)] = [:]
@@ -111,6 +113,8 @@ final class BedrockService: Sendable {
                                 responseRole = msg.role ?? responseRole
                                 if let u = msg.usage {
                                     inputTokens = u.input_tokens ?? inputTokens
+                                    if let cc = u.cache_creation_input_tokens { cacheCreationInputTokens = cc }
+                                    if let cr = u.cache_read_input_tokens { cacheReadInputTokens = cr }
                                 }
                             }
                         case "content_block_start":
@@ -176,13 +180,27 @@ final class BedrockService: Sendable {
             toolUseBlocks: toolUseBlocks
         )
 
+        let usage = BedrockAnthropicResponse.Usage(
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            cacheCreationInputTokens: cacheCreationInputTokens,
+            cacheReadInputTokens: cacheReadInputTokens
+        )
+
+        if let cacheRead = cacheReadInputTokens, cacheRead > 0 {
+            print("[BedrockService] Cache hit: \(cacheRead) tokens read from cache")
+        }
+        if let cacheWrite = cacheCreationInputTokens, cacheWrite > 0 {
+            print("[BedrockService] Cache write: \(cacheWrite) tokens written to cache")
+        }
+
         return BedrockAnthropicResponse(
             id: responseId,
             type: "message",
             role: responseRole,
             content: content,
             stopReason: stopReason,
-            usage: BedrockAnthropicResponse.Usage(inputTokens: inputTokens, outputTokens: outputTokens)
+            usage: usage
         )
     }
 
@@ -191,7 +209,7 @@ final class BedrockService: Sendable {
     private func buildSignedRequest(
         url: URL,
         messages: [AnthropicMessage],
-        system: String,
+        system: [SystemContentBlock],
         tools: [AnthropicToolDefinition],
         maxTokens: Int,
         thinking: ThinkingConfig?,
@@ -310,6 +328,8 @@ private struct StreamDelta: Decodable {
 private struct StreamUsage: Decodable {
     let input_tokens: Int?
     let output_tokens: Int?
+    let cache_creation_input_tokens: Int?
+    let cache_read_input_tokens: Int?
 }
 
 // MARK: - Data helpers for big-endian reads

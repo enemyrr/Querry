@@ -55,16 +55,7 @@ final class NotebookAgentEngine {
 
     // MARK: - System Prompt
 
-    func buildSystemPrompt(connections: [Connection], blocks: [NotebookBlock] = []) -> String {
-        let connectionList: String
-        if connections.isEmpty {
-            connectionList = "No connections selected. Ask the user to select a connection using the picker below the chat input."
-        } else {
-            connectionList = connections.map { conn in
-                "- \(conn.name) (keychainId: \(conn.keychainId), type: \(conn.databaseType.rawValue), database: \(conn.defaultDatabase ?? "default"))"
-            }.joined(separator: "\n")
-        }
-
+    func buildSystemBlocks(connections: [Connection], blocks: [NotebookBlock] = []) -> [SystemContentBlock] {
         let chartTypes = ChartBlockConfig.ChartType.allCases
             .map { "  - \($0.rawValue): \($0.displayName)" }
             .joined(separator: "\n")
@@ -73,46 +64,9 @@ final class NotebookAgentEngine {
             .map { "  - \($0.rawValue): \($0.displayName)" }
             .joined(separator: "\n")
 
-        let blockInventory: String
-        if blocks.isEmpty {
-            blockInventory = "No blocks in this notebook yet."
-        } else {
-            blockInventory = blocks.map { block in
-                let configSummary: String
-                switch block.blockType {
-                case .chart:
-                    if let cfg = block.chartConfig() {
-                        configSummary = "chart_type: \(cfg.chartType.rawValue), table: \(cfg.tableName), x: \(cfg.xAxisColumn ?? "none"), y: \(cfg.fields["yAxis"]?.joined(separator: ", ") ?? "none")"
-                    } else {
-                        configSummary = "unconfigured"
-                    }
-                case .singleValue:
-                    if let cfg = block.singleValueConfig() {
-                        configSummary = "column: \(cfg.column ?? "none"), aggregation: \(cfg.aggregation.rawValue), table: \(cfg.tableName)"
-                    } else {
-                        configSummary = "unconfigured"
-                    }
-                case .query:
-                    if let cfg = block.queryBlockConfig() {
-                        let queryPreview = cfg.queryText.prefix(60)
-                        configSummary = "query: \(queryPreview)\(cfg.queryText.count > 60 ? "..." : "")"
-                    } else {
-                        configSummary = "unconfigured"
-                    }
-                case .text:
-                    let preview = block.textContent.prefix(60)
-                    configSummary = "content: \(preview)\(block.textContent.count > 60 ? "..." : "")"
-                }
-                return "  - id: \(block.id.uuidString) | type: \(block.blockType.rawValue) | title: \"\(block.title)\" | \(configSummary)"
-            }.joined(separator: "\n")
-        }
-
-        return """
+        // Static block: instructions, guidance, rules, examples — never changes between rounds
+        let staticPrompt = """
         You are Pluk AI — the built-in data analyst for Pluk, a database notebook for macOS. Always refer to yourself as "Pluk AI" (never "data analysis assistant", "AI assistant", or similar generic labels). Users ask you to create notebook content — sometimes a single chart, sometimes a full report. Match the scope of your response to what the user actually asked for.
-
-        <available_connections>
-        \(connectionList)
-        </available_connections>
 
         <tools>
         Database exploration:
@@ -140,10 +94,6 @@ final class NotebookAgentEngine {
         Dashboard:
         - `arrange_dashboard` — Arrange blocks into a dashboard grid layout with sizing and positioning
         </tools>
-
-        <existing_notebook_blocks>
-        \(blockInventory)
-        </existing_notebook_blocks>
 
         <query_block_guidance>
         Use `create_query_block` when you want SQL results visible in the notebook as a table that the user can see and re-run. Use `run_query` for exploratory queries whose results are only for your analysis.
@@ -342,6 +292,65 @@ final class NotebookAgentEngine {
         - For comprehensive reports, cover: key breakdowns, trends over time, and notable outliers. The notebook title and description handle the overview — do not add a separate overview block. For narrow questions, just answer what was asked.
         </rules>
         """
+
+        // Dynamic block: connections and notebook blocks — changes between rounds
+        let connectionList: String
+        if connections.isEmpty {
+            connectionList = "No connections selected. Ask the user to select a connection using the picker below the chat input."
+        } else {
+            connectionList = connections.map { conn in
+                "- \(conn.name) (keychainId: \(conn.keychainId), type: \(conn.databaseType.rawValue), database: \(conn.defaultDatabase ?? "default"))"
+            }.joined(separator: "\n")
+        }
+
+        let blockInventory: String
+        if blocks.isEmpty {
+            blockInventory = "No blocks in this notebook yet."
+        } else {
+            blockInventory = blocks.map { block in
+                let configSummary: String
+                switch block.blockType {
+                case .chart:
+                    if let cfg = block.chartConfig() {
+                        configSummary = "chart_type: \(cfg.chartType.rawValue), table: \(cfg.tableName), x: \(cfg.xAxisColumn ?? "none"), y: \(cfg.fields["yAxis"]?.joined(separator: ", ") ?? "none")"
+                    } else {
+                        configSummary = "unconfigured"
+                    }
+                case .singleValue:
+                    if let cfg = block.singleValueConfig() {
+                        configSummary = "column: \(cfg.column ?? "none"), aggregation: \(cfg.aggregation.rawValue), table: \(cfg.tableName)"
+                    } else {
+                        configSummary = "unconfigured"
+                    }
+                case .query:
+                    if let cfg = block.queryBlockConfig() {
+                        let queryPreview = cfg.queryText.prefix(60)
+                        configSummary = "query: \(queryPreview)\(cfg.queryText.count > 60 ? "..." : "")"
+                    } else {
+                        configSummary = "unconfigured"
+                    }
+                case .text:
+                    let preview = block.textContent.prefix(60)
+                    configSummary = "content: \(preview)\(block.textContent.count > 60 ? "..." : "")"
+                }
+                return "  - id: \(block.id.uuidString) | type: \(block.blockType.rawValue) | title: \"\(block.title)\" | \(configSummary)"
+            }.joined(separator: "\n")
+        }
+
+        let dynamicPrompt = """
+        <available_connections>
+        \(connectionList)
+        </available_connections>
+
+        <existing_notebook_blocks>
+        \(blockInventory)
+        </existing_notebook_blocks>
+        """
+
+        return [
+            SystemContentBlock(text: staticPrompt, cacheControl: .ephemeralLong),
+            SystemContentBlock(text: dynamicPrompt),
+        ]
     }
 
     // MARK: - Tool Definitions
@@ -358,6 +367,12 @@ final class NotebookAgentEngine {
         ]
         tools.append(contentsOf: NotebookBlockKind.allToolDefinitions)
         tools.append(contentsOf: NotebookBlockKind.allUpdateToolDefinitions)
+
+        // Cache breakpoint on last tool — all tool definitions are static
+        if !tools.isEmpty {
+            tools[tools.count - 1].cacheControl = .ephemeralLong
+        }
+
         return tools
     }
 
@@ -371,11 +386,19 @@ final class NotebookAgentEngine {
         onThinking: @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> AgentRoundResult {
         let tools = buildTools(connections: connections)
-        let systemPrompt = buildSystemPrompt(connections: connections, blocks: blocks)
+        let systemBlocks = buildSystemBlocks(connections: connections, blocks: blocks)
+
+        // Cache breakpoint on the last message (user tool results) to cache the conversation prefix.
+        // Must target a user message — Bedrock ignores cache_control on assistant messages.
+        var cachedMessages = messages
+        if cachedMessages.count >= 3 {
+            let targetIdx = cachedMessages.count - 1
+            cachedMessages[targetIdx] = addCacheControl(to: cachedMessages[targetIdx])
+        }
 
         let response = try await BedrockService.shared.messageRequestStream(
-            messages: messages,
-            system: systemPrompt,
+            messages: cachedMessages,
+            system: systemBlocks,
             tools: tools,
             onTextDelta: onToken,
             onThinkingDelta: onThinking
@@ -1141,6 +1164,27 @@ final class NotebookAgentEngine {
     }
 
     // MARK: - Helpers
+
+    private func addCacheControl(to message: AnthropicMessage) -> AnthropicMessage {
+        switch message.content {
+        case .text(let text):
+            return AnthropicMessage(
+                role: message.role,
+                content: .blocks([.text(text, cacheControl: .ephemeral)])
+            )
+        case .blocks(var blocks):
+            guard let lastIdx = blocks.indices.last else { return message }
+            switch blocks[lastIdx] {
+            case .text(let t, _):
+                blocks[lastIdx] = .text(t, cacheControl: .ephemeral)
+            case .toolResult(let id, let content, _):
+                blocks[lastIdx] = .toolResult(toolUseId: id, content: content, cacheControl: .ephemeral)
+            default:
+                break
+            }
+            return AnthropicMessage(role: message.role, content: .blocks(blocks))
+        }
+    }
 
     private func resolveConnection(json: [String: Any], connections: [Connection]) -> Connection? {
         if let keychainId = json["connection_keychain_id"] as? String {

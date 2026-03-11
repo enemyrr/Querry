@@ -75,7 +75,7 @@ class AIService {
                     // First request (non-streaming) to check for tool use
                     let response = try await BedrockService.shared.messageRequest(
                         messages: messages,
-                        system: systemPrompt,
+                        system: [SystemContentBlock(text: systemPrompt)],
                         tools: [schemaTool],
                         maxTokens: 4096,
                         modelId: modelId
@@ -97,7 +97,7 @@ class AIService {
 
                         _ = try await BedrockService.shared.messageRequestStream(
                             messages: messages,
-                            system: systemPrompt,
+                            system: [SystemContentBlock(text: systemPrompt)],
                             tools: [],
                             maxTokens: 4096,
                             thinking: nil,
@@ -182,9 +182,11 @@ class AIService {
             AnthropicMessage(role: .user, content: .text(userPrompt))
         ]
 
+        let systemBlocks = [SystemContentBlock(text: systemPrompt)]
+
         let response = try await BedrockService.shared.messageRequest(
             messages: messages,
-            system: systemPrompt,
+            system: systemBlocks,
             tools: [schemaTool],
             maxTokens: 4096,
             modelId: modelId
@@ -203,7 +205,7 @@ class AIService {
 
         let finalResponse = try await BedrockService.shared.messageRequest(
             messages: messages,
-            system: systemPrompt,
+            system: systemBlocks,
             tools: [],
             maxTokens: 4096,
             modelId: modelId

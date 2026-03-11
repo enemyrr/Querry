@@ -76,17 +76,58 @@ extension JSONValue: ExpressibleByDictionaryLiteral {
     }
 }
 
+// MARK: - Cache Control
+
+struct CacheControl: Codable, Sendable {
+    let type: String
+    var ttl: String?
+
+    static let ephemeral = CacheControl(type: "ephemeral")
+    static let ephemeralLong = CacheControl(type: "ephemeral", ttl: "1h")
+
+    enum CodingKeys: String, CodingKey {
+        case type, ttl
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(ttl, forKey: .ttl)
+    }
+}
+
+// MARK: - System Content Block
+
+struct SystemContentBlock: Codable, Sendable {
+    let type: String
+    let text: String
+    var cacheControl: CacheControl?
+
+    init(text: String, cacheControl: CacheControl? = nil) {
+        self.type = "text"
+        self.text = text
+        self.cacheControl = cacheControl
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type, text
+        case cacheControl = "cache_control"
+    }
+}
+
 // MARK: - Tool Definition
 
 struct AnthropicToolDefinition: Sendable {
     let name: String
     let description: String
     let inputSchema: [String: JSONValue]
+    var cacheControl: CacheControl?
 
-    init(name: String, description: String, inputSchema: [String: JSONValue]) {
+    init(name: String, description: String, inputSchema: [String: JSONValue], cacheControl: CacheControl? = nil) {
         self.name = name
         self.description = description
         self.inputSchema = inputSchema
+        self.cacheControl = cacheControl
     }
 }
 
@@ -94,6 +135,7 @@ extension AnthropicToolDefinition: Codable {
     enum CodingKeys: String, CodingKey {
         case name, description
         case inputSchema = "input_schema"
+        case cacheControl = "cache_control"
     }
 }
 
@@ -145,10 +187,10 @@ extension AnthropicMessage: Codable {
 // MARK: - ContentBlock (request-side)
 
 enum ContentBlock: Sendable {
-    case text(String)
+    case text(String, cacheControl: CacheControl? = nil)
     case thinking(String, signature: String)
     case toolUse(id: String, name: String, input: [String: JSONValue])
-    case toolResult(toolUseId: String, content: String)
+    case toolResult(toolUseId: String, content: String, cacheControl: CacheControl? = nil)
 }
 
 extension ContentBlock: Codable {
@@ -156,6 +198,7 @@ extension ContentBlock: Codable {
         case type, text, id, name, input, thinking, signature
         case toolUseId = "tool_use_id"
         case content
+        case cacheControl = "cache_control"
     }
 
     init(from decoder: Decoder) throws {
@@ -164,7 +207,8 @@ extension ContentBlock: Codable {
         switch type {
         case "text":
             let text = try container.decode(String.self, forKey: .text)
-            self = .text(text)
+            let cc = try container.decodeIfPresent(CacheControl.self, forKey: .cacheControl)
+            self = .text(text, cacheControl: cc)
         case "thinking":
             let thinking = try container.decode(String.self, forKey: .thinking)
             let signature = try container.decodeIfPresent(String.self, forKey: .signature) ?? ""
@@ -177,7 +221,8 @@ extension ContentBlock: Codable {
         case "tool_result":
             let toolUseId = try container.decode(String.self, forKey: .toolUseId)
             let content = try container.decode(String.self, forKey: .content)
-            self = .toolResult(toolUseId: toolUseId, content: content)
+            let cc = try container.decodeIfPresent(CacheControl.self, forKey: .cacheControl)
+            self = .toolResult(toolUseId: toolUseId, content: content, cacheControl: cc)
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown content block type: \(type)")
         }
@@ -186,9 +231,10 @@ extension ContentBlock: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .text(let text):
+        case .text(let text, let cacheControl):
             try container.encode("text", forKey: .type)
             try container.encode(text, forKey: .text)
+            try container.encodeIfPresent(cacheControl, forKey: .cacheControl)
         case .thinking(let thinking, let signature):
             try container.encode("thinking", forKey: .type)
             try container.encode(thinking, forKey: .thinking)
@@ -198,10 +244,11 @@ extension ContentBlock: Codable {
             try container.encode(id, forKey: .id)
             try container.encode(name, forKey: .name)
             try container.encode(input, forKey: .input)
-        case .toolResult(let toolUseId, let content):
+        case .toolResult(let toolUseId, let content, let cacheControl):
             try container.encode("tool_result", forKey: .type)
             try container.encode(toolUseId, forKey: .toolUseId)
             try container.encode(content, forKey: .content)
+            try container.encodeIfPresent(cacheControl, forKey: .cacheControl)
         }
     }
 }
@@ -306,7 +353,7 @@ struct BedrockAnthropicRequest: Codable, Sendable {
     let anthropicVersion: String
     let anthropicBeta: [String]?
     let maxTokens: Int
-    let system: String
+    let system: [SystemContentBlock]
     let messages: [AnthropicMessage]
     let tools: [AnthropicToolDefinition]
     let thinking: ThinkingConfig?
@@ -336,10 +383,14 @@ struct BedrockAnthropicResponse: Codable, Sendable {
     struct Usage: Codable, Sendable {
         let inputTokens: Int
         let outputTokens: Int
+        var cacheCreationInputTokens: Int?
+        var cacheReadInputTokens: Int?
 
         enum CodingKeys: String, CodingKey {
             case inputTokens = "input_tokens"
             case outputTokens = "output_tokens"
+            case cacheCreationInputTokens = "cache_creation_input_tokens"
+            case cacheReadInputTokens = "cache_read_input_tokens"
         }
     }
 }

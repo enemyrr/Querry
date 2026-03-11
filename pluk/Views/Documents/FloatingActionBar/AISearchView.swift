@@ -219,7 +219,7 @@ struct AISearchView: View {
 
         let response = try await BedrockService.shared.messageRequest(
             messages: [AnthropicMessage(role: .user, content: .text(search))],
-            system: prompt,
+            system: [SystemContentBlock(text: prompt)],
             tools: [],
             maxTokens: 4096,
             modelId: BedrockConfig.haikuModelId
