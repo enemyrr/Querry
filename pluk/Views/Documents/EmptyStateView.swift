@@ -26,9 +26,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
     private var isShowingAll = false
     private var activeIndex = 0
-    private var searchText = ""
     private var eventMonitor: Any?
     private var dropdownHeightConstraint: NSLayoutConstraint?
+    private var appearanceObservation: NSKeyValueObservation?
 
     init(instance: ConnectionInstance) {
         self.instance = instance
@@ -172,11 +172,8 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         dropdownStackView.spacing = 0
         dropdownStackView.translatesAutoresizingMaskIntoConstraints = false
 
-        let clipView = NSClipView()
-        clipView.documentView = dropdownStackView
-        clipView.drawsBackground = false
-
-        dropdownScrollView.contentView = clipView
+        dropdownScrollView.contentView.drawsBackground = false
+        dropdownScrollView.documentView = dropdownStackView
         dropdownScrollView.drawsBackground = false
         dropdownScrollView.hasVerticalScroller = true
         dropdownScrollView.autohidesScrollers = true
@@ -236,30 +233,43 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             dropdownStackView.widthAnchor.constraint(equalTo: dropdownScrollView.widthAnchor),
 
             // No results label inside dropdown
-            noResultsLabel.topAnchor.constraint(equalTo: dropdownContainer.topAnchor, constant: 20),
+            noResultsLabel.topAnchor.constraint(equalTo: resultsHeaderLabel.bottomAnchor),
             noResultsLabel.centerXAnchor.constraint(equalTo: dropdownContainer.centerXAnchor),
-            noResultsLabel.bottomAnchor.constraint(equalTo: dropdownContainer.bottomAnchor, constant: -20),
+            noResultsLabel.bottomAnchor.constraint(equalTo: dropdownContainer.bottomAnchor, constant: -35),
         ])
     }
 
     // MARK: - Content
 
-    private var isSearching: Bool { !searchText.isEmpty }
+    private var currentSearchQuery: String {
+        if let editorText = searchField.currentEditor()?.string {
+            return editorText
+        }
+        return searchField.stringValue
+    }
 
-    private var filteredCollections: [any CollectionWrapper] {
-        guard !searchText.isEmpty else { return [] }
+    private func filteredCollections(matching searchQuery: String) -> [any CollectionWrapper] {
+        guard !searchQuery.isEmpty else { return [] }
         guard let collections = instance.collections[instance.connectedDatabase?.name ?? ""] else {
             return []
         }
-        return collections.filter { $0.name.localizedStandardContains(searchText) }
+        return collections.filter { $0.name.localizedStandardContains(searchQuery) }
+    }
+
+    private func clearRows(in stackView: NSStackView) {
+        for row in stackView.arrangedSubviews {
+            stackView.removeArrangedSubview(row)
+            row.removeFromSuperview()
+        }
     }
 
     private func reloadContent() {
-        dropdownStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        recentStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        clearRows(in: dropdownStackView)
+        clearRows(in: recentStackView)
 
-        if isSearching {
-            let collections = filteredCollections
+        let searchQuery = currentSearchQuery
+        if !searchQuery.isEmpty {
+            let collections = filteredCollections(matching: searchQuery)
             let hasResults = !collections.isEmpty
 
             // Hide recent, show dropdown container (for results or no-results)
@@ -267,8 +277,8 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             recentStackView.isHidden = true
             dropdownContainer.isHidden = false
             resultsHeaderLabel.isHidden = !hasResults
-            dropdownScrollView.isHidden = !hasResults
             noResultsLabel.isHidden = hasResults
+            dropdownScrollView.isHidden = !hasResults
 
             if activeIndex >= collections.count {
                 activeIndex = 0
@@ -288,10 +298,13 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             }
 
             dropdownHeightConstraint?.isActive = false
-            let maxHeight = min(CGFloat(collections.count) * 41, 320)
-            let constraint = dropdownScrollView.heightAnchor.constraint(equalToConstant: maxHeight)
-            constraint.isActive = true
-            dropdownHeightConstraint = constraint
+            dropdownHeightConstraint = nil
+            if hasResults {
+                let maxHeight = min(CGFloat(collections.count) * 41, 320)
+                let constraint = dropdownScrollView.heightAnchor.constraint(equalToConstant: maxHeight)
+                constraint.isActive = true
+                dropdownHeightConstraint = constraint
+            }
 
         } else {
             // Hide dropdown, show recent
@@ -319,6 +332,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
                 recentStackView.addArrangedSubview(row)
             }
         }
+
+        view.needsLayout = true
+        view.layoutSubtreeIfNeeded()
     }
 
     // MARK: - Row Builder
@@ -338,7 +354,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
         row.isActive = isActive
         if isActive {
-            row.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.1).cgColor
+            row.layer?.backgroundColor = NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
         }
 
         let icon = NSImageView()
@@ -426,7 +442,6 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
     @objc private func clearSearch() {
         searchField.stringValue = ""
-        searchText = ""
         activeIndex = 0
         clearButton.isHidden = true
         reloadContent()
@@ -476,11 +491,14 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
     // MARK: - NSTextFieldDelegate
 
     func controlTextDidChange(_ obj: Notification) {
-        searchText = searchField.stringValue
-        clearButton.isHidden = searchText.isEmpty
+        clearButton.isHidden = currentSearchQuery.isEmpty
         activeIndex = 0
         reloadContent()
         scrollToActiveRow()
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.scrollToActiveRow()
+        }
     }
 
     // MARK: - Event Monitor
@@ -497,8 +515,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
                 break
             }
 
-            guard self.isSearching else { return event }
-            let collections = self.filteredCollections
+            let searchQuery = self.currentSearchQuery
+            guard !searchQuery.isEmpty else { return event }
+            let collections = self.filteredCollections(matching: searchQuery)
             guard !collections.isEmpty else { return event }
 
             switch event.keyCode {
@@ -534,20 +553,17 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         activeIndex = newIndex
         if let newRow = views[safe: newIndex] as? ClickableRowView {
             newRow.isActive = true
-            newRow.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.1).cgColor
+            newRow.layer?.backgroundColor = NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
         }
         scrollToActiveRow()
     }
 
     private func scrollToActiveRow() {
+        guard dropdownScrollView.isHidden == false else { return }
         guard activeIndex < dropdownStackView.arrangedSubviews.count else { return }
-        dropdownStackView.layoutSubtreeIfNeeded()
-        if activeIndex == 0 {
-            dropdownScrollView.contentView.scroll(to: .zero)
-        } else {
-            let row = dropdownStackView.arrangedSubviews[activeIndex]
-            dropdownScrollView.contentView.scrollToVisible(row.frame)
-        }
+        view.layoutSubtreeIfNeeded()
+        let row = dropdownStackView.arrangedSubviews[activeIndex]
+        dropdownScrollView.contentView.scrollToVisible(row.frame)
         dropdownScrollView.reflectScrolledClipView(dropdownScrollView.contentView)
     }
 
@@ -574,6 +590,13 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         super.viewWillAppear()
         updateContainerAppearance(searchContainer)
         updateContainerAppearance(dropdownContainer)
+
+        appearanceObservation = view.observe(\.effectiveAppearance) { [weak self] _, _ in
+            guard let self else { return }
+            self.updateContainerAppearance(self.searchContainer)
+            self.updateContainerAppearance(self.dropdownContainer)
+            self.reloadContent()
+        }
     }
 }
 
@@ -624,20 +647,27 @@ private final class ClickableRowView: NSView {
         if shouldHover != isHovering {
             isHovering = shouldHover
             layer?.backgroundColor = (shouldHover || isActive)
-                ? NSColor.secondaryLabelColor.withAlphaComponent(0.1).cgColor
+                ? NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
                 : nil
         }
     }
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.1).cgColor
+        layer?.backgroundColor = NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
         layer?.backgroundColor = isActive
-            ? NSColor.secondaryLabelColor.withAlphaComponent(0.1).cgColor
+            ? NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
+            : nil
+    }
+
+    override func updateLayer() {
+        super.updateLayer()
+        layer?.backgroundColor = (isHovering || isActive)
+            ? NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
             : nil
     }
 
