@@ -150,7 +150,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         recentHeaderStack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 10, right: 16)
 
         recentStackView.orientation = .vertical
-        recentStackView.spacing = 0
+        recentStackView.spacing = 4
         recentStackView.translatesAutoresizingMaskIntoConstraints = false
     }
 
@@ -169,7 +169,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         resultsHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
 
         dropdownStackView.orientation = .vertical
-        dropdownStackView.spacing = 0
+        dropdownStackView.spacing = 4
         dropdownStackView.translatesAutoresizingMaskIntoConstraints = false
 
         dropdownScrollView.contentView.drawsBackground = false
@@ -227,10 +227,10 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             // Scroll view inside dropdown
             dropdownScrollView.topAnchor.constraint(equalTo: resultsHeaderLabel.bottomAnchor, constant: 8),
             dropdownScrollView.leadingAnchor.constraint(equalTo: dropdownContainer.leadingAnchor, constant: 8),
-            dropdownScrollView.trailingAnchor.constraint(equalTo: dropdownContainer.trailingAnchor, constant: -8),
+            dropdownScrollView.trailingAnchor.constraint(equalTo: dropdownContainer.trailingAnchor, constant: -2),
             dropdownScrollView.bottomAnchor.constraint(equalTo: dropdownContainer.bottomAnchor, constant: -8),
 
-            dropdownStackView.widthAnchor.constraint(equalTo: dropdownScrollView.widthAnchor),
+            dropdownStackView.widthAnchor.constraint(equalTo: dropdownScrollView.widthAnchor, constant: -6),
 
             // No results label inside dropdown
             noResultsLabel.topAnchor.constraint(equalTo: resultsHeaderLabel.bottomAnchor),
@@ -300,7 +300,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             dropdownHeightConstraint?.isActive = false
             dropdownHeightConstraint = nil
             if hasResults {
-                let maxHeight = min(CGFloat(collections.count) * 41, 320)
+                let maxHeight = min(CGFloat(collections.count) * 38 + CGFloat(collections.count - 1) * 4, 320)
                 let constraint = dropdownScrollView.heightAnchor.constraint(equalToConstant: maxHeight)
                 constraint.isActive = true
                 dropdownHeightConstraint = constraint
@@ -397,9 +397,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         row.addSubview(typeLabel)
 
         var constraints = [
-            row.heightAnchor.constraint(equalToConstant: 41),
+            row.heightAnchor.constraint(equalToConstant: 38),
 
-            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
+            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 15),
             icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             icon.widthAnchor.constraint(equalToConstant: 20),
             icon.heightAnchor.constraint(equalToConstant: 16),
