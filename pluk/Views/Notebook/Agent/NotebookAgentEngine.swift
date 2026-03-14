@@ -47,6 +47,28 @@ final class NotebookAgentEngine {
 
     private let driverSession = AgentDriverSession()
 
+    /// Pre-fetched Convex deployment names keyed by connection keychainId
+    private(set) var convexDeployments: [String: [String]] = [:]
+
+    func prefetchConvexDeployments(connections: [Connection]) async {
+        let missing = connections.filter { $0.databaseType == .convex && convexDeployments[$0.keychainId] == nil }
+        guard !missing.isEmpty else { return }
+        for conn in missing {
+            do {
+                try await driverSession.connect(
+                    databaseType: conn.databaseType,
+                    uri: conn.connectionUri,
+                    keychainId: conn.keychainId,
+                    databaseName: conn.defaultDatabase ?? ""
+                )
+                let databases = try await driverSession.listDatabases()
+                convexDeployments[conn.keychainId] = databases.map(\.name)
+            } catch {
+                convexDeployments[conn.keychainId] = []
+            }
+        }
+    }
+
     func clearPendingCreations() {
         pendingBlockCreations.removeAll()
         pendingNotebookInfoUpdate = nil
@@ -299,7 +321,16 @@ final class NotebookAgentEngine {
             connectionList = "No connections selected. Ask the user to select a connection using the picker below the chat input."
         } else {
             connectionList = connections.map { conn in
-                "- \(conn.name) (keychainId: \(conn.keychainId), type: \(conn.databaseType.rawValue), database: \(conn.defaultDatabase ?? "default"))"
+                let dbName: String
+                if conn.databaseType == .convex {
+                    // For Convex, defaultDatabase may be the connection name (wrong).
+                    // Use the first pre-fetched deployment name instead.
+                    let deployments = convexDeployments[conn.keychainId] ?? []
+                    dbName = deployments.first ?? conn.defaultDatabase ?? "default"
+                } else {
+                    dbName = conn.defaultDatabase ?? "default"
+                }
+                return "- \(conn.name): connection_keychain_id: \(conn.keychainId), connection_name: \(conn.name), database_type: \(conn.databaseType.rawValue), database_name: \(dbName)"
             }.joined(separator: "\n")
         }
 
@@ -345,6 +376,7 @@ final class NotebookAgentEngine {
         <existing_notebook_blocks>
         \(blockInventory)
         </existing_notebook_blocks>
+        \(convexHint(connections: connections))
         """
 
         return [
@@ -367,6 +399,10 @@ final class NotebookAgentEngine {
         ]
         tools.append(contentsOf: NotebookBlockKind.allToolDefinitions)
         tools.append(contentsOf: NotebookBlockKind.allUpdateToolDefinitions)
+
+        if connections.contains(where: { $0.databaseType == .convex }) {
+            tools.append(convexQueryGuideTool)
+        }
 
         // Cache breakpoint on last tool — all tool definitions are static
         if !tools.isEmpty {
@@ -462,6 +498,8 @@ final class NotebookAgentEngine {
             result = executeUpdateQueryBlock(json: json)
         case "arrange_dashboard":
             result = executeArrangeDashboard(json: json)
+        case "get_convex_query_guide":
+            result = ConvexQueryGuide.content
         default:
             result = "Unknown tool: \(toolCall.name)"
         }
@@ -493,11 +531,12 @@ final class NotebookAgentEngine {
             )
 
             var schemaInfo = ""
-            let schemaCapableTypes: Set<DatabaseType> = [.postgres, .supabase, .mysql]
+            let schemaCapableTypes: Set<DatabaseType> = Self.schemaCapableTypes
             if schemaCapableTypes.contains(connection.databaseType) {
                 let schemas = try await driverSession.getInformationSchema()
                 if !schemas.isEmpty {
-                    schemaInfo = "\nAvailable schemas: \(schemas.map(\.name).joined(separator: ", "))\n"
+                    let label = connection.databaseType == .convex ? "Available components" : "Available schemas"
+                    schemaInfo = "\n\(label): \(schemas.map(\.name).joined(separator: ", "))\n"
                 }
             }
 
@@ -581,6 +620,7 @@ final class NotebookAgentEngine {
 
     // MARK: - Run Query
 
+    private static let schemaCapableTypes: Set<DatabaseType> = [.postgres, .supabase, .mysql, .convex]
     private static let blockedPrefixes = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
 
     private func executeRunQuery(json: [String: Any], connections: [Connection]) async -> String {
@@ -1186,6 +1226,24 @@ final class NotebookAgentEngine {
         }
     }
 
+    private func convexHint(connections: [Connection]) -> String {
+        let convexConnections = connections.filter { $0.databaseType == .convex }
+        guard !convexConnections.isEmpty else { return "" }
+
+        return """
+
+        <convex_query_guidance>
+        One or more connections use Convex. Convex does NOT use SQL — it uses a JSON query specification for raw queries.
+        Before constructing any raw Convex query or using `run_query` / `create_query_block` with a Convex connection, call the `get_convex_query_guide` tool to load the full query format specification.
+
+        Convex terminology:
+        - `database_name` = deployment/environment (e.g. "Production", "Development (Cloud)"). Use `list_databases` to see all available deployments.
+        - `schema_name` = component. The root component is `app`. Most tables live in `app`.
+        - Foreign keys show as `[FK -> tableName]` in schema results — these are `v.id("tableName")` references that can be used with the `join` feature in raw queries.
+        </convex_query_guidance>
+        """
+    }
+
     private func resolveConnection(json: [String: Any], connections: [Connection]) -> Connection? {
         if let keychainId = json["connection_keychain_id"] as? String {
             return connections.first { $0.keychainId == keychainId }
@@ -1370,6 +1428,15 @@ final class NotebookAgentEngine {
                 ]),
             ]),
             "required": .array([.string("connection_keychain_id")]),
+        ]
+    )
+
+    private let convexQueryGuideTool = AnthropicToolDefinition(
+        name: "get_convex_query_guide",
+        description: "Returns the Convex JSON query specification. Call this before constructing any raw query for a Convex connection. The guide explains the query JSON schema, range expressions, filter expressions, and value encoding that Convex uses instead of SQL.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([:]),
         ]
     )
 

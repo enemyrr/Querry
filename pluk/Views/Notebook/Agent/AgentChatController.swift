@@ -167,6 +167,9 @@ final class AgentChatController {
         error = nil
         engine.clearPendingCreations()
 
+        // Pre-fetch Convex deployments so the agent knows available environments
+        await engine.prefetchConvexDeployments(connections: selectedConnections)
+
         var anthropicMessages = buildAnthropicMessages()
         var accumulatedAssistantText = ""
 

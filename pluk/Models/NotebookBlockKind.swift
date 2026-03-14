@@ -108,7 +108,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
                 "database_name": .object([
                     "type": .string("string"),
-                    "description": .string("The database name (omit when using source_query_output)"),
+                    "description": .string("The database name (omit when using source_query_output). Use the database_name value from <available_connections>."),
                 ]),
                 "schema_name": .object([
                     "type": .string("string"),
@@ -210,7 +210,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
                 "database_name": .object([
                     "type": .string("string"),
-                    "description": .string("The database name"),
+                    "description": .string("The database name. Use the database_name value from <available_connections>."),
                 ]),
                 "schema_name": .object([
                     "type": .string("string"),
@@ -286,7 +286,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
                 "database_name": .object([
                     "type": .string("string"),
-                    "description": .string("The database name"),
+                    "description": .string("The database name. Use the database_name value from <available_connections>."),
                 ]),
                 "schema_name": .object([
                     "type": .string("string"),

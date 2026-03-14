@@ -38,10 +38,158 @@ class ConvexDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("Driver does not support this")
     }
     
+    private static let convexRawQueryFetchLimit = 500
+
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
-        throw DatabaseError.notImplemented("Driver does not support this")
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let data = trimmed.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tableName = parsed["table"] as? String else {
+            throw DatabaseError.operationFailed("Convex raw queries must be JSON with a 'table' field. Call get_convex_query_guide for the format.")
+        }
+
+        let convexSchema = (databaseSchema == "app") ? nil : databaseSchema
+        let hasAggregate = parsed["aggregate"] as? [String: Any]
+        let fetchLimit = hasAggregate != nil ? Self.convexRawQueryFetchLimit : 100
+
+        // Strip client-only keys before sending to backend
+        var filterPayload = parsed
+        filterPayload.removeValue(forKey: "join")
+        filterPayload.removeValue(forKey: "aggregate")
+        let filterJSON = try JSONSerialization.data(withJSONObject: filterPayload, options: [.withoutEscapingSlashes, .sortedKeys])
+        let filterDict: [String: Any] = ["rawQuery": String(data: filterJSON, encoding: .utf8) ?? trimmed]
+        let result = try await findDocuments(in: tableName, databaseSchema: convexSchema, filter: filterDict, skip: 0, limit: fetchLimit, sortBy: nil, ascending: nil)
+
+        // Apply join if specified
+        let joinedResult: QueryResult
+        if let joinSpec = parsed["join"] as? [String: Any] {
+            joinedResult = try await applyConvexJoin(result: result, joinSpec: joinSpec, databaseSchema: convexSchema)
+        } else {
+            joinedResult = result
+        }
+
+        guard let aggregateSpec = hasAggregate else {
+            return [joinedResult]
+        }
+
+        let dimensions = aggregateSpec["groupBy"] as? [String] ?? []
+        let measuresRaw = aggregateSpec["measures"] as? [[String: String]] ?? []
+
+        let measures: [(column: String, aggregation: AggregationFunction)] = measuresRaw.compactMap { m in
+            guard let column = m["column"],
+                  let funcRaw = m["function"],
+                  let agg = AggregationFunction(rawValue: funcRaw) else { return nil }
+            return (column: column, aggregation: agg)
+        }
+
+        guard !measures.isEmpty else {
+            return [joinedResult]
+        }
+
+        let aggregated = ConvexAggregator.aggregate(joinedResult, dimensions: dimensions, measures: measures)
+        return [aggregated]
     }
     
+    private func applyConvexJoin(result: QueryResult, joinSpec: [String: Any], databaseSchema: String?) async throws -> QueryResult {
+        guard let joinField = joinSpec["field"] as? String,
+              let referencedTable = joinSpec["referencedTable"] as? String else {
+            throw DatabaseError.operationFailed("Convex join requires 'field' and 'referencedTable' in the join spec.")
+        }
+        guard let mobileClient = convexMobileClient else {
+            throw DatabaseError.connectionFailed("Not connected to Convex")
+        }
+
+        let includeFields = joinSpec["includeFields"] as? [String]
+
+        // Extract unique IDs from the join field
+        var uniqueIds: [String] = []
+        var seenIds: Set<String> = []
+        for row in result.rawRows {
+            if let idValue = row[joinField] as? String, !seenIds.contains(idValue) {
+                seenIds.insert(idValue)
+                uniqueIds.append(idValue)
+            }
+        }
+
+        guard !uniqueIds.isEmpty else { return result }
+
+        // Batch fetch via listById
+        let idArgs: [ConvexEncodable?] = uniqueIds.map { id -> ConvexEncodable? in
+            let entry: [String: ConvexEncodable?] = ["id": id, "tableName": referencedTable]
+            return entry
+        }
+
+        var args: [String: ConvexEncodable?] = ["ids": idArgs]
+        if let databaseSchema {
+            args["componentId"] = getComponentId(for: databaseSchema)
+        }
+
+        let response: [String: Any] = try await mobileClient.query(name: "_system/frontend/listById", with: args)
+
+        // Parse response — listById returns an array in the same order as requested
+        let referencedDocs: [[String: Any]?]
+        if let valueArray = response["value"] as? [Any?] {
+            referencedDocs = valueArray.map { $0 as? [String: Any] }
+        } else if let directArray = response as? [Any?] {
+            referencedDocs = directArray.map { $0 as? [String: Any] }
+        } else {
+            return result
+        }
+
+        // Build lookup: id → document
+        var docLookup: [String: [String: Any]] = [:]
+        for (index, id) in uniqueIds.enumerated() {
+            if index < referencedDocs.count, let doc = referencedDocs[index] {
+                docLookup[id] = doc
+            }
+        }
+
+        // Determine which fields to include from referenced docs
+        let fieldsToInclude: [String]
+        if let specified = includeFields {
+            fieldsToInclude = specified
+        } else if let firstDoc = docLookup.values.first {
+            fieldsToInclude = firstDoc.keys.filter { $0 != "_id" && $0 != "_creationTime" }.sorted()
+        } else {
+            return result
+        }
+
+        // Build new columns: original + joined fields prefixed with referenced table
+        var newColumns = result.columns
+        let startIdx = newColumns.count
+        for (i, field) in fieldsToInclude.enumerated() {
+            let columnName = "\(referencedTable).\(field)"
+            newColumns.append(QueryColumnInfo(name: columnName, dataType: "text", format: nil, index: startIdx + i))
+        }
+
+        // Merge rows
+        var newRows: [[String: QueryRowInfo]] = []
+        var newRawRows: [[String: Any?]] = []
+
+        for (rowIdx, row) in result.rows.enumerated() {
+            var mergedRow = row
+            let rawRow = rowIdx < result.rawRows.count ? result.rawRows[rowIdx] : [:]
+            var mergedRawRow = rawRow
+
+            let refId = rawRow[joinField] as? String
+            let refDoc = refId.flatMap { docLookup[$0] }
+
+            for field in fieldsToInclude {
+                let columnName = "\(referencedTable).\(field)"
+                let value = refDoc?[field]
+                let displayValue = value.map { ConvexValue.formatValueForDisplay(value: $0, fieldName: field, dataType: "text") }
+                mergedRow[columnName] = QueryRowInfo(value: displayValue, dataType: "text", format: nil)
+                mergedRawRow[columnName] = value
+            }
+
+            newRows.append(mergedRow)
+            newRawRows.append(mergedRawRow)
+        }
+
+        return QueryResult(columns: newColumns, rows: newRows, totalCount: result.totalCount, rawRows: newRawRows)
+    }
+
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
         throw DatabaseError.notImplemented("Driver does not support this")
     }
@@ -454,9 +602,6 @@ class ConvexDriver: DatabaseDriver {
                 args["filters"] = base64
                 filtersBase64Signature = base64
             }
-            
-            // Try simpler query first to test FFI compatibility
-            debugLog("Attempting ConvexMobile query with args: \(args)")
             
             // Use ConvexMobile client to call FE paginated endpoint
             let jsonRaw: [String: Any] = try await mobileClient.query(name: "_system/frontend/paginatedTableDocuments", with: args)

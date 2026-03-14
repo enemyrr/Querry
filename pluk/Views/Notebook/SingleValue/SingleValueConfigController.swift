@@ -190,12 +190,12 @@ final class SingleValueConfigPopoverController: NSViewController {
 
         addConnectionRow(to: stack)
 
-        if !viewModel.availableSchemas.isEmpty {
-            addSchemaRow(to: stack)
-        }
-
         if !viewModel.availableEnvironments.isEmpty {
             addEnvironmentRow(to: stack)
+        }
+
+        if !viewModel.availableSchemas.isEmpty {
+            addSchemaRow(to: stack)
         }
 
         addTableRow(to: stack)
