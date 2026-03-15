@@ -174,30 +174,9 @@ struct ConvexFieldType {
     
     var swiftTypeName: String {
         switch type {
-        case "id":
-            return "id"
-        case "null":
-            return "null"
-        case "int64":
-            return "int64"
-        case "number":
-            return "float64"
-        case "boolean":
-            return "boolean"
-        case "string":
-            return "string"
-        case "bytes":
-            return "bytes"
-        case "array":
-            return "array"
-        case "object":
-            return "object"
-        case "record":
-            return "record"
-        case "union":
-            return parseUnionType()
-        default:
-            return type
+        case "number": return "float64"
+        case "union": return parseUnionType()
+        default: return type
         }
     }
     

@@ -425,6 +425,71 @@ enum ConvexQueryGuide {
     MEASURE = { column: string, function: "count"|"countDistinct"|"sum"|"average"|"min"|"max" }
     ```
 
+    ## JavaScript Query Mode (Advanced)
+
+    For complex queries beyond what the JSON format supports, you can pass JavaScript code directly to `run_query`. The driver detects it automatically — anything that isn't a JSON object with a `table` key is treated as JavaScript and executed via `run_test_function`.
+
+    ### Template
+    ```javascript
+    import { query } from "convex:/_system/repl/wrappers.js";
+
+    export default query({
+      handler: async (ctx) => {
+        // Full ctx.db access here
+        return await ctx.db.query("tableName").collect();
+      },
+    });
+    ```
+
+    ### When to use JS mode
+    - Multi-table joins (server-side, no client round-trips)
+    - Complex aggregations on large datasets
+    - Computed/transformed fields
+    - Conditional query logic
+
+    ### When to use JSON mode
+    - Simple table browsing and filtering
+    - Single-level joins on small tables
+    - Basic aggregations (< 500 rows)
+
+    ### Constraints
+    - Only `query` exports work — mutations/actions are rejected
+    - Read-only — cannot modify data
+    - No external imports besides the wrappers
+    - Must be plain JavaScript (no TypeScript)
+    - Return arrays of objects for best tabular display
+
+    ### Examples
+
+    Multi-table join:
+    ```javascript
+    import { query } from "convex:/_system/repl/wrappers.js";
+    export default query({
+      handler: async (ctx) => {
+        const orders = await ctx.db.query("orders").collect();
+        return Promise.all(orders.map(async (o) => {
+          const customer = await ctx.db.get(o.customerId);
+          return { ...o, customerName: customer?.name };
+        }));
+      },
+    });
+    ```
+
+    Server-side aggregation:
+    ```javascript
+    import { query } from "convex:/_system/repl/wrappers.js";
+    export default query({
+      handler: async (ctx) => {
+        const orders = await ctx.db.query("orders").collect();
+        const byStatus = {};
+        for (const o of orders) {
+          byStatus[o.status] = (byStatus[o.status] || 0) + 1;
+        }
+        return Object.entries(byStatus).map(([status, count]) => ({ status, count }));
+      },
+    });
+    ```
+
     ## Validation checklist
 
     1. `table` field is present and is the Convex table name.

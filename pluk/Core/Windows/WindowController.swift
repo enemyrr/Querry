@@ -127,6 +127,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     let tabType: TabType
     let connectionInstance: ConnectionInstance?
     private var environmentToolbarItem: NSToolbarItem?
+    private var isRefreshingDeployments = false
 
     // MARK: - Initialization
 
@@ -424,8 +425,18 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
             }
+
+            Section {
+                Button {
+                    Task {
+                        await self.refreshDeployments(for: instance)
+                    }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+            }
         } label: {
-            EnvironmentMenuLabel(title: currentEnvironmentTitle(instance))
+            EnvironmentMenuLabel(title: currentEnvironmentTitle(instance), isLoading: isRefreshingDeployments)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -434,6 +445,34 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             return AnyView(menuView.glassEffect())
         } else {
             return AnyView(menuView)
+        }
+    }
+
+    private func refreshDeployments(for instance: ConnectionInstance) async {
+        guard let driver = instance.databaseService.driver as? ConvexDriver else { return }
+
+        await MainActor.run {
+            isRefreshingDeployments = true
+            refreshEnvironmentMenu()
+        }
+
+        do {
+            let fresh = try await driver.refreshDeploymentsFromAPI()
+            await MainActor.run {
+                instance.databases = fresh
+                isRefreshingDeployments = false
+                refreshEnvironmentMenu()
+
+                if let updatedToken = driver.buildUpdatedEmbeddedToken() {
+                    instance.connection.password = updatedToken
+                }
+            }
+        } catch {
+            debugLog("Failed to refresh deployments: \(error)")
+            await MainActor.run {
+                isRefreshingDeployments = false
+                refreshEnvironmentMenu()
+            }
         }
     }
 

@@ -534,13 +534,14 @@ struct ConvexOAuthView: View {
         // The convexAccessToken should be the raw OAuth access token, not parsed
         let deployKey = convexAccessToken
 
-        // Build metadata if we have a projectId
         var meta: [String: Any] = [:]
         if let projectId = convexTeamId {
             meta["projectId"] = projectId
-            // Always include teamName and projectName fields, using NSNull for empty values
             meta["teamName"] = convexTeamName.isEmpty ? NSNull() : convexTeamName
             meta["projectName"] = convexProjectName.isEmpty ? NSNull() : convexProjectName
+            if !convexDeployments.isEmpty {
+                meta["deployments"] = convexDeployments
+            }
         }
 
         // If we have at least a projectId, produce the embedded token
@@ -562,6 +563,7 @@ struct ConvexOAuthView: View {
     @State private var convexProjectName = ""
     @State private var convexTeamId: Int64?
     @State private var convexProjectWithId = ""
+    @State private var convexDeployments: [[String: Any]] = []
     
     
     // PKCE parameters (required by RFC 8252)
@@ -731,19 +733,58 @@ struct ConvexOAuthView: View {
             }
         }
 
+        // Fetch deployments while we have a valid token
+        var deploymentsLocal: [[String: Any]] = []
+        if let pid = projectIdLocal {
+            deploymentsLocal = await fetchDeployments(accessToken: accessToken, projectId: pid, teamName: teamNameLocal)
+        }
+
         await MainActor.run {
-            // Update the form with the received token and parsed details
             convexAccessToken = accessToken
             if let pid = projectIdLocal { convexTeamId = pid }
             if let tn = teamNameLocal { convexTeamName = tn }
             if let pn = projectNameLocal { convexProjectName = pn }
             if let pwid = projectWithIdLocal { convexProjectWithId = pwid }
+            convexDeployments = deploymentsLocal
 
-            // Start arrow pulse animation (single pulse)
             arrowPulse = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
                 arrowPulse = false
             }
+        }
+    }
+
+    private func fetchDeployments(accessToken: String, projectId: Int64, teamName: String?) async -> [[String: Any]] {
+        let url = URL(string: "https://api.convex.dev/v1/projects/\(projectId)/list_deployments")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
+              let deployments = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+        return deployments.compactMap { dep in
+            guard let name = dep["name"] as? String,
+                  let deploymentType = dep["deploymentType"] as? String else { return nil }
+            let label = ConvexDriver.getDeploymentLabel(
+                deployment: ConvexDeployment(
+                    name: name,
+                    createTime: dep["createTime"] as? Int64 ?? 0,
+                    deploymentType: deploymentType,
+                    projectId: projectId,
+                    previewIdentifier: dep["previewIdentifier"] as? String
+                ),
+                whoseName: teamName
+            )
+            return [
+                "name": label,
+                "deploymentType": deploymentType,
+                "projectId": projectId,
+                "deploymentId": name
+            ] as [String: Any]
         }
     }
 }

@@ -43,10 +43,21 @@ class ConvexDriver: DatabaseDriver {
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let data = trimmed.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tableName = parsed["table"] as? String else {
-            throw DatabaseError.operationFailed("Convex raw queries must be JSON with a 'table' field. Call get_convex_query_guide for the format.")
+        // Try existing JSON format first (has a "table" key)
+        if let data = trimmed.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           parsed["table"] != nil {
+            return try await executeJSONQuery(trimmed, parsed: parsed, databaseSchema: databaseSchema)
+        }
+
+        // Otherwise treat as JavaScript for run_test_function
+        let convexSchema = (databaseSchema == "app") ? nil : databaseSchema
+        return try await executeJSQuery(trimmed, databaseSchema: convexSchema)
+    }
+
+    private func executeJSONQuery(_ trimmed: String, parsed: [String: Any], databaseSchema: String?) async throws -> [QueryResult] {
+        guard let tableName = parsed["table"] as? String else {
+            throw DatabaseError.operationFailed("Convex JSON query requires a 'table' field.")
         }
 
         let convexSchema = (databaseSchema == "app") ? nil : databaseSchema
@@ -90,7 +101,115 @@ class ConvexDriver: DatabaseDriver {
         let aggregated = ConvexAggregator.aggregate(joinedResult, dimensions: dimensions, measures: measures)
         return [aggregated]
     }
-    
+
+    // MARK: - JavaScript Query Execution (run_test_function)
+
+    private func executeJSQuery(_ jsSource: String, databaseSchema: String?) async throws -> [QueryResult] {
+        guard isConnected, let mobileClient = convexMobileClient else {
+            throw DatabaseError.connectionFailed("Not connected to Convex")
+        }
+
+        let preamble = #"import { query } from "convex:/_system/repl/wrappers.js";"#
+        let fullSource = jsSource.contains("_system/repl/wrappers") ? jsSource : preamble + "\n" + jsSource
+
+        let componentId: String? = if let databaseSchema {
+            getComponentId(for: databaseSchema)
+        } else {
+            nil
+        }
+
+        do {
+            let resultJson = try await mobileClient.runTestFunction(
+                source: fullSource,
+                args: "{}",
+                componentId: componentId
+            )
+
+            // Parse the JSON result string into a usable value
+            guard let data = resultJson.data(using: .utf8),
+                  let value = try? JSONSerialization.jsonObject(with: data) else {
+                return [convertArbitraryToQueryResult(resultJson)]
+            }
+            return [convertArbitraryToQueryResult(value)]
+        } catch let error as ClientError {
+            throw DatabaseError.operationFailed(extractConvexErrorMessage(from: error))
+        }
+    }
+
+    private func convertArbitraryToQueryResult(_ value: Any?) -> QueryResult {
+        // Case 1: Array of objects (most common — table-like data)
+        if let array = value as? [[String: Any]] {
+            guard !array.isEmpty else {
+                return QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
+            }
+
+            // Collect all unique keys across all objects, preserving insertion order
+            var columnNames: [String] = []
+            var seen = Set<String>()
+            for obj in array {
+                for key in obj.keys.sorted() where !seen.contains(key) {
+                    columnNames.append(key)
+                    seen.insert(key)
+                }
+            }
+
+            // Reorder: put _id first, _creationTime second if present
+            let priorityFields = ["_id", "_creationTime"]
+            let prioritized = priorityFields.filter { columnNames.contains($0) }
+            let rest = columnNames.filter { !priorityFields.contains($0) }
+            columnNames = prioritized + rest
+
+            let columns = columnNames.enumerated().map { index, name in
+                let sampleValue = array.first { $0[name] != nil }?[name]
+                return ConvexValue.createQueryColumnInfo(name: name, value: sampleValue, index: index)
+            }
+
+            var rows: [[String: QueryRowInfo]] = []
+            var rawRows: [[String: Any?]] = []
+            for obj in array {
+                var row: [String: QueryRowInfo] = [:]
+                var rawRow: [String: Any?] = [:]
+                for col in columns {
+                    let val = obj[col.name]
+                    row[col.name] = ConvexValue.createQueryRowInfo(value: val, fieldName: col.name)
+                    rawRow[col.name] = val
+                }
+                rows.append(row)
+                rawRows.append(rawRow)
+            }
+
+            return QueryResult(columns: columns, rows: rows, totalCount: array.count, rawRows: rawRows)
+        }
+
+        // Case 2: Single object → single-row table
+        if let obj = value as? [String: Any] {
+            return convertArbitraryToQueryResult([obj])
+        }
+
+        // Case 3: Array of primitives → single column "value"
+        if let array = value as? [Any] {
+            let columns = [QueryColumnInfo(name: "value", dataType: "text", format: nil, index: 0)]
+            var rows: [[String: QueryRowInfo]] = []
+            var rawRows: [[String: Any?]] = []
+            for item in array {
+                rows.append(["value": ConvexValue.createQueryRowInfo(value: item)])
+                rawRows.append(["value": item])
+            }
+            return QueryResult(columns: columns, rows: rows, totalCount: array.count, rawRows: rawRows)
+        }
+
+        // Case 4: Scalar → single cell
+        if let val = value {
+            let columns = [QueryColumnInfo(name: "value", dataType: "text", format: nil, index: 0)]
+            let rows: [[String: QueryRowInfo]] = [["value": ConvexValue.createQueryRowInfo(value: val)]]
+            let rawRows: [[String: Any?]] = [["value": val]]
+            return QueryResult(columns: columns, rows: rows, totalCount: 1, rawRows: rawRows)
+        }
+
+        // Case 5: null/nil → empty result
+        return QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
+    }
+
     private func applyConvexJoin(result: QueryResult, joinSpec: [String: Any], databaseSchema: String?) async throws -> QueryResult {
         guard let joinField = joinSpec["field"] as? String,
               let referencedTable = joinSpec["referencedTable"] as? String else {
@@ -125,14 +244,12 @@ class ConvexDriver: DatabaseDriver {
             args["componentId"] = getComponentId(for: databaseSchema)
         }
 
-        let response: [String: Any] = try await mobileClient.query(name: "_system/frontend/listById", with: args)
+        let response: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/listById", with: args)
 
         // Parse response — listById returns an array in the same order as requested
         let referencedDocs: [[String: Any]?]
-        if let valueArray = response["value"] as? [Any?] {
-            referencedDocs = valueArray.map { $0 as? [String: Any] }
-        } else if let directArray = response as? [Any?] {
-            referencedDocs = directArray.map { $0 as? [String: Any] }
+        if let valueArray = (response["value"] ?? response).arrayValue {
+            referencedDocs = valueArray.map { $0.anyValue as? [String: Any] }
         } else {
             return result
         }
@@ -177,9 +294,9 @@ class ConvexDriver: DatabaseDriver {
 
             for field in fieldsToInclude {
                 let columnName = "\(referencedTable).\(field)"
-                let value = refDoc?[field]
+                let value: Any? = refDoc?[field] ?? nil
                 let displayValue = value.map { ConvexValue.formatValueForDisplay(value: $0, fieldName: field, dataType: "text") }
-                mergedRow[columnName] = QueryRowInfo(value: displayValue, dataType: "text", format: nil)
+                mergedRow[columnName] = QueryRowInfo(value: displayValue as Any?, dataType: "text", format: nil)
                 mergedRawRow[columnName] = value
             }
 
@@ -207,8 +324,7 @@ class ConvexDriver: DatabaseDriver {
     private var isConnected = false
     
     // Convex clients
-    private var convexClient: ConvexClient? // Legacy REST client
-    private var convexMobileClient: ConvexMobile.ConvexClient? // New mobile client
+    private var convexMobileClient: ConvexMobile.ConvexClient?
     
     // Schema caching
     private var cachedSchemas: [String: Any]?
@@ -269,8 +385,7 @@ class ConvexDriver: DatabaseDriver {
         self.projectId = meta.projectId
         self.teamName = meta.teamName
         self.projectName = meta.projectName
-
-        try await fetchDeployments(projectId: meta.projectId)
+        try await fetchDeployments(projectId: meta.projectId, embeddedDeployments: meta.deployments)
 
         // Select deployment based on target database or use first as default
         let deploymentToUse: ConvexDatabaseWrapper
@@ -286,16 +401,10 @@ class ConvexDriver: DatabaseDriver {
 
         selectedDeployment = deploymentToUse
 
-        // Create clients for the selected deployment using the raw deploy key
         guard let deployKey = self.accessToken else {
             throw DatabaseError.configurationError("Missing deploy key after parsing token")
         }
-        convexClient = ConvexClient(accessToken: deployKey, deploymentUrl: deploymentToUse.deploymentUrl)
-
-        // Create and configure ConvexMobile client
         convexMobileClient = ConvexMobile.ConvexClient(deploymentUrl: deploymentToUse.deploymentUrl)
-
-        // Set admin authentication for ConvexMobile client
         try await convexMobileClient?.setAdminAuth(deployKey: deployKey)
         self.isConnected = true
 
@@ -309,7 +418,6 @@ class ConvexDriver: DatabaseDriver {
         self.projectId = nil
         self.deployments = []
         self.selectedDeployment = nil
-        self.convexClient = nil
         self.convexMobileClient = nil
         self.cachedSchemas = nil
         self.schemasCacheTime = nil
@@ -348,6 +456,33 @@ class ConvexDriver: DatabaseDriver {
     func getCurrentDeploymentUrl() -> String? {
         return selectedDeployment?.deploymentUrl
     }
+
+    /// Fetch fresh deployments from the Convex management API
+    func refreshDeploymentsFromAPI() async throws -> [ConvexDatabaseWrapper] {
+        guard let accessToken = self.accessToken else {
+            throw DatabaseError.configurationError("No access token available")
+        }
+        guard let projectId = self.projectId else {
+            throw DatabaseError.configurationError("No project ID available")
+        }
+
+        let client = ConvexClient(accessToken: accessToken, deploymentUrl: "")
+        let deploymentsArray: [ConvexDeployment] = try await client.listDeployments(projectId: projectId)
+        let sortedDeployments = deploymentsArray.sorted { lhs, rhs in
+            lhs.deploymentType.localizedCaseInsensitiveCompare(rhs.deploymentType) == .orderedAscending
+        }
+        let fresh = sortedDeployments.map { deployment in
+            let label = Self.getDeploymentLabel(deployment: deployment, whoseName: teamName)
+            return ConvexDatabaseWrapper(
+                name: label,
+                deploymentType: deployment.deploymentType,
+                projectId: deployment.projectId,
+                deploymentId: deployment.name,
+            )
+        }
+        self.deployments = fresh
+        return fresh
+    }
     
     func switchDatabase(to databaseName: String) async throws {
         guard isConnected else {
@@ -361,12 +496,7 @@ class ConvexDriver: DatabaseDriver {
         
         selectedDeployment = deployment
         
-        // Create client for this deployment
         if let token = accessToken {
-            // Legacy REST client
-            convexClient = ConvexClient(accessToken: token, deploymentUrl: deployment.deploymentUrl)
-            
-            // Recreate ConvexMobile client and set admin auth for the new deployment
             let newMobileClient = ConvexMobile.ConvexClient(deploymentUrl: deployment.deploymentUrl)
             try await newMobileClient.setAdminAuth(deployKey: token)
             convexMobileClient = newMobileClient
@@ -374,35 +504,27 @@ class ConvexDriver: DatabaseDriver {
     }
     
     // MARK: - Private Helper Methods
-    
-    private func validateTokenAndGetDetails() async throws {
-        guard let token = accessToken else {
-            throw DatabaseError.configurationError("No access token available")
+
+    private func fetchDeployments(projectId: Int64, embeddedDeployments: [EmbeddedDeployment]? = nil) async throws {
+        // Use embedded deployments from OAuth metadata (instant, no network)
+        if let embedded = embeddedDeployments, !embedded.isEmpty {
+            self.deployments = embedded.map { dep in
+                ConvexDatabaseWrapper(
+                    name: dep.name,
+                    deploymentType: dep.deploymentType,
+                    projectId: dep.projectId,
+                    deploymentId: dep.deploymentId,
+                )
+            }
+            return
         }
-        
-        // Create a temporary client for token validation (we don't have deployment URL yet)
-        let tempClient = ConvexClient(accessToken: token, deploymentUrl: "")
-        
-        do {
-            let tokenDetails = try await tempClient.getTokenDetails()
-            
-            self.projectId = tokenDetails.projectId
-            self.teamName = tokenDetails.teamName
-            self.projectName = tokenDetails.projectName
-        } catch let convexError as ConvexError {
-            throw convexError.asDatabaseError
-        }
-    }
-    
-    private func fetchDeployments(projectId: Int64) async throws {
         guard let accessToken = self.accessToken else {
             throw DatabaseError.configurationError("No access token available")
         }
-        
+
         do {
             let client = ConvexClient(accessToken: accessToken, deploymentUrl: "")
             let deploymentsArray: [ConvexDeployment] = try await client.listDeployments(projectId: projectId)
-            // Ensure deployments are ordered alphabetically by name for consistent UX
             let sortedDeployments = deploymentsArray.sorted { lhs, rhs in
                 lhs.deploymentType.localizedCaseInsensitiveCompare(rhs.deploymentType) == .orderedAscending
             }
@@ -453,74 +575,32 @@ class ConvexDriver: DatabaseDriver {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
-        
-        // Invalidate schema cache when fetching tables since schemas might have changed
+
         cachedSchemas = nil
         schemasCacheTime = nil
-        
-        do {
-            // Prepare args based on schema
-            let tableMappingArgs: [String: ConvexEncodable?] = {
-                var args: [String: ConvexEncodable?] = [:]
-                if let schema = schema, schema != "app" {
-                    if let componentId = componentIdMapping[schema], !componentId.isEmpty {
-                        // Ensure componentId is a proper string
-                        let safeComponentId = String(describing: componentId)
-                        args["componentId"] = safeComponentId
-                    }
-                }
-                return args
-            }()
 
-            let schemasArgs: [String: ConvexEncodable?] = {
-                var args: [String: ConvexEncodable?] = [:]
-                if let schema = schema, schema != "app" {
-                    if let componentId = componentIdMapping[schema], !componentId.isEmpty {
-                        // Ensure componentId is a proper string
-                        let safeComponentId = String(describing: componentId)
-                        args["componentId"] = safeComponentId
-                    }
-                }
-                return args
-            }()
+        return try await wrapConvexError("query") {
+            let schemaArgs = componentArgs(for: schema)
 
-            // Fetch table mapping and schemas concurrently
-            async let tableMappingTask: [String: Any] = mobileClient.query(name: "_system/frontend/getTableMapping", with: tableMappingArgs)
-            async let schemasTask: [String: Any] = mobileClient.query(name: "_system/frontend/getSchemas", with: schemasArgs)
+            async let tableMappingTask: ConvexMobile.ConvexValue = mobileClient.query(name: "_system/frontend/getTableMapping", with: schemaArgs)
+            async let schemasTask: ConvexMobile.ConvexValue = mobileClient.query(name: "_system/frontend/getSchemas", with: schemaArgs)
 
             let (tableMappingJson, schemasJson) = try await (tableMappingTask, schemasTask)
-            
-            // Cache schemas
-            if !schemasJson.isEmpty {
-                cachedSchemas = schemasJson
+
+            if let schemasDict = schemasJson.objectValue, !schemasDict.isEmpty {
+                cachedSchemas = schemasJson.anyValue as? [String: Any]
                 schemasCacheTime = Date()
             }
-            
-            // Check if table mapping response is empty
-            guard !tableMappingJson.isEmpty else {
+
+            guard let tableMappingDict = tableMappingJson.objectValue, !tableMappingDict.isEmpty else {
                 throw DatabaseError.operationFailed("Empty response from _system/frontend/getTableMapping")
             }
-            
-            // Extract table names from the dictionary values
-            // Convert Any values to String and filter out system tables
-            let tableNames = tableMappingJson.compactMapValues { $0 as? String }
+
+            return tableMappingDict.compactMapValues { $0.stringValue }
                 .values
                 .filter { !$0.hasPrefix("_") }
                 .sorted()
-
-            // Create ConvexCollectionWrapper objects with schema
-            let collections = tableNames.map { tableName in
-                ConvexCollectionWrapper(name: tableName, schema: schema)
-            }
-
-            return collections
-            
-        } catch {
-            if let clientError = error as? ClientError {
-                throw DatabaseError.operationFailed("ConvexMobile query failed: \(clientError.localizedDescription)")
-            } else {
-                throw error
-            }
+                .map { ConvexCollectionWrapper(name: $0, schema: schema) }
         }
     }
     
@@ -543,111 +623,47 @@ class ConvexDriver: DatabaseDriver {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
-        
-        do {
-            // Prepare arguments with proper nested structure for _system/cli/tableData
-            let paginationOpts: [String: ConvexEncodable?] = [
-                "cursor": nil, // nil encodes to "null"
-                "numItems": Float(limit)
-            ]
-            
+
+        return try await wrapConvexError("query") {
+            let orderString = ascending.map { $0 ? "asc" : "desc" }
+            let filtersBase64 = try encodeFilterToBase64(
+                rawFilterJSON: filter["rawQuery"] as? String,
+                order: orderString
+            )
+
             var args: [String: ConvexEncodable?] = [
                 "table": collectionName,
-                "filters": nil,
-                "paginationOpts": paginationOpts,
+                "filters": filtersBase64,
+                "paginationOpts": ["cursor": nil, "numItems": Float(limit)] as [String: ConvexEncodable?],
             ]
-            
-            if let databaseSchema = databaseSchema {
-                args["componentId"] = getComponentId(for: databaseSchema)
-            }
-            
-            // Prepare order string to embed within the filter JSON (if provided)
-            let orderString: String? = {
-                if let ascending = ascending {
-                    return ascending ? "asc" : "desc"
-                }
-                return nil
-            }()
-            
-            // Encode filters as Base64 JSON string, embedding `order` at the top level
-            var filtersBase64Signature: String = ""
-            if let rawFilterJSON = filter["rawQuery"] as? String, !rawFilterJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                do {
-                    var payload: [String: Any]
-                    if let data = rawFilterJSON.data(using: .utf8),
-                       let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        payload = parsed
-                    } else {
-                        payload = ["clauses": []]
-                    }
-                    if let orderString = orderString { payload["order"] = orderString }
-                    let dataOut = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
-                    let jsonString = String(data: dataOut, encoding: .utf8) ?? rawFilterJSON
-                    let base64 = Data(jsonString.utf8).base64EncodedString()
-                    args["filters"] = base64
-                    filtersBase64Signature = base64
-                } catch {
-                    // Fallback to original string if parse fails
-                    let base64 = Data(rawFilterJSON.utf8).base64EncodedString()
-                    args["filters"] = base64
-                    filtersBase64Signature = base64
-                }
-            } else {
-                // Minimal default FilterExpression with optional order
-                var payload: [String: Any] = ["clauses": []]
-                if let orderString = orderString { payload["order"] = orderString }
-                let dataOut = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
-                let jsonString = String(data: dataOut, encoding: .utf8) ?? "{\"clauses\":[]}"
-                let base64 = Data(jsonString.utf8).base64EncodedString()
-                args["filters"] = base64
-                filtersBase64Signature = base64
-            }
-            
-            // Use ConvexMobile client to call FE paginated endpoint
-            let jsonRaw: [String: Any] = try await mobileClient.query(name: "_system/frontend/paginatedTableDocuments", with: args)
-            // Handle possible { status, value } envelope
-            let json: [String: Any]
-            if let value = jsonRaw["value"] as? [String: Any] {
-                json = value
-            } else {
-                json = jsonRaw
-            }
-            
-            // Check if response is empty
-            guard !json.isEmpty else {
+            if let databaseSchema { args["componentId"] = getComponentId(for: databaseSchema) }
+
+            let jsonRaw: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/paginatedTableDocuments", with: args)
+            let json: ConvexMobile.ConvexValue = jsonRaw["value"] ?? jsonRaw
+
+            guard let jsonObj = json.objectValue, !jsonObj.isEmpty else {
                 throw DatabaseError.operationFailed("Empty response from _system/frontend/paginatedTableDocuments")
             }
-            
-            guard let page = json["page"] as? [[String: Any]] else {
+            guard let pageArray = json["page"]?.arrayValue else {
                 debugLog("JSON structure: \(json)")
                 throw DatabaseError.operationFailed("Missing 'page' array in response")
             }
-            
-            let documents = page
-            let totalCount = json["totalCount"] as? Int ?? documents.count
-            // Store pagination cursor: map next page index to continueCursor, keyed by filter signature
-            let continueCursor = json["continueCursor"] as? String
-            if limit > 0 {
+
+            let documents = pageArray.compactMap { $0.anyValue as? [String: Any] }
+            let totalCount = json["totalCount"]?.numberValue.flatMap { Int($0) } ?? documents.count
+
+            if let continueCursor = json["continueCursor"]?.stringValue, limit > 0 {
                 let currentPageIndex = (skip / max(1, limit)) + 1
                 var filterMap = tablePageCursors[collectionName] ?? [:]
-                var pageMap = filterMap[filtersBase64Signature] ?? [:]
+                var pageMap = filterMap[filtersBase64] ?? [:]
                 if currentPageIndex == 1 && pageMap[1] == nil { pageMap[1] = nil }
-                if let nextCursor = continueCursor { pageMap[currentPageIndex + 1] = nextCursor }
-                filterMap[filtersBase64Signature] = pageMap
+                pageMap[currentPageIndex + 1] = continueCursor
+                filterMap[filtersBase64] = pageMap
                 tablePageCursors[collectionName] = filterMap
-                if continueCursor != nil {
-                    debugLog("📄 Stored cursor for table=\(collectionName) filterKeyLen=\(filtersBase64Signature.count) page=\(currentPageIndex + 1)")
-                }
+                debugLog("📄 Stored cursor for table=\(collectionName) filterKeyLen=\(filtersBase64.count) page=\(currentPageIndex + 1)")
             }
-            
-            // Use the shared processing function
+
             return try await processConvexDocuments(documents, totalCount: totalCount, for: collectionName, databaseSchema: databaseSchema)
-        } catch {
-            if let clientError = error as? ClientError {
-                throw DatabaseError.operationFailed("ConvexMobile query failed: \(clientError.localizedDescription)")
-            } else {
-                throw error
-            }
         }
     }
     
@@ -655,146 +671,60 @@ class ConvexDriver: DatabaseDriver {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
-        
-        do {
-            // Convert document values to ConvexEncodable types
-            var encodableDocument: [String: ConvexEncodable?] = [:]
-            for (key, value) in document {
-                encodableDocument[key] = convertToConvexEncodable(value)
-            }
-            
-            // Prepare arguments for the addDocument mutation
+
+        try await wrapConvexError("create") {
+            let encodableDocument = document.mapValues { convertToConvexEncodable($0) }
             var args: [String: ConvexEncodable?] = [
                 "table": collectionName,
                 "documents": [encodableDocument]
             ]
-            
-            if let databaseSchema = databaseSchema {
-                args["componentId"] = getComponentId(for: databaseSchema)
-            }
-            
+            if let databaseSchema { args["componentId"] = getComponentId(for: databaseSchema) }
+
             struct AddDocumentResult: Decodable { let success: Bool? }
             let _: AddDocumentResult = try await mobileClient.mutation("_system/frontend/addDocument", with: args)
             debugLog("✅ Document created successfully in table '\(collectionName)'")
-        } catch ClientError.ConvexError(let data) {
-            // Extract the actual Convex error message
-            if let payload = data.data(using: .utf8),
-               let message = try? Foundation.JSONDecoder().decode(String.self, from: payload) {
-                throw DatabaseError.operationFailed(message)
-            }
-            throw DatabaseError.operationFailed(data)
-        } catch {
-            if let clientError = error as? ClientError {
-                throw DatabaseError.operationFailed("ConvexMobile create failed: \(clientError.localizedDescription)")
-            } else {
-                throw error
-            }
         }
     }
-    
+
     func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
-        
-        do {
-            // Convert id to string format expected by Convex
-            let documentId: String
-            if let idString = id as? String {
-                documentId = idString
-            } else {
-                documentId = String(describing: id)
-            }
-            
-            // Convert data values to ConvexEncodable types
-            let encodableFields: [String: ConvexEncodable?] = data.mapValues { value in
-                let converted = convertToConvexEncodable(value)
-                debugLog("🔄 Converting field value: \(value) (\(type(of: value))) -> \(converted ?? "nil") (\(type(of: converted)))")
-                return converted
-            }
-            
-            // Prepare arguments for the patch operation
+
+        try await wrapConvexError("update") {
+            let docId = documentId(from: id)
+            let encodableFields: [String: ConvexEncodable?] = data.mapValues { convertToConvexEncodable($0) }
             var args: [String: ConvexEncodable?] = [
                 "table": collectionName,
-                "ids": [documentId],
+                "ids": [docId],
                 "fields": encodableFields
             ]
-            
-            if let databaseSchema = databaseSchema {
-                args["componentId"] = getComponentId(for: databaseSchema)
-            }
-            
-            // Define the expected response structure
-            struct PatchDocumentsResult: Decodable {
-                let success: Bool
-            }
-            
+            if let databaseSchema { args["componentId"] = getComponentId(for: databaseSchema) }
+
+            struct PatchDocumentsResult: Decodable { let success: Bool }
             let result: PatchDocumentsResult = try await mobileClient.mutation("_system/frontend/patchDocumentsFields", with: args)
-            
-            if result.success {
-                debugLog("✅ Document updated successfully in table '\(collectionName)' with id '\(documentId)'")
-            } else {
-                throw DatabaseError.operationFailed("Patch operation reported failure for document '\(documentId)' in table '\(collectionName)'")
+            guard result.success else {
+                throw DatabaseError.operationFailed("Patch operation reported failure for document '\(docId)' in table '\(collectionName)'")
             }
-        } catch ClientError.ConvexError(let data) {
-            // Extract the actual Convex error message
-            let errorMessage = try! Foundation.JSONDecoder().decode(String.self, from: data.data(using: .utf8)!)
-            throw DatabaseError.operationFailed(errorMessage)
-        } catch {
-            if let clientError = error as? ClientError {
-                throw DatabaseError.operationFailed("ConvexMobile update failed: \(clientError.localizedDescription)")
-            } else {
-                throw error
-            }
+            debugLog("✅ Document updated successfully in table '\(collectionName)' with id '\(docId)'")
         }
     }
-    
+
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
-        
-        do {
-            // Convert id to string format expected by Convex
-            let documentId: String
-            if let idString = id as? String {
-                documentId = idString
-            } else {
-                documentId = String(describing: id)
-            }
-            
-            // Build toDelete array
-            let toDeleteItem: [String: ConvexEncodable?] = [
-                "id": documentId,
-                "tableName": collectionName
-            ]
-            
+
+        try await wrapConvexError("delete") {
+            let docId = documentId(from: id)
             var args: [String: ConvexEncodable?] = [
-                "toDelete": [toDeleteItem]
+                "toDelete": [["id": docId, "tableName": collectionName] as [String: ConvexEncodable?]]
             ]
-            
-            
-            if let databaseSchema = databaseSchema {
-                args["componentId"] = getComponentId(for: databaseSchema)
-            }
-            
-            // Decode object response to avoid String decoding path
+            if let databaseSchema { args["componentId"] = getComponentId(for: databaseSchema) }
+
             struct DeleteDocumentsResult: Decodable { let success: Bool? }
             let _: DeleteDocumentsResult = try await mobileClient.mutation("_system/frontend/deleteDocuments", with: args)
-            debugLog("🗑️ Document deleted successfully in table '\(collectionName)' with id '\(documentId)'")
-        } catch ClientError.ConvexError(let data) {
-            // Extract the actual Convex error message
-            if let payload = data.data(using: .utf8),
-               let message = try? Foundation.JSONDecoder().decode(String.self, from: payload) {
-                throw DatabaseError.operationFailed(message)
-            }
-            throw DatabaseError.operationFailed(data)
-        } catch {
-            if let clientError = error as? ClientError {
-                throw DatabaseError.operationFailed("ConvexMobile delete failed: \(clientError.localizedDescription)")
-            } else {
-                throw error
-            }
+            debugLog("🗑️ Document deleted successfully in table '\(collectionName)' with id '\(docId)'")
         }
     }
     
@@ -824,26 +754,9 @@ class ConvexDriver: DatabaseDriver {
                 return try await inferSchemaFromSampleDocument(collectionName: collectionName, schema: schema)
             }
             
-            var columns: [DatabaseSchemaInfo] = []
-            var columnIndex = 0
-            
-            // Always add _id first
-            columns.append(DatabaseSchemaInfo(
-                ordinalPosition: columnIndex,
-                columnName: "_id",
-                dataType: "id",
-                formatType: "id",
-                typeOid: 0,
-                numericPrecision: nil,
-                datetimePrecision: nil,
-                numericScale: nil,
-                dataLength: nil,
-                isNullable: "NO",
-                comment: "Convex document ID",
-                isReadOnly: true
-            ))
-            columnIndex += 1
-            
+            var columns: [DatabaseSchemaInfo] = [Self.idSchemaField(ordinal: 0)]
+            var columnIndex = 1
+
             // Parse and collect custom fields first
             var customFields: [(String, ConvexFieldType)] = []
             if let documentType = tableSchema["documentType"] as? [String: Any],
@@ -906,23 +819,8 @@ class ConvexDriver: DatabaseDriver {
                 columnIndex += 1
             }
             
-            // Add _creationTime last
-            columns.append(DatabaseSchemaInfo(
-                ordinalPosition: columnIndex,
-                columnName: "_creationTime",
-                dataType: "int64",
-                formatType: "int64",
-                typeOid: 0,
-                numericPrecision: nil,
-                datetimePrecision: nil,
-                numericScale: nil,
-                dataLength: nil,
-                isNullable: "NO",
-                comment: "Document creation timestamp",
-                isReadOnly: true
-            ))
-            columnIndex += 1
-            
+            columns.append(Self.creationTimeSchemaField(ordinal: columnIndex))
+
             return DatabaseSchemaResult(
                 tableName: collectionName,
                 schemaName: schema ?? "default",
@@ -943,40 +841,27 @@ class ConvexDriver: DatabaseDriver {
         
         let schema = schema ?? "app"
         
-        do {
-            var args: [String: ConvexEncodable?] = [:]
-            args["tableName"] = collectionName
-            args["tableNamespace"] = getComponentId(for: schema)
-            
+        return try await wrapConvexError("query") {
+            let args: [String: ConvexEncodable?] = [
+                "tableName": collectionName,
+                "tableNamespace": getComponentId(for: schema)
+            ]
+
             let responseString: String = try await mobileClient.query(name: "_system/frontend/indexes", with: args)
 
-            // Parse the JSON response manually
             guard let responseData = responseString.data(using: .utf8) else {
                 throw DatabaseError.operationFailed("Failed to convert response to UTF-8 data")
             }
 
             let jsonObject = try JSONSerialization.jsonObject(with: responseData)
 
-            // Parse response - expect direct array of index objects
             guard let indexes = jsonObject as? [[String: Any]] else {
                 debugLog("⚠️ Unexpected indexes response structure: \(jsonObject)")
                 return []
             }
 
-            // Map each index to DatabaseIndexInfo (no filtering needed - API returns indexes for the specific table)
             return indexes.compactMap { indexDict in
-                mapConvexIndexToDatabaseIndexInfo(
-                    indexDict,
-                    collectionName: collectionName,
-                    schemaName: schema
-                )
-            }
-
-        } catch {
-            if let clientError = error as? ClientError {
-                throw DatabaseError.operationFailed("ConvexMobile query failed: \(clientError.localizedDescription)")
-            } else {
-                throw error
+                mapConvexIndexToDatabaseIndexInfo(indexDict, collectionName: collectionName, schemaName: schema)
             }
         }
     }
@@ -1075,42 +960,21 @@ class ConvexDriver: DatabaseDriver {
                 "paginationOpts": paginationOpts,
             ]
 
-            let jsonRaw: [String: Any] = try await mobileClient.query(name: "_system/frontend/paginatedTableDocuments", with: args)
+            let jsonRaw: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/paginatedTableDocuments", with: args)
 
             // Handle possible { status, value } envelope
-            let json: [String: Any]
-            if let value = jsonRaw["value"] as? [String: Any] {
-                json = value
-            } else {
-                json = jsonRaw
-            }
+            let json: ConvexMobile.ConvexValue = jsonRaw["value"] ?? jsonRaw
 
-            guard let page = json["page"] as? [[String: Any]], let sampleDocument = page.first else {
+            guard let pageArray = json["page"]?.arrayValue,
+                  let firstPage = pageArray.first,
+                  let sampleDocument = firstPage.anyValue as? [String: Any] else {
                 // If no documents exist, create minimal schema with just _id and _creationTime
                 debugLog("ℹ️ No documents found for table '\(collectionName)', creating minimal schema")
                 return createMinimalSchema(collectionName: collectionName, schema: schema)
             }
 
-            // Infer columns from the sample document
-            var columns: [DatabaseSchemaInfo] = []
-            var columnIndex = 0
-
-            // Always add _id first
-            columns.append(DatabaseSchemaInfo(
-                ordinalPosition: columnIndex,
-                columnName: "_id",
-                dataType: "id",
-                formatType: "id",
-                typeOid: 0,
-                numericPrecision: nil,
-                datetimePrecision: nil,
-                numericScale: nil,
-                dataLength: nil,
-                isNullable: "NO",
-                comment: "Convex document ID",
-                isReadOnly: true
-            ))
-            columnIndex += 1
+            var columns: [DatabaseSchemaInfo] = [Self.idSchemaField(ordinal: 0)]
+            var columnIndex = 1
 
             // Infer other fields from sample document (excluding system fields)
             let sortedKeys = sampleDocument.keys.filter { !$0.hasPrefix("_") }.sorted()
@@ -1134,21 +998,7 @@ class ConvexDriver: DatabaseDriver {
                 columnIndex += 1
             }
 
-            // Add _creationTime last
-            columns.append(DatabaseSchemaInfo(
-                ordinalPosition: columnIndex,
-                columnName: "_creationTime",
-                dataType: "int64",
-                formatType: "int64",
-                typeOid: 0,
-                numericPrecision: nil,
-                datetimePrecision: nil,
-                numericScale: nil,
-                dataLength: nil,
-                isNullable: "NO",
-                comment: "Document creation timestamp",
-                isReadOnly: true
-            ))
+            columns.append(Self.creationTimeSchemaField(ordinal: columnIndex))
 
             debugLog("✅ Inferred schema for table '\(collectionName)' from sample document with \(columns.count) columns")
 
@@ -1167,37 +1017,7 @@ class ConvexDriver: DatabaseDriver {
     }
 
     private func createMinimalSchema(collectionName: String, schema: String?) -> DatabaseSchemaResult {
-        let columns: [DatabaseSchemaInfo] = [
-            DatabaseSchemaInfo(
-                ordinalPosition: 0,
-                columnName: "_id",
-                dataType: "id",
-                formatType: "id",
-                typeOid: 0,
-                numericPrecision: nil,
-                datetimePrecision: nil,
-                numericScale: nil,
-                dataLength: nil,
-                isNullable: "NO",
-                comment: "Convex document ID",
-                isReadOnly: true
-            ),
-            DatabaseSchemaInfo(
-                ordinalPosition: 1,
-                columnName: "_creationTime",
-                dataType: "int64",
-                formatType: "int64",
-                typeOid: 0,
-                numericPrecision: nil,
-                datetimePrecision: nil,
-                numericScale: nil,
-                dataLength: nil,
-                isNullable: "NO",
-                comment: "Document creation timestamp",
-                isReadOnly: true
-            )
-        ]
-
+        let columns = [Self.idSchemaField(ordinal: 0), Self.creationTimeSchemaField(ordinal: 1)]
         return DatabaseSchemaResult(
             tableName: collectionName,
             schemaName: schema ?? "default",
@@ -1314,9 +1134,124 @@ class ConvexDriver: DatabaseDriver {
         }
     }
     
-    
+
+    // MARK: - Convex Error Handling
+
+    private func extractConvexErrorMessage(from error: ClientError) -> String {
+        switch error {
+        case .ConvexError(let data):
+            if let payload = data.data(using: .utf8),
+               let message = try? Foundation.JSONDecoder().decode(String.self, from: payload) {
+                return message
+            }
+            return data
+        case .ServerError(let msg), .InternalError(let msg):
+            var cleaned = msg
+            // Strip "[Request ID: xxx] Server Error\n" prefix
+            if let newlineRange = cleaned.range(of: "\n") {
+                cleaned = String(cleaned[newlineRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            // Strip "Uncaught Error: " prefix
+            if cleaned.hasPrefix("Uncaught Error: ") {
+                cleaned = String(cleaned.dropFirst("Uncaught Error: ".count))
+            }
+            return cleaned
+        }
+    }
+
+    private func wrapConvexError<T>(_ operation: String, body: () async throws -> T) async throws -> T {
+        do {
+            return try await body()
+        } catch let error as ClientError {
+            throw DatabaseError.operationFailed(extractConvexErrorMessage(from: error))
+        }
+    }
+
+    // MARK: - Filter Encoding
+
+    private func encodeFilterToBase64(rawFilterJSON: String?, order: String?, defaultOrder: String? = nil) throws -> String {
+        if let rawFilterJSON, !rawFilterJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            do {
+                var payload: [String: Any]
+                if let data = rawFilterJSON.data(using: .utf8),
+                   let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    payload = parsed
+                } else {
+                    payload = ["clauses": []]
+                }
+                if let order { payload["order"] = order }
+                else if let defaultOrder, payload["order"] == nil { payload["order"] = defaultOrder }
+                let dataOut = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
+                return String(data: dataOut, encoding: .utf8).map { Data($0.utf8).base64EncodedString() }
+                    ?? Data(rawFilterJSON.utf8).base64EncodedString()
+            } catch {
+                return Data(rawFilterJSON.utf8).base64EncodedString()
+            }
+        } else {
+            var payload: [String: Any] = ["clauses": []]
+            if let order { payload["order"] = order }
+            else if let defaultOrder { payload["order"] = defaultOrder }
+            let dataOut = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
+            let jsonString = String(data: dataOut, encoding: .utf8) ?? "{\"clauses\":[]}"
+            return Data(jsonString.utf8).base64EncodedString()
+        }
+    }
+
+    // MARK: - Document ID Conversion
+
+    private func documentId(from id: Any) -> String {
+        (id as? String) ?? String(describing: id)
+    }
+
+    // MARK: - System Schema Fields
+
+    private static func idSchemaField(ordinal: Int) -> DatabaseSchemaInfo {
+        DatabaseSchemaInfo(
+            ordinalPosition: ordinal,
+            columnName: "_id",
+            dataType: "id",
+            formatType: "id",
+            typeOid: 0,
+            numericPrecision: nil,
+            datetimePrecision: nil,
+            numericScale: nil,
+            dataLength: nil,
+            isNullable: "NO",
+            comment: "Convex document ID",
+            isReadOnly: true
+        )
+    }
+
+    private static func creationTimeSchemaField(ordinal: Int) -> DatabaseSchemaInfo {
+        DatabaseSchemaInfo(
+            ordinalPosition: ordinal,
+            columnName: "_creationTime",
+            dataType: "int64",
+            formatType: "int64",
+            typeOid: 0,
+            numericPrecision: nil,
+            datetimePrecision: nil,
+            numericScale: nil,
+            dataLength: nil,
+            isNullable: "NO",
+            comment: "Document creation timestamp",
+            isReadOnly: true
+        )
+    }
+
+    // MARK: - Component ID Args
+
+    private func componentArgs(for schema: String?) -> [String: ConvexEncodable?] {
+        var args: [String: ConvexEncodable?] = [:]
+        if let schema, schema != "app",
+           let componentId = componentIdMapping[schema], !componentId.isEmpty {
+            args["componentId"] = String(describing: componentId)
+        }
+        return args
+    }
+
     // MARK: - Schema Caching
-    
+
     private func getAllSchemas() async throws -> [String: Any] {
         // Check if we have cached schemas that are still valid
         if let cachedSchemas = cachedSchemas,
@@ -1330,13 +1265,13 @@ class ConvexDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("No mobile client available")
         }
         
-        let schemas: [String: Any] = try await mobileClient.query(name: "_system/frontend/getSchemas", with: [:])
-        
+        let schemas: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/getSchemas", with: [:])
+
         // Cache the result
-        cachedSchemas = schemas
+        cachedSchemas = schemas.anyValue as? [String: Any]
         schemasCacheTime = Date()
-        
-        return schemas
+
+        return cachedSchemas ?? [:]
     }
     
     
@@ -1346,30 +1281,20 @@ class ConvexDriver: DatabaseDriver {
         }
 
         do {
-            // Fetch components list from Convex as raw string first
-            let responseString: String = try await mobileClient.query(name: "_system/frontend/components:list", with: [:])
+            let response: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/components:list", with: [:])
 
-            // Parse the JSON response manually
-            guard let responseData = responseString.data(using: .utf8) else {
-                throw DatabaseError.operationFailed("Failed to convert response to UTF-8 data")
-            }
-
-            let jsonObject = try JSONSerialization.jsonObject(with: responseData)
-
-            // Handle different response formats
+            // Extract the components array from the response
             let components: [[String: Any]]
-            if let responseDict = jsonObject as? [String: Any] {
-                // Object format: {"status": "success", "value": [...]}
-                if let value = responseDict["value"] as? [[String: Any]] {
-                    components = value
-                } else if let directComponents = responseDict["components"] as? [[String: Any]] {
-                    components = directComponents
+            if let arr = response.arrayValue {
+                components = arr.compactMap { $0.anyValue as? [String: Any] }
+            } else if response.objectValue != nil {
+                if let value = response["value"]?.arrayValue {
+                    components = value.compactMap { $0.anyValue as? [String: Any] }
+                } else if let comps = response["components"]?.arrayValue {
+                    components = comps.compactMap { $0.anyValue as? [String: Any] }
                 } else {
-                    throw DatabaseError.operationFailed("Invalid components response format in object")
+                    throw DatabaseError.operationFailed("Invalid components response format")
                 }
-            } else if let responseArray = jsonObject as? [[String: Any]] {
-                // Direct array format: [...]
-                components = responseArray
             } else {
                 throw DatabaseError.operationFailed("Response is neither an object nor an array")
             }
@@ -1432,112 +1357,74 @@ class ConvexDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
         
-        // We will set paginationOpts after computing filter signature and resolving cursor
-        var args: [String: ConvexEncodable?] = [
-            "table": collectionName
-        ]
-        var filtersBase64Signature: String = ""
-        
-        // Always send 'filters' per validator: v.union(v.string(), v.null())
-        if let rawFilterJSON = filter, !rawFilterJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            do {
-                var payload: [String: Any]
-                if let data = rawFilterJSON.data(using: .utf8),
-                   let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    payload = parsed
-                } else {
-                    payload = ["clauses": []]
-                }
-                // Inject order if provided; otherwise default to desc
-                if let ascending = ascending {
-                    payload["order"] = ascending ? "asc" : "desc"
-                } else if payload["order"] == nil {
-                    payload["order"] = "desc"
-                }
-                let dataOut = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
-                let jsonString = String(data: dataOut, encoding: .utf8) ?? rawFilterJSON
-                let base64 = Data(jsonString.utf8).base64EncodedString()
-                args["filters"] = base64
-                filtersBase64Signature = base64
-            } catch {
-                let base64 = Data(rawFilterJSON.utf8).base64EncodedString()
-                args["filters"] = base64
-                filtersBase64Signature = base64
-            }
-        } else {
-            // Minimal default FilterExpression: { "clauses": [], "order": "desc" }
-            let order = (ascending == true) ? "asc" : "desc"
+        let orderString = ascending.map { $0 ? "asc" : "desc" }
+        let filtersBase64 = try encodeFilterToBase64(
+            rawFilterJSON: filter,
+            order: orderString,
+            defaultOrder: "desc"
+        )
 
-            let payload: [String: Any] = ["clauses": [], "order": order]
-            let dataOut = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
-            let jsonString = String(data: dataOut, encoding: .utf8) ?? "{\"clauses\":[],\"order\":\"desc\"}"
-            let base64 = Data(jsonString.utf8).base64EncodedString()
-            args["filters"] = base64
-            filtersBase64Signature = base64
-            debugLog("ℹ️ Using default empty filters for subscription with order=desc (base64 length=\(base64.count))")
-        }
-        
-        // Resolve cursor by table + filter signature + requested page
         let requestedPage = page ?? 1
-        let cursorForPage = self.tablePageCursors[collectionName]?[filtersBase64Signature]?[requestedPage] ?? nil
-        let paginationOpts: [String: ConvexEncodable?] = [
-            "cursor": cursorForPage,
-            "numItems": Float(limit)
+        let cursorForPage = self.tablePageCursors[collectionName]?[filtersBase64]?[requestedPage] ?? nil
+
+        var args: [String: ConvexEncodable?] = [
+            "table": collectionName,
+            "filters": filtersBase64,
+            "paginationOpts": ["cursor": cursorForPage, "numItems": Float(limit)] as [String: ConvexEncodable?],
         ]
-        args["paginationOpts"] = paginationOpts
-        if let databaseSchema = databaseSchema {
-            args["componentId"] = getComponentId(for: databaseSchema)
-        }
+        if let databaseSchema { args["componentId"] = getComponentId(for: databaseSchema) }
         debugLog("🛰️ Subscribing to _system/frontend/paginatedTableDocuments")
         
-        // Create subscription
+        // Create subscription using ConvexValue to handle arbitrary JSON objects
         let subscription = mobileClient.subscribe(
             to: "_system/frontend/paginatedTableDocuments",
             with: args,
-            yielding: String.self
+            yielding: ConvexMobile.ConvexValue.self
         )
-        
+
         // Handle subscription updates inline so Task cancellation propagates
         do {
-            for try await rawJsonString in subscription.values {
+            for try await convexValue in subscription.values {
                 if Task.isCancelled { break }
 
                 // Check if this payload is identical to the last one to avoid processing duplicates
-                let payloadHash = String(rawJsonString.hashValue)
+                let payloadHash = String(convexValue.description.hashValue)
                 if let lastHash = lastSubscriptionPayloadHash[collectionName], lastHash == payloadHash {
                     debugLog("🔄 Skipping duplicate subscription payload for table: \(collectionName)")
                     continue
                 }
                 lastSubscriptionPayloadHash[collectionName] = payloadHash
 
-                debugLog("📥 Subscription event received (chars=\(rawJsonString.count)) for table: \(collectionName)")
+                debugLog("📥 Subscription event received for table: \(collectionName)")
                 do {
-                    guard let jsonData = rawJsonString.data(using: .utf8) else {
-                        debugLog("❌ Unable to UTF-8 decode subscription payload. Raw: \(rawJsonString.prefix(256))…")
-                        continue
-                    }
-                    guard var jsonResult = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-                        debugLog("❌ Subscription JSON is not an object. Raw: \(rawJsonString.prefix(256))…")
-                        continue
-                    }
                     // Unwrap { status, value } envelope if present
-                    if let inner = jsonResult["value"] as? [String: Any] {
-                        jsonResult = inner
+                    let json: ConvexMobile.ConvexValue = convexValue["value"] ?? convexValue
+
+                    guard let jsonObj = json.objectValue, !jsonObj.isEmpty else {
+                        debugLog("❌ Subscription payload is not an object: \(convexValue)")
+                        continue
                     }
+
                     // Store continueCursor for next page under current filter signature
-                    if let continueCursor = jsonResult["continueCursor"] as? String {
+                    if let continueCursor = json["continueCursor"]?.stringValue {
                         var filterMap = self.tablePageCursors[collectionName] ?? [:]
-                        var pageMap = filterMap[filtersBase64Signature] ?? [:]
+                        var pageMap = filterMap[filtersBase64] ?? [:]
                         if pageMap[requestedPage] == nil && requestedPage == 1 { pageMap[1] = nil }
                         pageMap[requestedPage + 1] = continueCursor
-                        filterMap[filtersBase64Signature] = pageMap
+                        filterMap[filtersBase64] = pageMap
                         self.tablePageCursors[collectionName] = filterMap
                         debugLog("📡 Stored subscription cursor for table=\(collectionName) page=\(requestedPage + 1)")
+                    }
+
+                    // Convert ConvexValue to [String: Any] for the shared transform
+                    guard let jsonResult = json.anyValue as? [String: Any] else {
+                        debugLog("❌ Subscription payload could not be converted to dictionary")
+                        continue
                     }
                     let queryResult = try await self.transformConvexResultToQueryResult(jsonResult, for: collectionName)
                     await MainActor.run { onUpdate(queryResult) }
                 } catch {
-                    debugLog("❌ Failed to parse subscription JSON: \(error). Raw: \(rawJsonString.prefix(512))…")
+                    debugLog("❌ Failed to process subscription payload: \(error)")
                     await MainActor.run { onError(error) }
                 }
             }
@@ -1644,16 +1531,12 @@ class ConvexDriver: DatabaseDriver {
         schemasCacheTime = nil
     }
 
-    // Optional helper to retrieve stored cursor (if needed later)
-    private func cursorFor(table: String, page: Int, filterSignature: String) -> String? {
-        return tablePageCursors[table]?[filterSignature]?[page] ?? nil
-    }
 }
 
 
 extension ConvexDriver {
     // MARK: - Embedded Token Metadata
-    private struct EmbeddedDeployment: Codable {
+    struct EmbeddedDeployment: Codable {
         let name: String
         let deploymentType: String
         let projectId: Int64
@@ -1664,6 +1547,28 @@ extension ConvexDriver {
         let projectId: Int64
         let teamName: String?
         let projectName: String?
+        let deployments: [EmbeddedDeployment]?
+    }
+
+    /// Rebuilds the embedded token with current deployments for keychain persistence.
+    func buildUpdatedEmbeddedToken() -> String? {
+        guard let deployKey = accessToken, let projectId = projectId else { return nil }
+        let embeddedDeployments = deployments.map { dep in
+            EmbeddedDeployment(
+                name: dep.name,
+                deploymentType: dep.deploymentType,
+                projectId: dep.projectId,
+                deploymentId: String(dep.deploymentUrl.replacing("https://", with: "").replacing(".convex.cloud", with: ""))
+            )
+        }
+        let meta = EmbeddedMeta(
+            projectId: projectId,
+            teamName: teamName,
+            projectName: projectName,
+            deployments: embeddedDeployments.isEmpty ? nil : embeddedDeployments
+        )
+        guard let data = try? Foundation.JSONEncoder().encode(meta) else { return nil }
+        return deployKey + "|m=" + data.base64EncodedString()
     }
 
     // MARK: - URI Parsing

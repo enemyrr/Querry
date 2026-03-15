@@ -33,14 +33,20 @@ extension EnvironmentValues {
 // MARK: - Hoverable Menu Label
 struct EnvironmentMenuLabel: View {
     let title: String
+    var isLoading: Bool = false
     @State private var isHovering: Bool = false
 
     var body: some View {
         if #available(macOS 26, *) {
             HStack(spacing: 6) {
                 Text(title)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                }
             }
             .font(.callout)
             .padding(.horizontal, 10)
@@ -51,8 +57,13 @@ struct EnvironmentMenuLabel: View {
         } else {
             HStack(spacing: 6) {
                 Text(title)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                }
             }
             .font(.callout)
             .padding(.horizontal, 10)

@@ -1,5 +1,5 @@
 {
-  "originHash" : "a392779bef198a68d623bc59c427b18e96ae2265d3b0abb40858f7c4aa6d748c",
+  "originHash" : "76837d4573264012cc6d419b9c0065be8d9a34ad60d289bb4665e00b416fe27e",
   "pins" : [
     {
       "identity" : "codeeditorview",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "aba6c189bb2f6fd9d7b8e9f5739aeb3c8c7e3254",
         "version" : "0.15.4"
+      }
+    },
+    {
+      "identity" : "convex-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pluk-inc/convex-swift",
+      "state" : {
+        "revision" : "c0616c7fa1a36476d698997bac9ae7bf3a77352b",
+        "version" : "0.8.6"
       }
     },
     {
@@ -38,6 +47,15 @@
       }
     },
     {
+      "identity" : "plcrashreporter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/microsoft/plcrashreporter.git",
+      "state" : {
+        "revision" : "0254f941c646b1ed17b243654723d0f071e990d0",
+        "version" : "1.12.2"
+      }
+    },
+    {
       "identity" : "postgres-nio",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/postgres-nio.git",
@@ -51,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/PostHog/posthog-ios.git",
       "state" : {
-        "revision" : "1ba3e8636d4f1ad9f18f5a4273e88d39a162466b",
-        "version" : "3.41.1"
+        "revision" : "09da1be6a614325a6a464c6d2017a9ac858d1b5a",
+        "version" : "3.47.0"
       }
     },
     {

@@ -692,7 +692,7 @@ private struct QueryToolbarView: View {
                 HStack(spacing: 4) {
                     if viewModel.isExecutingQuery {
                         ProgressView()
-                            .controlSize(.small)
+                            .controlSize(.mini)
                             .padding(.horizontal, 2)
                     }
                     Text(viewModel.isExecutingQuery ? "Running" : "Run")

@@ -628,15 +628,18 @@ final class NotebookAgentEngine {
             return "Error: query is required"
         }
 
-        let trimmedUpper = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        if Self.blockedPrefixes.contains(where: { trimmedUpper.hasPrefix($0) }) {
-            return "Error: run_query only supports read-only SELECT queries. Write operations are not allowed."
-        }
-
         let schemaName = json["schema_name"] as? String
 
         guard let conn = resolveConnection(json: json, connections: connections) else {
             return "Error: No connection available"
+        }
+
+        // Block SQL write operations for non-Convex databases (Convex enforces read-only server-side)
+        if conn.databaseType != .convex {
+            let trimmedUpper = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            if Self.blockedPrefixes.contains(where: { trimmedUpper.hasPrefix($0) }) {
+                return "Error: run_query only supports read-only SELECT queries. Write operations are not allowed."
+            }
         }
 
         do {
@@ -1235,6 +1238,7 @@ final class NotebookAgentEngine {
         <convex_query_guidance>
         One or more connections use Convex. Convex does NOT use SQL — it uses a JSON query specification for raw queries.
         Before constructing any raw Convex query or using `run_query` / `create_query_block` with a Convex connection, call the `get_convex_query_guide` tool to load the full query format specification.
+        For complex multi-table joins or server-side aggregations, you can pass JavaScript code directly to `run_query` instead of JSON. See the query guide for the JS template.
 
         Convex terminology:
         - `database_name` = deployment/environment (e.g. "Production", "Development (Cloud)"). Use `list_databases` to see all available deployments.

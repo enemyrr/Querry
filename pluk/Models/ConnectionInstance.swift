@@ -116,6 +116,14 @@ import SwiftData
             }
 
             await loadDatabases()
+
+            // Persist fetched deployments back to keychain so they're cached for next connect
+            if connection.databaseType == .convex,
+               let driver = databaseService.driver as? ConvexDriver,
+               let updatedToken = driver.buildUpdatedEmbeddedToken() {
+                connection.password = updatedToken
+            }
+
             lastError = nil
         } catch {
             lastError = error

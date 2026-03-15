@@ -66,17 +66,9 @@ struct ConnectionHeader: View {
                 
                 Spacer(minLength: 8)
 
-                // For Convex, show current environment; for others, show saved environment tag
-                if instance.connection.databaseType == .convex {
-                    if let currentEnvironment = instance.connectedDatabase?.name {
-                        ConvexEnvironmentTag(environmentName: currentEnvironment)
-                            .opacity(isHovered ? 1 : 0.8)
-                    }
-                } else {
-                    if let connectionEnvironment = instance.connection.environment {
-                        EnvironmentTag(environment: connectionEnvironment)
-                            .opacity(isHovered ? 1 : 0.8)
-                    }
+                if let connectionEnvironment = instance.connection.environment {
+                    EnvironmentTag(environment: connectionEnvironment)
+                        .opacity(isHovered ? 1 : 0.8)
                 }
             }
         }
@@ -189,50 +181,6 @@ struct ConnectionHeader: View {
     }
 }
 
-// MARK: - Convex Environment Tag
-private struct ConvexEnvironmentTag: View {
-    let environmentName: String
-
-    // Clean environment name by removing suffix like "(cloud)"
-    private var cleanedName: String {
-        environmentName.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespaces) ?? environmentName
-    }
-
-    // Map Convex environment names to colors
-    private var environmentColor: Color {
-        let lowercased = cleanedName.lowercased()
-        switch lowercased {
-        case "prod", "production":
-            return .red
-        case "staging", "stage":
-            return .orange
-        case "dev", "development":
-            return .purple
-        case "test", "testing":
-            return .blue
-        default:
-            return .green
-        }
-    }
-
-    var body: some View {
-        Text(cleanedName)
-            .font(.system(size: 10))
-            .fontWeight(.medium)
-            .foregroundColor(environmentColor)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(environmentColor.opacity(0.15))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(environmentColor.opacity(0.3), lineWidth: 1)
-            )
-            .cornerRadius(6)
-    }
-}
 
 // MARK: - Connection Status Page
 private struct ConnectionStatusBadge: View {
