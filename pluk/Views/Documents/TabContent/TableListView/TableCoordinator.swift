@@ -18,8 +18,20 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     private let scrollView = NSScrollView()
     let tableView = CustomTableView()
 
+    // Static caches so user customizations survive coordinator recreation (tab switches)
+    private static var persistedColumnWidths: [String: CGFloat] = [:]  // Key: "autosaveKey.columnId"
+    private static var persistedColumnOrder: [String: [String]] = [:]  // Key: autosaveKey → [columnId...]
+
     private var columnWidthCache: [String: CGFloat] = [:]
     private var knownColumns: Set<String> = []
+
+    private var autosaveKey: String {
+        "\(cacheNamespace.isEmpty ? "global" : cacheNamespace)_\(tableName)"
+    }
+
+    private func persistedKey(for columnId: String) -> String {
+        "\(autosaveKey).\(columnId)"
+    }
     public var needsToSelectLastRow = false
     
     private var sortColumn: String?
@@ -104,6 +116,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         self.modificationTracker?.undoDelegate = self
         self.modificationTracker?.rowUndoDelegate = self
         
+        NotificationCenter.default.addObserver(self, selector: #selector(columnDidResize(_:)), name: NSTableView.columnDidResizeNotification, object: tableView)
+        NotificationCenter.default.addObserver(self, selector: #selector(columnDidMove(_:)), name: NSTableView.columnDidMoveNotification, object: tableView)
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleTableReloadData(notification:)), name: .tableReloadData, object: nil)
@@ -279,16 +293,11 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     func updateRows(_ newQueryResult: QueryResult?, newSchema: DatabaseSchemaResult? = nil) {
         let previousSelectedRow = self.tableView.getCurrentSelectedCell()?.row
 
-        let oldColumnCount: Int
-        if let currentQueryResult = self.queryResult, !currentQueryResult.columns.isEmpty {
-            oldColumnCount = currentQueryResult.columns.count
-        } else {
-            oldColumnCount = self.schema?.columns.count ?? 0
-        }
+        let oldColumnNames = Set(self.tableView.tableColumns.map(\.identifier.rawValue))
 
         self.queryResult = newQueryResult
         self.schema = newSchema
-        
+
         if let newQueryResult = newQueryResult {
             self.rows = newQueryResult.rawRows
             self.totalCount = newQueryResult.totalCount
@@ -296,13 +305,16 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             self.rows = []
             self.totalCount = 0
         }
-        
-        let newColumnCount: Int
+
+        let newColumns: [(name: String, dataType: String?)]
         if let newQueryResult = newQueryResult, !newQueryResult.columns.isEmpty {
-            newColumnCount = newQueryResult.columns.count
+            newColumns = newQueryResult.columns.map { ($0.name, $0.dataType) }
+        } else if let newSchema = newSchema {
+            newColumns = newSchema.columns.map { ($0.columnName, $0.dataType) }
         } else {
-            newColumnCount = newSchema?.columns.count ?? 0
+            newColumns = []
         }
+        let newColumnNames = Set(newColumns.map(\.name))
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -312,8 +324,23 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
                 self.tableView.clearAllSelection()
             }
 
-            if newColumnCount != oldColumnCount {
-                self.rebuildTableStructure()
+            if newColumnNames != oldColumnNames {
+                if oldColumnNames.isEmpty {
+                    // First data arrival — full setup needed
+                    self.rebuildTableStructure()
+                } else {
+                    let addedColumns = newColumns.filter { !oldColumnNames.contains($0.name) }
+                    let removedColumns = oldColumnNames.subtracting(newColumnNames)
+
+                    if removedColumns.isEmpty && !addedColumns.isEmpty {
+                        for col in addedColumns {
+                            self.createColumn(identifier: col.name, title: col.name, dataType: col.dataType, icon: nil)
+                        }
+                        self.tableView.reloadData()
+                    } else {
+                        self.rebuildTableStructure()
+                    }
+                }
             } else {
                 self.tableView.reloadData()
             }
@@ -402,12 +429,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
         column.title = title
 
-        // Use cached width if available
-        if let cachedWidth = columnWidthCache[identifier] {
-            debugLog("📏 Using cached width for '\(identifier)': \(cachedWidth)")
-            column.width = cachedWidth
+        // Use persisted width (survives tab switches), then instance cache, then default
+        let width = Self.persistedColumnWidths[persistedKey(for: identifier)] ?? columnWidthCache[identifier]
+        if let width {
+            column.width = width
             column.minWidth = 10
             column.maxWidth = CGFloat.greatestFiniteMagnitude
+            columnWidthCache[identifier] = width
         }
 
         // Add custom header
@@ -451,12 +479,28 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         let sortDescriptor = NSSortDescriptor(key: column.title, ascending: true, selector: #selector(NSString.localizedCaseInsensitiveCompare(_:)))
         column.sortDescriptorPrototype = sortDescriptor
         
+        let preAddWidth = column.width
         tableView.addTableColumn(column)
-        
+        let postAddWidth = column.width
+        if preAddWidth != postAddWidth {
+            columnWidthCache[identifier] = postAddWidth
+        }
+
         tableView.target = self
         tableView.doubleAction = #selector(tableViewDoubleClick(_:))
     }
     
+    @objc private func columnDidResize(_ notification: Notification) {
+        guard let column = notification.userInfo?["NSTableColumn"] as? NSTableColumn else { return }
+        let id = column.identifier.rawValue
+        columnWidthCache[id] = column.width
+        Self.persistedColumnWidths[persistedKey(for: id)] = column.width
+    }
+
+    @objc private func columnDidMove(_ notification: Notification) {
+        Self.persistedColumnOrder[autosaveKey] = tableView.tableColumns.map(\.identifier.rawValue)
+    }
+
     @objc func tableViewDoubleClick(_ sender: AnyObject) {
         if let cellLocation = tableView.getCurrentSelectedCell() {
             tableView.enterEditModeForCell(row: cellLocation.row, column: cellLocation.column)
@@ -498,6 +542,24 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     }
     
     private func setupTable() {
+        // Always set dataSource/delegate even if no columns yet —
+        // columns may arrive later via updateRows
+        if tableView.dataSource == nil {
+            tableView.allowsColumnResizing = true
+            tableView.allowsColumnReordering = true
+            tableView.columnAutoresizingStyle = .noColumnAutoresizing
+
+            tableView.autosaveName = autosaveKey
+            tableView.autosaveTableColumns = true
+
+            tableView.allowsColumnSelection = true
+            tableView.allowsMultipleSelection = true
+            tableView.allowsEmptySelection = true
+
+            tableView.dataSource = self
+            tableView.delegate = self
+        }
+
         let columnsToUse: [(name: String, dataType: String?)]
 
         if let queryResult = queryResult, !queryResult.columns.isEmpty {
@@ -512,7 +574,18 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             preCalculateOptimalColumnWidths(for: columnsToUse, queryResult: queryResult)
         }
 
-        for columnInfo in columnsToUse {
+        // Reorder columns to match user's persisted arrangement if available
+        let orderedColumns: [(name: String, dataType: String?)]
+        if let savedOrder = Self.persistedColumnOrder[autosaveKey] {
+            let columnsByName = Dictionary(columnsToUse.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+            let reordered = savedOrder.compactMap { columnsByName[$0] }
+            let remaining = columnsToUse.filter { col in !savedOrder.contains(col.name) }
+            orderedColumns = reordered + remaining
+        } else {
+            orderedColumns = columnsToUse
+        }
+
+        for columnInfo in orderedColumns {
             createColumn(
                 identifier: columnInfo.name,
                 title: columnInfo.name,
@@ -520,21 +593,6 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
                 icon: nil
             )
         }
-        
-        tableView.allowsColumnResizing = true
-        tableView.allowsColumnReordering = true
-        tableView.columnAutoresizingStyle = .noColumnAutoresizing
-
-        let autosaveName = "\(cacheNamespace.isEmpty ? "global" : cacheNamespace)_\(tableName)"
-        tableView.autosaveName = autosaveName
-        tableView.autosaveTableColumns = true
-
-        tableView.allowsColumnSelection = true
-        tableView.allowsMultipleSelection = true
-        tableView.allowsEmptySelection = true
-
-        tableView.dataSource = self
-        tableView.delegate = self
 
         tableView.undoHandler = { [weak self] in
             self?.handleUndo() ?? false
@@ -651,7 +709,14 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     
     
     private func rebuildTableStructure() {
-        columnWidthCache.removeAll()
+        // Preserve user-resized widths before tearing down columns
+        for col in tableView.tableColumns {
+            let id = col.identifier.rawValue
+            let currentWidth = col.width
+            if currentWidth > 0 {
+                columnWidthCache[id] = currentWidth
+            }
+        }
         knownColumns.removeAll()
 
         while !tableView.tableColumns.isEmpty {
@@ -697,8 +762,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         for columnInfo in columnsToUse {
             let columnIdentifier = columnInfo.name
 
-            // Skip if already calculated
-            if columnWidthCache[columnIdentifier] != nil {
+            // Skip if user has resized (persisted) or already calculated
+            if Self.persistedColumnWidths[persistedKey(for: columnIdentifier)] != nil || columnWidthCache[columnIdentifier] != nil {
                 continue
             }
 

@@ -561,7 +561,7 @@ class MongoDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MongoDB collection rename not yet implemented")
     }
     
-    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         throw DatabaseError.notImplemented("MongoDB schema introspection not yet implemented")
     }
 

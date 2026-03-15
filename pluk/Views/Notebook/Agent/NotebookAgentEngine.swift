@@ -590,7 +590,9 @@ final class NotebookAgentEngine {
                 keychainId: conn.keychainId,
                 databaseName: databaseName
             )
-            let result = try await driverSession.getSchema(tableName: tableName, schema: schemaName)
+            guard let result = try await driverSession.getSchema(tableName: tableName, schema: schemaName) else {
+                return "No schema defined for \(tableName)"
+            }
             return formatSchemaResult(result)
         } catch {
             return "Error getting schema for \(tableName): \(error.localizedDescription)"

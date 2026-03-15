@@ -11,6 +11,13 @@ import MongoCore
 import SwiftUI
 import SwiftData
 
+struct CachedCollectionWrapper: CollectionWrapper {
+    var id: String { name }
+    let name: String
+    let type: String = "table"
+    let schema: String?
+}
+
 @Observable class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
@@ -176,17 +183,44 @@ import SwiftData
 
         let databaseName = database.name
 
-        do {
-            let collectionResult = try await databaseService.listCollections(schema: schema)
-            await MainActor.run {
-                self.collections[databaseName] = collectionResult
+        // Restore cached table names instantly so sidebar appears immediately
+        if collections[databaseName] == nil || collections[databaseName]?.isEmpty == true {
+            let cached = loadCachedCollectionNames(databaseName: databaseName)
+            if !cached.isEmpty {
+                let placeholders = cached.map { makePlaceholderCollection(name: $0, schema: schema) }
+                collections[databaseName] = placeholders
             }
+        }
+
+        // Fetch fresh list in background and reconcile
+        do {
+            let freshCollections = try await databaseService.listCollections(schema: schema)
+            collections[databaseName] = freshCollections
+            saveCachedCollectionNames(freshCollections.map(\.name), databaseName: databaseName)
         } catch {
-            await MainActor.run {
-                self.collections[databaseName] = []
+            if collections[databaseName]?.isEmpty != false {
+                collections[databaseName] = []
             }
             throw error
         }
+    }
+
+    private var collectionCacheKey: String {
+        "cachedCollections_\(connection.keychainId)"
+    }
+
+    private func loadCachedCollectionNames(databaseName: String) -> [String] {
+        let key = "\(collectionCacheKey)_\(databaseName)"
+        return UserDefaults.standard.stringArray(forKey: key) ?? []
+    }
+
+    private func saveCachedCollectionNames(_ names: [String], databaseName: String) {
+        let key = "\(collectionCacheKey)_\(databaseName)"
+        UserDefaults.standard.set(names, forKey: key)
+    }
+
+    private func makePlaceholderCollection(name: String, schema: String?) -> any CollectionWrapper {
+        CachedCollectionWrapper(name: name, schema: schema)
     }
     
     // Legacy MongoDB methods - these will be gradually refactored

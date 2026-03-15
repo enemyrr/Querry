@@ -265,7 +265,7 @@ struct TableListView: View {
     }
 
     // MARK: - View State Helpers
-    private func forceViewStateRefresh(with result: QueryResult, schema: DatabaseSchemaResult) {
+    private func forceViewStateRefresh(with result: QueryResult, schema: DatabaseSchemaResult?) {
         viewState = .loading
         viewState = .loaded(result, schema)
     }
@@ -471,8 +471,8 @@ struct TableListView: View {
 
         cachedDocuments = updatedResult
 
-        if let updatedDocuments = cachedDocuments, let currentSchema = cachedSchema {
-            viewState = .loaded(updatedDocuments, currentSchema)
+        if let updatedDocuments = cachedDocuments {
+            viewState = .loaded(updatedDocuments, cachedSchema)
         }
 
         needsToSelectLastRow = true
@@ -533,9 +533,7 @@ struct TableListView: View {
 
         cachedDocuments = updatedResult
 
-        if let currentSchema = cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
 
         needsToSelectLastRow = true
         debugLog("✅ Pasted \(parsedRows.count) row(s)")
@@ -576,9 +574,7 @@ struct TableListView: View {
 
         cachedDocuments = updatedResult
 
-        if let currentSchema = cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
 
         NotificationCenter.default.post(
             name: .tableReloadData,
@@ -727,8 +723,8 @@ struct TableListView: View {
         cachedDocuments = updatedResult
 
         // Update view state
-        if let updatedDocuments = cachedDocuments, let currentSchema = cachedSchema {
-            viewState = .loaded(updatedDocuments, currentSchema)
+        if let updatedDocuments = cachedDocuments {
+            viewState = .loaded(updatedDocuments, cachedSchema)
         }
 
         debugLog("✅ Deleted new record at index \(atIndex)")
@@ -758,9 +754,7 @@ struct TableListView: View {
         cachedDocuments = updatedResult
         needsToSelectLastRow = false
 
-        if let currentSchema = cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
 
         NotificationCenter.default.post(
             name: .tableReloadData,
@@ -774,7 +768,6 @@ struct TableListView: View {
     /// Load documents only if they don't exist in cache or tab has changed
     private func loadDocumentsIfNeeded() async {
         let shouldFetch = cachedTabName != selectedTab.name ||
-        cachedSchema == nil ||
         cachedDocuments == nil || selectedTab.forceFetch
 
         if shouldFetch {
@@ -791,8 +784,7 @@ struct TableListView: View {
             await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: initialFilter)
             selectedTab.forceFetch = false
         } else {
-            if let cachedDocuments = cachedDocuments,
-               let cachedSchema = cachedSchema {
+            if let cachedDocuments = cachedDocuments {
                 viewState = .loaded(cachedDocuments, cachedSchema)
             }
             
@@ -876,11 +868,7 @@ struct TableListView: View {
                     }
                 }
             }
-            // Update state with the new baseline data without highlighting
-            if let currentSchema = cachedSchema {
-                viewState = .loading
-                viewState = .loaded(updatedResult, currentSchema)
-            }
+            forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
             cachedDocuments = updatedResult
             return
         }
@@ -927,11 +915,7 @@ struct TableListView: View {
         updatedFields = fields
         updatedRows = rows
         
-        // Update view state to reflect the changes
-        if let currentSchema = cachedSchema {
-            viewState = .loading
-            viewState = .loaded(updatedResult, currentSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
         
         // Update cached documents
         cachedDocuments = updatedResult
@@ -1037,8 +1021,7 @@ struct TableListView: View {
         // If not forcing fetch and we have cached data for the same tab, use it
         if !forceFetch &&
             cachedTabName == selectedTab.name,
-           let cachedDocuments = cachedDocuments,
-           let cachedSchema = cachedSchema {
+           let cachedDocuments = cachedDocuments {
             viewState = .loaded(cachedDocuments, cachedSchema)
             return
         }
@@ -1052,10 +1035,10 @@ struct TableListView: View {
             if Task.isCancelled { return }
             
             // Determine what to fetch
-            let schemaToUse: DatabaseSchemaResult
+            let schemaToUse: DatabaseSchemaResult?
             let documentsResult: QueryResult
             let databaseSchema = selectedTab.databaseSchema
-            
+
             if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != selectedTab.name) {
                 // Fetch schema, indexes, and documents in parallel
                 async let schemaTask = instance.databaseService.getSchema(for: selectedTab.name, databaseSchema: databaseSchema, forceFetch: forceFetch)
@@ -1075,24 +1058,12 @@ struct TableListView: View {
                 // Check if task was cancelled after async operations
                 if Task.isCancelled { return }
 
-                guard let schema = schema else {
-                    viewState = .error("Could not load schema")
-                    return
-                }
-
                 schemaToUse = schema
                 documentsResult = documents
 
-                // Cache the schema and indexes
                 cachedSchema = schema
                 cachedIndexes = indexes
             } else {
-                // Use cached schema, only fetch documents
-                guard let schema = cachedSchema else {
-                    viewState = .error("No cached schema available")
-                    return
-                }
-                
                 let documents = try await instance.databaseService.findDocuments(
                     in: selectedTab.name,
                     databaseSchema: databaseSchema,
@@ -1102,11 +1073,11 @@ struct TableListView: View {
                     sortBy: sortColumn,
                     ascending: sortAscending
                 )
-                
+
                 // Check if task was cancelled after document fetch
                 if Task.isCancelled { return }
-                
-                schemaToUse = schema
+
+                schemaToUse = cachedSchema
                 documentsResult = documents
             }
             
@@ -1197,7 +1168,7 @@ struct TableListView: View {
 enum TableListViewState: Equatable {
     case loading
     case error(String)
-    case loaded(QueryResult, DatabaseSchemaResult)
+    case loaded(QueryResult, DatabaseSchemaResult?)
     
     var isError: Bool {
         if case .error = self {
@@ -1214,8 +1185,8 @@ enum TableListViewState: Equatable {
             return lhsMessage == rhsMessage
         case (.loaded(let lhsResult, let lhsSchema), .loaded(let rhsResult, let rhsSchema)):
             // Simple comparison - you might want to implement proper equality for QueryResult and DatabaseSchemaResult
-            return lhsResult.totalCount == rhsResult.totalCount && 
-                   lhsSchema.columns.count == rhsSchema.columns.count
+            return lhsResult.totalCount == rhsResult.totalCount &&
+                   lhsSchema?.columns.count == rhsSchema?.columns.count
         default:
             return false
         }

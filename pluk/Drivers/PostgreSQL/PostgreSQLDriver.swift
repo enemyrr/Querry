@@ -861,7 +861,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         return try await getSchema(for: collectionName, in: schema ?? "public")
     }
 

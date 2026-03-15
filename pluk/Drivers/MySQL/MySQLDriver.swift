@@ -624,7 +624,7 @@ class MySQLDriver: DatabaseDriver {
         }
     }
 
-    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         let connection = try await ensureConnected()
         
         guard let database = currentDatabase else {
@@ -958,7 +958,9 @@ class MySQLDriver: DatabaseDriver {
     
     private func buildSchemaPrompt(for collectionName: String) async -> String {
         do {
-            let schemaResult = try await getSchema(for: collectionName, schema: nil)
+            guard let schemaResult = try await getSchema(for: collectionName, schema: nil) else {
+                return "No schema found for \(collectionName)\n"
+            }
             let columnInfo = schemaResult.columns
                 .map { column in
                     let nullable = column.isNullable == "YES" ? "NULL" : "NOT NULL"
@@ -966,7 +968,7 @@ class MySQLDriver: DatabaseDriver {
                     return "\(column.columnName): \(column.dataType) \(nullable)\(defaultValue)"
                 }
                 .joined(separator: "\n")
-            
+
             return """
             Table: \(schemaResult.tableName)
             Schema: \(schemaResult.schemaName)

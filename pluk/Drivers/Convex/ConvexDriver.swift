@@ -728,30 +728,18 @@ class ConvexDriver: DatabaseDriver {
         }
     }
     
-    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         guard isConnected else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
 
-        // Try to get schema from Convex, but fall back to inference if it fails
+        // Try to get schema from Convex. If no active schema, return nil —
+        // the table view derives columns from the query result.
         do {
-            let allSchemas = try await getAllSchemas()
+            _ = try await getAllSchemas()
 
-            // Parse the active schemas
-            guard let activeSchemaString = allSchemas["active"] as? String,
-                  let activeSchemaData = activeSchemaString.data(using: .utf8),
-                  let activeSchema = try JSONSerialization.jsonObject(with: activeSchemaData) as? [String: Any],
-                  let tables = activeSchema["tables"] as? [[String: Any]] else {
-                // Invalid format, fall back to inference
-                debugLog("⚠️ Invalid schema response format, inferring from sample document")
-                return try await inferSchemaFromSampleDocument(collectionName: collectionName, schema: schema)
-            }
-
-            // Find the table matching the collection name
-            guard let tableSchema = tables.first(where: { ($0["tableName"] as? String) == collectionName }) else {
-                // If table not found in schema, infer schema from a sample document
-                debugLog("⚠️ Table '\(collectionName)' not found in schema, inferring from sample document")
-                return try await inferSchemaFromSampleDocument(collectionName: collectionName, schema: schema)
+            guard let tableSchema = cachedTableSchema(for: collectionName) else {
+                return nil
             }
             
             var columns: [DatabaseSchemaInfo] = [Self.idSchemaField(ordinal: 0)]
@@ -828,10 +816,18 @@ class ConvexDriver: DatabaseDriver {
                 totalCount: columns.count
             )
         } catch {
-            // If getAllSchemas() or any schema parsing fails, fall back to inference
-            debugLog("⚠️ Failed to get schema from Convex: \(error), inferring from sample document")
-            return try await inferSchemaFromSampleDocument(collectionName: collectionName, schema: schema)
+            debugLog("⚠️ Failed to get schema from Convex: \(error)")
+            return nil
         }
+    }
+
+    private func cachedTableSchema(for tableName: String) -> [String: Any]? {
+        guard let cachedSchemas,
+              let activeString = cachedSchemas["active"] as? String,
+              let data = activeString.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tables = parsed["tables"] as? [[String: Any]] else { return nil }
+        return tables.first { ($0["tableName"] as? String) == tableName }
     }
 
     func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
@@ -847,16 +843,10 @@ class ConvexDriver: DatabaseDriver {
                 "tableNamespace": getComponentId(for: schema)
             ]
 
-            let responseString: String = try await mobileClient.query(name: "_system/frontend/indexes", with: args)
+            let response: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/indexes", with: args)
 
-            guard let responseData = responseString.data(using: .utf8) else {
-                throw DatabaseError.operationFailed("Failed to convert response to UTF-8 data")
-            }
-
-            let jsonObject = try JSONSerialization.jsonObject(with: responseData)
-
-            guard let indexes = jsonObject as? [[String: Any]] else {
-                debugLog("⚠️ Unexpected indexes response structure: \(jsonObject)")
+            guard let indexes = response.anyValue as? [[String: Any]] else {
+                debugLog("⚠️ Unexpected indexes response structure: \(response)")
                 return []
             }
 
@@ -938,115 +928,6 @@ class ConvexDriver: DatabaseDriver {
             includeColumns: includeColumns,
             comment: comment
         )
-    }
-
-    // MARK: - Schema Inference
-
-    private func inferSchemaFromSampleDocument(collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
-        guard isConnected, let mobileClient = convexMobileClient else {
-            throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
-        }
-
-        do {
-            // Fetch one document to infer schema
-            let paginationOpts: [String: ConvexEncodable?] = [
-                "cursor": nil,
-                "numItems": Float(1) // Just need one document
-            ]
-
-            let args: [String: ConvexEncodable?] = [
-                "table": collectionName,
-                "filters": nil,
-                "paginationOpts": paginationOpts,
-            ]
-
-            let jsonRaw: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/paginatedTableDocuments", with: args)
-
-            // Handle possible { status, value } envelope
-            let json: ConvexMobile.ConvexValue = jsonRaw["value"] ?? jsonRaw
-
-            guard let pageArray = json["page"]?.arrayValue,
-                  let firstPage = pageArray.first,
-                  let sampleDocument = firstPage.anyValue as? [String: Any] else {
-                // If no documents exist, create minimal schema with just _id and _creationTime
-                debugLog("ℹ️ No documents found for table '\(collectionName)', creating minimal schema")
-                return createMinimalSchema(collectionName: collectionName, schema: schema)
-            }
-
-            var columns: [DatabaseSchemaInfo] = [Self.idSchemaField(ordinal: 0)]
-            var columnIndex = 1
-
-            // Infer other fields from sample document (excluding system fields)
-            let sortedKeys = sampleDocument.keys.filter { !$0.hasPrefix("_") }.sorted()
-            for fieldName in sortedKeys {
-                let value = sampleDocument[fieldName]
-                let inferredTypeName = inferSwiftTypeName(from: value)
-
-                columns.append(DatabaseSchemaInfo(
-                    ordinalPosition: columnIndex,
-                    columnName: fieldName,
-                    dataType: inferredTypeName,
-                    formatType: inferredTypeName,
-                    typeOid: 0,
-                    numericPrecision: nil,
-                    datetimePrecision: nil,
-                    numericScale: nil,
-                    dataLength: nil,
-                    isNullable: "YES", // Assume fields can be null since we're inferring
-                    comment: "Inferred from sample document"
-                ))
-                columnIndex += 1
-            }
-
-            columns.append(Self.creationTimeSchemaField(ordinal: columnIndex))
-
-            debugLog("✅ Inferred schema for table '\(collectionName)' from sample document with \(columns.count) columns")
-
-            return DatabaseSchemaResult(
-                tableName: collectionName,
-                schemaName: schema ?? "default",
-                columns: columns,
-                totalCount: columns.count
-            )
-
-        } catch {
-            debugLog("❌ Failed to infer schema from sample document for table '\(collectionName)': \(error)")
-            // Return minimal schema as fallback
-            return createMinimalSchema(collectionName: collectionName, schema: schema)
-        }
-    }
-
-    private func createMinimalSchema(collectionName: String, schema: String?) -> DatabaseSchemaResult {
-        let columns = [Self.idSchemaField(ordinal: 0), Self.creationTimeSchemaField(ordinal: 1)]
-        return DatabaseSchemaResult(
-            tableName: collectionName,
-            schemaName: schema ?? "default",
-            columns: columns,
-            totalCount: columns.count
-        )
-    }
-
-    private func inferSwiftTypeName(from value: Any?) -> String {
-        guard let value = value else {
-            return "string"
-        }
-
-        switch value {
-        case is String:
-            return "string"
-        case is Int, is Int32, is Int64:
-            return "int64"
-        case is Float, is Double:
-            return "float64"
-        case is Bool:
-            return "boolean"
-        case is [Any]:
-            return "array"
-        case is [String: Any]:
-            return "object"
-        default:
-            return "string"
-        }
     }
 
     // MARK: - Helper Methods
@@ -1416,7 +1297,6 @@ class ConvexDriver: DatabaseDriver {
                         debugLog("📡 Stored subscription cursor for table=\(collectionName) page=\(requestedPage + 1)")
                     }
 
-                    // Convert ConvexValue to [String: Any] for the shared transform
                     guard let jsonResult = json.anyValue as? [String: Any] else {
                         debugLog("❌ Subscription payload could not be converted to dictionary")
                         continue
@@ -1447,45 +1327,47 @@ class ConvexDriver: DatabaseDriver {
     // MARK: - Shared Document Processing
     
     private func processConvexDocuments(_ documents: [[String: Any]], totalCount: Int, for tableName: String, databaseSchema: String?) async throws -> QueryResult {
-        // Build columns from schema instead of inferring from documents
         var columns: [QueryColumnInfo] = []
-        do {
-            let schemaResult = try await getSchema(for: tableName, schema: databaseSchema)
-            for (index, schemaColumn) in schemaResult.columns.enumerated() {
-                columns.append(QueryColumnInfo(
-                    name: schemaColumn.columnName,
-                    dataType: schemaColumn.dataType,
-                    format: schemaColumn.formatType,
-                    index: index
-                ))
-            }
-        } catch {
-            // Fallback to inferring from first document if schema fetch fails
-            debugLog("⚠️ Failed to fetch schema, falling back to document inference: \(error)")
-            if let firstDocument = documents.first {
-                for (index, key) in firstDocument.keys.sorted().enumerated() {
-                    let value = firstDocument[key]
-                    columns.append(ConvexValue.createQueryColumnInfo(name: key, value: value, index: index))
+
+        if let tableSchema = cachedTableSchema(for: tableName),
+           let documentType = tableSchema["documentType"] as? [String: Any],
+           let typeValue = documentType["value"] as? [String: Any] {
+            // Build columns from cached schema
+            columns.append(QueryColumnInfo(name: "_id", dataType: "string", format: "id", index: 0))
+            var idx = 1
+            for fieldName in typeValue.keys.sorted() {
+                let fieldType: String
+                if let dict = typeValue[fieldName] as? [String: Any],
+                   let parsed = try? ConvexFieldType(from: dict) {
+                    fieldType = parsed.swiftTypeName
+                } else {
+                    fieldType = "string"
                 }
+                columns.append(QueryColumnInfo(name: fieldName, dataType: fieldType, format: fieldType, index: idx))
+                idx += 1
             }
+            columns.append(QueryColumnInfo(name: "_creationTime", dataType: "float64", format: "timestamp", index: idx))
+        } else {
+            // No schema — convertArbitraryToQueryResult already builds complete columns + rows
+            return convertArbitraryToQueryResult(documents)
         }
-        
-        // Convert documents to rows
+
+        // Convert documents to rows using schema types
         var rows: [[String: QueryRowInfo]] = []
         var rawRows: [[String: Any?]] = []
-        
+        rows.reserveCapacity(documents.count)
+        rawRows.reserveCapacity(documents.count)
+
         for document in documents {
-            var row: [String: QueryRowInfo] = [:]
-            var rawRow: [String: Any?] = [:]
-            
-            // Iterate through all schema columns to ensure we handle missing fields
+            var row = [String: QueryRowInfo](minimumCapacity: columns.count)
+            var rawRow = [String: Any?](minimumCapacity: columns.count)
+
             for column in columns {
                 let key = column.name
-                let value = document[key] // This might be nil for unset fields
+                let value = document[key]
                 let dataType = column.dataType
                 let formatType = column.format ?? dataType
-                
-                // Create QueryRowInfo with schema data types
+
                 row[key] = QueryRowInfo(
                     value: ConvexValue.formatValueForDisplay(value: value, fieldName: key, dataType: dataType),
                     dataType: dataType,
@@ -1493,11 +1375,11 @@ class ConvexDriver: DatabaseDriver {
                 )
                 rawRow[key] = value
             }
-            
+
             rows.append(row)
             rawRows.append(rawRow)
         }
-        
+
         return QueryResult(
             columns: columns,
             rows: rows,
@@ -1505,7 +1387,7 @@ class ConvexDriver: DatabaseDriver {
             rawRows: rawRows
         )
     }
-    
+
     private func transformConvexResultToQueryResult(_ convexResult: [String: Any], for tableName: String) async throws -> QueryResult {
         // Parse the Convex response
         guard let page = convexResult["page"] as? [[String: Any]] else {

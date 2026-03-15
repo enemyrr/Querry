@@ -30,7 +30,7 @@ actor ChartDriverSession {
         return try await driver.listCollections(schema: schema)
     }
 
-    func getSchema(tableName: String, schema: String?) async throws -> DatabaseSchemaResult {
+    func getSchema(tableName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         guard let driver else { throw ChartBlockError.notConnected }
         return try await driver.getSchema(for: tableName, schema: schema)
     }

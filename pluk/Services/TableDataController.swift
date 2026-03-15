@@ -35,6 +35,7 @@ class TableDataController {
     private var lastTabFilterColumn: String?
     private var lastTabFilterValue: String?
 
+    private var isFetchingSchema = false
     var isSubscribedToRealTime = false
     var receivedFirstRealtimeEvent = false
     var skipNextRealtimeEvent = false
@@ -86,7 +87,7 @@ class TableDataController {
         }
     }
 
-    private func forceViewStateRefresh(with result: QueryResult, schema: DatabaseSchemaResult) {
+    private func forceViewStateRefresh(with result: QueryResult, schema: DatabaseSchemaResult?) {
         viewState = .loading
         viewState = .loaded(result, schema)
     }
@@ -95,12 +96,11 @@ class TableDataController {
 
     func loadDocumentsIfNeeded() async {
         let shouldFetch = cachedTabName != tab.name
-            || cachedSchema == nil
             || cachedDocuments == nil
             || tab.forceFetch
 
         guard shouldFetch else {
-            if let cachedDocuments, let cachedSchema {
+            if let cachedDocuments {
                 viewState = .loaded(cachedDocuments, cachedSchema)
             }
             if !isSubscribedToRealTime {
@@ -124,21 +124,33 @@ class TableDataController {
             currentActiveFilter = filter ?? currentActiveFilter
             if forceFetch || cachedDocuments == nil { viewState = .loading }
 
+            // Fire schema+indexes in background — don't block the subscription
             if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != tab.name) {
-                do {
-                    if let schema = try await instance.databaseService.getSchema(for: tab.name, databaseSchema: tab.databaseSchema, forceFetch: forceFetch) {
-                        cachedSchema = schema
-                    }
-                } catch {
-                    debugLog("Failed to fetch schema for \(tab.name): \(error.localizedDescription)")
-                }
+                let tabName = tab.name
+                let databaseSchema = tab.databaseSchema
+                Task { [weak self] in
+                    guard let self else { return }
+                    async let schemaTask: DatabaseSchemaResult? = {
+                        do {
+                            return try await self.instance.databaseService.getSchema(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
+                        } catch {
+                            debugLog("Failed to fetch schema for \(tabName): \(error.localizedDescription)")
+                            return nil
+                        }
+                    }()
+                    async let indexesTask: [DatabaseIndexInfo]? = {
+                        do {
+                            return try await self.instance.databaseService.getIndexes(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
+                        } catch {
+                            debugLog("Failed to fetch indexes for \(tabName): \(error.localizedDescription)")
+                            return nil
+                        }
+                    }()
 
-                do {
-                    if let indexes = try await instance.databaseService.getIndexes(for: tab.name, databaseSchema: tab.databaseSchema, forceFetch: forceFetch) {
-                        cachedIndexes = indexes
-                    }
-                } catch {
-                    debugLog("Failed to fetch indexes for \(tab.name): \(error.localizedDescription)")
+                    let (schema, indexes) = await (schemaTask, indexesTask)
+                    guard self.cachedTabName == tabName else { return }
+                    if let schema { self.cachedSchema = schema }
+                    if let indexes { self.cachedIndexes = indexes }
                 }
             }
             cachedTabName = tab.name
@@ -155,8 +167,7 @@ class TableDataController {
 
         if !forceFetch,
            cachedTabName == tab.name,
-           let cachedDocuments,
-           let cachedSchema {
+           let cachedDocuments {
             viewState = .loaded(cachedDocuments, cachedSchema)
             return
         }
@@ -166,7 +177,7 @@ class TableDataController {
 
             guard !Task.isCancelled else { return }
 
-            let schemaToUse: DatabaseSchemaResult
+            let schemaToUse: DatabaseSchemaResult?
             let documentsResult: QueryResult
             let databaseSchema = tab.databaseSchema
 
@@ -187,22 +198,12 @@ class TableDataController {
 
                 guard !Task.isCancelled else { return }
 
-                guard let schema else {
-                    viewState = .error("Could not load schema")
-                    return
-                }
-
                 schemaToUse = schema
                 documentsResult = documents
 
                 cachedSchema = schema
                 cachedIndexes = indexes
             } else {
-                guard let schema = cachedSchema else {
-                    viewState = .error("No cached schema available")
-                    return
-                }
-
                 let documents = try await instance.databaseService.findDocuments(
                     in: tab.name,
                     databaseSchema: databaseSchema,
@@ -215,7 +216,7 @@ class TableDataController {
 
                 guard !Task.isCancelled else { return }
 
-                schemaToUse = schema
+                schemaToUse = cachedSchema
                 documentsResult = documents
             }
 
@@ -411,11 +412,7 @@ class TableDataController {
         )
 
         cachedDocuments = updatedResult
-
-        if let cachedSchema {
-            viewState = .loaded(updatedResult, cachedSchema)
-        }
-
+        viewState = .loaded(updatedResult, cachedSchema)
         needsToSelectLastRow = true
     }
 
@@ -464,11 +461,7 @@ class TableDataController {
 
         cachedDocuments = updatedResult
         needsToSelectLastRow = true
-
-        if let cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
-        }
-
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
         debugLog("✅ Pasted \(parsedRows.count) row(s)")
     }
 
@@ -505,10 +498,7 @@ class TableDataController {
         )
 
         cachedDocuments = updatedResult
-
-        if let currentSchema = cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
 
         NotificationCenter.default.post(
             name: .tableReloadData,
@@ -551,10 +541,7 @@ class TableDataController {
             return
         }
 
-        if let cachedSchema {
-            viewState = .loaded(updatedResult, cachedSchema)
-        }
-
+        viewState = .loaded(updatedResult, cachedSchema)
         debugLog("✅ Deleted new record at index \(index)")
     }
 
@@ -566,9 +553,7 @@ class TableDataController {
 
         needsToSelectLastRow = false
 
-        if let cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
 
         NotificationCenter.default.post(
             name: .tableReloadData,
@@ -764,9 +749,7 @@ class TableDataController {
             skipNextRealtimeEvent = false
             changeDetector.baseline(with: updatedResult)
             fetchSchemaIfNeeded()
-            if let currentSchema = cachedSchema {
-                forceViewStateRefresh(with: updatedResult, schema: currentSchema)
-            }
+            forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
             cachedDocuments = updatedResult
             return
         }
@@ -801,9 +784,7 @@ class TableDataController {
         updatedFields = fields
         updatedRows = rows
 
-        if let currentSchema = cachedSchema {
-            forceViewStateRefresh(with: updatedResult, schema: currentSchema)
-        }
+        forceViewStateRefresh(with: updatedResult, schema: cachedSchema)
 
         cachedDocuments = updatedResult
 
@@ -817,10 +798,13 @@ class TableDataController {
     }
 
     private func fetchSchemaIfNeeded() {
-        guard cachedSchema == nil else { return }
-        Task {
-            if let schema = try await instance.databaseService.getSchema(for: tab.name, databaseSchema: tab.databaseSchema) {
-                await MainActor.run { self.cachedSchema = schema }
+        guard cachedSchema == nil, !isFetchingSchema else { return }
+        isFetchingSchema = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.isFetchingSchema = false }
+            if let schema = try? await instance.databaseService.getSchema(for: tab.name, databaseSchema: tab.databaseSchema) {
+                self.cachedSchema = schema
             }
         }
     }

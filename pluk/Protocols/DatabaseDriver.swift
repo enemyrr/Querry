@@ -123,9 +123,10 @@ protocol DatabaseDriver {
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws
     
     // Raw Query Execution
+    @discardableResult
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult]
     
-    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult?
     func getInformationSchema() async throws -> [InformationSchema]
     func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo]
 

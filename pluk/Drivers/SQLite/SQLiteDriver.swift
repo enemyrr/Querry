@@ -773,7 +773,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult {
+    func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -1124,7 +1124,9 @@ class SQLiteDriver: DatabaseDriver {
     
     private func buildSchemaPrompt(for collectionName: String) async -> String {
         do {
-            let schemaResult = try await getSchema(for: collectionName, schema: String?(nil))
+            guard let schemaResult = try await getSchema(for: collectionName, schema: String?(nil)) else {
+                return "No schema found for \(collectionName)\n"
+            }
             let columnInfo = schemaResult.columns
                 .map { column in
                     let nullable = column.isNullable == "YES" ? "NULL" : "NOT NULL"
@@ -1132,7 +1134,7 @@ class SQLiteDriver: DatabaseDriver {
                     return "\(column.columnName): \(column.dataType) \(nullable)\(defaultValue)"
                 }
                 .joined(separator: "\n")
-            
+
             return """
             Table: \(schemaResult.tableName)
             Schema: \(schemaResult.schemaName)

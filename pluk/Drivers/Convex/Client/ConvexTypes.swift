@@ -28,9 +28,11 @@ enum ConvexValue {
                 }
             }
         }
-        
+
         switch value {
         case nil:
+            return .null
+        case is NSNull:
             return .null
         case let string as String:
             // Check if it's a Convex ID format
@@ -55,6 +57,32 @@ enum ConvexValue {
         case let array as [Any]:
             return .array(array.map { ConvexValue.from($0) })
         case let dict as [String: Any]:
+            // Decode Convex wire format type wrappers (single-key objects with $ prefix)
+            if dict.count == 1, let (key, inner) = dict.first, key.hasPrefix("$") {
+                switch key {
+                case "$integer":
+                    if let base64 = inner as? String,
+                       let data = Data(base64Encoded: base64),
+                       data.count == 8 {
+                        let decoded = data.withUnsafeBytes { $0.load(as: Int64.self) }
+                        return .int64(decoded)
+                    }
+                case "$float":
+                    if let base64 = inner as? String,
+                       let data = Data(base64Encoded: base64),
+                       data.count == 8 {
+                        let decoded = data.withUnsafeBytes { $0.load(as: Double.self) }
+                        return .float64(decoded)
+                    }
+                case "$bytes":
+                    if let base64 = inner as? String,
+                       let data = Data(base64Encoded: base64) {
+                        return .bytes(data)
+                    }
+                default:
+                    break
+                }
+            }
             let convexDict = dict.mapValues { ConvexValue.from($0) }
             return .object(convexDict)
         default:
@@ -240,6 +268,12 @@ extension ConvexValue {
                 int64Value = timestamp
             } else if let timestampNum = value as? NSNumber {
                 int64Value = timestampNum.int64Value
+            } else if let dict = value as? [String: Any],
+                      let base64 = dict["$integer"] as? String,
+                      let data = Data(base64Encoded: base64),
+                      data.count == 8 {
+                // Decode Convex wire format {"$integer": "base64"}
+                int64Value = data.withUnsafeBytes { $0.load(as: Int64.self) }
             } else {
                 return value
             }
@@ -256,25 +290,17 @@ extension ConvexValue {
             
             return int64Value
             
-        case "bigint":
-            // Handle big integers - parse the special Convex format {"$integer": "base64"}
-            // Using the same approach as ConvexMobile's ConvexInt decoder
-            if let bigIntDict = value as? [String: Any],
-               let base64String = bigIntDict["$integer"] as? String {
-                // Decode using the same method as ConvexMobile library
-                if let data = Data(base64Encoded: base64String) {
-                    let bigIntValue = data.withUnsafeBytes { rawPtr in
-                        return rawPtr.load(as: Int64.self)
-                    }
-                    return String(bigIntValue)
-                }
-                // If decoding fails, return the base64 string as fallback
-                return base64String
-            }
-            // Fallback to original value if not in expected format
-            return value
-            
         case "float64", "number":
+            // Decode Convex wire format {"$float": "base64"} for special floats (NaN, Inf, -0)
+            if let dict = value as? [String: Any],
+               let base64 = dict["$float"] as? String,
+               let data = Data(base64Encoded: base64),
+               data.count == 8 {
+                let decoded = data.withUnsafeBytes { $0.load(as: Double.self) }
+                if decoded.isNaN { return "NaN" }
+                if decoded.isInfinite { return decoded > 0 ? "Infinity" : "-Infinity" }
+                return decoded
+            }
             return value
             
         case "boolean":
@@ -294,6 +320,14 @@ extension ConvexValue {
             return value
             
         case "bytes":
+            // Decode Convex wire format {"$bytes": "base64"}
+            if let dict = value as? [String: Any],
+               let base64 = dict["$bytes"] as? String {
+                return base64
+            }
+            if let data = value as? Data {
+                return data.base64EncodedString()
+            }
             return compactifyJSON(value)
             
         case "array":

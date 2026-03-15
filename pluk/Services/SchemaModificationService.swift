@@ -152,7 +152,7 @@ actor SchemaModificationService {
 
         } catch {
             // Rollback on any error
-            try? await databaseDriver.executeRawQuery("ROLLBACK", databaseSchema: schema)
+            try await databaseDriver.executeRawQuery("ROLLBACK", databaseSchema: schema)
             throw error
         }
     }
@@ -163,7 +163,7 @@ actor SchemaModificationService {
     func refreshSchema(
         for tableName: String,
         schema: String?
-    ) async throws -> DatabaseSchemaResult {
+    ) async throws -> DatabaseSchemaResult? {
         return try await databaseDriver.getSchema(for: tableName, schema: schema)
     }
 
