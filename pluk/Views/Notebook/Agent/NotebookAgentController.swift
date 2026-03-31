@@ -43,9 +43,11 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         syncEmptyStateVisibility()
         syncHeaderTitle()
         syncHeaderActions()
+        syncAvailableConnections()
         observeEmptyState()
         observeCurrentChat()
         observePendingMessage()
+        observeConnections()
         handlePendingMessage()
     }
 
@@ -85,16 +87,6 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         }
         chatInputView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(chatInputView)
-
-        selectDefaultConnection()
-    }
-
-    private func selectDefaultConnection() {
-        guard chatController.selectedConnections.isEmpty,
-              let first = dataController.connections.first else { return }
-        let connections = [first]
-        chatInputView.setSelectedConnections(connections)
-        chatController.selectedConnections = connections
     }
 
     private func setupConstraints() {
@@ -208,6 +200,23 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
         }
 
         chatController.send(text: text)
+    }
+
+    private func observeConnections() {
+        withObservationTracking {
+            _ = self.dataController.connections.map(\.keychainId)
+            _ = self.dataController.connections.map(\.name)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.syncAvailableConnections()
+                self.observeConnections()
+            }
+        }
+    }
+
+    private func syncAvailableConnections() {
+        chatInputView.updateAvailableConnections(dataController.connections)
     }
 
     // MARK: - Chat History Popover

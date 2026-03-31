@@ -140,10 +140,7 @@ final class NotebookDataController {
         )
         notebook = try? context.fetch(notebookDescriptor).first
 
-        let connectionDescriptor = FetchDescriptor<Connection>(
-            sortBy: [SortDescriptor(\.lastOpenedAt, order: .reverse)]
-        )
-        connections = (try? context.fetch(connectionDescriptor)) ?? []
+        refreshConnections()
 
         let blockDescriptor = FetchDescriptor<NotebookBlock>(
             predicate: #Predicate { $0.notebookId == id },
@@ -423,6 +420,13 @@ final class NotebookDataController {
 
     private func nextDashboardOrder() -> Int {
         (blocks.map(\.dashboardSortOrder).max() ?? -1) + 1
+    }
+
+    func refreshConnections() {
+        let connectionDescriptor = FetchDescriptor<Connection>(
+            sortBy: [SortDescriptor(\.lastOpenedAt, order: .reverse)]
+        )
+        connections = (try? modelContainer.mainContext.fetch(connectionDescriptor)) ?? []
     }
 
     private func save() {

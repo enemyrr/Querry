@@ -112,14 +112,13 @@ final class NotebookEmptyStateController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(inputTextView.textView)
-        selectFirstConnectionIfNeeded()
+        syncSelectedConnections()
     }
 
-    private func selectFirstConnectionIfNeeded() {
-        guard selectedConnections.isEmpty,
-              let first = dataController.connections.first else { return }
-        selectedConnections = [first]
-        updateConnectionButton()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        syncSelectedConnections()
+        observeConnections()
     }
 
     deinit {
@@ -341,6 +340,30 @@ final class NotebookEmptyStateController: NSViewController {
 
     private func updateConnectionButton() {
         connectionButton.update(with: selectedConnections)
+    }
+
+    private func observeConnections() {
+        withObservationTracking {
+            _ = self.dataController.connections.map(\.keychainId)
+            _ = self.dataController.connections.map(\.name)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.syncSelectedConnections()
+                self.observeConnections()
+            }
+        }
+    }
+
+    private func syncSelectedConnections() {
+        let availableKeychainIds = Set(dataController.connections.map(\.keychainId))
+        selectedConnections.removeAll { !availableKeychainIds.contains($0.keychainId) }
+
+        if selectedConnections.isEmpty, let first = dataController.connections.first {
+            selectedConnections = [first]
+        }
+
+        updateConnectionButton()
     }
 
     // MARK: - Appearance

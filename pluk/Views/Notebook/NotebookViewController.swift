@@ -7,6 +7,7 @@ final class NotebookViewController: NSViewController {
 
     private var splitViewController: SidebarSplitViewController?
     private var keyMonitor: Any?
+    private var windowActivationObserver: Any?
 
     init(notebookId: UUID, modelContainer: ModelContainer) {
         self.dataController = NotebookDataController(
@@ -31,6 +32,8 @@ final class NotebookViewController: NSViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
+        dataController.refreshConnections()
+        installWindowActivationObserver()
         showBetaNoticeIfNeeded()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self,
@@ -51,6 +54,11 @@ final class NotebookViewController: NSViewController {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
         }
+        removeWindowActivationObserver()
+    }
+
+    deinit {
+        removeWindowActivationObserver()
     }
 
     private func showBetaNoticeIfNeeded() {
@@ -91,5 +99,24 @@ final class NotebookViewController: NSViewController {
             splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+    }
+
+    private func installWindowActivationObserver() {
+        guard windowActivationObserver == nil,
+              let window = view.window else { return }
+
+        windowActivationObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeMainNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.dataController.refreshConnections()
+        }
+    }
+
+    private func removeWindowActivationObserver() {
+        guard let windowActivationObserver else { return }
+        NotificationCenter.default.removeObserver(windowActivationObserver)
+        self.windowActivationObserver = nil
     }
 }

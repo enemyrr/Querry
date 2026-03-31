@@ -122,6 +122,20 @@ final class AgentChatInputView: NSView {
         onConnectionsChanged?(selectedConnections)
     }
 
+    func updateAvailableConnections(_ connections: [Connection]) {
+        availableConnections = connections
+
+        let availableKeychainIds = Set(connections.map(\.keychainId))
+        selectedConnections.removeAll { !availableKeychainIds.contains($0.keychainId) }
+
+        if selectedConnections.isEmpty, let first = connections.first {
+            selectedConnections = [first]
+        }
+
+        connectionButton.update(with: selectedConnections)
+        onConnectionsChanged?(selectedConnections)
+    }
+
     func setStatusMessage(_ message: String?) {
         if let message, !message.isEmpty {
             statusLabel.stringValue = message
