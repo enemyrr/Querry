@@ -1,6 +1,7 @@
 import Foundation
 import ConvexMobile
 import Combine
+import Synchronization
 
 // MARK: - Convex Wrappers
 struct ConvexDatabaseWrapper: DatabaseWrapper {
@@ -326,9 +327,12 @@ class ConvexDriver: DatabaseDriver {
     // Convex clients
     private var convexMobileClient: ConvexMobile.ConvexClient?
     
-    // Schema caching
-    private var cachedSchemas: [String: Any]?
-    private var schemasCacheTime: Date?
+    // Schema caching (Mutex-protected to prevent data races across tasks)
+    private struct SchemaCache: @unchecked Sendable {
+        var schemas: [String: Any]?
+        var cacheTime: Date?
+    }
+    private let schemaCache = Mutex(SchemaCache())
     private let schemaCacheTimeout: TimeInterval = 300 // 5 minutes
     
     // Pagination cursor storage (per table, per filter signature, per page number)
@@ -419,8 +423,7 @@ class ConvexDriver: DatabaseDriver {
         self.deployments = []
         self.selectedDeployment = nil
         self.convexMobileClient = nil
-        self.cachedSchemas = nil
-        self.schemasCacheTime = nil
+        self.schemaCache.withLock { $0 = SchemaCache() }
         self.lastSubscriptionPayloadHash.removeAll()
         self.isConnected = false
     }
@@ -576,8 +579,7 @@ class ConvexDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
 
-        cachedSchemas = nil
-        schemasCacheTime = nil
+        schemaCache.withLock { $0 = SchemaCache() }
 
         return try await wrapConvexError("query") {
             let schemaArgs = componentArgs(for: schema)
@@ -588,8 +590,10 @@ class ConvexDriver: DatabaseDriver {
             let (tableMappingJson, schemasJson) = try await (tableMappingTask, schemasTask)
 
             if let schemasDict = schemasJson.objectValue, !schemasDict.isEmpty {
-                cachedSchemas = schemasJson.anyValue as? [String: Any]
-                schemasCacheTime = Date()
+                self.schemaCache.withLock {
+                    $0.schemas = schemasJson.anyValue as? [String: Any]
+                    $0.cacheTime = Date()
+                }
             }
 
             guard let tableMappingDict = tableMappingJson.objectValue, !tableMappingDict.isEmpty else {
@@ -822,8 +826,9 @@ class ConvexDriver: DatabaseDriver {
     }
 
     private func cachedTableSchema(for tableName: String) -> [String: Any]? {
-        guard let cachedSchemas,
-              let activeString = cachedSchemas["active"] as? String,
+        let schemas = schemaCache.withLock { $0.schemas }
+        guard let schemas,
+              let activeString = schemas["active"] as? String,
               let data = activeString.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tables = parsed["tables"] as? [[String: Any]] else { return nil }
@@ -846,7 +851,6 @@ class ConvexDriver: DatabaseDriver {
             let response: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/indexes", with: args)
 
             guard let indexes = response.anyValue as? [[String: Any]] else {
-                debugLog("⚠️ Unexpected indexes response structure: \(response)")
                 return []
             }
 
@@ -1135,24 +1139,29 @@ class ConvexDriver: DatabaseDriver {
 
     private func getAllSchemas() async throws -> [String: Any] {
         // Check if we have cached schemas that are still valid
-        if let cachedSchemas = cachedSchemas,
-           let cacheTime = schemasCacheTime,
-           Date().timeIntervalSince(cacheTime) < schemaCacheTimeout {
-            return cachedSchemas
+        let cached = schemaCache.withLock { cache -> [String: Any]? in
+            guard let schemas = cache.schemas,
+                  let cacheTime = cache.cacheTime,
+                  Date().timeIntervalSince(cacheTime) < schemaCacheTimeout else { return nil }
+            return schemas
         }
-        
+        if let cached { return cached }
+
         // Fetch fresh schemas
         guard let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("No mobile client available")
         }
-        
+
         let schemas: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/getSchemas", with: [:])
 
         // Cache the result
-        cachedSchemas = schemas.anyValue as? [String: Any]
-        schemasCacheTime = Date()
+        let result = schemas.anyValue as? [String: Any]
+        schemaCache.withLock {
+            $0.schemas = result
+            $0.cacheTime = Date()
+        }
 
-        return cachedSchemas ?? [:]
+        return result ?? [:]
     }
     
     
@@ -1409,8 +1418,7 @@ class ConvexDriver: DatabaseDriver {
 
     // Clear schema cache (protocol conformance)
     func clearSchemaCache(for tableName: String, schema: String?) async {
-        cachedSchemas = nil
-        schemasCacheTime = nil
+        schemaCache.withLock { $0 = SchemaCache() }
     }
 
 }

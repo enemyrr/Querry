@@ -495,7 +495,8 @@ private struct FilterBarContainer: View {
             tableName: dataController.tab.name,
             databaseSchema: dataController.tab.databaseSchema,
             onApplyFilter: { filter in
-                dataController.currentActiveFilter = filter.isEmpty ? nil : filter
+                let effectiveFilter: String? = filter.isEmpty ? nil : filter
+                dataController.currentActiveFilter = effectiveFilter
                 if let databaseType = dataController.instance.databaseType, !filter.isEmpty {
                     Task { @MainActor in
                         AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
@@ -503,7 +504,7 @@ private struct FilterBarContainer: View {
                 }
                 Task {
                     dataController.skipNextRealtimeEvent = true
-                    await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
+                    await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: effectiveFilter)
                 }
             },
             conditions: $dataController.filterConditions,

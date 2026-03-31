@@ -68,7 +68,8 @@ struct TableListView: View {
                     tableName: selectedTab.name,
                     databaseSchema: selectedTab.databaseSchema,
                     onApplyFilter: { filter in
-                        currentActiveFilter = filter.isEmpty ? nil : filter
+                        let effectiveFilter: String? = filter.isEmpty ? nil : filter
+                        currentActiveFilter = effectiveFilter
                         if let databaseType = instance.databaseType, !filter.isEmpty {
                             Task { @MainActor in
                                 AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
@@ -76,7 +77,7 @@ struct TableListView: View {
                         }
                         Task {
                             skipNextRealtimeEvent = true
-                            await loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
+                            await loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: effectiveFilter)
                         }
                     },
                     conditions: $filterConditions

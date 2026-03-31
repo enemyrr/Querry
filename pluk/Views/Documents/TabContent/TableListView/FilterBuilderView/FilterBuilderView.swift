@@ -47,6 +47,8 @@ struct FilterBuilderView: View {
                                         if conditions.count > 1 {
                                             conditions.remove(at: index)
                                         } else {
+                                            conditions = [FilterCondition(conjunction: .whereClause, field: columns.isEmpty ? "" : columns[0].columnName, filterOperator: .equals, value: "")]
+                                            onApplyFilter("")
                                             withAnimation(.easeInOut(duration: 0.2)) {
                                                 showFilterBuilder = false
                                             }
