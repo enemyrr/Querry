@@ -115,7 +115,7 @@ struct WorkspaceList: View {
         HStack(alignment: .center, spacing: 4) {
             Spacer()
 
-            createMenu
+            createButtons
             sortMenu
             searchControl
         }
@@ -174,7 +174,7 @@ struct WorkspaceList: View {
             }
         }
         .padding(.leading, isSearchVisible ? 8 : 0)
-        .background(searchControlFillColor)
+        .background(isSearchVisible ? searchControlFillColor : .clear)
         .clipShape(.rect(cornerRadius: 8))
         .frame(width: isSearchVisible ? 220 : 28, alignment: .trailing)
         .frame(height: 28)
@@ -190,54 +190,28 @@ struct WorkspaceList: View {
 
     private var searchToggleButton: some View {
         Button(action: showSearch) {
-            ZStack {
-                Rectangle()
-                    .fill(.clear)
-
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 28, height: 28)
-            .contentShape(.rect)
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(
-                    isSearchIconHovering
-                    ? (colorScheme == .dark
-                       ? Color.white.opacity(0.08)
-                       : Color.black.opacity(0.06))
-                    : Color.clear
-                )
-        )
-        .animation(.easeOut(duration: 0.12), value: isSearchIconHovering)
-        .onHover { hovering in
-            isSearchIconHovering = hovering
-        }
+        .buttonStyle(ActionButtonStyle())
     }
 
     private var searchControlFillColor: Color {
         colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
     }
 
-    private var createMenu: some View {
-        Menu {
+    private var createButtons: some View {
+        HStack(spacing: 6) {
             Button(action: onCreateNotebook) {
-                Label("New Notebook", systemImage: "doc.text")
+                Label("Notebook", systemImage: "plus")
             }
 
             Button(action: onCreateConnection) {
-                Label("New Connection", systemImage: "server.rack")
+                Label("Connection", systemImage: "plus")
             }
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
         }
-        .buttonStyle(ActionButtonStyle())
-        .menuIndicator(.hidden)
+        .buttonStyle(WorkspaceCreateButtonStyle())
     }
 
     private var sortMenu: some View {

@@ -77,6 +77,42 @@ struct ActionButtonStyle: ButtonStyle {
     }
 }
 
+struct WorkspaceCreateButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 5)
+            .padding(.leading, 8)
+            .padding(.trailing, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(fillColor)
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isHovering = hovering
+                }
+            }
+    }
+
+    private var fillColor: Color {
+        if isHovering {
+            return colorScheme == .dark
+                ? Color.white.opacity(0.12)
+                : Color.black.opacity(0.08)
+        }
+        return colorScheme == .dark
+            ? Color.white.opacity(0.06)
+            : Color.black.opacity(0.04)
+    }
+}
+
 struct AIBackButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     @State private var isHovering = false
