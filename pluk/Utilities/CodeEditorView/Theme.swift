@@ -6,7 +6,7 @@
 //
 //  This module defines code highlight themes.
 
-import SwiftUI
+import AppKit
 
 
 /// A code highlighting theme. Different syntactic elements are purely distinguished by colour.
@@ -18,9 +18,9 @@ import SwiftUI
 public struct Theme: Identifiable {
   public private(set) var id = UUID()
 
-  /// The colour scheme of the theme.
+  /// Whether the theme uses a dark appearance.
   ///
-  public var colourScheme: ColorScheme {
+  public var isDark: Bool {
     didSet { id = UUID() }
   }
 
@@ -138,7 +138,7 @@ public struct Theme: Identifiable {
     didSet { id = UUID() }
   }
 
-  public init(colourScheme: ColorScheme,
+  public init(isDark: Bool,
               fontName: String,
               fontSize: CGFloat,
               textColour: OSColor,
@@ -159,7 +159,7 @@ public struct Theme: Identifiable {
               cursorColour: OSColor,
               invisiblesColour: OSColor)
   {
-    self.colourScheme = colourScheme
+    self.isDark = isDark
     self.fontName = fontName
     self.fontSize = fontSize
     self.textColour = textColour
@@ -194,29 +194,29 @@ typealias Themes = [String: Theme]
 extension Theme {
 
   public static var defaultDark: Theme
-    = Theme(colourScheme: .dark,
+    = Theme(isDark: true,
             fontName: "SFMono",
             fontSize: 13.0,
             textColour: OSColor(red: 0.92, green: 0.92, blue: 0.95, alpha: 1.0),
             commentColour: OSColor(red: 0.55, green: 0.60, blue: 0.65, alpha: 1.0),
-            stringColour: OSColor(red: 1.0, green: 0.65, blue: 0.31, alpha: 1.0),   // Brighter orange
-            characterColour: OSColor(red: 0.95, green: 0.85, blue: 0.46, alpha: 1.0), // Brighter yellow
+            stringColour: OSColor(red: 1.0, green: 0.65, blue: 0.31, alpha: 1.0),
+            characterColour: OSColor(red: 0.95, green: 0.85, blue: 0.46, alpha: 1.0),
             numberColour: OSColor(red: 0.86, green: 0.75, blue: 0.47, alpha: 1.0),
             identifierColour: OSColor(red: 0.45, green: 0.92, blue: 0.76, alpha: 1.0),
             operatorColour: OSColor(red: 0.70, green: 1.0, blue: 0.88, alpha: 1.0),
-            keywordColour: OSColor(red: 1.0, green: 0.44, blue: 0.58, alpha: 1.0),    // Brighter pink
+            keywordColour: OSColor(red: 1.0, green: 0.44, blue: 0.58, alpha: 1.0),
             symbolColour: OSColor(red: 0.80, green: 0.80, blue: 0.83, alpha: 1.0),
-            typeColour: OSColor(red: 0.40, green: 0.85, blue: 1.0, alpha: 1.0),       // Bright blue
-            fieldColour: OSColor(red: 0.74, green: 0.53, blue: 1.0, alpha: 1.0),      // Brighter purple
-            caseColour: OSColor(red: 0.90, green: 0.76, blue: 1.0, alpha: 1.0),       // Light purple
-            backgroundColour: NSColor(Color(.controlBackgroundColor).opacity(0.3)),  // System-adaptive
-            currentLineColour: NSColor(Color(.black).opacity(0.3)),
-            selectionColour: OSColor(red: 0.30, green: 0.36, blue: 0.45, alpha: 0.5), // More transparent
+            typeColour: OSColor(red: 0.40, green: 0.85, blue: 1.0, alpha: 1.0),
+            fieldColour: OSColor(red: 0.74, green: 0.53, blue: 1.0, alpha: 1.0),
+            caseColour: OSColor(red: 0.90, green: 0.76, blue: 1.0, alpha: 1.0),
+            backgroundColour: NSColor.controlBackgroundColor.withAlphaComponent(0.3),
+            currentLineColour: NSColor.black.withAlphaComponent(0.3),
+            selectionColour: OSColor(red: 0.30, green: 0.36, blue: 0.45, alpha: 0.5),
             cursorColour: OSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0),
             invisiblesColour: OSColor(red: 0.40, green: 0.45, blue: 0.50, alpha: 1.0))
 
   public static var defaultLight: Theme
-    = Theme(colourScheme: .light,
+    = Theme(isDark: false,
             fontName: "SFMono",
             fontSize: 13.0,
             textColour: OSColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1.0),

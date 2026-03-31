@@ -81,7 +81,7 @@ struct FloatingActionBar: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette && tabViewMode == .content && instance.connection.databaseType.supportsQueryEditor {
+            if !showQueryEditor && !showCreateDocumentSheet && action != .commandPalette && tabViewMode == .content {
                 topRectangleView
                     .padding(.horizontal, action == .main ? 10 : 16)
                     .frame(width: containerWidth)

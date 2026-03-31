@@ -42,6 +42,11 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 - Always use github cli instead of API
 - When the user asks anything about **prompts** or **prompt engineering**, always fetch and follow the guidance from `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices` before responding
 
+## Debugging Surprises
+
+- When debugging live app data, the active SwiftData store for Pluk runs from the app container at `~/Library/Containers/doc.pluk/Data/Library/Application Support/default.store`. The similarly named `~/Library/Application Support/default.store` may belong to a different app and can send you down the wrong path.
+- The schema-load error text `No active connection` / `Failed to fetch schemas: No active connection` currently maps to the PostgreSQL driver path (`PostgreSQLDriver.requireClient()`), not the Convex driver. Convex auth or connection failures use Convex-specific messages such as `Not connected to Convex or no mobile client available` or Convex API auth errors.
+
 ## GitHub Workflow
 
 - Create issues on the public repo: `pluk-inc/Pluk`

@@ -381,12 +381,9 @@ final class TabBarView: NSView {
         }
 
         // Always keep inline constraint constant up to date
-        let supportsEditor = instance.databaseType?.supportsQueryEditor == true
-        if supportsEditor {
-            newTabInlineConstraint?.constant = xOffset + newTabButtonGap
-            if !isScrollable {
-                xOffset += newTabButtonGap + newTabButtonWidth + newTabButtonGap
-            }
+        newTabInlineConstraint?.constant = xOffset + newTabButtonGap
+        if !isScrollable {
+            xOffset += newTabButtonGap + newTabButtonWidth + newTabButtonGap
         }
 
         xOffset += 6 // Trailing padding
@@ -449,23 +446,17 @@ final class TabBarView: NSView {
         let wasScrollable = isScrollable
         isScrollable = contentWidth > viewWidth
 
-        let supportsEditor = instance.databaseType?.supportsQueryEditor == true
+        newTabButton.isHidden = false
 
-        if supportsEditor {
-            newTabButton.isHidden = false
-
-            if isScrollable {
-                guard !newTabFixedConstraint.isActive else { return }
-                newTabInlineConstraint.isActive = false
-                newTabFixedConstraint.isActive = true
-                scrollViewTrailingConstraint.constant = -(newTabButtonWidth + newTabButtonGap)
-            } else {
-                guard !newTabInlineConstraint.isActive else { return }
-                newTabFixedConstraint.isActive = false
-                newTabInlineConstraint.isActive = true
-            }
+        if isScrollable {
+            guard !newTabFixedConstraint.isActive else { return }
+            newTabInlineConstraint.isActive = false
+            newTabFixedConstraint.isActive = true
+            scrollViewTrailingConstraint.constant = -(newTabButtonWidth + newTabButtonGap)
         } else {
-            newTabButton.isHidden = true
+            guard !newTabInlineConstraint.isActive else { return }
+            newTabFixedConstraint.isActive = false
+            newTabInlineConstraint.isActive = true
         }
 
         if wasScrollable != isScrollable {
@@ -643,7 +634,7 @@ final class TabBarView: NSView {
                     instance.removeTab(selectedTab)
                     self.syncTabs()
                     return nil
-                case "t" where instance.databaseType?.supportsQueryEditor == true:
+                case "t":
                     instance.createSQLEditorTab()
                     return nil
                 default:

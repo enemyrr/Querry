@@ -5,7 +5,7 @@
 //  Created by Fauzaan on 01/10/2023.
 //
 
-import SwiftUI
+import AppKit
 
 
 // MARK: -

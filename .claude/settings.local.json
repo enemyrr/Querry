@@ -19,7 +19,8 @@
       "Bash(grep:*)",
       "Bash(xctrace export:*)",
       "Bash(/Applications/Xcode.app/Contents/Developer/usr/bin/xctrace export:*)",
-      "Bash(aws logs:*)"
+      "Bash(aws logs:*)",
+      "Bash(xcodebuild:*)"
     ],
     "deny": [],
     "ask": [],

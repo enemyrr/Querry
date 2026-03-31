@@ -9,7 +9,7 @@
 
 import os
 import Combine
-import SwiftUI
+import AppKit
 
 import Rearrange
 
@@ -31,13 +31,13 @@ private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", categor
 ///     container during line fragment computations.
 ///
 struct MessageInfo {
-  let view:                    StatefulMessageView.HostingView
+  let view:                    MessageContainerView
   let backgroundView:          CodeBackgroundHighlightView
   var characterIndex:          Int                    // The starting character index for the line hosting the message
   var telescope:               Int?                   // The number of telescope lines (i.e., beyond starting line)
   var characterIndexTelescope: Int?                   // The last index of the last line of the telescope lines (if any)
   var lineFragementRect:       CGRect                 // The *full* line fragement rectangle (incl. message)
-  var geometry:                MessageView.Geometry?
+  var geometry:                MessageGeometry?
   var colour:                  OSColor                // The category colour of the most severe category
   var invalidated:             Bool                   // Greyed out and doesn't display a telescope
 
@@ -132,11 +132,11 @@ final class CodeView: NSTextView {
   /// The current view layout.
   ///
   @Invalidating(.layout)
-  var viewLayout: CodeEditor.LayoutConfiguration = .standard
+  var viewLayout: CodeEditorTypes.LayoutConfiguration = .standard
   
   /// The current indentation configuration.
   ///
-  var indentation: CodeEditor.IndentationConfiguration = .standard
+  var indentation: CodeEditorTypes.IndentationConfiguration = .standard
 
   /// Hook to propagate message sets upwards in the view hierarchy.
   ///
@@ -178,8 +178,8 @@ final class CodeView: NSTextView {
   ///
   init(frame: CGRect, 
        with language: LanguageConfiguration,
-       viewLayout: CodeEditor.LayoutConfiguration,
-       indentation: CodeEditor.IndentationConfiguration,
+       viewLayout: CodeEditorTypes.LayoutConfiguration,
+       indentation: CodeEditorTypes.IndentationConfiguration,
        theme: Theme,
        setText: @escaping (String) -> Void,
        setMessages: @escaping (Set<TextLocated<Message>>) -> Void)
@@ -705,10 +705,10 @@ extension CodeView {
       else { return }
 
       // Compute the message view geometry from the text layout information
-      let geometry = MessageView.Geometry(lineWidth: messageBundle.lineFragementRect.width - firstLineFragmentRect.maxX,
+      let geometry = MessageGeometry(lineWidth: messageBundle.lineFragementRect.width - firstLineFragmentRect.maxX,
                                           lineHeight: firstLineFragmentRect.height,
                                           popupWidth:
-                                            (codeContainer.size.width - MessageView.popupRightSideOffset) * 0.75,
+                                            (codeContainer.size.width - MessageGeometry.popupRightSideOffset) * 0.75,
                                           popupOffset: textLayoutFragment.layoutFragmentFrame.height + 2)
       messageViews[id]?.geometry = geometry
 
@@ -792,21 +792,14 @@ extension CodeView {
     // TODO: CodeEditor needs to be parameterised by message theme
     let messageTheme = Message.defaultTheme
 
-    #if os(iOS) || os(visionOS)
-    let background  = SwiftUI.Color(backgroundColor!)
-    #elseif os(macOS)
-    let background  = SwiftUI.Color(backgroundColor)
-    #endif
-
-    let messageView = StatefulMessageView.HostingView(messages: messageBundle.messages,
+    let messageView = MessageContainerView(messages: messageBundle.messages,
                                                       theme: messageTheme,
-                                                      background: background,
-                                                      geometry: MessageView.Geometry(lineWidth: 100,
-                                                                                     lineHeight: 15,
-                                                                                     popupWidth: 300,
-                                                                                     popupOffset: 16),
-                                                      fontSize: font?.pointSize ?? OSFont.systemFontSize,
-                                                      colourScheme: theme.colourScheme),
+                                                      background: backgroundColor,
+                                                      geometry: MessageGeometry(lineWidth: 100,
+                                                                               lineHeight: 15,
+                                                                               popupWidth: 300,
+                                                                               popupOffset: 16),
+                                                      fontSize: font?.pointSize ?? OSFont.systemFontSize),
         principalCategory = messagesByCategory(messageBundle.messages)[0].key,
         colour            = messageTheme(principalCategory).colour,
         backgroundView    = CodeBackgroundHighlightView(color: colour.withAlphaComponent(0.1)),
@@ -898,7 +891,7 @@ extension CodeView {
   ///
   func collapseMessageViews() {
     for messageView in messageViews {
-      messageView.value.view.unfolded = false
+      messageView.value.view.isExpanded = false
     }
   }
 
@@ -926,7 +919,7 @@ final class CodeContainer: NSTextContainer {
   #endif
 
   // We adapt line fragment rects in two ways: (1) we leave `gutterWidth` space on the left hand side and (2) on every
-  // line that contains a message, we leave `MessageView.minimumInlineWidth` space on the right hand side (but only for
+  // line that contains a message, we leave `MessageGeometry.minimumInlineWidth` space on the right hand side (but only for
   // the first line fragment of a layout fragment).
   override func lineFragmentRect(forProposedRect proposedRect: CGRect,
                                  at characterIndex: Int,
@@ -951,7 +944,7 @@ final class CodeContainer: NSTextContainer {
     // On lines that contain messages, we reduce the width of the available line fragement rect such that there is
     // always space for a minimal truncated message (provided the text container is wide enough to accomodate that).
     if let messageBundleId = delegate.messages(at: line)?.id,
-       calculatedRect.width > 2 * MessageView.minimumInlineWidth
+       calculatedRect.width > 2 * MessageGeometry.minimumInlineWidth
     {
 
       codeView.messageViews[messageBundleId]?.characterIndex    = characterIndex
@@ -971,7 +964,7 @@ final class CodeContainer: NSTextContainer {
       DispatchQueue.main.async { codeView.layoutMessageView(identifiedBy: messageBundleId) }
 
       return CGRect(origin: calculatedRect.origin,
-                    size: CGSize(width: calculatedRect.width - MessageView.minimumInlineWidth,
+                    size: CGSize(width: calculatedRect.width - MessageGeometry.minimumInlineWidth,
                                  height: calculatedRect.height))
 
     } else { return calculatedRect }

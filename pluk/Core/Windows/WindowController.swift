@@ -403,7 +403,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         let menuView = Menu {
             Section {
                 if !instance.databases.isEmpty {
-                    ForEach(instance.databases, id: \.name) { database in
+                    ForEach(instance.databases.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }), id: \.name) { database in
                         Toggle(isOn: Binding<Bool>(
                             get: { instance.connectedDatabase?.name == database.name },
                             set: { isOn in

@@ -132,8 +132,7 @@ struct AISearchView: View {
             } else {
                 Button(action: {
                     Task {
-                        guard let databaseType = instance.databaseType,
-                              databaseType.supportsQueryEditor else {
+                        guard instance.databaseType != nil else {
                             showErrorAlert = true
                             return
                         }

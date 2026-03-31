@@ -25,6 +25,7 @@ final class NotebookDataController {
     var isScrolled = false
     var isPublishPreviewing = false
     var isViewingPublished = false
+    var isAgentStreaming = false
 
     private var chartViewModels: [UUID: ChartBlockViewModel] = [:]
     private var singleValueViewModels: [UUID: SingleValueBlockViewModel] = [:]

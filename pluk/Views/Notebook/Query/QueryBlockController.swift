@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import CodeEditorView
 import LanguageSupport
 
 final class QueryBlockController: NSViewController, NSTextFieldDelegate {
@@ -17,7 +16,7 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
     private var resizeHandle: NSView!
     private var blockHeightConstraint: NSLayoutConstraint!
 
-    private var editorHostingView: NSView?
+    private var editorViewController: CodeEditorViewController?
     private var toolbarHostingView: NSView?
     private var resultsContainerView: NSView?
     private var resultsCoordinator: TableCoordinator?
@@ -240,7 +239,8 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
 
     private func updateToolbarCollapsedState() {
         guard let oldHosting = toolbarHostingView,
-              let editorView = editorHostingView else { return }
+              let editorVC = editorViewController else { return }
+        let editorView = editorVC.view
         let newToolbar = QueryToolbarView(
             viewModel: viewModel,
             onRun: { [weak self] in
@@ -287,25 +287,43 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
             connectionButton.updateLabel(cfg.connectionName, iconName: DatabaseType(rawValue: cfg.databaseType)?.icon)
         }
 
-        // Code editor (SwiftUI)
-        let editorView = QueryEditorWrapper(
-            text: Binding(
-                get: { [weak self] in self?.queryText ?? "" },
-                set: { [weak self] newValue in
-                    self?.queryText = newValue
-                    self?.handleQueryTextChanged(newValue)
-                }
-            ),
-            onRun: { [weak self] in
-                guard let self else { return }
-                Task { await self.viewModel.executeQuery() }
-            }
-        )
+        // Code editor (AppKit)
+        let databaseType = viewModel.config.flatMap { DatabaseType(rawValue: $0.databaseType) }
+        let editorLanguage: LanguageConfiguration = switch databaseType {
+        case .convex:    .javascript()
+        case .mongodb:   .mongodb()
+        default:         .sqlite()
+        }
 
-        let hostingView = NSHostingView(rootView: editorView)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        blockContainer.addSubview(hostingView)
-        self.editorHostingView = hostingView
+        let isDark = NSApp.effectiveAppearance.isDarkMode
+        var editorTheme = isDark ? Theme.defaultDark : Theme.defaultLight
+        editorTheme.backgroundColour = .clear
+
+        let editorVC = CodeEditorViewController(
+            language: editorLanguage,
+            theme: editorTheme,
+            layout: CodeEditorTypes.LayoutConfiguration(wrapText: true)
+        )
+        editorVC.delegate = self
+        addChild(editorVC)
+
+        let editorView = editorVC.view
+        editorView.translatesAutoresizingMaskIntoConstraints = false
+        blockContainer.addSubview(editorView)
+        self.editorViewController = editorVC
+
+        // Set initial text
+        if queryText.isEmpty && databaseType == .convex {
+            queryText = """
+            export default query({
+              handler: async (ctx) => {
+                console.log("Write and test your query function here!");
+                return await ctx.db.query("table_name").take(10);
+              },
+            })
+            """
+        }
+        editorVC.text = queryText
 
         // Toolbar (SwiftUI) — matches SQL editor toolbar layout
         let toolbarView = QueryToolbarView(
@@ -341,7 +359,7 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
         self.resultsContainerView = tableContainer
 
         // Empty state (shown when no query results yet)
-        let emptyState = NSHostingView(rootView: QueryEmptyStateView())
+        let emptyState = NSHostingView(rootView: QueryEmptyStateView(databaseType: viewModel.config.flatMap { DatabaseType(rawValue: $0.databaseType) }))
         emptyState.translatesAutoresizingMaskIntoConstraints = false
         blockContainer.addSubview(emptyState)
         self.emptyStateHostingView = emptyState
@@ -390,7 +408,7 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
         ])
 
         // Editor height — resizable via splitter drag
-        editorHeightConstraint = hostingView.heightAnchor.constraint(equalToConstant: 100)
+        editorHeightConstraint = editorView.heightAnchor.constraint(equalToConstant: 100)
 
         // Layout within block container
         NSLayoutConstraint.activate([
@@ -408,13 +426,13 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
             outputLabel.trailingAnchor.constraint(equalTo: outputFieldWrapper.leadingAnchor, constant: -4),
 
             // Editor
-            hostingView.topAnchor.constraint(equalTo: connectionButton.bottomAnchor, constant: 6),
-            hostingView.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
+            editorView.topAnchor.constraint(equalTo: connectionButton.bottomAnchor, constant: 6),
+            editorView.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
+            editorView.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
             editorHeightConstraint,
 
             // Toolbar
-            toolbarHosting.topAnchor.constraint(equalTo: hostingView.bottomAnchor),
+            toolbarHosting.topAnchor.constraint(equalTo: editorView.bottomAnchor),
             toolbarHosting.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
             toolbarHosting.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
         ])
@@ -621,37 +639,12 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
     }
 }
 
-// MARK: - Query Editor Wrapper (SwiftUI)
+// MARK: - CodeEditorViewControllerDelegate
 
-private struct QueryEditorWrapper: View {
-    @Binding var text: String
-    let onRun: () -> Void
-
-    @State private var position = CodeEditor.Position()
-    @State private var messages: Set<TextLocated<Message>> = []
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            CodeEditor(text: $text, position: $position, messages: $messages, language: .sqlite())
-                .environment(\.codeEditorTheme, transparentTheme)
-                .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
-
-            if text.isEmpty {
-                Text("Write a SQL query...")
-                    .foregroundColor(.secondary.opacity(0.6))
-                    .font(.system(.body, design: .monospaced))
-                    .padding(.leading, 38)
-                    .padding(.top, 4)
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private var transparentTheme: Theme {
-        var theme = colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight
-        theme.backgroundColour = NSColor.clear
-        return theme
+extension QueryBlockController: CodeEditorViewControllerDelegate {
+    func codeEditorDidChangeText(_ controller: CodeEditorViewController, text: String) {
+        queryText = text
+        handleQueryTextChanged(text)
     }
 }
 
@@ -741,10 +734,12 @@ private struct QueryToolbarView: View {
 // MARK: - Query Empty State (SwiftUI)
 
 private struct QueryEmptyStateView: View {
+    var databaseType: DatabaseType?
+
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 4) {
-                Text("Write a SQL query and press")
+                Text(databaseType == .convex ? "Write a query and press" : "Write a SQL query and press")
                     .font(.body)
                     .foregroundColor(.secondary.opacity(0.7))
 

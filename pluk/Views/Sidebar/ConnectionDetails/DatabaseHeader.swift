@@ -587,6 +587,8 @@ struct MinimalDropdown<MenuContent: View>: View {
                 Text(selectedValue)
                     .font(.system(size: 12))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
                 if let chevron {
                     Image(systemName: chevron)

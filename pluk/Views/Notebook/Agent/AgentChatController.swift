@@ -57,6 +57,7 @@ final class AgentChatController {
         streamingTask = nil
         streamingParts = []
         isStreaming = false
+        notebookDataController?.isAgentStreaming = false
 
         if let latest = chats.first {
             let chatId = latest.id
@@ -121,6 +122,7 @@ final class AgentChatController {
         messages.append(userMessage)
 
         isStreaming = true
+        notebookDataController?.isAgentStreaming = true
         streamingTask = Task { await performAgentLoop(chat: chat) }
     }
 
@@ -136,6 +138,7 @@ final class AgentChatController {
         }
         streamingParts = []
         isStreaming = false
+        notebookDataController?.isAgentStreaming = false
     }
 
     func retry(from messageId: UUID) {
@@ -151,6 +154,7 @@ final class AgentChatController {
         save()
 
         isStreaming = true
+        notebookDataController?.isAgentStreaming = true
         streamingTask = Task { await performAgentLoop(chat: chat) }
     }
 
@@ -267,6 +271,7 @@ final class AgentChatController {
 
         guard !Task.isCancelled else {
             isStreaming = false
+            notebookDataController?.isAgentStreaming = false
             streamingParts = []
             return
         }
@@ -280,6 +285,7 @@ final class AgentChatController {
 
         streamingParts = []
         isStreaming = false
+        notebookDataController?.isAgentStreaming = false
     }
 
     // MARK: - Streaming Parts Helpers
@@ -352,6 +358,7 @@ final class AgentChatController {
             dataController.addChartBlock()
             if let block = dataController.blocks.last, var config = request.config {
                 block.title = request.title
+                block.isHiddenInDashboard = true
 
                 if let outputName = request.sourceQueryOutputName,
                    let queryBlock = dataController.blocks.first(where: {
@@ -367,6 +374,7 @@ final class AgentChatController {
             dataController.addTextBlock()
             if let block = dataController.blocks.last {
                 block.title = request.title
+                block.isHiddenInDashboard = true
                 block.textContent = request.textContent ?? ""
                 dataController.updateBlock(block)
             }
@@ -376,6 +384,7 @@ final class AgentChatController {
             dataController.insertSingleValueBlock(at: insertIndex)
             if let block = dataController.blocks[safe: insertIndex], let config = request.singleValueConfig {
                 block.title = request.title
+                block.isHiddenInDashboard = true
                 if insertIndex > 0, dataController.blocks[insertIndex - 1].blockType == .singleValue {
                     block.notebookInline = true
                 }
@@ -386,10 +395,13 @@ final class AgentChatController {
             dataController.addQueryBlock()
             if let block = dataController.blocks.last, let config = request.queryBlockConfig {
                 block.title = request.title
+                block.isHiddenInDashboard = true
                 block.saveQueryBlockConfig(config)
                 dataController.updateBlock(block)
             }
         }
+
+        dataController.invalidateDashboardBlocks()
     }
 
     private func handleNotebookInfoUpdate(_ update: NotebookInfoUpdate) {
@@ -441,6 +453,8 @@ final class AgentChatController {
     private func handleDashboardArrangement(_ arrangement: DashboardArrangementRequest) {
         guard let dataController = notebookDataController else { return }
 
+        var blocksToReveal: [NotebookBlock] = []
+
         for (sortOrder, layout) in arrangement.layouts.enumerated() {
             guard let blockId = UUID(uuidString: layout.blockId),
                   let block = dataController.blocks.first(where: { $0.id == blockId }) else { continue }
@@ -455,9 +469,18 @@ final class AgentChatController {
             if let inline = layout.inline {
                 block.dashboardInline = inline
             }
-            if let hidden = layout.hidden {
+
+            let shouldBeHidden = layout.hidden ?? false
+            if block.isHiddenInDashboard && !shouldBeHidden {
+                blocksToReveal.append(block)
+            } else if let hidden = layout.hidden {
                 block.isHiddenInDashboard = hidden
             }
+        }
+
+        if !blocksToReveal.isEmpty {
+            let sorted = blocksToReveal.sorted { $0.dashboardSortOrder < $1.dashboardSortOrder }
+            sorted.first?.isHiddenInDashboard = false
         }
 
         if arrangement.switchToDashboard {
@@ -466,6 +489,26 @@ final class AgentChatController {
 
         dataController.invalidateDashboardBlocks()
         dataController.saveContext()
+
+        if !blocksToReveal.isEmpty {
+            let sorted = blocksToReveal.sorted { $0.dashboardSortOrder < $1.dashboardSortOrder }
+            let remaining = Array(sorted.dropFirst())
+            if !remaining.isEmpty {
+                revealBlocksSequentially(remaining, dataController: dataController)
+            }
+        }
+    }
+
+    private func revealBlocksSequentially(_ blocks: [NotebookBlock], dataController: NotebookDataController) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            for block in blocks {
+                block.isHiddenInDashboard = false
+                dataController.invalidateDashboardBlocks()
+                dataController.saveContext()
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+        }
     }
 
     // MARK: - Message Building (Anthropic)

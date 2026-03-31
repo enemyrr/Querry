@@ -128,6 +128,7 @@ struct ContentModeActionBar: View {
                             Text("Discard")
                         }
                         .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+                        .fixedSize(horizontal: true, vertical: false)
                         .customHelp("Discard deletions", position: .top)
                     }
 
@@ -157,6 +158,7 @@ struct ContentModeActionBar: View {
                         Text("Discard")
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
+                    .fixedSize(horizontal: true, vertical: false)
                     .customHelp("Discard Changes", position: .top)
                 }
             }

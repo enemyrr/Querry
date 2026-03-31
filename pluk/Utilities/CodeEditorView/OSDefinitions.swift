@@ -6,7 +6,6 @@
 //
 //  A set of aliases and the like to smooth ove some superficial macOS/iOS differences.
 
-import SwiftUI
 import AppKit
 
 typealias OSFontDescriptor = NSFontDescriptor
@@ -16,7 +15,6 @@ typealias OSColor          = NSColor
 typealias OSBezierPath     = NSBezierPath
 typealias OSView           = NSView
 typealias OSTextView       = NSTextView
-typealias OSHostingView    = NSHostingView
 
 let labelColor = NSColor.labelColor
 
@@ -27,19 +25,10 @@ extension NSFont {
   /// The constant adavance for a (horizontal) monospace font.
   ///
   var maximumHorizontalAdvancement: CGFloat { self.maximumAdvancement.width }
-  
-  /// The line height (which is an exting property on `UIFont`).
-  /// 
-  var lineHeight: CGFloat { ceil(ascender - descender - leading) }
-}
-extension NSColor {
 
-  /// Create an AppKit colour from a SwiftUI colour if possible.
+  /// The line height (which is an exting property on `UIFont`).
   ///
-  convenience init?(color: Color) {
-    guard let cgColor = color.cgColor else { return nil }
-    self.init(cgColor: cgColor)
-  }
+  var lineHeight: CGFloat { ceil(ascender - descender - leading) }
 }
 
 extension NSView {

@@ -39,7 +39,7 @@ Not persisted. Track live application state.
 ## Value Types (Structs/Enums)
 
 ### In Connection.swift
-- `DatabaseType` — enum: postgres, mysql, sqlite, mongodb, convex, supabase, mariadb. Extensive computed properties: `displayName`, `accentColor`, `icon`, `supportsQueryEditor`, `dataModelType`, `supportsRealTime`
+- `DatabaseType` — enum: postgres, mysql, sqlite, mongodb, convex, supabase, mariadb. Extensive computed properties: `displayName`, `accentColor`, `icon`, `dataModelType`, `supportsRealTime`
 - `DatabaseCategory`, `DatabaseStatus`, `ConnectionEnvironment`, `DataModelType`
 
 ### In AppSettings.swift

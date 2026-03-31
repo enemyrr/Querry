@@ -5,7 +5,7 @@
 //  Created by Fauzaan on 27/11/2021.
 //
 
-import SwiftUI
+import AppKit
 
 // MARK: -
 // MARK: AppKit version

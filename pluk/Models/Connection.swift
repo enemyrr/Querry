@@ -91,15 +91,6 @@ enum DatabaseType: String, Codable, CaseIterable {
         }
     }
     
-    var supportsQueryEditor: Bool {
-        switch self {
-        case .convex:
-            return false
-        default:
-            return true
-        }
-    }
-    
     var placeholderURI: String {
         switch self {
         case .convex:

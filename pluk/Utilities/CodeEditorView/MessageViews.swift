@@ -1,12 +1,12 @@
 //
 //  MessageViews.swift
-//  
+//
 //
 //  Created by Fauzaan on 23/03/2021.
 //
 //  Defines the visuals that present messages, both inline and as popovers.
 
-import SwiftUI
+import AppKit
 
 import LanguageSupport
 
@@ -16,107 +16,164 @@ import LanguageSupport
 
 extension Message {
 
-  /// Defines the colours and icons that identify each of the various message categories.
-  ///
-  typealias Theme = (Message.Category) -> (colour: OSColor, icon: Image)
+  typealias Theme = (Message.Category) -> (colour: OSColor, icon: NSImage?)
 
-  /// The default category theme
-  ///
-  static func defaultTheme(for category: Message.Category) -> (colour: OSColor, icon: Image) {
+  static func defaultTheme(for category: Message.Category) -> (colour: OSColor, icon: NSImage?) {
     switch category {
     case .live:
-      return (colour: OSColor.green, icon: Image(systemName: "line.horizontal.3"))
+      return (colour: OSColor.green,
+              icon: NSImage(systemSymbolName: "line.horizontal.3", accessibilityDescription: "Live"))
     case .error:
-      return (colour: OSColor.red, icon: Image(systemName: "xmark.octagon.fill"))
+      return (colour: OSColor.red,
+              icon: NSImage(systemSymbolName: "xmark.octagon.fill", accessibilityDescription: "Error"))
     case .hole:
-      return (colour: OSColor.orange, icon: Image(systemName: "questionmark.circle.fill"))
+      return (colour: OSColor.orange,
+              icon: NSImage(systemSymbolName: "questionmark.circle.fill", accessibilityDescription: "Hole"))
     case .warning:
-      return (colour: OSColor.yellow, icon: Image(systemName: "exclamationmark.triangle.fill"))
+      return (colour: OSColor.yellow,
+              icon: NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Warning"))
     case .informational:
-      return (colour: OSColor.cyan, icon: Image(systemName: "info.circle.fill"))
+      return (colour: OSColor.cyan,
+              icon: NSImage(systemSymbolName: "info.circle.fill", accessibilityDescription: "Info"))
     }
   }
 }
 
 
 // MARK: -
+// MARK: Message geometry
+
+struct MessageGeometry {
+  let lineWidth:   CGFloat
+  let lineHeight:  CGFloat
+  let popupWidth:  CGFloat
+  let popupOffset: CGFloat
+}
+
+extension MessageGeometry {
+  static let minimumInlineWidth = CGFloat(60)
+  static let popupRightSideOffset = CGFloat(20)
+}
+
+
+// MARK: -
 // MARK: Inline view
 
-/// A view that summarises the message for a line, such that it can be displayed on the right hand side of the line.
-/// The view uses the entire height offered.
-///
-/// NB: The array of messages may not be empty.
-///
-struct MessageInlineView: View {
-  let messages:    [Message]
-  let theme:       Message.Theme
-  let background:  Color
-  let invalidated: Bool
+final class MessageInlineNSView: NSView {
+  var messages: [Message]
+  var theme: Message.Theme
+  var background: NSColor
+  var invalidated: Bool
 
-  var body: some View {
+  override var isFlipped: Bool { true }
 
-    let categories = messagesByCategory(messages).map{ $0.key }
-    let topMessage = messages.filter{ $0.category == categories[0] }.first
-    let shouldHide = topMessage?.summary.isEmpty ?? true
+  init(messages: [Message], theme: @escaping Message.Theme, background: NSColor, invalidated: Bool) {
+    self.messages = messages
+    self.theme = theme
+    self.background = background
+    self.invalidated = invalidated
+    super.init(frame: .zero)
+    wantsLayer = true
+  }
 
-    // If summary is empty, don't show any inline view
-    if shouldHide {
-      EmptyView()
-    } else {
-      GeometryReader { geometryProxy in
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
 
-        let height = geometryProxy.size.height
-        let colour = if invalidated { Color(OSColor.gray) } else { Color(theme(categories[0]).colour) }
+  override func draw(_ dirtyRect: NSRect) {
+    let categorized = messagesByCategory(messages)
+    let categories = categorized.map { $0.key }
+    guard let topCategory = categories.first,
+          let topMessage = messages.first(where: { $0.category == topCategory }),
+          !topMessage.summary.isEmpty
+    else { return }
 
-        HStack {
+    // Cache theme lookups
+    let themeResults = Dictionary(uniqueKeysWithValues: categories.map { ($0, theme($0)) })
+    let colour: NSColor = invalidated ? .gray : (themeResults[topCategory]?.colour ?? .gray)
+    let height = bounds.height
 
-          Spacer()
+    // Draw background with left-rounded corners
+    let cornerRadius: CGFloat = 5
+    let path = NSBezierPath()
+    let minXCorner = bounds.minX + cornerRadius
+    let minYCorner = bounds.minY + cornerRadius
+    let maxYCorner = bounds.maxY - cornerRadius
 
-          HStack(alignment: .center, spacing: 0) {
+    path.move(to: CGPoint(x: bounds.maxX, y: bounds.minY))
+    path.line(to: CGPoint(x: bounds.maxX, y: bounds.maxY))
+    path.line(to: CGPoint(x: minXCorner, y: bounds.maxY))
+    path.appendArc(withCenter: CGPoint(x: minXCorner, y: maxYCorner),
+                   radius: cornerRadius, startAngle: 90, endAngle: 180)
+    path.line(to: CGPoint(x: bounds.minX, y: minYCorner))
+    path.appendArc(withCenter: CGPoint(x: minXCorner, y: minYCorner),
+                   radius: cornerRadius, startAngle: 180, endAngle: 270)
+    path.close()
 
-            // Category summary
-            HStack(alignment: .center, spacing: 0) {
+    background.setFill()
+    path.fill()
 
-              // Overall message count
-              let count = messages.count
-              if count > 1 {
-                Text("\(count)")
-                  .padding([.leading, .trailing], 3)
-              }
+    // Category badge area
+    var badgeX: CGFloat = 0
+    let count = messages.count
 
-              // All category icons
-              HStack(alignment: .center, spacing: 0) {
-                ForEach(0..<categories.count, id: \.self){ i in
-                  HStack(alignment: .center, spacing: 0) {
-                    theme(categories[i]).icon
-                      .padding([.leading, .trailing], 2)
-                  }
-                }
-              }
-              .padding([.leading, .trailing], 2)
+    // Message count
+    if count > 1 {
+      let countStr = "\(count)" as NSString
+      let countAttrs: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+        .foregroundColor: NSColor.white
+      ]
+      let countSize = countStr.size(withAttributes: countAttrs)
+      let countRect = CGRect(x: badgeX + 3, y: (height - countSize.height) / 2,
+                             width: countSize.width, height: countSize.height)
+      countStr.draw(in: countRect, withAttributes: countAttrs)
+      badgeX += countSize.width + 6
+    }
 
-            }
-            .frame(height: height)
-            .background(colour.opacity(0.5))
-            .roundedCornersOnTheLeft(cornerRadius: 5)
-
-            // Transparent narrow separator
-            Divider()
-              .foregroundColor(Color.clear)
-
-            // Topmost message of the highest priority category
-            HStack {
-              Text(topMessage?.summary ?? "")
-                .padding([.leading, .trailing], 5)
-            }
-            .frame(height: height)
-            .background(colour.opacity(0.5))
-
-          }
-          .background(background.roundedCornersOnTheLeft(cornerRadius: 5))
-        }
+    // Category icons
+    let iconSize: CGFloat = min(height - 2, 14)
+    for category in categories {
+      if let icon = themeResults[category]?.icon {
+        let tintedIcon = icon.withSymbolConfiguration(.init(pointSize: iconSize, weight: .regular))
+                         ?? icon
+        let iconRect = CGRect(x: badgeX + 2, y: (height - iconSize) / 2,
+                              width: iconSize, height: iconSize)
+        tintedIcon.draw(in: iconRect)
+        badgeX += iconSize + 4
       }
     }
+
+    // Badge background (left portion)
+    let badgePath = NSBezierPath()
+    let badgeWidth = badgeX + 2
+    badgePath.move(to: CGPoint(x: badgeWidth, y: bounds.minY))
+    badgePath.line(to: CGPoint(x: badgeWidth, y: bounds.maxY))
+    badgePath.line(to: CGPoint(x: minXCorner, y: bounds.maxY))
+    badgePath.appendArc(withCenter: CGPoint(x: minXCorner, y: maxYCorner),
+                        radius: cornerRadius, startAngle: 90, endAngle: 180)
+    badgePath.line(to: CGPoint(x: bounds.minX, y: minYCorner))
+    badgePath.appendArc(withCenter: CGPoint(x: minXCorner, y: minYCorner),
+                        radius: cornerRadius, startAngle: 180, endAngle: 270)
+    badgePath.close()
+    colour.withAlphaComponent(0.5).setFill()
+    badgePath.fill()
+
+    // Message text area
+    let textX = badgeWidth + 2
+    let textRect = CGRect(x: textX + 5, y: 0,
+                          width: bounds.width - textX - 10, height: height)
+    colour.withAlphaComponent(0.5).setFill()
+    NSBezierPath(rect: CGRect(x: textX, y: 0, width: bounds.width - textX, height: height)).fill()
+
+    let textAttrs: [NSAttributedString.Key: Any] = [
+      .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+      .foregroundColor: NSColor.white
+    ]
+    (topMessage.summary as NSString).draw(with: textRect,
+                                           options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                                           attributes: textAttrs)
   }
 }
 
@@ -124,478 +181,265 @@ struct MessageInlineView: View {
 // MARK: -
 // MARK: Popup view
 
+final class MessagePopupNSView: NSView {
+  let messages: [Message]
+  let theme: Message.Theme
+  var invalidated: Bool
 
-/// Key to track the width for a set of message popup views.
-///
-private struct PopupWidth: PreferenceKey, EnvironmentKey {
+  override var isFlipped: Bool { true }
 
-  static let defaultValue: CGFloat? = nil
-  static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
-    if let nv = nextValue() { value = value.flatMap{ max(nv, $0) } ?? nv }
+  init(messages: [Message], theme: @escaping Message.Theme, invalidated: Bool) {
+    self.messages = messages
+    self.theme = theme
+    self.invalidated = invalidated
+    super.init(frame: .zero)
+    wantsLayer = true
+    layer?.cornerRadius = 10
+
+    setupContent()
   }
-}
 
-/// Accessor for the environment value identified by the key.
-///
-extension EnvironmentValues {
-
-  var popupWidth: CGFloat? {
-    get { self[PopupWidth.self] }
-    set { self[PopupWidth.self] = newValue }
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
   }
-}
 
-private struct MessageBorder: ViewModifier {
-  let cornerRadius: CGFloat
-
-  @Environment(\.colorScheme) private var colourScheme: ColorScheme
-
-  func body(content: Content) -> some View {
-
-    let shadowColour = colourScheme == .dark ? Color(.sRGBLinear, white: 0, opacity: 0.66)
-                                             : Color(.sRGBLinear, white: 0, opacity: 0.33)
-
-    if colourScheme == .dark {
-      return AnyView(content
-                      .shadow(color: shadowColour, radius: 2, y: 2)
-                      .overlay(RoundedRectangle(cornerRadius: cornerRadius)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1))
-                      .padding(1)
-                      .overlay(RoundedRectangle(cornerRadius: cornerRadius)
-                                .stroke(Color.black, lineWidth: 1)))
-    } else {
-      return AnyView(content
-                      .shadow(color: shadowColour, radius: 1, y: 1)
-                      .overlay(RoundedRectangle(cornerRadius: cornerRadius)
-                                .stroke(Color.black.opacity(0.2), lineWidth: 1)))
-    }
-  }
-}
-
-extension View {
-
-  fileprivate func messageBorder(cornerRadius: CGFloat) -> some View {
-    modifier(MessageBorder(cornerRadius: cornerRadius))
-  }
-}
-
-/// A view that display all the information of a list of messages.
-///
-/// NB: The array of messages may not be empty.
-///
-fileprivate struct MessagePopupCategoryView: View {
-  let category:    Message.Category
-  let messages:    [Message]
-  let theme:       Message.Theme
-  let invalidated: Bool
-
-  let cornerRadius: CGFloat = 10
-
-  @Environment(\.colorScheme) private var colourScheme: ColorScheme
-  @Environment(\.popupWidth)  private var popupWidth:   CGFloat?
-
-  var body: some View {
-
-      let backgroundColour = colourScheme == .dark ? .clear : Color.white
-    let colour           = if invalidated { Color(OSColor.gray) } else { Color(theme(category).colour) }
-
-    let theActualView =
-      HStack(spacing: 0) {
-
-        // Category icon
-        ZStack (alignment: .top) {
-          colour.opacity(0.5)
-          Text("XX")       // We want the icon to have the height of text
-            .hidden()
-            .overlay( theme(category).icon.frame(alignment: .center) )
-            .padding([.leading, .trailing], 5)
-            .padding([.top, .bottom], 3)
-        }.fixedSize(horizontal: true, vertical: false)
-
-        // Vertical stack of message
-        VStack(alignment: .leading, spacing: 6) {
-          ForEach(0..<messages.count, id: \.self) { i in
-            Text(messages[i].summary)
-            if let description = messages[i].description { Text(description) }
-          }
-        }
-        .padding([.leading, .trailing], 5)
-        .padding([.top, .bottom], 3)
-        .frame(maxWidth: popupWidth, alignment: .leading)       // Constrain width if `popupWidth` is not `nil`
-        .background(colour.opacity(0.3))
-        .background(GeometryReader { proxy in                   // Propagate current width up the view tree
-          Color.clear.preference(key: PopupWidth.self, value: proxy.size.width)
-        })
-
-      }
-
-    // The construction with the overlay is necessary to reliably get the theme colour underneath the
-    // category icon to extend to vertically fill the available space. Essentially, the first use of
-    // `theActualView` calculates the height, which depends on the vertical stack of messages, and inside
-    // the overlay, we then just use the previously calculated height.
-    theActualView
-    .hidden()
-    .overlay(theActualView)
-    .background(backgroundColour)
-    .cornerRadius(cornerRadius)
-    .fixedSize(horizontal: false, vertical: true)           // horizontal must wrap and vertical extend
-    .messageBorder(cornerRadius: cornerRadius)
-  }
-}
-
-struct MessagePopupView: View {
-  let messages:    [Message]
-  let theme:       Message.Theme
-  let invalidated: Bool
-
-  /// The width of the text in the message category with the widest text.
-  ///
-  @State private var popupWidth: CGFloat?  = nil
-
-  var body: some View {
-
+  private func setupContent() {
     let categories = messagesByCategory(messages)
+    let stackView = NSStackView()
+    stackView.orientation = .vertical
+    stackView.spacing = 4
+    stackView.translatesAutoresizingMaskIntoConstraints = false
 
-    VStack(spacing: 4) {
-      ForEach(0..<categories.count, id: \.self) { i in
-        MessagePopupCategoryView(category: categories[i].0,
-                                 messages: categories[i].1,
-                                 theme: theme,
-                                 invalidated: invalidated)
+    for (category, msgs) in categories {
+      let categoryRow = makeCategoryRow(category: category, messages: msgs)
+      stackView.addArrangedSubview(categoryRow)
+    }
+
+    addSubview(stackView)
+    NSLayoutConstraint.activate([
+      stackView.topAnchor.constraint(equalTo: topAnchor),
+      stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+  }
+
+  private func makeCategoryRow(category: Message.Category, messages: [Message]) -> NSView {
+    let colour: NSColor = invalidated ? .gray : theme(category).colour
+
+    let container = NSView()
+    container.wantsLayer = true
+    container.layer?.cornerRadius = 10
+    container.layer?.masksToBounds = true
+
+    // Icon column
+    let iconView = NSImageView()
+    iconView.translatesAutoresizingMaskIntoConstraints = false
+    if let icon = theme(category).icon {
+      iconView.image = icon
+      iconView.contentTintColor = .white
+    }
+    iconView.setContentHuggingPriority(.required, for: .horizontal)
+
+    let iconContainer = NSView()
+    iconContainer.wantsLayer = true
+    iconContainer.layer?.backgroundColor = colour.withAlphaComponent(0.5).cgColor
+    iconContainer.translatesAutoresizingMaskIntoConstraints = false
+    iconContainer.addSubview(iconView)
+
+    NSLayoutConstraint.activate([
+      iconView.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+      iconView.topAnchor.constraint(equalTo: iconContainer.topAnchor, constant: 5),
+      iconView.widthAnchor.constraint(equalToConstant: 16),
+      iconView.heightAnchor.constraint(equalToConstant: 16),
+      iconContainer.widthAnchor.constraint(equalToConstant: 26),
+    ])
+
+    // Messages column
+    let messagesStack = NSStackView()
+    messagesStack.orientation = .vertical
+    messagesStack.alignment = .leading
+    messagesStack.spacing = 6
+    messagesStack.translatesAutoresizingMaskIntoConstraints = false
+    messagesStack.edgeInsets = NSEdgeInsets(top: 3, left: 5, bottom: 3, right: 5)
+
+    for msg in messages {
+      let summaryField = NSTextField(labelWithString: msg.summary)
+      summaryField.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+      summaryField.textColor = .labelColor
+      summaryField.lineBreakMode = .byWordWrapping
+      summaryField.maximumNumberOfLines = 0
+      messagesStack.addArrangedSubview(summaryField)
+
+      if let description = msg.description {
+        let descField = NSTextField(labelWithString: String(description.characters[...]))
+        descField.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        descField.textColor = .secondaryLabelColor
+        descField.lineBreakMode = .byWordWrapping
+        descField.maximumNumberOfLines = 0
+        messagesStack.addArrangedSubview(descField)
       }
     }
-    .background(Color.clear)
-    .onPreferenceChange(PopupWidth.self) { self.popupWidth = $0 }   // Update the state variable with current width...
-    .environment(\.popupWidth, popupWidth)                          // ...and propagate that value down the view tree.
+
+    let messagesContainer = NSView()
+    messagesContainer.wantsLayer = true
+    messagesContainer.layer?.backgroundColor = colour.withAlphaComponent(0.3).cgColor
+    messagesContainer.translatesAutoresizingMaskIntoConstraints = false
+    messagesContainer.addSubview(messagesStack)
+
+    NSLayoutConstraint.activate([
+      messagesStack.topAnchor.constraint(equalTo: messagesContainer.topAnchor),
+      messagesStack.leadingAnchor.constraint(equalTo: messagesContainer.leadingAnchor),
+      messagesStack.trailingAnchor.constraint(equalTo: messagesContainer.trailingAnchor),
+      messagesStack.bottomAnchor.constraint(equalTo: messagesContainer.bottomAnchor),
+    ])
+
+    // Assemble row
+    container.addSubview(iconContainer)
+    container.addSubview(messagesContainer)
+    container.translatesAutoresizingMaskIntoConstraints = false
+
+    NSLayoutConstraint.activate([
+      iconContainer.topAnchor.constraint(equalTo: container.topAnchor),
+      iconContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      iconContainer.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
+      messagesContainer.topAnchor.constraint(equalTo: container.topAnchor),
+      messagesContainer.leadingAnchor.constraint(equalTo: iconContainer.trailingAnchor),
+      messagesContainer.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      messagesContainer.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
+
+    // Border and shadow
+    container.layer?.borderColor = NSColor.separatorColor.cgColor
+    container.layer?.borderWidth = 1
+    container.shadow = NSShadow()
+    container.layer?.shadowColor = NSColor.black.withAlphaComponent(0.2).cgColor
+    container.layer?.shadowOpacity = 1
+    container.layer?.shadowOffset = CGSize(width: 0, height: -1)
+    container.layer?.shadowRadius = 2
+
+    return container
   }
 }
 
 
 // MARK: -
-// MARK: Combined view
+// MARK: Combined container view
 
-/// SwiftUI view that displays an array of messages that lie on the same line. It supports switching between an inline
-/// format and a full popup format by clicking/tapping on the message.
-///
-struct MessageView: View {
-  struct Geometry {
+final class MessageContainerView: OSView {
+  let messages: [Message]
+  let theme: Message.Theme
+  var background: NSColor
+  let fontSize: CGFloat
 
-    /// The maximum width that the inline view may use.
-    ///
-    let lineWidth:   CGFloat
-
-    /// The height of the inline view
-    ///
-    let lineHeight:  CGFloat
-
-    /// The maximum width that the popup view may use.
-    ///
-    let popupWidth:  CGFloat
-
-    /// The distance from the top where the popup view must be placed.
-    ///
-    let popupOffset: CGFloat
+  var geometry: MessageGeometry {
+    didSet { updateLayout() }
   }
 
-  let messages:    [Message]        // The array of messages that are displayed by this view
-  let theme:       Message.Theme    // The message display theme to use
-  let background:  Color
-  let geometry:    Geometry
-  let invalidated: Bool
-
-  @Binding var unfolded: Bool       // False => inline view; true => popup view
-
-  var body: some View {
-
-    // Overlaying the two different views (and switching between them by adjusting their opacity ensures that the view
-    // is always sized the same and such that it can accomodate both modes).
-    ZStack(alignment: .topTrailing) {
-
-      // We adjust the position of the popup with spacers to ensure that the view frame extends appropriately (this
-      // would not be the case if we used `.offset(x:y:)`).
-      VStack {
-        Spacer(minLength: geometry.popupOffset)
-        HStack {
-          MessagePopupView(messages: messages, theme: theme, invalidated: invalidated)
-            .frame(maxWidth: geometry.popupWidth)
-            .onTapGesture { unfolded.toggle() }
-          Spacer(minLength: MessageView.popupRightSideOffset)
-        }
-      }
-      .opacity(unfolded ? 1.0 : 0.0)
-
-      MessageInlineView(messages: messages, theme: theme, background: background, invalidated: invalidated)
-        .frame(minWidth: MessageView.minimumInlineWidth, maxWidth: geometry.lineWidth, maxHeight: geometry.lineHeight)
-        .transition(.opacity)
-        .onTapGesture { unfolded.toggle() }
-        .opacity(unfolded ? 0.0 : 1.0)
-
-    }
-  }
-}
-
-extension MessageView {
-
-  // FIXME: This should maybe depend on the font size and may need to be configurable.
-  static let minimumInlineWidth = CGFloat(60)
-
-  /// The distance of the popup view from the right side of the text container.
-  ///
-  static let popupRightSideOffset = CGFloat(20)
-}
-
-
-// MARK: -
-// MARK: Stateful combined view
-
-/// SwiftUI view that displays an array of messages that lie on the same line. It supports switching between an inline
-/// and popup view by tapping.
-///
-struct StatefulMessageView: View {
-  let messages:     [Message]              // The array of messages that are displayed by this view
-  let theme:        Message.Theme          // The message display theme to use
-  let geometry:     MessageView.Geometry   // The geometry constrains for the view
-  let background:   Color                  // The background colour
-  let fontSize:     CGFloat                // Font size to use for messages
-  let colourScheme: ColorScheme            // The colour scheme to use for SwiftUI elements
-  let invalidated:  Bool                   // Whether the messages are to be rendered invalidated
-
-  @ObservedObject var unfolded: ObservableBool  // `true` iff the view shows the popup flavour
-
-  /// The unfolding state needs to be communicated between the SwiftUI view and the external world. Hence, we need to
-  /// go via an `ObservableObject`.
-  ///
-  class ObservableBool: ObservableObject {
-    @Published var bool: Bool
-
-    init(bool: Bool) {
-      self.bool = bool
-    }
-  }
-
-  var body: some View {
-    MessageView(messages: messages,
-                theme: theme, 
-                background: background,
-                geometry: geometry,
-                invalidated: invalidated,
-                unfolded: $unfolded.bool)
-      .font(.system(size: fontSize))
-      .environment(\.colorScheme, colourScheme)
-      .fixedSize()    // to enforce intrinsic size in the encapsulating `NSHostingView`
-  }
-}
-
-extension StatefulMessageView {
-
-  class HostingView: OSView {
-    private var hostingView: OSHostingView<StatefulMessageView>?
-
-    private let messages:     [Message]
-    private let theme:        Message.Theme
-    private var background:   Color
-    private let fontSize:     CGFloat
-    private let colourScheme: ColorScheme
-
-    /// Unfolding status as sharable state.
-    ///
-    private let unfoldedState = StatefulMessageView.ObservableBool(bool: false)
-
-    var geometry: MessageView.Geometry {
-      didSet { reconfigure() }
-    }
-
-    var unfolded: Bool {
-      get { unfoldedState.bool }
-      set { unfoldedState.bool = newValue }
-    }
-
-    var invalidated: Bool {
-      didSet { reconfigure() }
-    }
-
-    init(messages: [Message],
-         theme: @escaping Message.Theme,
-         background: Color,
-         geometry: MessageView.Geometry,
-         fontSize: CGFloat,
-         colourScheme: ColorScheme)
-    {
-      self.messages     = messages
-      self.theme        = theme
-      self.background   = background
-      self.geometry     = geometry
-      self.fontSize     = fontSize
-      self.colourScheme = colourScheme
-      self.invalidated  = false
-      super.init(frame: .zero)
-
-#if os(iOS) || os(visionOS)
-      isOpaque = false
-#endif
-      translatesAutoresizingMaskIntoConstraints = false
-
-      hostingView = OSHostingView(rootView: StatefulMessageView(messages: messages,
-                                                                theme: theme,
-                                                                geometry: geometry,
-                                                                background: background,
-                                                                fontSize: fontSize,
-                                                                colourScheme: colourScheme,
-                                                                invalidated: invalidated,
-                                                                unfolded: unfoldedState))
-#if os(iOS) || os(visionOS)
-      hostingView?.isOpaque = false
-#endif
-      hostingView?.translatesAutoresizingMaskIntoConstraints = false
-      if let view = hostingView {
-
-        addSubview(view)
-        let constraints = [
-          view.topAnchor.constraint(equalTo: self.topAnchor),
-          view.bottomAnchor.constraint(equalTo: self.bottomAnchor),
-          view.leftAnchor.constraint(equalTo: self.leftAnchor),
-          view.rightAnchor.constraint(equalTo: self.rightAnchor)
-        ]
-        NSLayoutConstraint.activate(constraints)
-
+  var invalidated: Bool {
+    didSet {
+      inlineView.invalidated = invalidated
+      inlineView.needsDisplay = true
+      if let popup = popupView {
+        popup.invalidated = invalidated
+        popup.removeFromSuperview()
+        popupView = nil
+        if isExpanded { showPopup() }
       }
     }
+  }
 
-    @objc required dynamic init?(coder aDecoder: NSCoder) {
-      fatalError("init(coder:) has not been implemented")
-    }
-
-    private func reconfigure() {
-      self.hostingView?.rootView = StatefulMessageView(messages: messages,
-                                                       theme: theme,
-                                                       geometry: geometry,
-                                                       background: background,
-                                                       fontSize: fontSize,
-                                                       colourScheme: colourScheme,
-                                                       invalidated: invalidated,
-                                                       unfolded: unfoldedState)
+  var isExpanded: Bool = false {
+    didSet {
+      if isExpanded {
+        inlineView.isHidden = true
+        showPopup()
+      } else {
+        inlineView.isHidden = false
+        popupView?.removeFromSuperview()
+        popupView = nil
+      }
     }
   }
-}
 
+  private let inlineView: MessageInlineNSView
+  private var popupView: MessagePopupNSView?
+  var topAnchorConstraint: NSLayoutConstraint?
+  var rightAnchorConstraint: NSLayoutConstraint?
 
-// MARK: -
-// MARK: Previews
+  override var isFlipped: Bool { true }
 
-let message1 = Message(category: .error, length: 1, summary: "It's wrong!", description: nil),
-    message2 = Message(category: .error, length: 1, summary: "Need to fix this.", description: nil),
-    message3 = Message(category: .warning, length: 1, summary: "Looks dodgy.",
-                       description: AttributedString("This doesn't seem right and also totally unclear " +
-                                                        "what it is supposed to do.")),
-    message4 = Message(category: .live, length: 1, summary: "Thread 1", description: nil),
-    message5 = Message(category: .informational, length: 1, summary: "Cool stuff!", description: nil)
+  init(messages: [Message],
+       theme: @escaping Message.Theme,
+       background: NSColor,
+       geometry: MessageGeometry,
+       fontSize: CGFloat)
+  {
+    self.messages = messages
+    self.theme = theme
+    self.background = background
+    self.geometry = geometry
+    self.fontSize = fontSize
+    self.invalidated = false
 
-struct MessageViewPreview: View {
-  let messages:    [Message]
-  let theme:       Message.Theme
-  let background:  Color
-  let geometry:    MessageView.Geometry
+    self.inlineView = MessageInlineNSView(messages: messages, theme: theme,
+                                          background: background, invalidated: false)
+    super.init(frame: .zero)
 
-  @State private var unfolded: Bool = false
+    wantsLayer = true
+    translatesAutoresizingMaskIntoConstraints = false
 
-  var body: some View {
-    MessageView(messages: messages,
-                theme: theme, 
-                background: background,
-                geometry: geometry, 
-                invalidated: false,
-                unfolded: $unfolded)
+    inlineView.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(inlineView)
+
+    NSLayoutConstraint.activate([
+      inlineView.topAnchor.constraint(equalTo: topAnchor),
+      inlineView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      inlineView.heightAnchor.constraint(equalToConstant: geometry.lineHeight),
+      inlineView.widthAnchor.constraint(lessThanOrEqualToConstant: geometry.lineWidth),
+      inlineView.widthAnchor.constraint(greaterThanOrEqualToConstant: MessageGeometry.minimumInlineWidth),
+    ])
+
+    let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleClick(_:)))
+    addGestureRecognizer(clickGesture)
   }
-}
 
-struct MessageViews_Previews: PreviewProvider {
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
 
-  static var previews: some View {
-    let darkBackground  = Color(Theme.defaultDark.backgroundColour)
-    let lightBackground = Color(Theme.defaultLight.backgroundColour)
+  @objc private func handleClick(_ sender: NSClickGestureRecognizer) {
+    isExpanded.toggle()
+  }
 
-    // Inline view
+  private func showPopup() {
+    let popup = MessagePopupNSView(messages: messages, theme: theme, invalidated: invalidated)
+    popup.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(popup)
 
-    MessageInlineView(messages: [message1], theme: Message.defaultTheme, background: darkBackground, invalidated: false)
-      .frame(width: 80, height: 15, alignment: .center)
-      .preferredColorScheme(.dark)
+    NSLayoutConstraint.activate([
+      popup.topAnchor.constraint(equalTo: topAnchor, constant: geometry.popupOffset),
+      popup.leadingAnchor.constraint(equalTo: leadingAnchor),
+      popup.widthAnchor.constraint(lessThanOrEqualToConstant: geometry.popupWidth),
+    ])
 
-    MessageInlineView(messages: [message1], theme: Message.defaultTheme, background: darkBackground, invalidated: false)
-      .frame(width: 80, height: 25, alignment: .center)
-      .preferredColorScheme(.dark)
+    popupView = popup
+  }
 
-    VStack{
-
-      MessageInlineView(messages: [message1, message2], theme: Message.defaultTheme, background: darkBackground, invalidated: false)
-        .frame(width: 180, height: 15, alignment: .center)
-        .preferredColorScheme(.dark)
-
-      MessageInlineView(messages: [message1, message2, message3],
-                        theme: Message.defaultTheme,
-                        background: darkBackground,
-                        invalidated: false)
-        .frame(width: 180, height: 15, alignment: .center)
-        .preferredColorScheme(.dark)
-
+  private func updateLayout() {
+    for constraint in inlineView.constraints {
+      if constraint.firstAttribute == .height { constraint.constant = geometry.lineHeight }
+      if constraint.firstAttribute == .width && constraint.relation == .lessThanOrEqual {
+        constraint.constant = geometry.lineWidth
+      }
     }
-
-    MessageInlineView(messages: [message1, message2, message3],
-                      theme: Message.defaultTheme,
-                      background: lightBackground,
-                      invalidated: false)
-      .frame(width: 180, height: 15, alignment: .center)
-      .preferredColorScheme(.light)
-
-    // Popup view
-
-    MessagePopupView(messages: [message1], theme: Message.defaultTheme, invalidated: false)
-      .font(.system(size: 32))
-      .frame(maxWidth: 320, minHeight: 15)
-      .preferredColorScheme(.dark)
-
-    MessagePopupView(messages: [message1, message4], theme: Message.defaultTheme, invalidated: false)
-      .frame(maxWidth: 320, minHeight: 15)
-      .preferredColorScheme(.dark)
-
-    MessagePopupView(messages: [message1, message2, message3], theme: Message.defaultTheme, invalidated: false)
-      .frame(maxWidth: 320, minHeight: 15)
-      .preferredColorScheme(.dark)
-
-    MessagePopupView(messages: [message1, message5, message2, message4, message3],
-                     theme: Message.defaultTheme,
-                     invalidated: false)
-      .frame(maxWidth: 320, minHeight: 15)
-      .preferredColorScheme(.dark)
-
-    MessagePopupView(messages: [message1, message5, message2, message4, message3],
-                     theme: Message.defaultTheme,
-                     invalidated: false)
-      .frame(maxWidth: 320, minHeight: 15)
-      .preferredColorScheme(.light)
-
-    // Combined view
-
-    ZStack(alignment: .topTrailing) {
-
-      Rectangle()
-        .foregroundColor(Color.red.opacity(0.1))
-        .frame(height: 30)
-      HStack { Text("main = putStrLn \"Hello World!\""); Spacer() }
-      StatefulMessageView(messages: [message1, message5, message2, message4, message3],
-                          theme: Message.defaultTheme,
-                          geometry: MessageView.Geometry(lineWidth: 150,
-                                                         lineHeight: 15,
-                                                         popupWidth: 300,
-                                                         popupOffset: 30), 
-                          background: darkBackground,
-                          fontSize: 15,
-                          colourScheme: .dark,
-                          invalidated: false,
-                          unfolded: StatefulMessageView.ObservableBool(bool: false))
-        .offset(y: 18)
+    if isExpanded {
+      popupView?.removeFromSuperview()
+      popupView = nil
+      showPopup()
     }
-    .frame(width: 400, height: 300, alignment: .topTrailing)
-//    .preferredColorScheme(.light)
-
   }
 }

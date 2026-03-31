@@ -120,15 +120,14 @@ struct SQLEditorView: View {
             Spacer()
             
             HStack(spacing: 0) {
-                // Prettify SQL button
                 ToolbarIconButton(
                     systemName: "wand.and.stars",
-                    action: prettifySQL,
+                    action: prettifyCode,
                     disabled: sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || showingInlineDiff,
                 )
                 .keyboardShortcut("i", modifiers: [.command])
                 .customHelp(
-                    "Format SQL",
+                    isConvex ? "Format JS" : "Format SQL",
                     shortcut: KeyboardShortcut(
                         modifiers: [.command],
                         key: "i"
@@ -188,8 +187,8 @@ struct SQLEditorView: View {
                     
                     if isExecuting {
                         ProgressView()
-                            .controlSize(.small)
-                            .colorMultiply(.black)
+                            .controlSize(.mini)
+                            .scaleEffect(0.7)
                             .padding(.horizontal, 4.5)
                     } else {
                         Text("⌘⏎")
@@ -206,7 +205,8 @@ struct SQLEditorView: View {
             .buttonStyle(PlainButtonStyle())
             .disabled((sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || isExecuting || showingInlineDiff)
         }
-        .padding(.horizontal)
+        .padding(.leading)
+        .padding(.trailing, 8)
         .padding(.vertical, 8)
     }
     
@@ -230,19 +230,34 @@ struct SQLEditorView: View {
         return String(sqlQuery[startIndex..<endIndex])
     }
     
+    private var isConvex: Bool {
+        instance.connection.databaseType == .convex
+    }
+
+    private var editorLanguage: LanguageConfiguration {
+        switch instance.connection.databaseType {
+        case .convex:
+            return .javascript()
+        case .mongodb:
+            return .mongodb()
+        default:
+            return .sqlite()
+        }
+    }
+
     private var sqlEditor: some View {
         ZStack(alignment: .topLeading) {
-            CodeEditor(text: $sqlQuery, position: $position, messages: $messages, language: .sqlite())
+            CodeEditor(text: $sqlQuery, position: $position, messages: $messages, language: editorLanguage)
                 .environment(\.codeEditorTheme, transparentTheme)
                 .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
-            
+
             // Placeholder text
             if sqlQuery.isEmpty {
                 HStack(alignment: .top, spacing: 4) {
-                    Text("Start writing SQL or type")
+                    Text(isConvex ? "Start writing a Convex query or type" : "Start writing SQL or type")
                         .foregroundColor(.secondary.opacity(0.6))
                         .font(.system(.body, design: .monospaced))
-                    
+
                     Text("⌘K")
                         .font(.callout)
                         .foregroundColor(.primary)
@@ -254,7 +269,7 @@ struct SQLEditorView: View {
                                 .stroke(Color(.separatorColor), lineWidth: 1)
                         )
                         .cornerRadius(4)
-                    
+
                     Text("to generate a query")
                         .foregroundColor(.secondary.opacity(0.6))
                         .font(.system(.body, design: .monospaced))
@@ -262,7 +277,7 @@ struct SQLEditorView: View {
                 .padding(.leading, 38)
                 .allowsHitTesting(false)
             }
-            
+
             // AI Command Prompt
             if showAICommandPrompt {
                 AICommandPrompt(
@@ -426,7 +441,7 @@ extension SQLEditorView {
     private var emptyState: some View {
         VStack(spacing: 12) {
             HStack(spacing: 4) {
-                Text("Write a SQL query and press")
+                Text(isConvex ? "Write a query and press" : "Write a SQL query and press")
                     .font(.body)
                     .foregroundColor(.secondary.opacity(0.7))
                 
@@ -722,6 +737,8 @@ extension SQLEditorView {
     private func formatSQL(_ query: String) -> String {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return query }
+
+        if isConvex { return JSFormatter.format(trimmedQuery) }
         
         // Determine the SQL dialect based on the database type
         let dialect: SQLDialect
@@ -873,13 +890,17 @@ extension SQLEditorView {
         messages = Set()
     }
     
-    private func prettifySQL() {
+    private func prettifyCode() {
         guard !showingInlineDiff else { return }
 
         let trimmedQuery = sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return }
 
-        sqlQuery = formatSQL(trimmedQuery)
+        if isConvex {
+            sqlQuery = JSFormatter.format(trimmedQuery)
+        } else {
+            sqlQuery = formatSQL(trimmedQuery)
+        }
     }
     
     private func addToFavorites() {
@@ -969,6 +990,17 @@ extension SQLEditorView {
            let query = tab.initialQuery {
             sqlQuery = query
             tab.initialQuery = nil
+        }
+
+        if sqlQuery.isEmpty && isConvex {
+            sqlQuery = """
+            export default query({
+              handler: async (ctx) => {
+                console.log("Write and test your query function here!");
+                return await ctx.db.query("table_name").take(10);
+              },
+            })
+            """
         }
     }
 }

@@ -6,76 +6,9 @@
 //
 //  This file implements common code editing operations.
 
-import SwiftUI
+import AppKit
 
 import LanguageSupport
-
-/// Adds an "Editor" menu with code editing commands and adds a duplicate command to the pasteboard commands.
-///
-public struct CodeEditingCommands: Commands {
-
-  public init() { }
-
-  public var body: some Commands {
-
-    CommandGroup(after: .pasteboard) {
-      CodeEditingDuplicateCommandView()
-    }
-
-    CommandMenu("Editor") {
-      CodeEditingCommandsView()
-    }
-  }
-}
-
-private func send(_ action: Selector) {
-  NSApplication.shared.sendAction(action, to: nil, from: nil)
-}
-
-/// Menu item for the duplicate command.
-///
-public struct CodeEditingDuplicateCommandView: View {
-
-  public init() { }
-
-  public var body: some View {
-
-    Button("Duplicate") {
-      send(#selector(CodeEditorActions.duplicate(_:)))
-    }
-    .keyboardShortcut("D", modifiers: [.command])
-  }
-}
-
-/// Code editing commands that can, for example, be used in a `CommandMenu` or `CommandGroup`.
-///
-public struct CodeEditingCommandsView: View {
-
-  public init() { }
-
-  public var body: some View {
-
-    Button("Re-Indent") {
-      send(#selector(CodeEditorActions.reindent(_:)))
-    }
-    .keyboardShortcut("I", modifiers: [.control])
-    Button("Shift Left") {
-      send(#selector(CodeEditorActions.shiftLeft(_:)))
-    }
-    .keyboardShortcut("[", modifiers: [.command])
-    Button("Shift Right") {
-      send(#selector(CodeEditorActions.shiftRight(_:)))
-    }
-    .keyboardShortcut("]", modifiers: [.command])
-
-    Divider()
-
-    Button("Comment Selection") {
-      send(#selector(CodeEditorActions.commentSelection(_:)))
-    }
-    .keyboardShortcut("/", modifiers: [.command])
-  }
-}
 
 /// Protocol with all code editor actions for maximum flexibility in invoking them via the responder chain.
 ///
@@ -175,7 +108,7 @@ extension NSRange {
 // MARK: -
 // MARK: Editing functionality
 
-extension CodeEditor.IndentationConfiguration {
+extension CodeEditorTypes.IndentationConfiguration {
   
   /// String of whitespace that indents from the start of the line to the first indentation point.
   ///

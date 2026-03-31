@@ -158,7 +158,7 @@ struct DatabaseList: View {
         loadError = nil
 
         do {
-            try await instance.loadCollectionsForCurrentDatabase(schema: nil)
+            try await instance.loadCollectionsForCurrentDatabase(schema: instance.databaseService.currentSchema)
         } catch let error as DatabaseError where error.code == .databaseNotSelected {
             showDatabaseSelector = true
         } catch {
@@ -173,7 +173,7 @@ struct DatabaseList: View {
         isLoadingCollections = true
         do {
             try await instance.databaseService.switchActiveDatabase(to: database)
-            try await instance.loadCollectionsForCurrentDatabase(schema: nil)
+            try await instance.loadCollectionsForCurrentDatabase(schema: instance.databaseService.currentSchema)
         } catch {
             debugLog("Failed to update connection: \(error)")
         }

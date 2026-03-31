@@ -12,7 +12,6 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
     // Recent files (plain, no bg/border)
     private let recentHeaderLabel = NSTextField(labelWithString: "Recent Files")
-    private let showAllButton = NSButton()
     private let recentHeaderStack = NSStackView()
     private let recentStackView = NSStackView()
 
@@ -24,7 +23,6 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
     private let noResultsLabel = NSTextField(labelWithString: "No results")
 
-    private var isShowingAll = false
     private var activeIndex = 0
     private var eventMonitor: Any?
     private var dropdownHeightConstraint: NSLayoutConstraint?
@@ -49,17 +47,6 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         setupDropdownArea()
         setupLayout()
         setupEventMonitor()
-        reloadContent()
-
-        // Service may not be initialized yet (set up async in ConnectionInstance.init)
-        // Reload once it's available
-        if instance.recentTablesService == nil {
-            Task { @MainActor in
-                // Yield to let the service init task complete
-                await Task.yield()
-                self.reloadContent()
-            }
-        }
     }
 
     // MARK: - Search Bar
@@ -67,7 +54,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
     private func setupSearchBar() {
         searchContainer.wantsLayer = true
         searchContainer.layer?.cornerRadius = 12
-        searchContainer.layer?.borderWidth = 0.5
+        searchContainer.layer?.borderWidth = 1
         searchContainer.translatesAutoresizingMaskIntoConstraints = false
         updateContainerAppearance(searchContainer)
 
@@ -133,19 +120,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         recentHeaderLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
         recentHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        showAllButton.title = "Show All"
-        showAllButton.setContentHuggingPriority(.required, for: .horizontal)
-        showAllButton.isBordered = false
-        showAllButton.contentTintColor = .controlAccentColor
-        showAllButton.font = .systemFont(ofSize: 13)
-        showAllButton.target = self
-        showAllButton.action = #selector(toggleShowAll)
-        showAllButton.translatesAutoresizingMaskIntoConstraints = false
-
         recentHeaderStack.orientation = .horizontal
         recentHeaderStack.distribution = .fill
         recentHeaderStack.addArrangedSubview(recentHeaderLabel)
-        recentHeaderStack.addArrangedSubview(showAllButton)
         recentHeaderStack.translatesAutoresizingMaskIntoConstraints = false
         recentHeaderStack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 10, right: 16)
 
@@ -208,7 +185,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             recentHeaderStack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             recentHeaderStack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
-            // Recent list (plain, no scroll)
+            // Recent list
             recentStackView.topAnchor.constraint(equalTo: recentHeaderStack.bottomAnchor),
             recentStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             recentStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -311,13 +288,11 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             dropdownContainer.isHidden = true
             noResultsLabel.isHidden = true
 
-            let recentTables = instance.recentTablesService?.fetchRecent(limit: isShowingAll ? 50 : 8) ?? []
+            let recentTables = instance.recentTablesService?.fetchRecent(limit: 6) ?? []
             let hasRecent = !recentTables.isEmpty
 
             recentHeaderStack.isHidden = !hasRecent
             recentStackView.isHidden = !hasRecent
-            showAllButton.isHidden = recentTables.count < 8
-            showAllButton.title = isShowingAll ? "Show Less" : "Show All"
 
             for (index, entry) in recentTables.enumerated() {
                 let row = makeCollectionRow(
@@ -331,6 +306,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
                 }
                 recentStackView.addArrangedSubview(row)
             }
+
         }
 
         view.needsLayout = true
@@ -447,10 +423,6 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         reloadContent()
     }
 
-    @objc private func toggleShowAll() {
-        isShowingAll.toggle()
-        reloadContent()
-    }
 
     private func openCollection(_ collection: any CollectionWrapper) {
         let isFunction = collection.type == "function" || collection.type == "procedure"
@@ -584,6 +556,14 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         super.viewDidAppear()
         view.window?.makeFirstResponder(searchField)
         reloadContent()
+
+        // Service may not be initialized yet (set up async in ConnectionInstance.init)
+        if instance.recentTablesService == nil {
+            Task { @MainActor in
+                await Task.yield()
+                self.reloadContent()
+            }
+        }
     }
 
     override func viewWillAppear() {

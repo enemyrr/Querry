@@ -14,6 +14,7 @@ final class NotebookMainPaneController: NSViewController {
     private var blocksController: NotebookBlocksController?
     private var dashboardController: DashboardGridController?
     private var emptyStateTopConstraint: NSLayoutConstraint?
+    private let platterOverlay = IntelligencePlatterOverlay()
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -25,6 +26,7 @@ final class NotebookMainPaneController: NSViewController {
     }
 
     deinit {
+        platterOverlay.teardown()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -69,6 +71,10 @@ final class NotebookMainPaneController: NSViewController {
         setupConstraints()
         updateBlocksVisibility()
         observeBlocksState()
+
+        platterOverlay.setup(on: mainContentView, behind: toolbarController?.view)
+        platterOverlay.layoutMask()
+        observeAgentStreaming()
     }
 
     func updateCornerRadius(_ radius: CGFloat, animated: Bool) {
@@ -86,6 +92,7 @@ final class NotebookMainPaneController: NSViewController {
     override func viewDidLayout() {
         super.viewDidLayout()
         updateToolbarInset()
+        platterOverlay.layoutMask()
     }
 
     override func viewDidAppear() {
@@ -250,6 +257,24 @@ final class NotebookMainPaneController: NSViewController {
         blocksController?.setTopContentInset(toolbarHeight)
         dashboardController?.setTopContentInset(toolbarHeight)
         emptyStateTopConstraint?.constant = toolbarHeight
+    }
+
+    // MARK: - Agent Streaming
+
+    private func observeAgentStreaming() {
+        withObservationTracking {
+            _ = self.dataController.isAgentStreaming
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.dataController.isAgentStreaming {
+                    self.platterOverlay.show()
+                } else {
+                    self.platterOverlay.hide()
+                }
+                self.observeAgentStreaming()
+            }
+        }
     }
 
     // MARK: - Appearance

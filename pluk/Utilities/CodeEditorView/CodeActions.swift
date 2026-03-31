@@ -1,12 +1,13 @@
 //
 //  CodeActions.swift
-//  
+//
 //
 //  Created by Fauzaan on 31/01/2023.
 //
 
 import Combine
-import SwiftUI
+import AppKit
+import SwiftUI  // Required for LanguageService `any View` types (InfoPopover, completion row/doc views)
 import os
 
 import LanguageSupport
@@ -16,18 +17,14 @@ private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", categor
 
 
 // MARK: -
-// MARK: AppKit version
-
 // MARK: Code info support
 
 /// Popover used to display the result of an info code query.
 ///
+/// NB: Retains `NSHostingController` because `LanguageService.info()` returns `any View`.
+///
 final class InfoPopover: NSPopover {
 
-  /// Create an info popover with the given view displaying the code info.
-  ///
-  /// - Parameter view: the view displaying the queried code information.
-  ///
   init(displaying view: any View, width: CGFloat) {
     super.init()
     let rootView = ScrollView(.vertical){ AnyView(view).padding() }
@@ -45,18 +42,9 @@ final class InfoPopover: NSPopover {
 
 extension CodeView {
 
-  /// Retain and display the given info popover.
-  ///
-  /// - Parameters:
-  ///   - infoPopover: The new info popover to be displayed.
-  ///   - range: The range of characters that the popover ought to refer to.
-  ///
   @MainActor
   func show(infoPopover: InfoPopover, for range: NSRange) {
-
-    // If there is already a popover, close it first.
     self.infoPopover?.close()
-
     self.infoPopover = infoPopover
 
     let screenRect         = firstRect(forCharacterRange: range, actualRange: nil),
@@ -75,9 +63,7 @@ extension CodeView {
     Task {
       do {
         if let info = try await languageService.info(at: range.location) {
-
           show(infoPopover: InfoPopover(displaying: info.view, width: width), for: info.anchor ?? range)
-
         }
       } catch let error { logger.trace("Info action failed: \(error.localizedDescription)") }
     }
@@ -85,172 +71,70 @@ extension CodeView {
 }
 
 
+// MARK: -
 // MARK: Completions support
 
-/// The various operations that arise through the user interacting with the completion panel.
-///
 public enum CompletionProgress {
-
-  /// Cancel code completion (e.g., user pressed ESC).
-  ///
   case cancel
-
-  /// Completion selected and the range it replaces if available.
-  ///
   case completion(String, NSRange?)
-
-  /// Addtional keystroke to refine the search.
-  ///
   case input(NSEvent)
 }
 
-/// Panel used to display compeltions.
+
+// MARK: Completion cell view
+
+/// NSTableCellView that wraps a LanguageService `any View` row via NSHostingView.
 ///
-final class CompletionPanel: NSPanel {
+final class CompletionCellView: NSTableCellView {
 
-  struct CompletionView: View {
-    let completions: Completions
+  static let identifier = NSUserInterfaceItemIdentifier("CompletionCellView")
 
-    @ObservedObject var selection: ObservableSelection
+  private var hostingView: NSHostingView<AnyView>?
 
-    @FocusState private var isFocused: Bool
-
-    @ViewBuilder
-    var completionsList: some View {
-
-      if completions.items.isEmpty { Text("No completions").padding() }
-      else {
-        List(completions.items, selection: $selection.selection) { item in
-          AnyView(item.rowView(selection.selection == item.id))
-            .lineLimit(1)
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-            .listRowSeparator(.hidden)
-        }
-      }
-    }
-
-    var body: some View {
-      VStack(alignment: .leading, spacing: 0) {
-
-        completionsList
-          .focused($isFocused)
-
-        Divider()
-          .overlay(.gray.opacity(0.5))
-          .frame(height: 0.5)
-
-        if let selectedCompletion = (completions.items.first{ $0.id == selection.selection }) {
-          ScrollView {
-            HStack {
-              AnyView(selectedCompletion.documentationView)
-              Spacer()
-            }
-            .padding()
-          }
-          .padding()
-          .frame(maxWidth: .infinity)
-          .background(Color(nsColor: .windowBackgroundColor))
-        }
-
-      }
-      .ignoresSafeArea()
-      .frame(maxWidth: .infinity, minHeight: 100, maxHeight: 500)
-      .clipShape(RoundedRectangle(cornerRadius: 10))
-      .overlay {
-        RoundedRectangle(cornerRadius: 10)
-          .stroke(.gray.opacity(0.5))
-      }
-      .onAppear{ isFocused = true }
+  func configure(with item: Completions.Completion, isSelected: Bool) {
+    let newRoot = AnyView(AnyView(item.rowView(isSelected)).lineLimit(1))
+    if let hosting = hostingView {
+      hosting.rootView = newRoot
+    } else {
+      let hosting = NSHostingView(rootView: newRoot)
+      hosting.translatesAutoresizingMaskIntoConstraints = false
+      addSubview(hosting)
+      NSLayoutConstraint.activate([
+        hosting.topAnchor.constraint(equalTo: topAnchor),
+        hosting.bottomAnchor.constraint(equalTo: bottomAnchor),
+        hosting.leadingAnchor.constraint(equalTo: leadingAnchor),
+        hosting.trailingAnchor.constraint(equalTo: trailingAnchor),
+      ])
+      hostingView = hosting
     }
   }
 
-  class HostedCompletionView: NSHostingView<CompletionView> {
-
-    override func becomeFirstResponder() -> Bool {
-
-      // This is very dodgy, but I just don't know another way to make the initial first responder a SwiftUI view
-      // somewhere inside the guts of this hosting view.
-      DispatchQueue.main.async { [self] in
-        window!.selectKeyView(following: self)
-      }
-      return true
-    }
-
-    @MainActor
-    override func keyDown(with event: NSEvent) {
-      guard let window = window as? CompletionPanel else { super.keyDown(with: event); return }
-
-      if event.keyCode == keyCodeDownArrow || event.keyCode == keyCodeUpArrow {
-
-        // Pass arrow keys to the panel view
-        super.keyDown(with: event)
-
-      } else if event.keyCode == keyCodeReturn {
-
-        // Commit to current completion
-        if let selectedCompletion = (window.completions.items.first{ $0.id == window.selection.selection }) {
-
-          window.progressHandler?(.completion(selectedCompletion.insertText, selectedCompletion.insertRange))
-
-        } else {
-
-          window.progressHandler?(.cancel)
-
-        }
-
-      } else if event.keyCode == keyCodeESC {
-
-        // cancel completion on ESC
-        window.progressHandler?(.cancel)
-
-      } else if !event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
-
-        // cancel completion and pass event on on any editing commands
-        window.progressHandler?(.input(event))
-        window.close()
-
-      } else {
-
-        // just pass on on anything we don't know about
-        window.progressHandler?(.input(event))
-
-      }
-    }
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    hostingView?.removeFromSuperview()
+    hostingView = nil
   }
+}
 
-  class ObservableSelection: ObservableObject {
-    @Published var selection: Int? = nil
-  }
 
-  /// The current set of completions.
-  ///
+// MARK: Completion panel
+
+final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource {
+
   private(set) var completions: Completions = .none
-  
-  /// The `id` of the currently selected item in `completions`.
-  ///
-  private(set) var selection: ObservableSelection = ObservableSelection()
+  private var selectedItemID: Int?
 
-  /// Whenever there is progress in the completion interaction, this is fed back to the code view by reporting
-  /// progress via this handler.
-  ///
-  /// NB: Whenver a finalising completion progress is being reported, this property is reset to `nil`. This allows
-  ///     sending a `.cancel` from `close()` without risk of a superflous progress message.
-  ///
   var progressHandler: ((CompletionProgress) -> Void)?
 
-  /// The content view at its precise type.
-  ///
-  private let hostingView: HostedCompletionView
+  private let scrollView = NSScrollView()
+  private let tableView = NSTableView()
+  private let divider = NSBox()
+  private let docScrollView = NSScrollView()
+  private var docHostingView: NSHostingView<AnyView>?
 
-  /// The observer for the 'didResignKeyNotification' notification.
-  ///
   private var didResignObserver: NSObjectProtocol?
 
   init() {
-    hostingView = HostedCompletionView(rootView: CompletionView(completions: completions,
-                                                                selection: ObservableSelection()))
-    hostingView.sizingOptions = [.maxSize, .minSize]
-
     super.init(contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
                styleMask: [.nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: true)
     collectionBehavior.insert(.fullScreenAuxiliary)
@@ -266,12 +150,13 @@ final class CompletionPanel: NSPanel {
     standardWindowButton(.miniaturizeButton)?.isHidden = true
     standardWindowButton(.zoomButton)?.isHidden        = true
 
-    contentView = hostingView
+    setupViews()
 
-    self.didResignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
-                                                                    object: self,
-                                                                    queue: nil) { [weak self] _notification in
-
+    self.didResignObserver = NotificationCenter.default.addObserver(
+      forName: NSWindow.didResignKeyNotification,
+      object: self,
+      queue: nil
+    ) { [weak self] _ in
       self?.close()
     }
   }
@@ -280,130 +165,231 @@ final class CompletionPanel: NSPanel {
     if let didResignObserver { NotificationCenter.default.removeObserver(didResignObserver) }
   }
 
+  private func setupViews() {
+    let container = NSView()
+    container.wantsLayer = true
+    container.layer?.cornerRadius = 10
+    container.layer?.masksToBounds = true
+    container.layer?.borderColor = NSColor.gray.withAlphaComponent(0.5).cgColor
+    container.layer?.borderWidth = 1
+
+    // Table view
+    let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("CompletionColumn"))
+    column.resizingMask = .autoresizingMask
+    tableView.addTableColumn(column)
+    tableView.headerView = nil
+    tableView.rowHeight = 24
+    tableView.intercellSpacing = .zero
+    tableView.backgroundColor = .windowBackgroundColor
+    tableView.delegate = self
+    tableView.dataSource = self
+    tableView.selectionHighlightStyle = .regular
+    tableView.allowsEmptySelection = false
+
+    scrollView.documentView = tableView
+    scrollView.hasVerticalScroller = true
+    scrollView.autohidesScrollers = true
+    scrollView.borderType = .noBorder
+    scrollView.drawsBackground = false
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+    // Divider
+    divider.boxType = .separator
+    divider.translatesAutoresizingMaskIntoConstraints = false
+
+    // Documentation area
+    docScrollView.hasVerticalScroller = true
+    docScrollView.autohidesScrollers = true
+    docScrollView.borderType = .noBorder
+    docScrollView.drawsBackground = true
+    docScrollView.backgroundColor = .windowBackgroundColor
+    docScrollView.translatesAutoresizingMaskIntoConstraints = false
+
+    container.addSubview(scrollView)
+    container.addSubview(divider)
+    container.addSubview(docScrollView)
+    container.translatesAutoresizingMaskIntoConstraints = false
+
+    NSLayoutConstraint.activate([
+      scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      scrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
+      scrollView.heightAnchor.constraint(lessThanOrEqualToConstant: 300),
+
+      divider.topAnchor.constraint(equalTo: scrollView.bottomAnchor),
+      divider.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      divider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      divider.heightAnchor.constraint(equalToConstant: 1),
+
+      docScrollView.topAnchor.constraint(equalTo: divider.bottomAnchor),
+      docScrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      docScrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      docScrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      docScrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
+      docScrollView.heightAnchor.constraint(lessThanOrEqualToConstant: 200),
+    ])
+
+    contentView = container
+  }
+
   override var canBecomeKey: Bool { true }
 
   override func close() {
-    // We cancel the completion process if the window gets closed (and the `progressHandler` is still active (i.e., it
-    // is non-`nil`).
     if isKeyWindow { progressHandler?(.cancel) }
     super.close()
   }
 
-  /// Set a list of completions and ensure that the completion panel is shown if the completion list is non-empty.
-  ///
-  /// - Parameters:
-  ///   - completions: The new list of completions.
-  ///   - screenRect: The rectangle enclosing the range of characters that form the prefix of the word that is being
-  ///       completed. If no `rect` is provided, it is assumed that the last provided one is still valid. The
-  ///       rectangle is in screen coordinates.
-  ///   - handler: Closure used to report progress in the completion interaction back to the code view.
-  ///
-  /// The completion panel gets aligned such that `rect` leading aligns with the completion labels in the completion
-  /// panel.
-  ///
+  override func keyDown(with event: NSEvent) {
+    if event.keyCode == keyCodeDownArrow || event.keyCode == keyCodeUpArrow {
+
+      let row = tableView.selectedRow
+      let newRow: Int
+      if event.keyCode == keyCodeDownArrow {
+        newRow = min(row + 1, tableView.numberOfRows - 1)
+      } else {
+        newRow = max(row - 1, 0)
+      }
+      tableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+      tableView.scrollRowToVisible(newRow)
+
+    } else if event.keyCode == keyCodeReturn {
+
+      let row = tableView.selectedRow
+      if row >= 0 && row < completions.items.count {
+        let item = completions.items[row]
+        progressHandler?(.completion(item.insertText, item.insertRange))
+      } else {
+        progressHandler?(.cancel)
+      }
+
+    } else if event.keyCode == keyCodeESC {
+
+      progressHandler?(.cancel)
+
+    } else if !event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
+
+      progressHandler?(.input(event))
+      close()
+
+    } else {
+
+      progressHandler?(.input(event))
+
+    }
+  }
+
+  // MARK: Set completions
+
   func set(completions: Completions,
            anchoredAt screenRect: CGRect? = nil,
            handler: @escaping (CompletionProgress) -> Void)
   {
     var completions = completions
-
     completions.items.sort()
 
     self.completions     = completions
     self.progressHandler = handler
 
     if let screenRect {
-      // FIXME: the panel needs to be above or below the rectangle depending on its position and size
-      // FIXME: the panel needs to be aligned at the completion labels and not at its leading edge
       setFrameTopLeftPoint(CGPoint(x: screenRect.minX, y: screenRect.minY))
     }
 
-    // The initial selection is the first item marked as selected, if any, or otherwise, the first item in the list.
-    selection.selection = if let selected = (completions.items.first{ $0.selected }) { selected.id }
-                          else { completions.items.first?.id }
+    selectedItemID = if let selected = (completions.items.first{ $0.selected }) { selected.id }
+                     else { completions.items.first?.id }
 
-    // Update the view and show the window if and only if there are completion items to show.
-    if completions.items.isEmpty { close() }
-    else {
+    if completions.items.isEmpty {
+      close()
+    } else {
+      tableView.reloadData()
 
-      hostingView.rootView = CompletionView(completions: self.completions, selection: selection)
-      if !isVisible {
-
-        makeKeyAndOrderFront(nil)
-        makeFirstResponder(contentView)
-
+      if let selectedID = selectedItemID,
+         let index = completions.items.firstIndex(where: { $0.id == selectedID })
+      {
+        tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        tableView.scrollRowToVisible(index)
       }
 
-      // Refine all refinable items.
+      if !isVisible {
+        makeKeyAndOrderFront(nil)
+      }
+
+      updateDocumentation()
+
       Task { @MainActor in
-        for item in self.completions.items.enumerated() {
-          if let refinedItem = try? await item.element.refine() {
-            self.completions.items[item.offset] = refinedItem
-            // This doesn't trigger an update (maybe, because only `AnyView` subviews change?)...
-//            hostingView.rootView = CompletionView(completions: completions, selection: selection)
+        for (offset, item) in self.completions.items.enumerated() {
+          if let refinedItem = try? await item.refine() {
+            self.completions.items[offset] = refinedItem
           }
         }
-        // ...hence, we update the whole thing.
-        contentView = HostedCompletionView(rootView: CompletionView(completions: self.completions,
-                                                                    selection: selection))
+        tableView.reloadData()
       }
     }
+  }
+
+  // MARK: NSTableViewDataSource
+
+  func numberOfRows(in tableView: NSTableView) -> Int {
+    completions.items.count
+  }
+
+  // MARK: NSTableViewDelegate
+
+  func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    guard row < completions.items.count else { return nil }
+
+    let cell = tableView.makeView(withIdentifier: CompletionCellView.identifier, owner: self)
+                as? CompletionCellView
+               ?? CompletionCellView()
+    cell.identifier = CompletionCellView.identifier
+
+    let item = completions.items[row]
+    let isSelected = item.id == selectedItemID
+    cell.configure(with: item, isSelected: isSelected)
+    return cell
+  }
+
+  func tableViewSelectionDidChange(_ notification: Notification) {
+    let row = tableView.selectedRow
+    if row >= 0 && row < completions.items.count {
+      selectedItemID = completions.items[row].id
+    }
+    updateDocumentation()
+  }
+
+  private func updateDocumentation() {
+    docHostingView?.removeFromSuperview()
+    docHostingView = nil
+
+    guard let selectedID = selectedItemID,
+          let item = completions.items.first(where: { $0.id == selectedID })
+    else { return }
+
+    let docView = AnyView(
+      HStack {
+        AnyView(item.documentationView)
+        Spacer()
+      }
+      .padding()
+    )
+    let hosting = NSHostingView(rootView: docView)
+    hosting.translatesAutoresizingMaskIntoConstraints = false
+    docScrollView.documentView = hosting
+    docHostingView = hosting
   }
 }
 
 
-#Preview {
-  @Previewable @StateObject var selection = CompletionPanel.ObservableSelection()
-  let completions = Completions(isIncomplete: false,
-                                items: [
-                                  Completions.Completion(id: 1,
-                                                         rowView: { _ in Text("foo") },
-                                                         documentationView: Text("Best function!"),
-                                                         selected: false,
-                                                         sortText: "foo",
-                                                         filterText: "foo",
-                                                         insertText: "foo",
-                                                         insertRange: NSRange(location: 0, length: 1),
-                                                         commitCharacters: [],
-                                                         refine: { nil }),
-                                  Completions.Completion(id: 2,
-                                                         rowView: { _ in Text("fop") },
-                                                         documentationView: Text("Second best function!"),
-                                                         selected: false,
-                                                         sortText: "fop",
-                                                         filterText: "fop",
-                                                         insertText: "fop",
-                                                         insertRange: NSRange(location: 0, length: 1),
-                                                         commitCharacters: [],
-                                                         refine: { nil }),
-                                  Completions.Completion(id: 3,
-                                                         rowView: { _ in Text("fabc") },
-                                                         documentationView: Text("My best function!"),
-                                                         selected: false,
-                                                         sortText: "fabc",
-                                                         filterText: "fabc",
-                                                         insertText: "fabc",
-                                                         insertRange: NSRange(location: 0, length: 1),
-                                                         commitCharacters: [],
-                                                         refine: { nil }),
-                                ])
-  CompletionPanel.CompletionView(completions: completions, selection: selection)
-}
+// MARK: -
+// MARK: CodeView completion extensions
 
 extension CodeView {
 
-  /// Sets a new list of completions and positions the completions panel such that it aligned with the given character
-  /// range.
-  ///
-  /// - Parameters:
-  ///   - completions: The new list of completions to be displayed.
-  ///   - range: The characters range at whose leading edge the completion panel is to be aligned.
-  ///
   @MainActor
   func show(completions: Completions, for range: NSRange) {
 
-    completionPanel.set(completions: completions, 
-                        anchoredAt: firstRect(forCharacterRange: range, actualRange: nil)) { 
+    completionPanel.set(completions: completions,
+                        anchoredAt: firstRect(forCharacterRange: range, actualRange: nil)) {
       [weak self] completionProgress in
 
       switch completionProgress {
@@ -413,7 +399,6 @@ extension CodeView {
         self?.completionPanel.close()
 
       case .completion(let insertText, let insertRange):
-        // FIXME: Using `range` when there is no `insertRange` is dangerous. It requires `rangeForUserCompletion` to match what the LSP service regards as the word prefix. Better would be to scan the code storage for the prefix of `insertText`.
         self?.insertText(insertText, replacementRange: insertRange ?? range)
         self?.completionPanel.progressHandler = nil
         self?.completionPanel.close()
@@ -424,76 +409,43 @@ extension CodeView {
     }
   }
 
-  /// Actually do query the language service for code completions and display them.
-  ///
-  /// - Parameter location: The character location for which code completions are requested.
-  ///
   func computeAndShowCompletions(at location: Int) async throws {
     guard let languageService = optLanguageService else { return }
 
     do {
-
       let reason: CompletionTriggerReason = if completionPanel.isKeyWindow { .incomplete } else { .standard },
           completions                     = try await languageService.completions(at: location, reason: reason)
-      try Task.checkCancellation()   // may have been cancelled in the meantime due to further user action
+      try Task.checkCancellation()
       show(completions: completions, for: rangeForUserCompletion)
-
     } catch let error { logger.trace("Completion action failed: \(error.localizedDescription)") }
   }
-  
-  /// Excplicitly user initiated completion action by a command or trigger character.
-  ///
-  func completionAction() {
 
-    // Stop any already running completion task
+  func completionAction() {
     completionTask?.cancel()
 
-    // If we already show the completion panel close it — we want the shortcut to toggle visbility. Otherwise,
-    // initiate a completion task.
     if completionPanel.isKeyWindow {
-
       completionPanel.close()
-
     } else {
-
       completionTask = Task {
         try await computeAndShowCompletions(at: selectedRange().location)
       }
-
     }
   }
 
-  /// This function needs to be invoked whenever the completion range changes; i.e., once a text change has been made.
-  ///
-  /// - Parameter range: The current completion range (range of partial word in front of the insertion point) as
-  ///     reported by the text view.
-  ///
   func considerCompletionFor(range: NSRange) {
     guard let codeStorageDelegate = optCodeStorage?.delegate as? CodeStorageDelegate else { return }
 
-
-    // Stop any already running completion task
     completionTask?.cancel()
 
     if range.length > 0 && codeStorageDelegate.processingOneCharacterAddition {
 
       completionTask = Task {
-
-        // Delay completion a bit at the start of a word (the user may still be typing) unless the completion window
-        // is already open.
-        // NB: throws if task gets cancelled in the meantime.
-        if range.length < 3 && !completionPanel.isKeyWindow { try await Task.sleep(until: .now + .seconds(0.2)) }
-
-        // Trigger completion
+        if range.length < 3 && !completionPanel.isKeyWindow { try await Task.sleep(for: .seconds(0.2)) }
         try await computeAndShowCompletions(at: range.max)
       }
 
     } else if range.length == 0 && completionPanel.isKeyWindow {
-
-      // If the incomplete word get deleted, while the panel is open, close it
       completionPanel.close()
-
     }
   }
-
 }

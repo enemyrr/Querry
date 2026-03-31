@@ -238,7 +238,9 @@ final class DocumentViewController: NSViewController {
     }
 
     private func showRightSidebar(initialWidth: CGFloat? = nil) {
-        guard rightSidebarHostingView == nil else { return }
+        guard rightSidebarHostingView == nil,
+              let contentContainer,
+              let tabViewContainer else { return }
 
         let sidebarView = injectEnvironments(RowDetailSidebar())
         let hostingView = NSHostingView(rootView: AnyView(sidebarView))
@@ -570,8 +572,17 @@ private final class EmptyDocumentStateView: NSView {
         let preferredWidth = contentView.widthAnchor.constraint(equalToConstant: 500)
         preferredWidth.priority = .defaultHigh
 
+        let proportionalTop = NSLayoutConstraint(
+            item: contentView, attribute: .top,
+            relatedBy: .equal,
+            toItem: self, attribute: .bottom,
+            multiplier: 0.15, constant: 0
+        )
+        proportionalTop.priority = .defaultLow
+
         NSLayoutConstraint.activate([
-            contentView.topAnchor.constraint(equalTo: topAnchor, constant: 180),
+            contentView.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 10),
+            proportionalTop,
             contentView.centerXAnchor.constraint(equalTo: centerXAnchor),
             preferredWidth,
             contentView.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, constant: -40),

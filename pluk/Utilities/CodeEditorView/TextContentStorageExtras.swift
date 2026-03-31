@@ -5,7 +5,7 @@
 //  Created by Fauzaan on 02/10/2023.
 //
 
-import SwiftUI
+import AppKit
 
 
 extension NSTextContentStorage {

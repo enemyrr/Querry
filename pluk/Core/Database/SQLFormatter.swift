@@ -18,26 +18,12 @@ class SQLFormatter {
     }
     
     private func setupJavaScriptEnvironment() {
-        // Load the sql-formatter JavaScript library
         guard let jsPath = Bundle.main.path(forResource: "sql-formatter.min", ofType: "js"),
               let jsContent = try? String(contentsOfFile: jsPath, encoding: .utf8) else {
-            print("Error: Could not load sql-formatter.min.js")
             return
         }
-        
-        // Evaluate the JavaScript library
+
         jsContext.evaluateScript(jsContent)
-        
-        // Add console.log for debugging (optional)
-        let consoleFn: @convention(block) (String) -> Void = { message in
-            print("JS: \(message)")
-        }
-        jsContext.setObject(consoleFn, forKeyedSubscript: "consoleFn" as NSString)
-        jsContext.evaluateScript("console = { log: consoleFn }")
-        
-        // Verify sql-formatter is loaded
-        let isLoaded = jsContext.evaluateScript("typeof sqlFormatter !== 'undefined'")
-        print("SQL Formatter loaded: \(isLoaded?.toBool() ?? false)")
     }
     
     static func format(_ sql: String, dialect: SQLDialect = .sqlite, options: SQLFormatOptions = SQLFormatOptions()) -> String {
@@ -45,13 +31,8 @@ class SQLFormatter {
     }
     
     private func formatSQL(_ sql: String, dialect: SQLDialect, options: SQLFormatOptions) -> String {
-        // Escape the SQL string for JavaScript
-        let escapedSQL = sql.replacingOccurrences(of: "\\", with: "\\\\")
-                           .replacingOccurrences(of: "\"", with: "\\\"")
-                           .replacingOccurrences(of: "\n", with: "\\n")
-                           .replacingOccurrences(of: "\r", with: "\\r")
-        
-        // Build the options object
+        jsContext.setObject(sql, forKeyedSubscript: "__inputSQL" as NSString)
+
         let jsOptions = """
         {
             language: '\(dialect.rawValue)',
@@ -63,25 +44,24 @@ class SQLFormatter {
             linesBetweenQueries: \(options.linesBetweenQueries)
         }
         """
-        
-        // Format the SQL using sql-formatter
+
         let jsCode = """
         (function() {
             try {
-                return sqlFormatter.format("\(escapedSQL)", \(jsOptions));
+                return sqlFormatter.format(__inputSQL, \(jsOptions));
             } catch (error) {
-                console.log('Formatting error: ' + error.message);
-                return "\(escapedSQL)";
+                return null;
             }
         })()
         """
-        
+
         guard let result = jsContext.evaluateScript(jsCode),
+              !result.isNull,
+              !result.isUndefined,
               let formattedSQL = result.toString() else {
-            print("Error: Failed to format SQL")
             return sql
         }
-        
+
         return formattedSQL
     }
 }

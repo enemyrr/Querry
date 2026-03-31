@@ -185,7 +185,7 @@ struct CachedCollectionWrapper: CollectionWrapper {
 
         // Restore cached table names instantly so sidebar appears immediately
         if collections[databaseName] == nil || collections[databaseName]?.isEmpty == true {
-            let cached = loadCachedCollectionNames(databaseName: databaseName)
+            let cached = loadCachedCollectionNames(databaseName: databaseName, schema: schema)
             if !cached.isEmpty {
                 let placeholders = cached.map { makePlaceholderCollection(name: $0, schema: schema) }
                 collections[databaseName] = placeholders
@@ -196,7 +196,7 @@ struct CachedCollectionWrapper: CollectionWrapper {
         do {
             let freshCollections = try await databaseService.listCollections(schema: schema)
             collections[databaseName] = freshCollections
-            saveCachedCollectionNames(freshCollections.map(\.name), databaseName: databaseName)
+            saveCachedCollectionNames(freshCollections.map(\.name), databaseName: databaseName, schema: schema)
         } catch {
             if collections[databaseName]?.isEmpty != false {
                 collections[databaseName] = []
@@ -209,14 +209,16 @@ struct CachedCollectionWrapper: CollectionWrapper {
         "cachedCollections_\(connection.keychainId)"
     }
 
-    private func loadCachedCollectionNames(databaseName: String) -> [String] {
-        let key = "\(collectionCacheKey)_\(databaseName)"
-        return UserDefaults.standard.stringArray(forKey: key) ?? []
+    private func collectionCacheKeyFor(databaseName: String, schema: String?) -> String {
+        "\(collectionCacheKey)_\(databaseName)_\(schema ?? "_default")"
     }
 
-    private func saveCachedCollectionNames(_ names: [String], databaseName: String) {
-        let key = "\(collectionCacheKey)_\(databaseName)"
-        UserDefaults.standard.set(names, forKey: key)
+    private func loadCachedCollectionNames(databaseName: String, schema: String?) -> [String] {
+        UserDefaults.standard.stringArray(forKey: collectionCacheKeyFor(databaseName: databaseName, schema: schema)) ?? []
+    }
+
+    private func saveCachedCollectionNames(_ names: [String], databaseName: String, schema: String?) {
+        UserDefaults.standard.set(names, forKey: collectionCacheKeyFor(databaseName: databaseName, schema: schema))
     }
 
     private func makePlaceholderCollection(name: String, schema: String?) -> any CollectionWrapper {
