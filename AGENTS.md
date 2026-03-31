@@ -46,6 +46,7 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 
 - When debugging live app data, the active SwiftData store for Pluk runs from the app container at `~/Library/Containers/doc.pluk/Data/Library/Application Support/default.store`. The similarly named `~/Library/Application Support/default.store` may belong to a different app and can send you down the wrong path.
 - The schema-load error text `No active connection` / `Failed to fetch schemas: No active connection` currently maps to the PostgreSQL driver path (`PostgreSQLDriver.requireClient()`), not the Convex driver. Convex auth or connection failures use Convex-specific messages such as `Not connected to Convex or no mobile client available` or Convex API auth errors.
+- Git tracks source files under lowercase `pluk/...` paths even though `Pluk/...` also resolves on disk on macOS. Use lowercase paths in git commands and patches to avoid confusing `git diff` / `git show` results.
 
 ## GitHub Workflow
 
