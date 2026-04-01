@@ -154,6 +154,17 @@ struct HomeView: View {
     }
 
     private func createAndOpenNotebook() {
+        if let recent = notebooks.first, recent.title == "Untitled Notebook", recent.descriptionText.isEmpty {
+            let id = recent.id
+            let blockDescriptor = FetchDescriptor<NotebookBlock>(
+                predicate: #Predicate { $0.notebookId == id }
+            )
+            let blockCount = (try? modelContext.fetchCount(blockDescriptor)) ?? 0
+            if blockCount == 0 {
+                handleNotebookOpen(recent)
+                return
+            }
+        }
         let notebook = Notebook()
         modelContext.insert(notebook)
         handleNotebookOpen(notebook)
