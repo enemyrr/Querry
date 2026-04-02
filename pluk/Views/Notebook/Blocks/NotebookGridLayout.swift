@@ -10,7 +10,7 @@ final class NotebookGridLayout: NSCollectionViewLayout {
 
     weak var dataController: NotebookDataController?
 
-    var sectionInsets = NSEdgeInsets(top: 8, left: 20, bottom: 32, right: 20)
+    var sectionInsets = NSEdgeInsets(top: 16, left: 20, bottom: 32, right: 20)
     var lineSpacing: CGFloat = 16
 
     var insertRowGapBeforeIndex: Int?

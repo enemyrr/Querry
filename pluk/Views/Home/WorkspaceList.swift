@@ -112,13 +112,19 @@ struct WorkspaceList: View {
     }
 
     private var listHeader: some View {
-        HStack(alignment: .center, spacing: 4) {
+        HStack(alignment: .center, spacing: 6) {
             Spacer()
 
             createButtons
-            sortMenu
-            searchControl
+
+            HStack(spacing: 0) {
+                sortMenu
+                searchControl
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .toolbarIsland()
         }
+        .fixedSize(horizontal: false, vertical: true)
         .overlay {
             keyboardSearchShortcut
         }
@@ -146,13 +152,12 @@ struct WorkspaceList: View {
     private var searchControl: some View {
         HStack(spacing: isSearchVisible ? 6 : 0) {
             if isSearchVisible {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 28)
+                toolbarActionIcon("magnifyingglass")
+                    .frame(width: 20)
                     .padding(.leading, -4)
                 
                 TextField("Search workspace", text: $searchText)
+                    .font(.system(size: 12))
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
                     .onExitCommand(perform: handleSearchExitCommand)
@@ -174,10 +179,10 @@ struct WorkspaceList: View {
             }
         }
         .padding(.leading, isSearchVisible ? 8 : 0)
+        .padding(.vertical, isSearchVisible ? ToolbarIslandMetrics.controlVerticalPadding : 0)
         .background(isSearchVisible ? searchControlFillColor : .clear)
-        .clipShape(.rect(cornerRadius: 8))
+        .clipShape(.rect(cornerRadius: ToolbarIslandMetrics.innerCornerRadius))
         .frame(width: isSearchVisible ? 220 : 28, alignment: .trailing)
-        .frame(height: 28)
         .animation(searchToggleAnimation, value: isSearchVisible)
         .onChange(of: isSearchVisible) { _, visible in
             if visible {
@@ -190,11 +195,9 @@ struct WorkspaceList: View {
 
     private var searchToggleButton: some View {
         Button(action: showSearch) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+            toolbarActionIcon("magnifyingglass")
         }
-        .buttonStyle(ActionButtonStyle())
+        .buttonStyle(homeToolbarActionButtonStyle)
     }
 
     private var searchControlFillColor: Color {
@@ -204,14 +207,17 @@ struct WorkspaceList: View {
     private var createButtons: some View {
         HStack(spacing: 6) {
             Button(action: onCreateNotebook) {
-                Label("Notebook", systemImage: "plus")
+                Label("Notebook", systemImage: "plus").padding(.trailing, 4)
             }
+            .buttonStyle(WorkspaceCreateButtonStyle(cornerRadius: ToolbarIslandMetrics.innerCornerRadius))
+            .toolbarIsland()
 
             Button(action: onCreateConnection) {
-                Label("Connection", systemImage: "plus")
+                Label("Connection", systemImage: "plus").padding(.trailing, 4)
             }
+            .buttonStyle(WorkspaceCreateButtonStyle(cornerRadius: ToolbarIslandMetrics.innerCornerRadius))
+            .toolbarIsland()
         }
-        .buttonStyle(WorkspaceCreateButtonStyle())
     }
 
     private var sortMenu: some View {
@@ -232,12 +238,29 @@ struct WorkspaceList: View {
                 }
             }
         } label: {
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+            toolbarActionIcon("arrow.up.arrow.down")
         }
-        .buttonStyle(ActionButtonStyle())
+        .buttonStyle(homeToolbarActionButtonStyle)
         .menuIndicator(.hidden)
+    }
+
+    private func toolbarActionIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .frame(width: 14, height: 14)
+    }
+
+    private var homeToolbarActionButtonStyle: ActionButtonStyle {
+        ActionButtonStyle(
+            padding: EdgeInsets(
+                top: ToolbarIslandMetrics.controlVerticalPadding,
+                leading: ToolbarIslandMetrics.controlHorizontalPadding,
+                bottom: ToolbarIslandMetrics.controlVerticalPadding,
+                trailing: ToolbarIslandMetrics.controlHorizontalPadding
+            ),
+            cornerRadius: ToolbarIslandMetrics.innerCornerRadius
+        )
     }
 
     private var noResultsState: some View {
@@ -418,27 +441,36 @@ private func relativeTimeText(for date: Date) -> String {
         : date.formatted(.relative(presentation: .named))
 }
 
-struct WorkspaceNotebookRow: View {
-    let notebook: Notebook
-    let onOpen: (Notebook) -> Void
-    let onDelete: (Notebook) -> Void
+private struct WorkspaceRow<Icon: View, ContextMenu: View>: View {
+    let icon: Icon
+    let title: String
+    let subtitle: String?
+    let statusTag: AnyView?
+    let kind: String
+    let lastOpenedAt: Date
+    let createdAt: Date
+    let onDoubleClick: () -> Void
+    @ViewBuilder let contextMenu: ContextMenu
+
     @State private var isHovering = false
 
     var body: some View {
         HStack {
             HStack(spacing: 12) {
-                NotebookIcon()
+                icon
 
                 VStack(alignment: .leading) {
                     HStack(spacing: 6) {
-                        Text(notebook.title)
+                        Text(title)
                             .foregroundStyle(.primary)
 
-                        NotebookStatusTag(status: notebook.status)
+                        if let statusTag {
+                            statusTag
+                        }
                     }
 
-                    if !notebook.descriptionText.isEmpty {
-                        Text(notebook.descriptionText)
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -448,15 +480,15 @@ struct WorkspaceNotebookRow: View {
 
             Spacer()
 
-            Text("Notebook")
+            Text(kind)
                 .foregroundStyle(.secondary)
                 .frame(width: 100, alignment: .leading)
 
-            Text(relativeTimeText(for: notebook.updatedAt))
+            Text(relativeTimeText(for: lastOpenedAt))
                 .foregroundStyle(.secondary)
                 .frame(width: 120, alignment: .leading)
 
-            Text(notebook.createdAt.formatted(date: .abbreviated, time: .omitted))
+            Text(createdAt.formatted(date: .abbreviated, time: .omitted))
                 .foregroundStyle(.secondary)
                 .frame(width: 120, alignment: .leading)
         }
@@ -469,17 +501,34 @@ struct WorkspaceNotebookRow: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(isHovering ? Color(.separatorColor).opacity(0.35) : .clear)
         )
         .padding(.horizontal, -10)
         .simultaneousGesture(
             TapGesture(count: 2)
-                .onEnded {
-                    onOpen(notebook)
-                }
+                .onEnded { onDoubleClick() }
         )
-        .contextMenu {
+        .contextMenu { contextMenu }
+    }
+}
+
+struct WorkspaceNotebookRow: View {
+    let notebook: Notebook
+    let onOpen: (Notebook) -> Void
+    let onDelete: (Notebook) -> Void
+
+    var body: some View {
+        WorkspaceRow(
+            icon: NotebookIcon(),
+            title: notebook.title,
+            subtitle: notebook.descriptionText.isEmpty ? nil : notebook.descriptionText,
+            statusTag: AnyView(NotebookStatusTag(status: notebook.status)),
+            kind: "Notebook",
+            lastOpenedAt: notebook.updatedAt,
+            createdAt: notebook.createdAt,
+            onDoubleClick: { onOpen(notebook) }
+        ) {
             Button {
                 onOpen(notebook)
             } label: {
@@ -502,82 +551,27 @@ struct WorkspaceConnectionRow: View {
     let onOpen: (Connection) -> Void
 
     @Environment(\.modelContext) private var modelContext
-    @State private var isHovering = false
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
 
+    private var subtitle: String? {
+        if connection.databaseType == .convex, let hostname = connection.hostname {
+            return "ID: \(hostname)"
+        }
+        return connection.displayUrl
+    }
+
     var body: some View {
-        HStack {
-            HStack(spacing: 12) {
-                DatabaseTypeIcon(databaseType: connection.databaseType)
-
-                VStack(alignment: .leading) {
-                    HStack(spacing: 6) {
-                        Text(connection.name)
-                            .foregroundStyle(.primary)
-
-                        if let env = connection.environment {
-                            EnvironmentTag(environment: env)
-                        }
-                    }
-
-                    if connection.databaseType == .convex, let hostname = connection.hostname {
-                        Text("ID: \(hostname)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else if let displayUrl = connection.displayUrl {
-                        Text(displayUrl)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            Spacer()
-
-            Text("Connection")
-                .foregroundStyle(.secondary)
-                .frame(width: 100, alignment: .leading)
-
-            Text(relativeTimeText(for: connection.lastOpenedAt))
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
-
-            Text(connection.createdAt.formatted(date: .abbreviated, time: .omitted))
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .contentShape(.rect)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovering = hovering
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isHovering ? Color(.separatorColor).opacity(0.35) : .clear)
-        )
-        .padding(.horizontal, -10)
-        .simultaneousGesture(
-            TapGesture(count: 2)
-                .onEnded {
-                    onOpen(connection)
-                }
-        )
-        .sheet(isPresented: $showEditSheet) {
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-
-                CreateConnectionForm(connection: connection)
-                    .frame(width: 500)
-            }
-        }
-        .contextMenu {
+        WorkspaceRow(
+            icon: DatabaseTypeIcon(databaseType: connection.databaseType),
+            title: connection.name,
+            subtitle: subtitle,
+            statusTag: connection.environment.map { AnyView(EnvironmentTag(environment: $0)) },
+            kind: "Connection",
+            lastOpenedAt: connection.lastOpenedAt,
+            createdAt: connection.createdAt,
+            onDoubleClick: { onOpen(connection) }
+        ) {
             Button {
                 onOpen(connection)
             } label: {
@@ -607,6 +601,15 @@ struct WorkspaceConnectionRow: View {
                 showDeleteConfirmation = true
             } label: {
                 Label("Delete", systemImage: "trash")
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+
+                CreateConnectionForm(connection: connection)
+                    .frame(width: 500)
             }
         }
         .confirmationDialog(

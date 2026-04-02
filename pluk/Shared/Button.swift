@@ -7,6 +7,15 @@
 
 import SwiftUI
 
+enum ToolbarIslandMetrics {
+    static let controlHorizontalPadding: CGFloat = 7
+    static let controlVerticalPadding: CGFloat = 5
+    static let islandHorizontalPadding: CGFloat = 3
+    static let islandVerticalPadding: CGFloat = 3
+    static let cornerRadius: CGFloat = 10
+    static let innerCornerRadius: CGFloat = 7
+}
+
 struct SidebarButtonStyle: ButtonStyle {
     @State private var isHovering = false
     let isActive: Bool
@@ -39,6 +48,7 @@ struct ActionButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
+    var cornerRadius: CGFloat = 6
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
     
@@ -50,14 +60,14 @@ struct ActionButtonStyle: ButtonStyle {
         .background(
             Group {
                 if #available(macOS 26, *) {
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(
                             (isHovering || isActive)
                             ? Color(.separatorColor)
                             : Color.clear
                         )
                 } else {
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(
                             (isHovering || isActive)
                             ? (colorScheme == .dark
@@ -80,36 +90,73 @@ struct ActionButtonStyle: ButtonStyle {
 struct WorkspaceCreateButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
+    var cornerRadius: CGFloat = 6
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
-            .padding(.vertical, 5)
-            .padding(.leading, 8)
-            .padding(.trailing, 10)
+            .padding(.horizontal, ToolbarIslandMetrics.controlHorizontalPadding)
+            .padding(.vertical, ToolbarIslandMetrics.controlVerticalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(fillColor)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(
+                        isHovering
+                            ? (colorScheme == .dark
+                               ? Color.black.opacity(0.3)
+                               : Color(.separatorColor).opacity(0.4))
+                            : Color.clear
+                    )
             )
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 1.0 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
             .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.12)) {
-                    isHovering = hovering
-                }
+                isHovering = hovering
             }
     }
+}
 
-    private var fillColor: Color {
-        if isHovering {
-            return colorScheme == .dark
-                ? Color.white.opacity(0.12)
-                : Color.black.opacity(0.08)
+// MARK: - Toolbar Island
+
+/// Shared container that groups toolbar buttons into an "island" with a subtle border.
+struct ToolbarIslandModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, ToolbarIslandMetrics.islandHorizontalPadding)
+            .padding(.vertical, ToolbarIslandMetrics.islandVerticalPadding)
+            .background(
+                RoundedRectangle(cornerRadius: ToolbarIslandMetrics.cornerRadius, style: .continuous)
+                    .fill(toolbarIslandFillColor)
+                    .shadow(color: .black.opacity(0.10), radius: 1, y: 0.5)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ToolbarIslandMetrics.cornerRadius, style: .continuous)
+                    .stroke(toolbarIslandBorderColor, lineWidth: 0.5)
+            )
+    }
+
+    private var toolbarIslandFillColor: Color {
+        let isDark = colorScheme == .dark
+        if #available(macOS 26, *) {
+            return isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
+        } else {
+            return isDark ? Color.white.opacity(0.04) : Color.white
         }
-        return colorScheme == .dark
+    }
+
+    private var toolbarIslandBorderColor: Color {
+        colorScheme == .dark
             ? Color.white.opacity(0.06)
-            : Color.black.opacity(0.04)
+            : Color.black.opacity(0.08)
+    }
+}
+
+extension View {
+    func toolbarIsland() -> some View {
+        modifier(ToolbarIslandModifier())
     }
 }
 

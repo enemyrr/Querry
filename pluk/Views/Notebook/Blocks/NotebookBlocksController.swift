@@ -2,6 +2,11 @@ import AppKit
 
 private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
+    var onLayout: (() -> Void)?
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
 }
 
 final class NotebookBlocksController: NSViewController {
@@ -122,6 +127,9 @@ final class NotebookBlocksController: NSViewController {
 
         let documentView = FlippedView()
         documentView.translatesAutoresizingMaskIntoConstraints = false
+        documentView.onLayout = { [weak self] in
+            self?.updateInsertionIndicators()
+        }
 
         if let headerView {
             headerView.translatesAutoresizingMaskIntoConstraints = false
@@ -253,7 +261,7 @@ final class NotebookBlocksController: NSViewController {
                 gapBottom = rows[i].frame.minY + collectionOriginY
             }
 
-            let height = max(20, gapBottom - gapTop)
+            let height = gapBottom - gapTop
             let fullWidth = collectionView.bounds.width
             indicator.frame = NSRect(x: 0, y: gapTop, width: fullWidth, height: height)
 

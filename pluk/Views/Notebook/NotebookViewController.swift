@@ -34,7 +34,6 @@ final class NotebookViewController: NSViewController {
         super.viewDidAppear()
         dataController.refreshConnections()
         installWindowActivationObserver()
-        showBetaNoticeIfNeeded()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self,
                   self.view.window == event.window else { return event }
@@ -59,21 +58,6 @@ final class NotebookViewController: NSViewController {
 
     deinit {
         removeWindowActivationObserver()
-    }
-
-    private func showBetaNoticeIfNeeded() {
-        let key = "hasAcknowledgedNotebookBeta"
-        guard !UserDefaults.standard.bool(forKey: key),
-              let window = view.window else { return }
-
-        let alert = NSAlert()
-        alert.messageText = "Notebooks is in Beta"
-        alert.informativeText = "This feature is still under active development. Some things may not work as expected.\n\nHelp us improve by sharing your feedback!"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Got it")
-        alert.beginSheetModal(for: window) { _ in
-            UserDefaults.standard.set(true, forKey: key)
-        }
     }
 
     private func setupContent() {
