@@ -63,6 +63,12 @@ import SwiftUI
     
     // MARK: - Connection Management
     func setActiveConnection(_ connection: Connection, targetDatabase: String? = nil) async throws {
+        let targetDatabaseName = targetDatabase ?? self.connectedDatabase?.name
+
+        if activeDriver != nil || activeConnection != nil || connectedDatabase != nil {
+            await disconnect()
+        }
+
         self.activeConnection = connection
         
         // Create appropriate driver
@@ -71,10 +77,7 @@ import SwiftUI
         guard let driver = activeDriver else {
             throw DatabaseError.operationFailed("Failed to create database driver")
         }
-        
-        // Determine target database: use provided parameter, or existing connectedDatabase name, or none
-        let targetDatabaseName = targetDatabase ?? self.connectedDatabase?.name
-        
+
         // For Convex, append target database to URI if specified
         var connectionUri = connection.connectionUri
         if connection.databaseType == .convex, let targetName = targetDatabaseName {
@@ -137,6 +140,7 @@ import SwiftUI
         activeConnection = nil
         activeDriver = nil
         connectedDatabase = nil
+        currentSchema = nil
         clearCache()
     }
     

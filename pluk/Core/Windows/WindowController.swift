@@ -77,7 +77,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     }
 
     static func switchToTab(_ tabType: TabType) {
-        for window in NSApp.windows where window.isVisible {
+        for window in NSApp.windows {
             guard let windowController = getController(for: window) else { continue }
 
             let matches = switch (windowController.tabType, tabType) {
@@ -100,7 +100,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         switch tabType {
         case .home:
             NSApp.windows
-                .first(where: { $0.isVisible && !($0.windowController is WindowController) })?
+                .first(where: { !($0.windowController is WindowController) })?
                 .makeKeyAndOrderFront(nil)
         case .connection(let instanceId):
             if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
@@ -113,7 +113,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     
     @MainActor
     static func closeNotebookWindow(id: UUID) {
-        for window in NSApp.windows where window.isVisible {
+        for window in NSApp.windows {
             guard let controller = getController(for: window),
                   case .notebook(let windowNotebookId) = controller.tabType,
                   windowNotebookId == id else { continue }
@@ -125,7 +125,8 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     // MARK: - Instance Properties
 
     let tabType: TabType
-    let connectionInstance: ConnectionInstance?
+    private weak var connectionInstance: ConnectionInstance?
+    var shouldTeardownConnectionOnClose = true
     private var environmentToolbarItem: NSToolbarItem?
     private var isRefreshingDeployments = false
 
@@ -585,12 +586,20 @@ extension WindowController: NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let window else { return }
+        let closingConnectionInstance = connectionInstance
 
         if case .connection = tabType,
            let tabManager = WindowController.getTabManager(for: window) {
             let tabsToClose = tabManager.tabs.filter { $0.type != .home }
             for tab in tabsToClose {
                 tabManager.closeTab(tab.id)
+            }
+        }
+
+        if case .connection(let instanceId) = tabType,
+           shouldTeardownConnectionOnClose {
+            Task { @MainActor in
+                await ConnectionService.shared.removeConnectionInstance(instanceId, closeWindow: false)
             }
         }
 
@@ -616,12 +625,17 @@ extension WindowController: NSWindowDelegate {
         NotificationCenter.default.removeObserver(self, name: NSWindow.didEnterFullScreenNotification, object: window)
         NotificationCenter.default.removeObserver(self, name: NSWindow.didExitFullScreenNotification, object: window)
 
-        if let instance = connectionInstance {
+        if let instance = closingConnectionInstance {
             NotificationCenter.default.removeObserver(self, name: .databasesUpdated, object: instance)
             NotificationCenter.default.removeObserver(self, name: .connectedDatabaseChanged, object: instance)
         }
 
         activateNextTab(closing: window)
+        window.delegate = nil
+        window.toolbar = nil
+        environmentToolbarItem = nil
+        window.contentViewController = nil
+        self.window = nil
     }
 
     private func activateNextTab(closing window: NSWindow) {

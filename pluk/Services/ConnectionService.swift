@@ -18,18 +18,15 @@ class ConnectionService {
     private(set) var connectionInstances: [ConnectionInstance] = []
     
     // Active connection instance
-    var activeConnectionInstanceId: UUID? {
-        didSet {
-            if activeConnectionInstanceId == nil {
-                activeConnectionInstanceId = connectionInstances.first?.id
-            }
-        }
-    }
+    var activeConnectionInstanceId: UUID?
     
     var activeConnectionInstance: ConnectionInstance? {
-        guard !connectionInstances.isEmpty, let activeId = activeConnectionInstanceId else {
+        guard !connectionInstances.isEmpty else {
             return nil
         }
+
+        let activeId = activeConnectionInstanceId ?? connectionInstances.first?.id
+        guard let activeId else { return nil }
         
         // Find the instance with matching ID
         return connectionInstances.first { $0.id == activeId }
@@ -46,27 +43,35 @@ class ConnectionService {
         return newInstance.id
     }
     
-    func removeConnectionInstance(_ instanceId: UUID) async {
-        // First perform any cleanup needed on the instance
-        if let instanceToDisconnect = getInstance(instanceId) {
-            await disconnectDBInstance(instanceToDisconnect)
-            await closeNativeTab(for: instanceId)
-            
-            // Now remove from the array
-            connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
-            SidebarItemRegistry.shared.removeConnection(instanceId)
+    @MainActor
+    func removeConnectionInstance(_ instanceId: UUID, closeWindow: Bool = true) async {
+        guard let instanceToDisconnect = getInstance(instanceId) else { return }
+        instanceToDisconnect.prepareForDisconnect()
+
+        connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
+        SidebarItemRegistry.shared.removeConnection(instanceId)
+
+        if activeConnectionInstanceId == instanceId || activeConnectionInstanceId == nil {
+            activeConnectionInstanceId = connectionInstances.first?.id
         }
+
+        if closeWindow {
+            await closeNativeTab(for: instanceId)
+        }
+
+        await disconnectDBInstance(instanceToDisconnect)
     }
 
     @MainActor
     private func closeNativeTab(for instanceId: UUID) {
         // Find the native tab window for this connection instance
-        let windows = NSApp.windows.filter { $0.isVisible }
+        let windows = NSApp.windows
 
         for window in windows {
             if let windowController = WindowController.getController(for: window),
                case .connection(let windowInstanceId) = windowController.tabType,
                windowInstanceId == instanceId {
+                windowController.shouldTeardownConnectionOnClose = false
                 // Close the native tab window
                 window.close()
                 break
@@ -75,11 +80,9 @@ class ConnectionService {
     }
     
     @discardableResult
+    @MainActor
     func disconnectDBInstance(_ instance: ConnectionInstance) async -> ConnectionStatus {
-        guard instance.connectionStatus == .connected else { return .error }
-
-        await instance.databaseService.disconnect()
-        instance.connectionStatus = .disconnected
+        await instance.disconnect()
         return instance.connectionStatus
     }
     

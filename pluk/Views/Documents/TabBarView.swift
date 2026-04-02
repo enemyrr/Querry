@@ -575,8 +575,9 @@ final class TabBarView: NSView {
             _ = self.instance.tabs.map(\.name)
             _ = self.instance.tabs.map(\.hasSchemaDeviation)
             _ = self.instance.selectedTab
-        } onChange: {
-            Task { @MainActor in
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.syncTabs()
                 self.observeTabs()
             }
@@ -586,8 +587,9 @@ final class TabBarView: NSView {
     private func observeDatabaseType() {
         withObservationTracking {
             _ = self.instance.databaseType
-        } onChange: {
-            Task { @MainActor in
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.layoutTabs(animated: false)
                 self.updateScrollability()
                 self.observeDatabaseType()
@@ -598,8 +600,9 @@ final class TabBarView: NSView {
     private func observeSidebarToggle() {
         withObservationTracking {
             _ = self.appViewModel.isRightSidebarVisible
-        } onChange: {
-            Task { @MainActor in
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.updateSidebarToggleAppearance()
                 self.observeSidebarToggle()
             }

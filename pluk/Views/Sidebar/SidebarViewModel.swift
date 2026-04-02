@@ -3,8 +3,10 @@ import SwiftUI
 
 @MainActor
 @Observable class SidebarViewModel {
+    @ObservationIgnored
     private let connectionService: ConnectionService
-    private let windowConnectionInstance: ConnectionInstance?
+    @ObservationIgnored
+    private weak var windowConnectionInstance: ConnectionInstance?
 
     enum SidebarNavItem: Hashable {
         case home

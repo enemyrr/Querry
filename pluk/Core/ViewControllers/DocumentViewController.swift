@@ -390,8 +390,9 @@ final class DocumentViewController: NSViewController {
             _ = self.instance.tabs.map(\.name)
             _ = self.instance.tabs.map(\.hasSchemaDeviation)
             _ = self.instance.selectedTab
-        } onChange: {
-            Task { @MainActor in
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.handleTabsChanged()
                 self.observeTabs()
             }
@@ -402,8 +403,9 @@ final class DocumentViewController: NSViewController {
         withObservationTracking {
             _ = self.appViewModel.isRightSidebarVisible
             _ = self.appViewModel.rightSidebarWidth
-        } onChange: {
-            Task { @MainActor in
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 self.updateRightSidebar()
                 self.observeRightSidebar()
             }

@@ -124,6 +124,8 @@ contentArea.addSubview(scrollView)
 - Do NOT embed SwiftUI without `injectEnvironments()` — will crash on missing `@Environment` values
 - Do NOT use `NSViewRepresentable` for `TableCoordinator` in the AppKit path — create directly
 - Do NOT add MongoDB to the `TableContentViewController` path — it uses a different data model
+- Do NOT rely on native connection-window close alone for teardown; closing a `.connection` window must also remove its `ConnectionInstance` from `ConnectionService` so in-flight connect/disconnect work and driver cleanup do not outlive the UI
+- Do NOT filter native-tab window lookups by `window.isVisible`; hidden AppKit tabs still need switch/close/unregister logic, and visible-only lookups can strand `WindowController` teardown
 
 ## Downlinks
 

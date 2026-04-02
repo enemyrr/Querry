@@ -254,7 +254,7 @@ final class NavigationSidebarViewController: NSViewController {
 
         let copyItem = NSMenuItem(title: "Copy Connection String", action: #selector(copyConnectionString(_:)), keyEquivalent: "")
         copyItem.target = self
-        copyItem.representedObject = instance
+        copyItem.representedObject = instance.connection.copyableConnectionUri
         menu.addItem(copyItem)
 
         return menu
@@ -279,10 +279,10 @@ final class NavigationSidebarViewController: NSViewController {
     }
 
     @objc private func copyConnectionString(_ sender: NSMenuItem) {
-        guard let instance = sender.representedObject as? ConnectionInstance else { return }
+        guard let connectionString = sender.representedObject as? String else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(instance.connection.copyableConnectionUri, forType: .string)
+        pasteboard.setString(connectionString, forType: .string)
     }
 
     @objc private func closeNotebook(_ sender: NSMenuItem) {

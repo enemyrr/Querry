@@ -75,6 +75,7 @@ Not persisted. Track live application state.
 - Do NOT create SwiftData model properties without defaults — will crash on migration
 - Do NOT make SwiftData relationships non-optional — will crash
 - Do NOT access `DatabaseTab` transient properties after deserialization — they'll be nil/default
+- When using `NotificationCenter.addObserver(forName:object:queue:using:)` inside runtime-state models like `ConnectionInstance`, store the returned token and remove that token in `deinit`; `removeObserver(self)` does not unregister block-based observers
 
 ## Downlinks
 

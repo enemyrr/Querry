@@ -22,6 +22,9 @@ struct CachedCollectionWrapper: CollectionWrapper {
     let id = UUID()
     let connection: Connection
     private var _databaseDriver: (any DatabaseDriver)?
+    private var connectedDatabaseObserver: NSObjectProtocol?
+    private var connectionAttemptID = UUID()
+    private var isConnectionAttemptActive = false
     var databaseService = DatabaseService()
     var queryHistoryService: QueryHistoryService?
     var recentTablesService: RecentTablesService?
@@ -89,7 +92,7 @@ struct CachedCollectionWrapper: CollectionWrapper {
 
     private func setupNotificationObservation() {
         // Listen for database service changes and repost them with self as object
-        NotificationCenter.default.addObserver(
+        connectedDatabaseObserver = NotificationCenter.default.addObserver(
             forName: .connectedDatabaseChanged,
             object: databaseService,
             queue: .main
@@ -100,29 +103,55 @@ struct CachedCollectionWrapper: CollectionWrapper {
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        if let connectedDatabaseObserver {
+            NotificationCenter.default.removeObserver(connectedDatabaseObserver)
+        }
     }
     
     func connect(targetDatabaseName: String? = nil) async throws {
-        guard connectionStatus != .connected else { return }
+        guard connectionStatus != .connected, !isConnectionAttemptActive else { return }
+
+        let attemptID = UUID()
+        connectionAttemptID = attemptID
+        isConnectionAttemptActive = true
+        defer {
+            if isCurrentConnectionAttempt(attemptID) {
+                isConnectionAttemptActive = false
+            }
+        }
 
         connectionStatus = .connecting
+        connectionVersion = nil
+        lastError = nil
 
         do {
             try await databaseService.setActiveConnection(
                 connection,
                 targetDatabase: targetDatabaseName
             )
+            guard shouldContinueConnectionAttempt(attemptID) else {
+                await finishCancelledConnectionAttemptIfNeeded(attemptID)
+                return
+            }
+
             connectionStatus = .connected
 
             do {
                 let buildInfo = try await databaseService.getBuildInfo()
+                guard shouldContinueConnectionAttempt(attemptID) else {
+                    await finishCancelledConnectionAttemptIfNeeded(attemptID)
+                    return
+                }
                 connectionVersion = buildInfo?.version
             } catch {
                 
             }
 
             await loadDatabases()
+            guard shouldContinueConnectionAttempt(attemptID) else {
+                await finishCancelledConnectionAttemptIfNeeded(attemptID)
+                return
+            }
 
             // Persist fetched deployments back to keychain so they're cached for next connect
             if connection.databaseType == .convex,
@@ -132,7 +161,12 @@ struct CachedCollectionWrapper: CollectionWrapper {
             }
 
             lastError = nil
+        } catch is CancellationError {
+            await finishCancelledConnectionAttemptIfNeeded(attemptID)
         } catch {
+            guard isCurrentConnectionAttempt(attemptID) else { return }
+
+            await databaseService.disconnect()
             lastError = error
             connectionStatus = .error
             let errorType = AnalyticsService.categorizeError(error)
@@ -147,34 +181,87 @@ struct CachedCollectionWrapper: CollectionWrapper {
     }
 
     func reconnect() async throws {
+        guard !isConnectionAttemptActive else { return }
+
+        let attemptID = UUID()
+        connectionAttemptID = attemptID
+        isConnectionAttemptActive = true
+        defer {
+            if isCurrentConnectionAttempt(attemptID) {
+                isConnectionAttemptActive = false
+            }
+        }
+
         connectionStatus = .connecting
+        connectionVersion = nil
+        lastError = nil
 
         do {
             try await databaseService.reconnect()
 
             try await Task.sleep(for: .milliseconds(500))
+            guard shouldContinueConnectionAttempt(attemptID) else {
+                await finishCancelledConnectionAttemptIfNeeded(attemptID)
+                return
+            }
             connectionStatus = .connected
             lastError = nil
+        } catch is CancellationError {
+            await finishCancelledConnectionAttemptIfNeeded(attemptID)
         } catch {
+            guard isCurrentConnectionAttempt(attemptID) else { return }
             lastError = error
             connectionStatus = .error
             throw error
         }
     }
 
+    func prepareForDisconnect() {
+        connectionAttemptID = UUID()
+        isConnectionAttemptActive = false
+        connectionStatus = .disconnected
+        connectionVersion = nil
+        lastError = nil
+    }
+
+    func disconnect() async {
+        prepareForDisconnect()
+        await databaseService.disconnect()
+    }
+
     func loadDatabases() async {
         do {
             let databaseList = try await databaseService.listDatabases()
+            guard connectionStatus != .disconnected, !Task.isCancelled else { return }
             self.databases = databaseList
 
             // Notify that databases have been updated
             await MainActor.run {
                 NotificationCenter.default.post(name: .databasesUpdated, object: self)
             }
+        } catch is CancellationError {
         } catch {
+            guard connectionStatus != .disconnected, !Task.isCancelled else { return }
             lastError = error
             debugLog("Failed to load databases \(error)")
         }
+    }
+
+    private func isCurrentConnectionAttempt(_ attemptID: UUID) -> Bool {
+        connectionAttemptID == attemptID
+    }
+
+    private func shouldContinueConnectionAttempt(_ attemptID: UUID) -> Bool {
+        isCurrentConnectionAttempt(attemptID) && !Task.isCancelled
+    }
+
+    private func finishCancelledConnectionAttemptIfNeeded(_ attemptID: UUID) async {
+        guard isCurrentConnectionAttempt(attemptID) else { return }
+        isConnectionAttemptActive = false
+        await databaseService.disconnect()
+        connectionStatus = .disconnected
+        connectionVersion = nil
+        lastError = nil
     }
     
     func loadCollectionsForCurrentDatabase(schema: String?) async throws {
