@@ -23,7 +23,7 @@ struct NotebookBetaInviteModal: View {
                 onTryNotebook: onTryNotebook
             )
         }
-        .frame(width: 640)
+        .frame(width: 560)
         .task {
             await animateInIfNeeded()
         }
@@ -191,12 +191,13 @@ private struct NotebookBetaInviteDetails: View {
     var body: some View {
         VStack(spacing: 46) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Notebook beta is ready for you")
+                Text("Your new data teammate")
                     .font(.title2)
+                    .fontWeight(.medium)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("The most intelligent AI agent for data analytics — deeply integrated into your workflows. From SQL to charts to entire analyses, no technical requirements needed.")
+                Text("Ask Notebook Agent anything about your data and let it do the heavy lifting. It can write the SQL, surface the insight, and turn raw tables into charts and clear takeaways in minutes.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -204,20 +205,16 @@ private struct NotebookBetaInviteDetails: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .center, spacing: 18) {
-                Label("Send feedback from the sidebar any time", systemImage: "exclamationmark.bubble.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.tertiary)
-
                 Spacer(minLength: 0)
 
                 HStack(spacing: 10) {
-                    Button("Later", action: onDismiss)
+                    Button("Maybe later", action: onDismiss)
                         .secondaryStyle()
-                        .frame(width: 96)
+                        .frame(width: 110)
 
                     Button("Try Notebook", action: onTryNotebook)
                         .primaryStyle()
-                        .frame(width: 150)
+                        .frame(width: 170)
                 }
             }
         }

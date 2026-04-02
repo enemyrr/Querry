@@ -3,6 +3,11 @@ import SwiftData
 import SwiftUI
 
 class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemValidation, NSUserInterfaceValidations {
+    private static let windowFrameAutosaveName: NSWindow.FrameAutosaveName = "PlukMainWindow"
+    private static let legacyWindowFrameDefaultsKey = "PlukWindowFrame"
+    private static let minimumWindowSize = NSSize(width: 800, height: 600)
+    private static let defaultWindowSize = NSSize(width: 1200, height: 800)
+
     override var windowNibName: NSNib.Name? {
         "TerminalTabsTitlebarVentura"
     }
@@ -200,20 +205,51 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     }
 
     private func restoreWindowFrame(_ window: NSWindow) {
-        guard let savedFrameString = UserDefaults.standard.string(forKey: "PlukWindowFrame") else {
-            window.setContentSize(NSSize(width: 1200, height: 800))
-            window.center()
+        let restoredFrame = window.setFrameUsingName(Self.windowFrameAutosaveName)
+        window.setFrameAutosaveName(Self.windowFrameAutosaveName)
+
+        if restoredFrame {
+            let clampedFrame = clampedWindowFrame(window.frame)
+            if clampedFrame != window.frame {
+                window.setFrame(clampedFrame, display: true)
+            }
+            persistWindowFrame(window)
             return
         }
 
+        if let legacyFrame = legacyWindowFrame() {
+            window.setFrame(clampedWindowFrame(legacyFrame), display: true)
+            UserDefaults.standard.removeObject(forKey: Self.legacyWindowFrameDefaultsKey)
+            persistWindowFrame(window)
+            return
+        }
+
+        window.setContentSize(Self.defaultWindowSize)
+        window.center()
+        persistWindowFrame(window)
+    }
+
+    private func legacyWindowFrame() -> NSRect? {
+        guard let savedFrameString = UserDefaults.standard.string(forKey: Self.legacyWindowFrameDefaultsKey) else {
+            return nil
+        }
+
         let frame = NSRectFromString(savedFrameString)
-        let clampedFrame = NSRect(
+        guard frame.width > 0, frame.height > 0 else { return nil }
+        return frame
+    }
+
+    private func clampedWindowFrame(_ frame: NSRect) -> NSRect {
+        NSRect(
             x: frame.origin.x,
             y: frame.origin.y,
-            width: max(frame.width, 800),
-            height: max(frame.height, 600)
+            width: max(frame.width, Self.minimumWindowSize.width),
+            height: max(frame.height, Self.minimumWindowSize.height)
         )
-        window.setFrame(clampedFrame, display: true)
+    }
+
+    private func persistWindowFrame(_ window: NSWindow) {
+        window.saveFrame(usingName: Self.windowFrameAutosaveName)
     }
 
     // MARK: - Toolbar
@@ -567,14 +603,19 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 extension WindowController: NSWindowDelegate {
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
         NSSize(
-            width: max(frameSize.width, 800),
-            height: max(frameSize.height, 600)
+            width: max(frameSize.width, Self.minimumWindowSize.width),
+            height: max(frameSize.height, Self.minimumWindowSize.height)
         )
     }
 
     func windowDidResize(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: "PlukWindowFrame")
+        persistWindowFrame(window)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        persistWindowFrame(window)
     }
 
     func windowDidBecomeMain(_ notification: Notification) {
@@ -587,6 +628,8 @@ extension WindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let window else { return }
         let closingConnectionInstance = connectionInstance
+
+        persistWindowFrame(window)
 
         if case .connection = tabType,
            let tabManager = WindowController.getTabManager(for: window) {

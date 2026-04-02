@@ -538,7 +538,7 @@ struct ChatSendButtonStyle: ButtonStyle {
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
-    static let buttonColor = Color(.black).opacity(0.3)
+    static let buttonColor = Color(.black).opacity(0.1)
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
     
@@ -547,19 +547,14 @@ struct SecondaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)      // Vertical padding for height
             .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(isEnabled ? .secondary : .secondary)     // White text color
+            .foregroundColor(.secondary)     // White text color
             .background(
-                // Use system accent color for native feel, or specify custom blue
                 RoundedRectangle(cornerRadius: 8)
                     .fill(isHovering ? Self.buttonColor : .clear)
             )
-        // Add subtle pressed state effect
             .opacity(configuration.isPressed ? 0.8 : 1.0)
-        // Add subtle scale effect when pressed
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-        // Smooth animation for press states
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-        // Add hand cursor on hover
             .onHover { isHovered in
                 isHovering = isHovered
                 if isHovered {
