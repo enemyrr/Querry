@@ -10,6 +10,7 @@ import LanguageSupport
 
 struct QueryEditor: View {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
+    @Environment(ConnectionInstance.self) private var instance
     @Binding var showQueryEditor: Bool
     @Binding var filter: String
     let isLoading: Bool
@@ -20,6 +21,17 @@ struct QueryEditor: View {
     @State private var messages: Set<TextLocated<Message>> = Set()
     @State private var isExpanded: Bool = false
     @State private var showEditor: Bool = false
+
+    private var editorLanguage: LanguageConfiguration {
+        switch instance.connection.databaseType {
+        case .convex:
+            return .javascript()
+        case .mongodb:
+            return .mongodb()
+        default:
+            return .sqlite()
+        }
+    }
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -146,7 +158,7 @@ struct QueryEditor: View {
             }
             .padding([.top, .horizontal, .bottom], 8)
             
-            CodeEditor(text: $filter, position: $position, messages: $messages, language: .mongodb())
+            CodeEditor(text: $filter, position: $position, messages: $messages, language: editorLanguage)
                 .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
                 .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
                 .overlay(

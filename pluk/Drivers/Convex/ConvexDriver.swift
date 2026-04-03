@@ -35,6 +35,39 @@ struct ConvexCollectionWrapper: CollectionWrapper {
 
 // MARK: - Convex Driver
 actor ConvexDriver: DatabaseDriver {
+    nonisolated static func isJavaScriptQuery(_ query: String?) -> Bool {
+        guard let trimmed = query?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return false
+        }
+
+        if let data = trimmed.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           parsed["clauses"] != nil || parsed["table"] != nil {
+            return false
+        }
+
+        return trimmed.contains("export default query")
+            || trimmed.contains("ctx.db.query(")
+            || trimmed.contains("ctx.db.get(")
+            || trimmed.contains("import { query }")
+    }
+
+    nonisolated static func isExecutableRawQuery(_ query: String?) -> Bool {
+        guard let trimmed = query?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return false
+        }
+
+        if let data = trimmed.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           parsed["table"] != nil {
+            return true
+        }
+
+        return isJavaScriptQuery(trimmed)
+    }
+
     func ping(to connectionUri: String) async throws {
         throw DatabaseError.notImplemented("Driver does not support this")
     }
@@ -727,6 +760,13 @@ actor ConvexDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
 
+        let rawQuery = filter["rawQuery"]?.stringValue
+        if Self.isExecutableRawQuery(rawQuery) {
+            let rawResults = try await executeRawQuery(rawQuery ?? "", databaseSchema: databaseSchema)
+            let queryResult = rawResults.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
+            return applyClientSideWindow(to: queryResult, skip: skip, limit: limit, sortBy: sortBy, ascending: ascending)
+        }
+
         return try await wrapConvexError("query") {
             let orderString = ascending.map { $0 ? "asc" : "desc" }
             let filtersBase64 = try encodeFilterToBase64(
@@ -1362,7 +1402,135 @@ actor ConvexDriver: DatabaseDriver {
     // MARK: - AI Functions
     
     func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
-        throw DatabaseError.notImplemented("AI functions not yet implemented for Convex")
+        let currentDate = Date().formatted(.iso8601)
+        let schemaPrompt = await buildBrowseSchemaPrompt(for: collectionName, schema: databaseSchema)
+        let indexPrompt = await buildBrowseIndexPrompt(for: collectionName, schema: databaseSchema)
+        let componentName = databaseSchema ?? "app"
+
+        return """
+        You are a Convex query assistant for a desktop database client's floating action bar. Your output is inserted directly into the table query field and executed as-is through Convex's JavaScript query path, so respond with only JavaScript as plain text. Never include explanations, markdown formatting, or code fences.
+
+        <current_table>
+        \(collectionName)
+        </current_table>
+
+        <current_component>
+        \(componentName)
+        </current_component>
+
+        <table_schema>
+        \(schemaPrompt)
+        </table_schema>
+
+        <available_indexes>
+        \(indexPrompt)
+        </available_indexes>
+
+        <instructions>
+        1. Always return a read-only Convex JavaScript query in this exact shape:
+           export default query({
+             handler: async (ctx) => {
+               return await ctx.db.query("tableName").collect();
+             },
+           })
+        2. Use the current table `\(collectionName)` as the base query. Do not switch the primary table.
+        3. Queries are read-only. Never return mutations or actions.
+        4. Prefer `.withIndex(...)` when the request matches one of the available indexes. Otherwise use `.filter(...)`.
+        5. Use Convex query APIs only: `ctx.db.query("table")`, `ctx.db.get(id)`, `.withIndex(...)`, `.filter(...)`, `.order("asc" | "desc")`, `.collect()`, `.take(n)`, `.first()`, and normal JavaScript transforms after `collect()`.
+        6. For "newest", "latest", or "most recent", use `.order("desc")`.
+        7. For "oldest" or ascending requests, use `.order("asc")`.
+        8. Return arrays of objects for best table rendering.
+        9. Do not include imports; the runtime adds the Convex wrapper import automatically.
+        10. Preserve the `export default query({ ... })` format exactly.
+        </instructions>
+
+        <examples>
+        <example>
+        <input>show all \(collectionName)</input>
+        <output>
+        export default query({
+          handler: async (ctx) => {
+            return await ctx.db.query("\(collectionName)").collect();
+          },
+        })
+        </output>
+        </example>
+
+        <example>
+        <input>show the 10 most recent \(collectionName)</input>
+        <output>
+        export default query({
+          handler: async (ctx) => {
+            return await ctx.db.query("\(collectionName)").order("desc").take(10);
+          },
+        })
+        </output>
+        </example>
+
+        <example>
+        <input>show \(collectionName) where status is active</input>
+        <output>
+        export default query({
+          handler: async (ctx) => {
+            return await ctx.db
+              .query("\(collectionName)")
+              .filter((q) => q.eq(q.field("status"), "active"))
+              .collect();
+          },
+        })
+        </output>
+        </example>
+
+        <example>
+        <input>show \(collectionName) where amount is greater than 100</input>
+        <output>
+        export default query({
+          handler: async (ctx) => {
+            return await ctx.db
+              .query("\(collectionName)")
+              .filter((q) => q.gt(q.field("amount"), 100))
+              .collect();
+          },
+        })
+        </output>
+        </example>
+        </examples>
+
+        Current Date: \(currentDate)
+        """
+    }
+
+    private func buildBrowseSchemaPrompt(for collectionName: String, schema: String?) async -> String {
+        do {
+            guard let schemaResult = try await getSchema(for: collectionName, schema: schema),
+                  !schemaResult.columns.isEmpty else {
+                return "No schema metadata available. Prefer fields that already appear in the current table."
+            }
+
+            let lines = schemaResult.columns.map { column in
+                let nullable = column.isNullable == "YES" ? "optional" : "required"
+                let foreignKey = column.foreignKey.isEmpty ? "" : " [FK]"
+                return "- \(column.columnName): \(column.dataType), \(nullable)\(foreignKey)"
+            }
+            return lines.joined(separator: "\n")
+        } catch {
+            return "Schema lookup failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func buildBrowseIndexPrompt(for collectionName: String, schema: String?) async -> String {
+        do {
+            let indexes = try await getIndexes(for: collectionName, schema: schema)
+            guard !indexes.isEmpty else { return "No index metadata available." }
+
+            let lines = indexes.map { index in
+                let columns = index.columns.isEmpty ? "unknown fields" : index.columns.joined(separator: ", ")
+                return "- \(index.name): \(columns)"
+            }
+            return lines.joined(separator: "\n")
+        } catch {
+            return "Index lookup failed: \(error.localizedDescription)"
+        }
     }
     
     // MARK: - Real-time Subscription
@@ -1542,6 +1710,86 @@ actor ConvexDriver: DatabaseDriver {
         
         // Use the shared processing function
         return try await processConvexDocuments(documents, totalCount: totalCount, for: tableName, databaseSchema: nil)
+    }
+
+    private func applyClientSideWindow(to result: QueryResult, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) -> QueryResult {
+        var entries = Array(zip(result.rows, result.rawRows))
+
+        if let sortBy, let ascending {
+            entries.sort { lhs, rhs in
+                Self.compareDatabaseValues(lhs.1[sortBy] ?? nil, rhs.1[sortBy] ?? nil, ascending: ascending)
+            }
+        }
+
+        let totalCount = max(result.totalCount, entries.count)
+        let start = min(max(skip, 0), entries.count)
+        let end = limit > 0 ? min(start + limit, entries.count) : entries.count
+        let window = Array(entries[start..<end])
+
+        return QueryResult(
+            columns: result.columns,
+            rows: window.map { $0.0 },
+            totalCount: totalCount,
+            rawRows: window.map { $0.1 }
+        )
+    }
+
+    nonisolated private static func compareDatabaseValues(_ lhs: DatabaseValue?, _ rhs: DatabaseValue?, ascending: Bool) -> Bool {
+        let ordering = compareDatabaseValues(lhs, rhs)
+        if ordering == .orderedSame {
+            return false
+        }
+        return ascending ? ordering == .orderedAscending : ordering == .orderedDescending
+    }
+
+    nonisolated private static func compareDatabaseValues(_ lhs: DatabaseValue?, _ rhs: DatabaseValue?) -> ComparisonResult {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return .orderedSame
+        case (nil, _):
+            return .orderedAscending
+        case (_, nil):
+            return .orderedDescending
+        default:
+            break
+        }
+
+        if let lhsNumber = numericSortValue(lhs), let rhsNumber = numericSortValue(rhs) {
+            if lhsNumber < rhsNumber { return .orderedAscending }
+            if lhsNumber > rhsNumber { return .orderedDescending }
+            return .orderedSame
+        }
+
+        switch (lhs, rhs) {
+        case (.bool(let lhsValue), .bool(let rhsValue)):
+            if lhsValue == rhsValue { return .orderedSame }
+            return lhsValue ? .orderedDescending : .orderedAscending
+        case (.date(let lhsValue), .date(let rhsValue)):
+            if lhsValue < rhsValue { return .orderedAscending }
+            if lhsValue > rhsValue { return .orderedDescending }
+            return .orderedSame
+        default:
+            let lhsString = lhs?.description ?? ""
+            let rhsString = rhs?.description ?? ""
+            return lhsString.localizedStandardCompare(rhsString)
+        }
+    }
+
+    nonisolated private static func numericSortValue(_ value: DatabaseValue?) -> Double? {
+        switch value {
+        case .int(let intValue):
+            return Double(intValue)
+        case .int64(let intValue):
+            return Double(intValue)
+        case .double(let doubleValue):
+            return doubleValue
+        case .decimalString(let decimalValue):
+            return Double(decimalValue)
+        case .string(let stringValue):
+            return Double(stringValue)
+        default:
+            return nil
+        }
     }
 
     // Clear subscription payload hash for a specific table (called when subscription is cancelled)

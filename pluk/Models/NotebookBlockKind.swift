@@ -260,8 +260,9 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
     private static let queryToolDefinition = AnthropicToolDefinition(
         name: "create_query_block",
         description: """
-        Creates a SQL query block in the notebook that displays results as an inline table. \
-        Use this when you want SQL results visible in the notebook for the user to see. \
+        Creates a query block in the notebook that displays results as an inline table. \
+        Use SQL for SQL databases and JavaScript for Convex connections. \
+        Use this when you want query results visible in the notebook for the user to see. \
         Unlike `run_query` (which returns results only to you), this adds a persistent query cell \
         that the user can re-run and whose output can feed into chart or single value blocks.
         """,
@@ -294,7 +295,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
                 ]),
                 "query": .object([
                     "type": .string("string"),
-                    "description": .string("The SQL query to execute and display results for"),
+                    "description": .string("The query to execute and display results for. Use SQL for SQL databases and JavaScript for Convex."),
                 ]),
                 "output_name": .object([
                     "type": .string("string"),
@@ -368,7 +369,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         queryToolDefinition,
         name: "update_query_block",
         description: """
-        Modifies an existing query block's SQL, connection, or output name. Provide the block_id plus the complete new configuration. \
+        Modifies an existing query block's query text, connection, or output name. Provide the block_id plus the complete new configuration. \
         The entire config is replaced.
         """
     )

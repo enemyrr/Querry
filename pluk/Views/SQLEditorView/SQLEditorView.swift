@@ -48,6 +48,7 @@ struct SQLEditorView: View {
                         AIErrorSuggestionPopup(
                             isPresented: $showAIErrorSuggestion,
                             suggestion: $aiErrorSuggestion,
+                            fixLabel: aiFixLabel,
                             isLoading: isLoadingAISuggestion,
                             onAcceptAndRun: acceptAISuggestion,
                             onAcceptOnly: acceptAISuggestionOnly,
@@ -95,6 +96,12 @@ struct SQLEditorView: View {
     
     @State private var selectedDatabase: String = ""
     @State private var availableDatabases: [any DatabaseWrapper] = []
+
+    private enum ToolbarMetrics {
+        static let controlHeight: CGFloat = 30
+        static let horizontalPadding: CGFloat = 12
+        static let cornerRadius: CGFloat = 8
+    }
     
     private var executionSummaryText: String {
         guard lastExecutionTime > 0 else { return "" }
@@ -127,7 +134,7 @@ struct SQLEditorView: View {
                 )
                 .keyboardShortcut("i", modifiers: [.command])
                 .customHelp(
-                    isConvex ? "Format JS" : "Format SQL",
+                    formatActionLabel,
                     shortcut: KeyboardShortcut(
                         modifiers: [.command],
                         key: "i"
@@ -158,47 +165,57 @@ struct SQLEditorView: View {
                 }
             } label: {
                 HStack(spacing: 0) {
-                    Text("Database: ")
-                        .font(.system(size: 12))
-                    Text(selectedDatabase)
-                        .font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 0) {
+                        Text("Database: ")
+                        Text(selectedDatabase)
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
+                        .font(.system(size: 10, weight: .medium))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .foregroundColor(.secondary)
+                .font(.system(size: 12))
+                .frame(minHeight: ToolbarMetrics.controlHeight)
+                .padding(.horizontal, ToolbarMetrics.horizontalPadding)
+                .foregroundStyle(.secondary)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
+                .clipShape(.rect(cornerRadius: ToolbarMetrics.cornerRadius))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: ToolbarMetrics.cornerRadius)
                         .stroke(.separator, lineWidth: 0.5)
                 )
             }
             .buttonStyle(.plain)
             .fixedSize()
-            
+
             Button(action: {
                 executeQuery()
             }) {
-                HStack {
+                HStack(spacing: 8) {
                     Text(selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Run" : "Run Selection")
+                        .lineLimit(1)
                     
                     if isExecuting {
                         ProgressView()
-                            .controlSize(.mini)
+                            .controlSize(.small)
+                            .colorMultiply(.white)
                             .scaleEffect(0.7)
-                            .padding(.horizontal, 4.5)
+                            .padding(.horizontal, 4)
                     } else {
                         Text("⌘⏎")
+                            .fontWeight(.medium)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .font(.system(size: 12, weight: .semibold))
+                .frame(minHeight: ToolbarMetrics.controlHeight)
+                .padding(.horizontal, ToolbarMetrics.horizontalPadding)
                 .foregroundStyle(Color(.textBackgroundColor))
                 .background(Color.primaryButton)
-                .cornerRadius(8)
+                .clipShape(.rect(cornerRadius: ToolbarMetrics.cornerRadius))
                 .fixedSize()
             }
             .keyboardShortcut(.return, modifiers: [.command])
@@ -230,8 +247,48 @@ struct SQLEditorView: View {
         return String(sqlQuery[startIndex..<endIndex])
     }
     
-    private var isConvex: Bool {
-        instance.connection.databaseType == .convex
+    private var usesJavaScriptFormatter: Bool {
+        switch instance.connection.databaseType {
+        case .convex, .mongodb:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var aiFixLabel: String {
+        switch instance.connection.databaseType {
+        case .convex:
+            return "Convex"
+        case .mongodb:
+            return "MongoDB"
+        default:
+            return "SQL"
+        }
+    }
+
+    private var formatActionLabel: String {
+        usesJavaScriptFormatter ? "Format Query" : "Format SQL"
+    }
+
+    private var placeholderIntroText: String {
+        switch instance.connection.databaseType {
+        case .convex:
+            return "Start writing a Convex query or type"
+        case .mongodb:
+            return "Start writing a MongoDB query or type"
+        default:
+            return "Start writing SQL or type"
+        }
+    }
+
+    private var emptyStateIntroText: String {
+        switch instance.connection.databaseType {
+        case .convex, .mongodb:
+            return "Write a query and press"
+        default:
+            return "Write a SQL query and press"
+        }
     }
 
     private var editorLanguage: LanguageConfiguration {
@@ -254,7 +311,7 @@ struct SQLEditorView: View {
             // Placeholder text
             if sqlQuery.isEmpty {
                 HStack(alignment: .top, spacing: 4) {
-                    Text(isConvex ? "Start writing a Convex query or type" : "Start writing SQL or type")
+                    Text(placeholderIntroText)
                         .foregroundColor(.secondary.opacity(0.6))
                         .font(.system(.body, design: .monospaced))
 
@@ -441,7 +498,7 @@ extension SQLEditorView {
     private var emptyState: some View {
         VStack(spacing: 12) {
             HStack(spacing: 4) {
-                Text(isConvex ? "Write a query and press" : "Write a SQL query and press")
+                Text(emptyStateIntroText)
                     .font(.body)
                     .foregroundColor(.secondary.opacity(0.7))
                 
@@ -700,9 +757,9 @@ extension SQLEditorView {
             return original
         }
         
-        // Format both queries using SQL prettier for accurate comparison
-        let formattedOriginal = formatSQL(original)
-        let formattedSuggested = formatSQL(suggested)
+        // Format both queries using the editor's language-aware formatter for accurate comparison
+        let formattedOriginal = formatQuery(original)
+        let formattedSuggested = formatQuery(suggested)
         
         // Create git-like diff showing only changed lines
         let originalLines = formattedOriginal.components(separatedBy: .newlines)
@@ -734,11 +791,11 @@ extension SQLEditorView {
         return diffLines.joined(separator: "\n")
     }
     
-    private func formatSQL(_ query: String) -> String {
+    private func formatQuery(_ query: String) -> String {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return query }
 
-        if isConvex { return JSFormatter.format(trimmedQuery) }
+        if usesJavaScriptFormatter { return JSFormatter.format(trimmedQuery) }
         
         // Determine the SQL dialect based on the database type
         let dialect: SQLDialect
@@ -773,8 +830,8 @@ extension SQLEditorView {
         guard let suggested = suggested else { return }
         
         // Format both queries for accurate comparison (same as in formatDiffText)
-        let formattedOriginal = formatSQL(original)
-        let formattedSuggested = formatSQL(suggested)
+        let formattedOriginal = formatQuery(original)
+        let formattedSuggested = formatQuery(suggested)
         
         // Parse the formatted queries to track line types
         let originalLines = formattedOriginal.components(separatedBy: .newlines)
@@ -896,10 +953,10 @@ extension SQLEditorView {
         let trimmedQuery = sqlQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return }
 
-        if isConvex {
+        if usesJavaScriptFormatter {
             sqlQuery = JSFormatter.format(trimmedQuery)
         } else {
-            sqlQuery = formatSQL(trimmedQuery)
+            sqlQuery = formatQuery(trimmedQuery)
         }
     }
     
@@ -992,7 +1049,7 @@ extension SQLEditorView {
             tab.initialQuery = nil
         }
 
-        if sqlQuery.isEmpty && isConvex {
+        if sqlQuery.isEmpty && instance.connection.databaseType == .convex {
             sqlQuery = """
             export default query({
               handler: async (ctx) => {

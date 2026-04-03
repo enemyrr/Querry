@@ -9,8 +9,11 @@ import SwiftUI
 import PostHog
 
 struct AIErrorSuggestionPopup: View {
+    private static let actionButtonHeight: CGFloat = 18
+
     @Binding var isPresented: Bool
     @Binding var suggestion: String?
+    let fixLabel: String
     let isLoading: Bool
     let onAcceptAndRun: () -> Void
     let onAcceptOnly: () -> Void
@@ -23,19 +26,20 @@ struct AIErrorSuggestionPopup: View {
             // Content
             if isLoading {
                 HStack(spacing: 40) {
-                    Text("Generating Fix")
+                    Text("Generating \(fixLabel) Fix")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                     
                     ProgressView()
                         .controlSize(.small)
+                        .padding(.trailing, 6)
                 }
                 .padding(.vertical, 8)
             } else if let suggestion = suggestion, !suggestion.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     // Action buttons
                     HStack(spacing: 8) {
-                        Text("Possible fix")
+                        Text("Possible \(fixLabel) fix")
                             .foregroundStyle(.secondary)
                         Spacer()
                         
@@ -44,6 +48,7 @@ struct AIErrorSuggestionPopup: View {
                             onAcceptAndRun()
                         }) {
                             Text("Accept & Run ⌘⏎")
+                                .frame(minHeight: Self.actionButtonHeight)
                         }
                         .buttonStyle(AICommandPromptPrimaryButtonStyle())
                         .keyboardShortcut(.return, modifiers: [.command])
@@ -57,16 +62,18 @@ struct AIErrorSuggestionPopup: View {
                                 Text("ESC")
                                     .opacity(0.6)
                             }
+                            .frame(minHeight: Self.actionButtonHeight)
                         }
                         .foregroundStyle(.secondary)
                         .font(.callout)
                         .buttonStyle(AICommandPromptSecondaryButtonStyle())
                         .keyboardShortcut(.escape, modifiers: [])
                     }
-                }.padding(.vertical, 12)
+                }.padding(.vertical, 6)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, 10)
+        .padding(.trailing, 6)
         .padding(.vertical, 2)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(10)

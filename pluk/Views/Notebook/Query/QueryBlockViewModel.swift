@@ -109,15 +109,19 @@ final class QueryBlockViewModel {
     private static let blockedPrefixes = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
 
     func executeQuery() async {
-        guard let cfg = config, !cfg.queryText.isEmpty else {
-            queryError = "Enter a SQL query to execute"
+        guard let cfg = config,
+              !cfg.queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            queryError = "Enter a query to execute"
             return
         }
 
-        let trimmedUpper = cfg.queryText.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        if Self.blockedPrefixes.contains(where: { trimmedUpper.hasPrefix($0) }) {
-            queryError = "Only read-only SELECT queries are supported"
-            return
+        let trimmedQuery = cfg.queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cfg.databaseType != DatabaseType.convex.rawValue {
+            let trimmedUpper = trimmedQuery.uppercased()
+            if Self.blockedPrefixes.contains(where: { trimmedUpper.hasPrefix($0) }) {
+                queryError = "Only read-only queries are supported"
+                return
+            }
         }
 
         isExecutingQuery = true
@@ -129,7 +133,7 @@ final class QueryBlockViewModel {
         }
 
         do {
-            let results = try await session.executeRawQuery(cfg.queryText, schema: cfg.schemaName)
+            let results = try await session.executeRawQuery(trimmedQuery, schema: cfg.schemaName)
             queryResult = results.first
             saveQueryCache()
             dataController?.queryBlockDidUpdate(blockId: block.id)

@@ -784,7 +784,7 @@ struct TableListView: View {
             }
             
             // Still try to subscribe for real-time if not already subscribed
-            if !isSubscribedToRealTime {
+            if !isSubscribedToRealTime && shouldUseRealtime(for: currentActiveFilter) {
                 await subscribeToRealTimeUpdatesIfSupported(page: 1)
             }
         }
@@ -816,7 +816,7 @@ struct TableListView: View {
     
     private func subscribeToRealTimeUpdatesIfSupported(page: Int = 1) async {
         // Check if database supports real-time and we're not already subscribed
-        guard instance.databaseService.supportsRealTime && !isSubscribedToRealTime else {
+        guard shouldUseRealtime(for: currentActiveFilter) && !isSubscribedToRealTime else {
             return
         }
         
@@ -976,9 +976,11 @@ struct TableListView: View {
     
     /// Unified loader: for real-time backends this subscribes; otherwise it fetches.
     private func loadOrSubscribe(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
-        if instance.databaseService.supportsRealTime {
+        let effectiveFilter = filter ?? currentActiveFilter
+        currentActiveFilter = effectiveFilter
+
+        if shouldUseRealtime(for: effectiveFilter) {
             // Update current filter and show loading if we're refetching
-            currentActiveFilter = filter ?? currentActiveFilter
             if forceFetch || cachedDocuments == nil { await MainActor.run { viewState = .loading } }
             
             if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != selectedTab.name) {
@@ -1003,9 +1005,10 @@ struct TableListView: View {
             await subscribeToRealTimeUpdatesIfSupported(page: page)
             return
         }
-        
+
         // Non real-time fallback: use existing fetcher
-        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, page: page, limit: limit, filter: filter)
+        cancelRealTimeSubscription()
+        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, page: page, limit: limit, filter: effectiveFilter)
     }
     
     /// Load documents with options to force fetch and control schema fetching
@@ -1151,7 +1154,20 @@ struct TableListView: View {
         
         return false
     }
-    
+
+    private func shouldUseRealtime(for filter: String?) -> Bool {
+        guard instance.databaseService.supportsRealTime else {
+            return false
+        }
+
+        if instance.connection.databaseType == .convex,
+           ConvexDriver.isExecutableRawQuery(filter) {
+            return false
+        }
+
+        return true
+    }
+
     /// Update the selected tab's schema deviation state
     private func updateTabSchemaDeviation(_ hasDeviation: Bool) {
         if let tabIndex = instance.tabs.firstIndex(where: { $0.id == selectedTab.id }) {

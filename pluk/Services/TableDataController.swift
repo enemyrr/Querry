@@ -134,7 +134,7 @@ class TableDataController {
             if let cachedDocuments {
                 viewState = .loaded(cachedDocuments, cachedSchema)
             }
-            if !isSubscribedToRealTime {
+            if !isSubscribedToRealTime && shouldUseRealtime(for: currentActiveFilter) {
                 await subscribeToRealTimeUpdatesIfSupported(page: 1)
             }
             return
@@ -151,8 +151,10 @@ class TableDataController {
     }
 
     func loadOrSubscribe(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
-        if instance.databaseService.supportsRealTime {
-            currentActiveFilter = filter ?? currentActiveFilter
+        let effectiveFilter = filter ?? currentActiveFilter
+        currentActiveFilter = effectiveFilter
+
+        if shouldUseRealtime(for: effectiveFilter) {
             if forceFetch || cachedDocuments == nil { viewState = .loading }
 
             // Fire schema+indexes in background — don't block the subscription
@@ -190,7 +192,8 @@ class TableDataController {
             return
         }
 
-        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, page: page, limit: limit, filter: filter)
+        cancelRealTimeSubscription()
+        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, page: page, limit: limit, filter: effectiveFilter)
     }
 
     func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
@@ -726,7 +729,7 @@ class TableDataController {
     // MARK: - Real-time Subscriptions
 
     func subscribeToRealTimeUpdatesIfSupported(page: Int = 1) async {
-        guard instance.databaseService.supportsRealTime && !isSubscribedToRealTime else {
+        guard shouldUseRealtime(for: currentActiveFilter) && !isSubscribedToRealTime else {
             return
         }
 
@@ -848,6 +851,19 @@ class TableDataController {
         let queryColumnNames = Set(queryResult.columns.map(\.name))
         let schemaColumnNames = Set(schema.columns.map(\.columnName))
         return queryColumnNames != schemaColumnNames
+    }
+
+    private func shouldUseRealtime(for filter: String?) -> Bool {
+        guard instance.databaseService.supportsRealTime else {
+            return false
+        }
+
+        if instance.connection.databaseType == .convex,
+           ConvexDriver.isExecutableRawQuery(filter) {
+            return false
+        }
+
+        return true
     }
 
     private func queryColumns(from schema: DatabaseSchemaResult) -> [QueryColumnInfo] {

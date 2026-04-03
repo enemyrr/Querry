@@ -17,20 +17,10 @@ class AIService: @unchecked Sendable {
         let collections = try await databaseService.listCollections(schema: nil)
         let tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
 
-        let systemPrompt = """
-        You are a \(databaseType) error analysis assistant. Your output replaces the broken query in a SQL editor, so respond with only the corrected SQL query as plain text. Preserve the original comments and formatting style so the user can easily diff the change.
-
-        <available_tables>
-        \(tablesList)
-        </available_tables>
-
-        <instructions>
-        1. Analyze the query and error message to identify the cause.
-        2. Check the available tables list for table name typos or case mismatches.
-        3. If you need column-level detail, call the \(schemaToolName) tool.
-        4. Return only the corrected, syntactically valid SQL query.
-        </instructions>
-        """
+        let systemPrompt = errorAnalysisSystemPrompt(
+            databaseType: databaseType,
+            availableTables: tablesList
+        )
 
         let userPrompt = """
         <query>
@@ -64,7 +54,7 @@ class AIService: @unchecked Sendable {
                         \(selectedText)
                         </selected_text>
 
-                        Consider the selected text when generating the SQL query. If the prompt refers to modifying, explaining, or working with existing code, use the selected text as the base.
+                        Consider the selected text when generating the query. If the prompt refers to modifying, fixing, or working with existing code, use the selected text as the base and preserve its current query format unless the user explicitly asks to change it.
                         """
                     }
 
@@ -117,6 +107,149 @@ class AIService: @unchecked Sendable {
     }
 
     // MARK: - Private
+
+    private static func errorAnalysisSystemPrompt(databaseType: String, availableTables: String) -> String {
+        let normalizedDatabaseType = databaseType.lowercased()
+
+        if normalizedDatabaseType == DatabaseType.convex.rawValue {
+            return """
+            <role>
+            You fix broken Convex queries for Pluk's query editor.
+            </role>
+
+            <execution_context>
+            Your output replaces the broken query in the editor and is executed as-is.
+            Return only the corrected query text. Do not include explanations, markdown, or code fences.
+            </execution_context>
+
+            <available_tables>
+            \(availableTables)
+            </available_tables>
+
+            <instructions>
+            1. Return only a corrected Convex JavaScript query in the existing `export default query({ ... })` format.
+            2. Preserve the user's intent, table names, and overall structure unless the error requires changing them.
+            3. Return a read-only query only. Never return mutations or actions.
+            4. If you need column-level detail, call the \(schemaToolName) tool.
+            </instructions>
+
+            <examples>
+            <example>
+            <input_query>
+            export default query({
+              handler: async (ctx) => {
+                return await ctx.db.query("users").take(10)
+              }
+            })
+            </input_query>
+            <error>
+            Unexpected token ')'
+            </error>
+            <output>
+            export default query({
+              handler: async (ctx) => {
+                return await ctx.db.query("users").take(10);
+              },
+            })
+            </output>
+            </example>
+
+            <example>
+            <input_query>
+            export default query({
+              handler: async (ctx) => {
+                return await ctx.db.query("orders").order(desc).take(5);
+              }
+            })
+            </input_query>
+            <error>
+            desc is not defined
+            </error>
+            <output>
+            export default query({
+              handler: async (ctx) => {
+                return await ctx.db.query("orders").order("desc").take(5);
+              },
+            })
+            </output>
+            </example>
+            </examples>
+            """
+        }
+
+        if normalizedDatabaseType == DatabaseType.mongodb.rawValue.lowercased() {
+            return """
+            <role>
+            You fix broken MongoDB queries for Pluk's query editor.
+            </role>
+
+            <execution_context>
+            Your output replaces the broken query in the editor and is executed as-is.
+            Return only the corrected MongoDB query text. Do not include explanations, markdown, or code fences.
+            </execution_context>
+
+            <available_collections>
+            \(availableTables)
+            </available_collections>
+
+            <instructions>
+            1. Preserve the MongoDB query style the user already has unless the error requires changing it.
+            2. Return only valid MongoDB query code such as `db.collection.find(...)`, `aggregate(...)`, or related read-only query expressions.
+            3. Keep collection names aligned with the available collections list.
+            4. Do not return SQL, JavaScript wrappers, or natural-language explanations.
+            5. If you need column-level detail, call the \(schemaToolName) tool.
+            </instructions>
+
+            <examples>
+            <example>
+            <input_query>
+            db.user.find({age: {$gt: 30} AND
+            </input_query>
+            <error>
+            Unexpected identifier 'AND'
+            </error>
+            <output>
+            db.users.find({ age: { $gt: 30 } })
+            </output>
+            </example>
+
+            <example>
+            <input_query>
+            db.orders.find({ status: "active" }).sort(createdAt: -1)
+            </input_query>
+            <error>
+            Unexpected token ':'
+            </error>
+            <output>
+            db.orders.find({ status: "active" }).sort({ createdAt: -1 })
+            </output>
+            </example>
+            </examples>
+            """
+        }
+
+        return """
+        <role>
+        You fix broken \(databaseType) SQL queries for Pluk's SQL editor.
+        </role>
+
+        <execution_context>
+        Your output replaces the broken query in a SQL editor.
+        Return only the corrected SQL query as plain text. Preserve the original comments and formatting style when possible. Do not include explanations, markdown, or code fences.
+        </execution_context>
+
+        <available_tables>
+        \(availableTables)
+        </available_tables>
+
+        <instructions>
+        1. Analyze the query and error message to identify the cause.
+        2. Check the available tables list for table name typos or case mismatches.
+        3. If you need column-level detail, call the \(schemaToolName) tool.
+        4. Return only the corrected, syntactically valid SQL query.
+        </instructions>
+        """
+    }
 
     private static let schemaTool = AnthropicToolDefinition(
         name: schemaToolName,

@@ -95,7 +95,7 @@ final class NotebookAgentEngine {
         - `list_databases` — Discover all databases on a connection
         - `list_tables` — Discover tables in a connection (supports `database_name` param)
         - `get_table_schema` — Column names, types, keys, constraints (supports `database_name` param)
-        - `run_query` — Execute a read-only SQL query (results returned to you only, not shown in notebook; supports `database_name` param)
+        - `run_query` — Execute a read-only query (SQL for SQL databases; JavaScript for Convex). Results are returned to you only, not shown in the notebook.
 
         Notebook management:
         - `set_notebook_info` — Set the notebook title and description
@@ -105,7 +105,7 @@ final class NotebookAgentEngine {
         - `create_chart_block` — Add a chart visualization to the notebook
         - `create_single_value_block` — Add a single-number KPI (e.g. total count, sum, average)
         - `create_text_block` — Add a titled text block with markdown commentary
-        - `create_query_block` — Add a SQL query block with inline results table visible in the notebook
+        - `create_query_block` — Add a query block with inline results table visible in the notebook
 
         Modify existing blocks:
         - `update_chart_block` — Modify an existing chart block (requires block_id)
@@ -118,9 +118,9 @@ final class NotebookAgentEngine {
         </tools>
 
         <query_block_guidance>
-        Use `create_query_block` when you want SQL results visible in the notebook as a table that the user can see and re-run. Use `run_query` for exploratory queries whose results are only for your analysis.
+        Use `create_query_block` when you want query results visible in the notebook as a table that the user can see and re-run. Use `run_query` for exploratory queries whose results are only for your analysis.
 
-        When a query block has an `output_name`, you can reference it as `source_query_output` in `create_chart_block` to chart its results directly. Use `source_query_output` only when the chart needs complex SQL (JOINs, CTEs, subqueries, window functions) that the chart's built-in table + filters + aggregation cannot express. For simple single-table visualizations, create the chart directly with connection details.
+        When a query block has an `output_name`, you can reference it as `source_query_output` in `create_chart_block` to chart its results directly. Use `source_query_output` only when the chart needs complex query logic (JOINs, CTEs, subqueries, window functions, or advanced Convex transformations) that the chart's built-in table + filters + aggregation cannot express. For simple single-table visualizations, create the chart directly with connection details.
         </query_block_guidance>
 
         <database_exploration_guidance>
@@ -625,6 +625,22 @@ final class NotebookAgentEngine {
     private static let schemaCapableTypes: Set<DatabaseType> = [.postgres, .supabase, .mysql, .convex]
     private static let blockedPrefixes = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
 
+    private func formatStoredQuery(_ query: String, databaseType: String) -> String {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return query }
+
+        if databaseType == DatabaseType.convex.rawValue {
+            return JSFormatter.format(trimmedQuery).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let dialect: SQLDialect = switch databaseType {
+        case "postgres", "supabase": .postgresql
+        case "mysql": .mysql
+        default: .sqlite
+        }
+        return SQLFormatter.format(trimmedQuery, dialect: dialect)
+    }
+
     private func executeRunQuery(json: [String: Any], connections: [Connection]) async -> String {
         guard let query = json["query"] as? String else {
             return "Error: query is required"
@@ -906,12 +922,7 @@ final class NotebookAgentEngine {
         let schemaName = json["schema_name"] as? String
         let outputName = json["output_name"] as? String ?? ""
 
-        let dialect: SQLDialect = switch dbType {
-        case "postgres", "supabase", "convex": .postgresql
-        case "mysql": .mysql
-        default: .sqlite
-        }
-        let formattedQuery = SQLFormatter.format(query.trimmingCharacters(in: .whitespacesAndNewlines), dialect: dialect)
+        let formattedQuery = formatStoredQuery(query, databaseType: dbType)
 
         let queryCfg = QueryBlockConfig(
             connectionKeychainId: keychainId,
@@ -930,7 +941,7 @@ final class NotebookAgentEngine {
         ))
 
         let outputInfo = outputName.isEmpty ? "" : " (output_name: '\(outputName)' — use this as source_query_output in create_chart_block to chart this data)"
-        return "Query block '\(title)' created with SQL query.\(outputInfo)"
+        return "Query block '\(title)' created.\(outputInfo)"
     }
 
     // MARK: - List Notebook Blocks
@@ -1164,12 +1175,7 @@ final class NotebookAgentEngine {
         let schemaName = json["schema_name"] as? String
         let outputName = json["output_name"] as? String ?? ""
 
-        let dialect: SQLDialect = switch dbType {
-        case "postgres", "supabase", "convex": .postgresql
-        case "mysql": .mysql
-        default: .sqlite
-        }
-        let formattedQuery = SQLFormatter.format(query.trimmingCharacters(in: .whitespacesAndNewlines), dialect: dialect)
+        let formattedQuery = formatStoredQuery(query, databaseType: dbType)
 
         let queryCfg = QueryBlockConfig(
             connectionKeychainId: keychainId,
@@ -1186,7 +1192,7 @@ final class NotebookAgentEngine {
         ))
 
         let outputInfo = outputName.isEmpty ? "" : " (output_name: '\(outputName)')"
-        return "Query block '\(title)' updated with new SQL query.\(outputInfo)"
+        return "Query block '\(title)' updated.\(outputInfo)"
     }
 
     // MARK: - Set Notebook Info
@@ -1238,9 +1244,9 @@ final class NotebookAgentEngine {
         return """
 
         <convex_query_guidance>
-        One or more connections use Convex. Convex does NOT use SQL — it uses a JSON query specification for raw queries.
+        One or more connections use Convex. Convex does NOT use SQL — it uses JavaScript query functions for raw queries.
         Before constructing any raw Convex query or using `run_query` / `create_query_block` with a Convex connection, call the `get_convex_query_guide` tool to load the full query format specification.
-        For complex multi-table joins or server-side aggregations, you can pass JavaScript code directly to `run_query` instead of JSON. See the query guide for the JS template.
+        Use JavaScript query functions for Convex requests. If you are fixing or updating an existing Convex query, preserve its current structure unless the user explicitly asks to rewrite it.
 
         Convex terminology:
         - `database_name` = deployment/environment (e.g. "Production", "Development (Cloud)"). Use `list_databases` to see all available deployments.
@@ -1292,7 +1298,7 @@ final class NotebookAgentEngine {
 
     private let runQueryTool = AnthropicToolDefinition(
         name: "run_query",
-        description: "Execute a read-only SQL query to explore data. Use this to gather specific numbers, distributions, and statistics before building charts and writing commentary. Results are returned to you for analysis but are NOT added to the notebook.",
+        description: "Execute a read-only query to explore data. Use SQL for SQL databases and JavaScript for Convex. Results are returned to you for analysis but are NOT added to the notebook.",
         inputSchema: [
             "type": .string("object"),
             "properties": .object([
@@ -1302,7 +1308,7 @@ final class NotebookAgentEngine {
                 ]),
                 "query": .object([
                     "type": .string("string"),
-                    "description": .string("A read-only SQL query (SELECT only). Used for data exploration — results are returned to you but NOT added to the notebook."),
+                    "description": .string("A read-only query. Use SQL for SQL databases. Use JavaScript for Convex. Results are returned to you but NOT added to the notebook."),
                 ]),
                 "schema_name": .object([
                     "type": .string("string"),
@@ -1439,7 +1445,7 @@ final class NotebookAgentEngine {
 
     private let convexQueryGuideTool = AnthropicToolDefinition(
         name: "get_convex_query_guide",
-        description: "Returns the Convex JSON query specification. Call this before constructing any raw query for a Convex connection. The guide explains the query JSON schema, range expressions, filter expressions, and value encoding that Convex uses instead of SQL.",
+        description: "Returns the Convex query guide. Call this before constructing any raw query for a Convex connection. The guide includes the JavaScript query template plus additional raw query details.",
         inputSchema: [
             "type": .string("object"),
             "properties": .object([:]),
