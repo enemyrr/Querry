@@ -97,7 +97,7 @@ final class FieldRowCell: NSTableCellView {
     private let nameLabel = NSTextField(labelWithString: "")
     private let typeLabel = NSTextField(labelWithString: "")
     private var trackingArea: NSTrackingArea?
-    private var boundsObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var boundsObserver: NSObjectProtocol?
     private weak var observedClipView: NSClipView?
     private var isHovering = false
 
@@ -205,7 +205,9 @@ final class FieldRowCell: NSTableCellView {
     }
 
     deinit {
-        removeBoundsObservation()
+        if let boundsObserver {
+            NotificationCenter.default.removeObserver(boundsObserver)
+        }
     }
 
     private func updateBoundsObservation() {
@@ -219,7 +221,9 @@ final class FieldRowCell: NSTableCellView {
             object: clipView,
             queue: nil
         ) { [weak self] _ in
-            self?.syncHoverStateWithMouse()
+            MainActor.assumeIsolated {
+                self?.syncHoverStateWithMouse()
+            }
         }
         observedClipView = clipView
     }

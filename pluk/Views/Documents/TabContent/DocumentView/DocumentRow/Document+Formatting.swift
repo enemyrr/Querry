@@ -15,144 +15,210 @@ struct FormattedPrimitive {
     let type: String
 }
 
+extension MongoFormattedColorToken {
+    var color: Color {
+        switch self {
+        case .primary:
+            .primary
+        case .secondary:
+            .secondary
+        case .gray:
+            .gray
+        case .orange:
+            .orange
+        case .purple:
+            .purple
+        case .cyan:
+            .cyan
+        case .green:
+            .green
+        case .blue:
+            .blue
+        case .white:
+            .white
+        }
+    }
+}
+
+extension MongoFormattedPrimitivePayload {
+    var formattedPrimitive: FormattedPrimitive {
+        FormattedPrimitive(
+            value: value,
+            color: colorToken.color,
+            isExpandable: isExpandable,
+            type: type
+        )
+    }
+}
+
 extension Document {
     func formatValue(_ value: Primitive?) -> FormattedPrimitive {
+        formatValuePayload(value).formattedPrimitive
+    }
+
+    func formatValuePayload(_ value: Primitive?) -> MongoFormattedPrimitivePayload {
         guard let value = value else {
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "null",
-                color: .gray,
+                colorToken: .gray,
                 isExpandable: false,
                 type: "Null"
             )
         }
-        
+
         switch value {
         case let objectId as ObjectId:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "ObjectId(\"\(objectId.hexString)\")",
-                color: .orange,
+                colorToken: .orange,
                 isExpandable: false,
                 type: "ObjectId"
             )
-            
+
         case let array as [Primitive]:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "Array (\(array.count))",
-                color: .secondary,
+                colorToken: .secondary,
                 isExpandable: !array.isEmpty,
                 type: "Array"
             )
-            
+
         case is Null:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "null",
-                color: .gray,
+                colorToken: .gray,
                 isExpandable: false,
                 type: "Null"
             )
-            
+
         case let value as Timestamp:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "\(value)",
-                color: .purple,
+                colorToken: .purple,
                 isExpandable: false,
                 type: "Timestamp"
             )
-            
+
         case let value as JavaScriptCode:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "\(value)",
-                color: .cyan,
+                colorToken: .cyan,
                 isExpandable: false,
                 type: "JavaScriptCode"
             )
-            
+
         case let binary as Binary:
             if binary.subType == .uuid {
-                return FormattedPrimitive(
+                return MongoFormattedPrimitivePayload(
                     value: extractUUIDFromBinary(binary)?.uuidString ?? "Invalid UUID",
-                    color: .cyan,
+                    colorToken: .cyan,
                     isExpandable: false,
                     type: "Binary"
                 )
             }
-            
-            return FormattedPrimitive(
+
+            return MongoFormattedPrimitivePayload(
                 value: "Binary.createFromBase64(\(binary.data.base64EncodedString()),  \(binary.subType))",
-                color: .cyan,
+                colorToken: .cyan,
                 isExpandable: false,
                 type: "Binary"
             )
-            
+
         case let date as Date:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: date.ISO8601Format(),
-                color: .purple,
+                colorToken: .purple,
                 isExpandable: false,
                 type: "Date"
             )
-            
+
         case let bool as Bool:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: bool.description,
-                color: .green,
+                colorToken: .green,
                 isExpandable: false,
                 type: "Boolean"
             )
-            
+
         case let doc as Document:
-            if doc.isArray {
-                _ = (0..<doc.count).compactMap { index in
-                    formatValue(doc[String(index)])
-                }
-                
-                return FormattedPrimitive(
-                    value: "Array (\(doc.count))",
-                    color: .secondary,
-                    isExpandable: !doc.isEmpty,
-                    type: "Array"
-                )
-            } else {
-                return FormattedPrimitive(
-                    value: "Object",
-                    color: .secondary,
-                    isExpandable: !doc.isEmpty,
-                    type: "Array"
-                )
-            }
-            
+            return MongoFormattedPrimitivePayload(
+                value: doc.isArray ? "Array (\(doc.count))" : "Object",
+                colorToken: .secondary,
+                isExpandable: !doc.isEmpty,
+                type: doc.isArray ? "Array" : "Object"
+            )
+
         case let string as String:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: "\"\(string)\"",
-                color: .green,
+                colorToken: .green,
                 isExpandable: false,
                 type: "String"
             )
-            
-        case let number as Int: return numberFormatted(number, value: value, type: "Int")
-        case let number as Int32: return numberFormatted(number, value: value, type: "Int32")
-        case let number as Double: return numberFormatted(number, value: value, type: "Double")
+
+        case let number as Int:
+            return numberPayload(number, type: "Int")
+        case let number as Int32:
+            return numberPayload(number, type: "Int32")
+        case let number as Double:
+            return numberPayload(number, type: "Double")
         case let number as BSON.Decimal128:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: String(describing: number.toString),
-                color: .blue,
+                colorToken: .blue,
                 isExpandable: false,
                 type: "Number"
             )
         default:
-            return FormattedPrimitive(
+            return MongoFormattedPrimitivePayload(
                 value: String(describing: value),
-                color: .white,
+                colorToken: .white,
                 isExpandable: false,
                 type: "String"
             )
         }
     }
-    
-    private func numberFormatted(_ number: Any, value: Primitive, type: String) -> FormattedPrimitive {
-        return FormattedPrimitive(
+
+    func formattedPayload() -> MongoFormattedDocumentPayload {
+        let id: String
+        if let objectId = self["_id"] as? ObjectId {
+            id = objectId.hexString
+        } else {
+            id = ""
+        }
+
+        let fields = keys.map { key in
+            formatFieldPayload(key: key, value: self[key])
+        }
+
+        return MongoFormattedDocumentPayload(
+            id: id,
+            jsonString: jsonString,
+            fields: fields
+        )
+    }
+
+    private func formatFieldPayload(key: String, value: Primitive?) -> MongoFormattedFieldPayload {
+        let formatted = formatValuePayload(value)
+
+        var nestedFields: [MongoFormattedFieldPayload]?
+        if let doc = value as? Document {
+            nestedFields = doc.keys.map { nestedKey in
+                formatFieldPayload(key: nestedKey, value: doc[nestedKey])
+            }
+        }
+
+        return MongoFormattedFieldPayload(
+            key: key,
+            formattedValue: formatted,
+            nestedFields: nestedFields
+        )
+    }
+
+    private func numberPayload(_ number: Any, type: String) -> MongoFormattedPrimitivePayload {
+        MongoFormattedPrimitivePayload(
             value: String(describing: number),
-            color: .blue,
+            colorToken: .blue,
             isExpandable: false,
             type: type
         )

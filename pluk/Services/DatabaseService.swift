@@ -8,17 +8,13 @@
 import Foundation
 import SwiftUI
 
-@Observable class DatabaseService {
+@Observable @MainActor class DatabaseService {
     // MARK: - Current Connection State
     private var activeConnection: Connection?
-    private var activeDriver: (any DatabaseDriver)?
+    private var activeDriverBox: DatabaseDriverBox?
     public var connectedDatabase: (any DatabaseWrapper)?
     public var currentSchema: String?
-
-    // Public getter for database driver (needed for schema modifications)
-    public var driver: (any DatabaseDriver)? {
-        return activeDriver
-    }
+    private var currentDeploymentURL: String?
 
     // MARK: - Query History
     weak var queryHistoryService: QueryHistoryService?
@@ -56,6 +52,29 @@ import SwiftUI
 
     // MARK: - Results Cache
     private var queryCache: [String: QueryResult] = [:]
+
+    private func makeDriverDocument(from document: [String: Any]) throws -> DatabaseDocument {
+        var converted: DatabaseDocument = [:]
+        for (key, value) in document {
+            guard let driverValue = DatabaseValue(value) else {
+                throw DatabaseError.operationFailed("Unsupported value for field '\(key)'")
+            }
+            converted[key] = driverValue
+        }
+        return converted
+    }
+
+    func makeRecordID(columnName: String, value: Any?) throws -> DatabaseRecordID {
+        guard let driverValue = DatabaseValue(value) else {
+            throw DatabaseError.operationFailed("Unsupported identifier value for column '\(columnName)'")
+        }
+        return DatabaseRecordID(columnName: columnName, value: driverValue)
+    }
+
+    func makeSchemaModificationService() -> SchemaModificationService? {
+        guard let activeDriverBox else { return nil }
+        return SchemaModificationService(driverBox: activeDriverBox)
+    }
     
     // MARK: - Real-time Subscription Management
     private var activeSubscriptionTasks: [String: Task<Void, Never>] = [:]
@@ -65,18 +84,14 @@ import SwiftUI
     func setActiveConnection(_ connection: Connection, targetDatabase: String? = nil) async throws {
         let targetDatabaseName = targetDatabase ?? self.connectedDatabase?.name
 
-        if activeDriver != nil || activeConnection != nil || connectedDatabase != nil {
+        if activeDriverBox != nil || activeConnection != nil || connectedDatabase != nil {
             await disconnect()
         }
 
         self.activeConnection = connection
-        
-        // Create appropriate driver
-        self.activeDriver = DatabaseDriverFactory.createDriver(for: connection.databaseType)
-        
-        guard let driver = activeDriver else {
-            throw DatabaseError.operationFailed("Failed to create database driver")
-        }
+
+        // Create and isolate the driver behind the actor boundary.
+        self.activeDriverBox = DatabaseDriverBox(databaseType: connection.databaseType)
 
         // For Convex, append target database to URI if specified
         var connectionUri = connection.connectionUri
@@ -85,14 +100,19 @@ import SwiftUI
         }
         
         // Connect to database
-        self.connectedDatabase = try await driver.connect(to: connectionUri)
+        guard let driverBox = activeDriverBox else {
+            throw DatabaseError.operationFailed("Failed to create database driver")
+        }
+
+        self.connectedDatabase = try await driverBox.connect(to: connectionUri)
+        self.currentDeploymentURL = await driverBox.getCurrentDeploymentUrl()
 
         // For non-Convex databases, switch to target database if needed
         if connection.databaseType != .convex,
            let targetName = targetDatabaseName,
            !targetName.isEmpty,
            connectedDatabase?.name != targetName {
-            try await driver.switchDatabase(to: targetName)
+            try await driverBox.switchDatabase(to: targetName)
             // Update connectedDatabase to reflect the switch using the appropriate wrapper type
             switch connection.databaseType {
             case .postgres, .supabase:
@@ -102,9 +122,7 @@ import SwiftUI
             case .sqlite:
                 self.connectedDatabase = SQLiteDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
             case .mongodb:
-                // For MongoDB, get the database wrapper from the driver after switching
-                if let mongoDriver = driver as? MongoDBDriver,
-                   let wrapper = mongoDriver.getCurrentDatabaseWrapper() {
+                if let wrapper = await driverBox.getCurrentDatabaseWrapper() {
                     self.connectedDatabase = wrapper
                 }
             default:
@@ -121,12 +139,13 @@ import SwiftUI
     }
     
     func switchActiveDatabase(to database: any DatabaseWrapper) async throws {
-        guard let driver = activeDriver else {
+        guard let driverBox = activeDriverBox else {
             throw DatabaseError.operationFailed("No active database driver")
         }
         
         self.connectedDatabase = database
-        try await driver.switchDatabase(to: database.name)
+        try await driverBox.switchDatabase(to: database.name)
+        currentDeploymentURL = await driverBox.getCurrentDeploymentUrl()
         
         // Post notification about database switch
         NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
@@ -136,20 +155,22 @@ import SwiftUI
         // Cancel all active subscriptions (this also clears subscription caches)
         cancelAllSubscriptions()
         
-        await activeDriver?.disconnect()
+        await activeDriverBox?.disconnect()
         activeConnection = nil
-        activeDriver = nil
+        activeDriverBox = nil
         connectedDatabase = nil
         currentSchema = nil
+        currentDeploymentURL = nil
         clearCache()
     }
     
     func reconnect() async throws {
-        guard let driver = activeDriver else {
+        guard let driverBox = activeDriverBox else {
             throw DatabaseError.operationFailed("No active database driver")
         }
 
-        try await driver.reconnect()
+        try await driverBox.reconnect()
+        currentDeploymentURL = await driverBox.getCurrentDeploymentUrl()
     }
 
     // MARK: - Real-time Support
@@ -167,10 +188,10 @@ import SwiftUI
            sortBy: String? = nil,
            ascending: Bool? = nil,
            page: Int? = nil,
-           onUpdate: @escaping (QueryResult) -> Void,
-           onError: @escaping (Error) -> Void
+           onUpdate: @escaping @Sendable (QueryResult) -> Void,
+           onError: @escaping @Sendable (Error) -> Void
        ) async throws {
-           guard let driver = activeDriver else {
+           guard let driverBox = activeDriverBox else {
                throw DatabaseError.operationFailed("No active database driver")
            }
            
@@ -183,7 +204,9 @@ import SwiftUI
                
                // Clear subscription cache for the previous table
                if let previousTableName = subscriptionTableNames[subscriptionKey] {
-                   activeDriver?.clearSubscriptionCache(for: previousTableName)
+                   Task {
+                       await driverBox.clearSubscriptionCache(for: previousTableName)
+                   }
                }
                subscriptionTableNames.removeValue(forKey: subscriptionKey)
            }
@@ -191,7 +214,7 @@ import SwiftUI
            // Create new subscription task
            let subscriptionTask = Task {
                do {
-                   try await driver.subscribeToCollectionChanges(
+                   try await driverBox.subscribeToCollectionChanges(
                        collectionName: tableName,
                        databaseSchema: schema,
                        filter: filter,
@@ -220,8 +243,11 @@ import SwiftUI
                activeSubscriptionTasks.removeValue(forKey: subscriptionKey)
                
                // Clear subscription cache for this table
-               if let tableName = subscriptionTableNames[subscriptionKey] {
-                   activeDriver?.clearSubscriptionCache(for: tableName)
+               if let tableName = subscriptionTableNames[subscriptionKey],
+                  let activeDriverBox {
+                   Task { [activeDriverBox] in
+                       await activeDriverBox.clearSubscriptionCache(for: tableName)
+                   }
                }
                subscriptionTableNames.removeValue(forKey: subscriptionKey)
            }
@@ -231,10 +257,13 @@ import SwiftUI
            for task in activeSubscriptionTasks.values {
                task.cancel()
            }
-           
-           // Clear subscription cache for all tables
-           for tableName in subscriptionTableNames.values {
-               activeDriver?.clearSubscriptionCache(for: tableName)
+
+           if let activeDriverBox {
+               for tableName in subscriptionTableNames.values {
+                   Task { [activeDriverBox] in
+                       await activeDriverBox.clearSubscriptionCache(for: tableName)
+                   }
+               }
            }
            
            activeSubscriptionTasks.removeAll()
@@ -268,25 +297,46 @@ import SwiftUI
     
     // MARK: - Database Operations
     func getBuildInfo() async throws -> BuildInfo? {
-        guard let driver = activeDriver else { return nil }
-        return try await driver.getBuildInfo()
+        guard let activeDriverBox else { return nil }
+        return try await activeDriverBox.getBuildInfo()
     }
     
     /// Get the current deployment URL (useful for Convex environments)
     func getCurrentDeploymentUrl() -> String? {
-        return activeDriver?.getCurrentDeploymentUrl()
+        currentDeploymentURL
+    }
+
+    func getFunctionDefinition(oid: String) async throws -> String {
+        guard let activeDriverBox,
+              let definition = try await activeDriverBox.getFunctionDefinition(oid: oid) else {
+            throw DatabaseError.operationFailed("Function definitions are only available for PostgreSQL connections")
+        }
+        return definition
+    }
+
+    func buildUpdatedConvexEmbeddedToken() async -> String? {
+        guard let activeDriverBox else { return nil }
+        return await activeDriverBox.buildUpdatedConvexEmbeddedToken()
+    }
+
+    func refreshConvexDeployments() async throws -> [any DatabaseWrapper] {
+        guard let activeDriverBox else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
+
+        let deployments = try await activeDriverBox.refreshConvexDeployments()
+        currentDeploymentURL = await activeDriverBox.getCurrentDeploymentUrl()
+        return deployments
     }
     
     func listDatabases() async throws -> [any DatabaseWrapper] {
-        guard let driver = activeDriver else { return [] }
-        
-        // Use type erasure to handle different database types
-        return try await driver.listDatabases().map { $0 as any DatabaseWrapper }
+        guard let activeDriverBox else { return [] }
+        return try await activeDriverBox.listDatabases()
     }
     
     func listCollections(schema: String?) async throws -> [any CollectionWrapper] {
-        guard let driver = activeDriver else { return [] }
-        return try await driver.listCollections(schema: schema).map { $0 as any CollectionWrapper }
+        guard let activeDriverBox else { return [] }
+        return try await activeDriverBox.listCollections(schema: schema)
     }
     
     // MARK: - Document Operations
@@ -299,7 +349,7 @@ import SwiftUI
         sortBy: String?,
         ascending: Bool?
     ) async throws -> QueryResult {
-        guard let driver = activeDriver,
+        guard let activeDriverBox,
               let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
@@ -308,10 +358,10 @@ import SwiftUI
         
         switch connection.databaseType {
         case .postgres, .supabase, .convex, .mysql, .sqlite:
-            result = try await driver.findDocuments(
+            result = try await activeDriverBox.findDocuments(
                 in: collectionName,
                 databaseSchema: databaseSchema,
-                filter: ["rawQuery": filter],
+                filter: ["rawQuery": .string(filter)],
                 skip: skip,
                 limit: limit,
                 sortBy: sortBy,
@@ -319,11 +369,14 @@ import SwiftUI
             )
             
         case .mongodb:
-            result = try await driver.findDocuments(
+            result = try await activeDriverBox.findDocuments(
                 in: collectionName,
-                filter: ["rawQuery": filter],
+                databaseSchema: databaseSchema,
+                filter: ["rawQuery": .string(filter)],
                 skip: skip,
-                limit: limit
+                limit: limit,
+                sortBy: nil,
+                ascending: nil
             )
         }
         
@@ -332,82 +385,71 @@ import SwiftUI
     
     /// Generates a filter query from conditions using the appropriate database driver
     func generateFilterQuery(from conditions: [FilterCondition], tableName: String, databaseSchema: String?) -> String {
-        guard let driver = activeDriver,
-              let connection = activeConnection else {
+        guard let connection = activeConnection else {
             return ""
         }
         
         switch connection.databaseType {
         case .postgres, .supabase:
-            if let postgresDriver = driver as? PostgreSQLDriver {
-                return postgresDriver.generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
-            }
+            return PostgreSQLDriver().generateFilterQuery(from: conditions, tableName: tableName, databaseSchema: databaseSchema)
         case .sqlite:
-            if let sqliteDriver = driver as? SQLiteDriver {
-                return sqliteDriver.generateFilterQuery(from: conditions, tableName: tableName)
-            }
+            return SQLiteDriver().generateFilterQuery(from: conditions, tableName: tableName)
         case .convex:
-            if let convexDriver = driver as? ConvexDriver {
-                return convexDriver.generateFilterQuery(from: conditions, tableName: tableName)
-            }
+            return ConvexDriver().generateFilterQuery(from: conditions, tableName: tableName)
         case .mysql:
-            if let mysqlDriver = driver as? MySQLDriver {
-                return mysqlDriver.generateFilterQuery(from: conditions, tableName: tableName)
-            }
+            return MySQLDriver().generateFilterQuery(from: conditions, tableName: tableName)
         case .mongodb:
             // TODO: Implement MongoDB filter generation
             return ""
         }
-        
-        return ""
     }
     
     func getSchema(for collectionName: String, databaseSchema: String?, forceFetch: Bool = false) async throws -> DatabaseSchemaResult? {
-        guard let driver = activeDriver else { return nil }
+        guard let activeDriverBox else { return nil }
 
         if forceFetch {
-            await driver.clearSchemaCache(for: collectionName, schema: databaseSchema)
+            await activeDriverBox.clearSchemaCache(for: collectionName, schema: databaseSchema)
         }
 
-        return try await driver.getSchema(for: collectionName, schema: databaseSchema)
+        return try await activeDriverBox.getSchema(for: collectionName, schema: databaseSchema)
     }
     
     func getInformationSchema() async throws -> [InformationSchema] {
-        guard let driver = activeDriver else { return [] }
-        return try await driver.getInformationSchema()
+        guard let activeDriverBox else { return [] }
+        return try await activeDriverBox.getInformationSchema()
     }
 
     func getIndexes(for collectionName: String, databaseSchema: String?, forceFetch: Bool = false) async throws -> [DatabaseIndexInfo]? {
-        guard let driver = activeDriver else { return nil }
+        guard let activeDriverBox else { return nil }
 
         if forceFetch {
-            await driver.clearSchemaCache(for: collectionName, schema: databaseSchema)
+            await activeDriverBox.clearSchemaCache(for: collectionName, schema: databaseSchema)
         }
 
-        return try await driver.getIndexes(for: collectionName, schema: databaseSchema)
+        return try await activeDriverBox.getIndexes(for: collectionName, schema: databaseSchema)
     }
 
     func getDocumentCount(for collectionName: String, filter: [String: Any] = [:]) async throws -> Int {
-        guard let driver = activeDriver else { return 0 }
-        return try await driver.getDocumentCount(for: collectionName, filter: filter)
+        guard let activeDriverBox else { return 0 }
+        return try await activeDriverBox.getDocumentCount(for: collectionName, filter: try makeDriverDocument(from: filter))
     }
     
-    func getDatabaseMetadata() async throws -> [DatabaseWrapper] {
-        guard let driver = activeDriver else {
+    func getDatabaseMetadata() async throws -> [any DatabaseWrapper] {
+        guard let activeDriverBox else {
             return []
         }
         
-        return try await driver.getDatabaseMetadata()
+        return try await activeDriverBox.getDatabaseMetadata()
     }
     
     // MARK: - Database Management
     func createDatabase(named databaseName: String, options: CreateDatabaseOptions = .default) async throws {
-        guard let driver = activeDriver,
+        guard let activeDriverBox,
               let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
 
-        try await driver.createDatabase(named: databaseName, options: options)
+        try await activeDriverBox.createDatabase(named: databaseName, options: options)
         clearCache()
 
         Task { @MainActor in
@@ -416,45 +458,45 @@ import SwiftUI
     }
 
     func createSchema(named schemaName: String, options: CreateSchemaOptions = .default) async throws {
-        guard let driver = activeDriver else {
+        guard let activeDriverBox else {
             throw DatabaseError.operationFailed("No active database connection")
         }
 
-        try await driver.createSchema(named: schemaName, options: options)
+        try await activeDriverBox.createSchema(named: schemaName, options: options)
         clearCache()
     }
 
     // MARK: - Collection Management
     func createCollection(named collectionName: String) async throws {
-        guard let driver = activeDriver else {
+        guard let activeDriverBox else {
             throw DatabaseError.operationFailed("No active database connection")
         }
 
-        try await driver.createCollection(named: collectionName)
+        try await activeDriverBox.createCollection(named: collectionName)
         clearCache() // Clear cache after structural changes
     }
     
     func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
-        guard let driver = activeDriver else {
+        guard let activeDriverBox else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.renameCollection(databaseSchema: databaseSchema, from: oldName, to: newName)
+        try await activeDriverBox.renameCollection(databaseSchema: databaseSchema, from: oldName, to: newName)
         clearCache() // Clear cache after structural changes
     }
     
     func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
-        guard let driver = activeDriver else {
+        guard let activeDriverBox else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        try await driver.deleteCollection(named: collectionName, databaseSchema: databaseSchema)
+        try await activeDriverBox.deleteCollection(named: collectionName, databaseSchema: databaseSchema)
         clearCache() // Clear cache after structural changes
     }
     
     // MARK: - Document Modification
     func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
-        guard let driver = activeDriver,
+        guard let activeDriverBox,
               let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
@@ -463,7 +505,8 @@ import SwiftUI
         let documentDescription = "INSERT INTO \(collectionName) - \(document.keys.joined(separator: ", "))"
 
         do {
-            try await driver.createDocument(in: collectionName, databaseSchema: databaseSchema, document: document)
+            let driverDocument = try makeDriverDocument(from: document)
+            try await activeDriverBox.createDocument(in: collectionName, databaseSchema: databaseSchema, document: driverDocument)
 
             let duration = startTime.duration(to: .now)
             let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
@@ -507,17 +550,18 @@ import SwiftUI
         }
     }
 
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
-        guard let driver = activeDriver,
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: [String: Any]) async throws {
+        guard let activeDriverBox,
               let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
 
         let startTime = ContinuousClock.now
-        let documentDescription = "UPDATE \(collectionName) SET \(data.keys.joined(separator: ", ")) WHERE id = \(id)"
+        let documentDescription = "UPDATE \(collectionName) SET \(data.keys.joined(separator: ", ")) WHERE \(id.columnName) = \(id.value)"
 
         do {
-            try await driver.updateDocument(in: collectionName, databaseSchema: databaseSchema, id: id, data: data)
+            let driverDocument = try makeDriverDocument(from: data)
+            try await activeDriverBox.updateDocument(in: collectionName, databaseSchema: databaseSchema, id: id, data: driverDocument)
 
             let duration = startTime.duration(to: .now)
             let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
@@ -559,17 +603,17 @@ import SwiftUI
         }
     }
 
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
-        guard let driver = activeDriver,
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
+        guard let activeDriverBox,
               let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
 
         let startTime = ContinuousClock.now
-        let documentDescription = "DELETE FROM \(collectionName) WHERE id = \(id)"
+        let documentDescription = "DELETE FROM \(collectionName) WHERE \(id.columnName) = \(id.value)"
 
         do {
-            try await driver.deleteDocument(in: collectionName, databaseSchema: databaseSchema, id: id)
+            try await activeDriverBox.deleteDocument(in: collectionName, databaseSchema: databaseSchema, id: id)
 
             let duration = startTime.duration(to: .now)
             let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
@@ -615,7 +659,7 @@ import SwiftUI
     
     // MARK: - Raw Query Execution
     func executeRawQuery(_ query: String, databaseSchema: String? = nil) async throws -> [QueryResult] {
-        guard let driver = activeDriver,
+        guard let activeDriverBox,
               let connection = activeConnection else {
             throw DatabaseError.operationFailed("No active database connection")
         }
@@ -624,7 +668,7 @@ import SwiftUI
         let startTime = ContinuousClock.now
 
         do {
-            let results = try await driver.executeRawQuery(query, databaseSchema: schemaToUse)
+            let results = try await activeDriverBox.executeRawQuery(query, databaseSchema: schemaToUse)
             let duration = startTime.duration(to: .now)
             let durationMs = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
 
@@ -682,20 +726,20 @@ import SwiftUI
     
     // MARK: - AI Operations
     func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
-        guard let driver = activeDriver else {
+        guard let activeDriverBox else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        return try await driver.buildSystemPrompt(for: collectionName, databaseSchema: databaseSchema)
+        return try await activeDriverBox.buildSystemPrompt(for: collectionName, databaseSchema: databaseSchema)
     }
     
     // MARK: - AI Operations
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
-        guard let driver = activeDriver else {
+        guard let activeDriverBox else {
             throw DatabaseError.operationFailed("No active database connection")
         }
         
-        return try await driver.buildAICommandPromptSystemPrompt(message)
+        return try await activeDriverBox.buildAICommandPromptSystemPrompt(message)
     }
     
     // MARK: - Cache Management
@@ -711,5 +755,5 @@ import SwiftUI
     // MARK: - Getters for Current State
     var currentConnection: Connection? { activeConnection }
     var currentDatabase: (any DatabaseWrapper)? { connectedDatabase }
-    var isConnected: Bool { activeDriver != nil && connectedDatabase != nil }
+    var isConnected: Bool { activeDriverBox != nil && connectedDatabase != nil }
 }

@@ -85,6 +85,6 @@ extension MySQLDriver {
         }
         
         let decodedValue = try decode(from: mysqlData)
-        return convertToMySQLBindable(decodedValue.value ?? NSNull())
+        return convertToMySQLBindable(decodedValue.value ?? .null)
     }
 }

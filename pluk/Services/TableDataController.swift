@@ -92,6 +92,37 @@ class TableDataController {
         viewState = .loaded(result, schema)
     }
 
+    private func makeDatabaseValue(from value: Any?) -> DatabaseValue? {
+        guard let value else { return nil }
+        if let databaseValue = DatabaseValue(value) {
+            return databaseValue
+        }
+        if let convertible = value as? any CustomStringConvertible {
+            return .string(convertible.description)
+        }
+        return nil
+    }
+
+    private func makeTrackerRow(from rawRow: DatabaseRawRow) -> [String: Any] {
+        rawRow.reduce(into: [:]) { partialResult, entry in
+            if let value = entry.value?.anyValue {
+                partialResult[entry.key] = value
+            }
+        }
+    }
+
+    private func columnsForNewRecord() -> [QueryColumnInfo]? {
+        if let currentSchema {
+            return queryColumns(from: currentSchema)
+        }
+
+        guard let currentQueryResult, !currentQueryResult.columns.isEmpty else {
+            return nil
+        }
+
+        return currentQueryResult.columns
+    }
+
     // MARK: - Loading
 
     func loadDocumentsIfNeeded() async {
@@ -132,7 +163,7 @@ class TableDataController {
                     guard let self else { return }
                     async let schemaTask: DatabaseSchemaResult? = {
                         do {
-                            return try await self.instance.databaseService.getSchema(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
+                            return try await instance.databaseService.getSchema(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
                         } catch {
                             debugLog("Failed to fetch schema for \(tabName): \(error.localizedDescription)")
                             return nil
@@ -140,7 +171,7 @@ class TableDataController {
                     }()
                     async let indexesTask: [DatabaseIndexInfo]? = {
                         do {
-                            return try await self.instance.databaseService.getIndexes(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
+                            return try await instance.databaseService.getIndexes(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
                         } catch {
                             debugLog("Failed to fetch indexes for \(tabName): \(error.localizedDescription)")
                             return nil
@@ -249,12 +280,8 @@ class TableDataController {
         viewState = .loading
     }
 
-    private func extractRowId(from row: [String: Any?], columns: [QueryColumnInfo]) -> Any? {
-        if let idValue = row["_id"] ?? row["id"] {
-            return idValue
-        }
-        guard let firstColumn = columns.first else { return nil }
-        return row[firstColumn.name] as Any?
+    private func extractRowId(from result: QueryResult, rowIndex: Int) -> DatabaseRecordID? {
+        result.recordID(row: rowIndex)
     }
 
     // MARK: - Schema Modifications
@@ -270,16 +297,15 @@ class TableDataController {
         debugLog("💾 Saving \(schemaModificationTracker.totalModificationCount) schema modifications...")
 
         do {
-            guard let driver = instance.databaseService.driver else {
+            guard let service = instance.databaseService.makeSchemaModificationService() else {
                 throw DatabaseError.operationFailed("No active database driver")
             }
 
-            let service = SchemaModificationService(databaseDriver: driver)
-
+            let plan = schemaModificationTracker.snapshot()
             try await service.executeModifications(
                 tableName: tab.name,
                 schema: tab.databaseSchema,
-                modifications: schemaModificationTracker
+                plan: plan
             )
 
             schemaModificationTracker.clearAll()
@@ -325,14 +351,12 @@ class TableDataController {
                         continue
                     }
 
-                    let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
-
                     var updateData: [String: Any] = [:]
                     for (columnName, cellMod) in rowModification.cellModifications where cellMod.hasChanged {
                         updateData[columnName] = cellMod.newValue
                     }
 
-                    guard let id = extractRowId(from: originalRow, columns: currentQueryResult.columns) else {
+                    guard let id = extractRowId(from: currentQueryResult, rowIndex: rowModification.rowIndex) else {
                         debugLog("❌ Could not find row identifier for row \(rowModification.rowIndex)")
                         continue
                     }
@@ -353,9 +377,7 @@ class TableDataController {
                         continue
                     }
 
-                    let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
-
-                    guard let id = extractRowId(from: originalRow, columns: currentQueryResult.columns) else {
+                    guard let id = extractRowId(from: currentQueryResult, rowIndex: rowModification.rowIndex) else {
                         debugLog("❌ Could not find row identifier for row \(rowModification.rowIndex)")
                         continue
                     }
@@ -381,22 +403,23 @@ class TableDataController {
     // MARK: - New Record
 
     func handleNewRecord() {
-        guard let schema = cachedSchema, let currentResult = cachedDocuments else { return }
+        guard let currentResult = currentQueryResult,
+              let columns = columnsForNewRecord(),
+              !columns.isEmpty else { return }
 
-        var newRawRow = [String: Any]()
+        let newRawRow: DatabaseRawRow = [:]
         var newProcessedRow = [String: QueryRowInfo]()
 
-        for column in schema.columns {
-            newRawRow[column.columnName] = nil
-            newProcessedRow[column.columnName] = QueryRowInfo(
+        for column in columns {
+            newProcessedRow[column.name] = QueryRowInfo(
                 value: nil,
                 dataType: column.dataType,
-                format: column.formatType
+                format: column.format
             )
         }
 
         let newIndex = currentResult.rawRows.count
-        modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: newRawRow)
+        modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: makeTrackerRow(from: newRawRow))
 
         var updatedRawRows = currentResult.rawRows
         updatedRawRows.append(newRawRow)
@@ -405,14 +428,14 @@ class TableDataController {
         updatedProcessedRows.append(newProcessedRow)
 
         let updatedResult = QueryResult(
-            columns: queryColumns(from: schema),
+            columns: columns,
             rows: updatedProcessedRows,
             totalCount: currentResult.totalCount + 1,
             rawRows: updatedRawRows
         )
 
         cachedDocuments = updatedResult
-        viewState = .loaded(updatedResult, cachedSchema)
+        viewState = .loaded(updatedResult, currentSchema)
         needsToSelectLastRow = true
     }
 
@@ -430,15 +453,10 @@ class TableDataController {
         for rowData in parsedRows {
             let newIndex = updatedRawRows.count
 
-            var rawRow: [String: Any] = [:]
             var processedRow = [String: QueryRowInfo]()
 
             for column in schema.columns {
-                let value = rowData[column.columnName].flatMap { $0 }
-
-                if let value {
-                    rawRow[column.columnName] = value
-                }
+                let value = rowData[column.columnName] ?? nil
 
                 processedRow[column.columnName] = QueryRowInfo(
                     value: value,
@@ -447,8 +465,8 @@ class TableDataController {
                 )
             }
 
-            modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: rawRow)
-            updatedRawRows.append(rawRow)
+            modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: makeTrackerRow(from: rowData))
+            updatedRawRows.append(rowData)
             updatedProcessedRows.append(processedRow)
         }
 
@@ -599,14 +617,14 @@ class TableDataController {
 
     // MARK: - Clipboard Parsing
 
-    func parseClipboardContent(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]] {
+    func parseClipboardContent(_ content: String, schema: DatabaseSchemaResult) -> [DatabaseRawRow] {
         if let jsonRows = parseJSONClipboard(content, schema: schema), !jsonRows.isEmpty {
             return jsonRows
         }
         return parseTSVClipboard(content, schema: schema)
     }
 
-    private func parseJSONClipboard(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]]? {
+    private func parseJSONClipboard(_ content: String, schema: DatabaseSchemaResult) -> [DatabaseRawRow]? {
         guard let data = content.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) else {
             return nil
@@ -621,14 +639,14 @@ class TableDataController {
             return nil
         }
 
-        var result: [[String: Any?]] = []
+        var result: [DatabaseRawRow] = []
         for jsonRow in jsonArray {
-            var rowData: [String: Any?] = [:]
+            var rowData: DatabaseRawRow = [:]
             for column in schema.columns {
-                if let value = jsonRow[column.columnName], !(value is NSNull) {
-                    rowData[column.columnName] = value
-                } else {
-                    rowData[column.columnName] = nil
+                if let value = jsonRow[column.columnName],
+                   !(value is NSNull),
+                   let databaseValue = makeDatabaseValue(from: value) {
+                    rowData[column.columnName] = databaseValue
                 }
             }
             result.append(rowData)
@@ -636,27 +654,25 @@ class TableDataController {
         return result
     }
 
-    private func parseTSVClipboard(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]] {
+    private func parseTSVClipboard(_ content: String, schema: DatabaseSchemaResult) -> [DatabaseRawRow] {
         let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
         guard !lines.isEmpty else { return [] }
 
         let columns = schema.columns
-        var result: [[String: Any?]] = []
+        var result: [DatabaseRawRow] = []
 
         for line in lines {
             let values = line.components(separatedBy: "\t")
-            var rowData: [String: Any?] = [:]
+            var rowData: DatabaseRawRow = [:]
 
             for (index, column) in columns.enumerated() {
                 if index < values.count {
                     let value = values[index]
-                    if value.isEmpty || value.uppercased() == "NULL" {
-                        rowData[column.columnName] = nil
-                    } else {
-                        rowData[column.columnName] = value
+                    if !value.isEmpty,
+                       value.uppercased() != "NULL",
+                       let databaseValue = makeDatabaseValue(from: value) {
+                        rowData[column.columnName] = databaseValue
                     }
-                } else {
-                    rowData[column.columnName] = nil
                 }
             }
             result.append(rowData)
@@ -715,6 +731,16 @@ class TableDataController {
         }
 
         do {
+            let onUpdate: @Sendable (QueryResult) -> Void = { [weak self] updatedResult in
+                Task { @MainActor in
+                    self?.handleRealTimeUpdate(updatedResult)
+                }
+            }
+            let onError: @Sendable (Error) -> Void = { [weak self] error in
+                Task { @MainActor in
+                    self?.handleRealTimeError(error)
+                }
+            }
             try await instance.databaseService.subscribeToTableChanges(
                 tabId: tab.id,
                 tableName: tab.name,
@@ -724,16 +750,8 @@ class TableDataController {
                 sortBy: sortColumn,
                 ascending: sortAscending,
                 page: page,
-                onUpdate: { [weak self] updatedResult in
-                    Task { @MainActor in
-                        self?.handleRealTimeUpdate(updatedResult)
-                    }
-                },
-                onError: { [weak self] error in
-                    Task { @MainActor in
-                        self?.handleRealTimeError(error)
-                    }
-                }
+                onUpdate: onUpdate,
+                onError: onError
             )
             isSubscribedToRealTime = true
             debugLog("✅ Subscribed to real-time updates for table: \(tab.name)")

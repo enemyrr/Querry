@@ -1,6 +1,6 @@
 import AppKit
 
-final class ThinkingBlockView: NSView {
+final class ThinkingBlockView: NSView, @unchecked Sendable {
 
     private let titleLabel: NSTextField
     private let chevronIcon: NSImageView
@@ -710,12 +710,13 @@ final class ThinkingBlockView: NSView {
 
 /// Tracks user scroll position for an NSScrollView, supporting auto-scroll-to-bottom
 /// with suppression during programmatic scrolls.
+@MainActor
 private final class ScrollAnchor {
 
     private let scrollView: NSScrollView
     private var userScrolled = false
     private var suppressTracking = false
-    private var observer: NSObjectProtocol?
+    nonisolated(unsafe) private var observer: NSObjectProtocol?
 
     init(scrollView: NSScrollView) {
         self.scrollView = scrollView
@@ -726,8 +727,10 @@ private final class ScrollAnchor {
             object: scrollView.contentView,
             queue: .main
         ) { [weak self] _ in
-            guard let self, !self.suppressTracking else { return }
-            self.userScrolled = !self.isNearBottom()
+            MainActor.assumeIsolated {
+                guard let self, !self.suppressTracking else { return }
+                self.userScrolled = !self.isNearBottom()
+            }
         }
     }
 
@@ -757,8 +760,10 @@ private final class ScrollAnchor {
         scrollView.contentView.scroll(to: bottomPoint)
         scrollView.reflectScrolledClipView(scrollView.contentView)
 
-        Task { @MainActor [weak self] in
-            self?.suppressTracking = false
+        RunLoop.main.perform { [weak self] in
+            MainActor.assumeIsolated {
+                self?.suppressTracking = false
+            }
         }
     }
 

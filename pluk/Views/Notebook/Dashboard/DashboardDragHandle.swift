@@ -66,6 +66,7 @@ enum NotebookDragVisuals {
         }
     }
 
+    @MainActor
     static func dragCard(title: String, iconName: String, zPosition: CGFloat = 1000) -> CALayer {
         let card = CALayer()
         let cardWidth: CGFloat = 180

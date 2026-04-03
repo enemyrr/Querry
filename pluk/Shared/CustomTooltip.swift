@@ -426,8 +426,10 @@ class TooltipWindow: NSWindow {
             context.duration = 0.15
             self.animator().alphaValue = 0.0
         }) {
-            self.parent?.removeChildWindow(self)
-            self.orderOut(nil)
+            MainActor.assumeIsolated {
+                self.parent?.removeChildWindow(self)
+                self.orderOut(nil)
+            }
         }
     }
 }

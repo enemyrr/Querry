@@ -40,7 +40,7 @@ struct MongoCollectionWrapper: CollectionWrapper {
     }
 }
 
-class MongoDBDriver: DatabaseDriver {
+actor MongoDBDriver: DatabaseDriver {
     func getInformationSchema() async throws -> [InformationSchema] {
         throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
@@ -53,8 +53,17 @@ class MongoDBDriver: DatabaseDriver {
         throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
     }
 
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
-        throw DatabaseError.notImplemented("MongoDB driver not yet implemented")
+    func findDocuments(in collectionName: String, filter: DatabaseDocument) async throws -> [QueryResult] {
+        let result = try await findDocuments(
+            in: collectionName,
+            databaseSchema: nil,
+            filter: filter,
+            skip: 0,
+            limit: 100,
+            sortBy: nil,
+            ascending: nil
+        )
+        return [result]
     }
     
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
@@ -293,7 +302,7 @@ class MongoDBDriver: DatabaseDriver {
             return "ObjectId"
         case is String:
             return "String"
-        case is Int32, is Int64, is Int:
+        case is Int32, is Int:
             return "Number"
         case is Double:
             return "Double"
@@ -333,7 +342,7 @@ class MongoDBDriver: DatabaseDriver {
         self.connectedDatabase = newDb
     }
 
-    func getCurrentDatabaseWrapper() -> MongoDBWrapper? {
+    func getCurrentDatabaseWrapper() async -> MongoDBWrapper? {
         guard let db = connectedDatabase else { return nil }
         return MongoDBWrapper(database: db)
     }
@@ -388,7 +397,7 @@ class MongoDBDriver: DatabaseDriver {
         return collections.map { MongoCollectionWrapper(collection: $0, type: "collection") }.sorted { $0.name < $1.name }
     }
     
-    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -397,11 +406,11 @@ class MongoDBDriver: DatabaseDriver {
         return try await collection.count()
     }
 
-    func findDocuments(in collectionName: String, filter: [String : Any], skip: Int, limit: Int) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -410,7 +419,7 @@ class MongoDBDriver: DatabaseDriver {
 
         // Parse filter from rawQuery if provided
         var mongoFilter: Document = [:]
-        if let rawQuery = filter["rawQuery"] as? String, !rawQuery.isEmpty {
+        if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.isEmpty {
             do {
                 // Try to parse the JSON string as a MongoDB Document using Extended JSON format
                 mongoFilter = try Document(fromJSON: rawQuery)
@@ -432,23 +441,24 @@ class MongoDBDriver: DatabaseDriver {
         }
 
         var convertedRows: [[String: QueryRowInfo]] = []
+        var rawRows: [DatabaseRawRow] = []
 
         for try await document in query {
-            let formattedDoc = formatDocument(document)
-            let convertedRow = convertFormattedDocumentToRow(formattedDoc)
+            let convertedRow = convertFormattedDocumentToRow(document.formattedPayload())
 
             convertedRows.append(convertedRow)
+            rawRows.append(convertRawDocument(document))
         }
 
         return QueryResult(
             columns: [],
             rows: convertedRows,
             totalCount: convertedRows.count,
-            rawRows: []
+            rawRows: rawRows
         )
     }
 
-    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
@@ -458,7 +468,7 @@ class MongoDBDriver: DatabaseDriver {
         // Convert dictionary to MongoDB Document
         var mongoDocument = MongoKitten.Document()
         for (key, value) in document {
-            mongoDocument[key] = value as? Primitive
+            mongoDocument[key] = primitive(from: value)
         }
 
         let reply = try await collection.insertEncoded(mongoDocument)
@@ -467,20 +477,21 @@ class MongoDBDriver: DatabaseDriver {
         }
     }
     
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
 
         let collection = mongoDatabase[collectionName]
-        guard let objectId = id as? ObjectId else {
+        guard let objectIdString = id.value.stringValue,
+              let objectId = ObjectId(objectIdString) else {
             throw MongoError.invalidData
         }
 
         // Create update document from dictionary
         var updateDoc = MongoKitten.Document()
         for (key, value) in data {
-            updateDoc[key] = value as? Primitive
+            updateDoc[key] = primitive(from: value)
         }
 
         let filter: MongoKitten.Document = ["_id": objectId]
@@ -491,13 +502,14 @@ class MongoDBDriver: DatabaseDriver {
         }
     }
     
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
         guard let mongoDatabase = connectedDatabase else {
             throw MongoError.databaseNotInitialized
         }
         
         let collection = mongoDatabase[collectionName]
-        guard let objectId = id as? ObjectId else {
+        guard let objectIdString = id.value.stringValue,
+              let objectId = ObjectId(objectIdString) else {
             throw MongoError.invalidData
         }
         
@@ -518,17 +530,17 @@ class MongoDBDriver: DatabaseDriver {
 
         let convertedRows: [[String: QueryRowInfo]] = [
             [
-                "message": QueryRowInfo(value: "MongoDB uses document-based queries, not SQL", dataType: "String", format: nil),
-                "query": QueryRowInfo(value: query, dataType: "String", format: nil),
-                "note": QueryRowInfo(value: "Use the collection browser or aggregation pipeline for MongoDB queries", dataType: "String", format: nil)
+                "message": QueryRowInfo(value: .string("MongoDB uses document-based queries, not SQL"), dataType: "String", format: nil),
+                "query": QueryRowInfo(value: .string(query), dataType: "String", format: nil),
+                "note": QueryRowInfo(value: .string("Use the collection browser or aggregation pipeline for MongoDB queries"), dataType: "String", format: nil)
             ]
         ]
 
-        let convertedRawRows: [[String: Any?]] = [
+        let convertedRawRows: [DatabaseRawRow] = [
             [
-                "message": "MongoDB uses document-based queries, not SQL",
-                "query": query,
-                "note": "Use the collection browser or aggregation pipeline for MongoDB queries"
+                "message": .string("MongoDB uses document-based queries, not SQL"),
+                "query": .string(query),
+                "note": .string("Use the collection browser or aggregation pipeline for MongoDB queries")
             ]
         ]
 
@@ -594,61 +606,112 @@ class MongoDBDriver: DatabaseDriver {
 
     // MARK: - Helper Methods
     
-    private func convertFormattedDocumentToRow(_ formattedDoc: Document.FormattedDocument) -> [String: QueryRowInfo] {
+    private func convertFormattedDocumentToRow(_ formattedDoc: MongoFormattedDocumentPayload) -> [String: QueryRowInfo] {
         var row: [String: QueryRowInfo] = [:]
 
-        // Store the FormattedDocument as metadata for access to rawDocument
         row["__formattedDocument"] = QueryRowInfo(
-            value: formattedDoc,
+            value: .string(formattedDoc.jsonString),
             dataType: "FormattedDocument",
-            format: nil
+            format: nil,
+            metadata: .mongoDocument(formattedDoc)
         )
 
-        // Add the document ID
-        row["_id"] = QueryRowInfo(value: formattedDoc.id, dataType: "ObjectId", format: nil)
+        row["_id"] = QueryRowInfo(value: .objectID(formattedDoc.id), dataType: "ObjectId", format: nil)
 
-        // Convert each formatted field to display value
         for field in formattedDoc.fields {
             if field.key == "_id" {
-                // Already handled above
                 continue
             }
 
-            // Store the entire FormattedField to preserve nested fields information
-            row[field.key] = QueryRowInfo(value: field, dataType: field.formattedValue.type, format: nil)
+            row[field.key] = QueryRowInfo(
+                value: .string(field.formattedValue.value),
+                dataType: field.formattedValue.type,
+                format: nil,
+                metadata: .mongoField(field)
+            )
         }
 
         return row
     }
-    
-    private func formatDocument(_ document: Document) -> Document.FormattedDocument {
-        guard let id = document["_id"] as? ObjectId else {
-            return Document.FormattedDocument(id: "", fields: [], rawDocument: document)
+
+    private func convertRawDocument(_ document: Document) -> DatabaseRawRow {
+        var row: DatabaseRawRow = [:]
+        for key in document.keys {
+            row[key] = databaseValue(from: document[key])
         }
-        
-        let fields = document.keys.map { key in
-            formatField(key: key, value: document[key])
-        }
-        
-        return Document.FormattedDocument(id: id.hexString, fields: fields, rawDocument: document)
+        return row
     }
-    
-    private func formatField(key: String, value: Primitive?) -> Document.FormattedDocument.FormattedField {
-        let formatted = Document().formatValue(value)
-        
-        var nestedFields: [Document.FormattedDocument.FormattedField]?
-        if let doc = value as? Document {
-            nestedFields = doc.keys.map { key in
-                formatField(key: key, value: doc[key])
+
+    private func databaseValue(from primitive: Primitive?) -> DatabaseValue? {
+        guard let primitive else { return .null }
+
+        switch primitive {
+        case let objectId as ObjectId:
+            return .objectID(objectId.hexString)
+        case let string as String:
+            return .string(string)
+        case let int as Int:
+            return .int(int)
+        case let int as Int32:
+            return .int(Int(int))
+        case let double as Double:
+            return .double(double)
+        case let bool as Bool:
+            return .bool(bool)
+        case let date as Date:
+            return .date(date)
+        case let decimal as BSON.Decimal128:
+            return .decimalString(String(describing: decimal.toString))
+        case is Null:
+            return .null
+        case let array as [Primitive]:
+            return .array(array.compactMap(databaseValue(from:)))
+        case let document as Document:
+            var object: [String: DatabaseValue] = [:]
+            for key in document.keys {
+                guard let value = databaseValue(from: document[key]) else { return nil }
+                object[key] = value
             }
+            return .object(object)
+        default:
+            return nil
         }
-        
-        return Document.FormattedDocument.FormattedField(
-            key: key,
-            formattedValue: formatted,
-            rawValue: value ?? "nil",
-            nestedFields: nestedFields
-        )
+    }
+
+    private func primitive(from value: DatabaseValue) -> Primitive? {
+        switch value {
+        case .null:
+            return Null()
+        case .bool(let value):
+            return value
+        case .int(let value):
+            return value
+        case .int64(let value):
+            return Int(exactly: value) ?? Double(value)
+        case .double(let value):
+            return value
+        case .string(let value):
+            return value
+        case .date(let value):
+            return value
+        case .decimalString(let value):
+            return value
+        case .objectID(let value):
+            return ObjectId(value)
+        case .array(let values):
+            var arrayDocument = MongoKitten.Document()
+            for (index, item) in values.enumerated() {
+                arrayDocument["\(index)"] = primitive(from: item)
+            }
+            return arrayDocument
+        case .object(let values):
+            var document = MongoKitten.Document()
+            for (key, value) in values {
+                document[key] = primitive(from: value)
+            }
+            return document
+        case .data, .uuid:
+            return nil
+        }
     }
 }
-

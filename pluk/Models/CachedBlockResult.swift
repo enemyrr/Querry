@@ -47,8 +47,7 @@ extension CachedQueryData {
             var stringRow: [String: String?] = [:]
             for (key, info) in row {
                 if let val = info.value {
-                    if let s = val as? String { stringRow[key] = s }
-                    else { stringRow[key] = String(describing: val) }
+                    stringRow[key] = val.stringValue ?? val.description
                 } else {
                     stringRow[key] = nil
                 }
@@ -70,10 +69,10 @@ extension CachedQueryData {
             }
             return infoRow
         }
-        let rawRows: [[String: Any?]] = rows.map { row in
-            var raw: [String: Any?] = [:]
+        let rawRows: [DatabaseRawRow] = rows.map { row in
+            var raw: DatabaseRawRow = [:]
             for (key, val) in row {
-                raw[key] = val as Any?
+                raw[key] = val.map(DatabaseValue.string)
             }
             return raw
         }

@@ -168,12 +168,14 @@ struct IndexTableContentView: NSViewRepresentable {
         }
     }
 
+    @MainActor
     func makeCoordinator() -> IndexTableCoordinator {
         IndexTableCoordinator(indexes: indexes, colorScheme: colorScheme, databaseType: databaseType, modificationTracker: modificationTracker)
     }
 }
 
 // MARK: - Index Table Coordinator
+@MainActor
 class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, NSMenuDelegate {
     var indexes: [DatabaseIndexInfo]
     var colorScheme: ColorScheme
@@ -267,8 +269,7 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
               clickedColumn < tableView.tableColumns.count else { return }
 
         // Check if this is an editable column
-        let column = tableView.tableColumns[clickedColumn]
-        guard let identifier = column.identifier as? NSUserInterfaceItemIdentifier else { return }
+        let identifier = tableView.tableColumns[clickedColumn].identifier
 
         // Only handle double-click for editable columns (all except number and unique)
         switch identifier.rawValue {
@@ -281,7 +282,7 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
         }
     }
 
-    @objc private func handleDeleteKey(notification: Notification) {
+    @MainActor @objc private func handleDeleteKey(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let rows = userInfo["rows"] as? IndexSet,
               let notificationTableView = userInfo["tableView"] as? NSTableView,
@@ -322,8 +323,10 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
     }
 
     @objc private func handleTableReloadData(notification: Notification) {
-        DispatchQueue.main.async { [weak self] in
-            self?.tableView?.reloadData()
+        RunLoop.main.perform { [weak self] in
+            MainActor.assumeIsolated {
+                self?.tableView?.reloadData()
+            }
         }
     }
 

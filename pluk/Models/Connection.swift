@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
 
-enum DatabaseType: String, Codable, CaseIterable {
+enum DatabaseType: String, Codable, CaseIterable, Sendable {
     var id: String { rawValue }
     
     case convex = "convex"
@@ -138,19 +138,19 @@ enum DatabaseType: String, Codable, CaseIterable {
     }
 }
 
-enum DatabaseCategory: String, CaseIterable {
+enum DatabaseCategory: String, CaseIterable, Sendable {
     case cloud = "Cloud Providers"
     case database = "Database"
 }
 
-enum DatabaseStatus {
+enum DatabaseStatus: Sendable {
     case available
     case beta
     case comingSoon
     case notConnected
 }
 
-enum ConnectionEnvironment: String, CaseIterable, Codable {
+enum ConnectionEnvironment: String, CaseIterable, Codable, Sendable {
     case local = "Local"
     case testing = "Testing"
     case development = "Development"
@@ -158,7 +158,7 @@ enum ConnectionEnvironment: String, CaseIterable, Codable {
     case production = "Production"
 }
 
-enum DataModelType: String, CaseIterable {
+enum DataModelType: String, CaseIterable, Sendable {
     case sql = "SQL"
     case noSQL = "NoSQL"
     
@@ -236,8 +236,9 @@ final class Connection {
         // Note: Password will be stored in keychain after model is saved and persistentModelID is available
         if let password = password, !password.isEmpty {
             // Store password temporarily to be moved to keychain after save
+            nonisolated(unsafe) let unsafeSelf = self
             Task { @MainActor in
-                self.password = password
+                unsafeSelf.password = password
             }
         }
     }
@@ -489,4 +490,3 @@ final class Connection {
         }
     }
 }
-

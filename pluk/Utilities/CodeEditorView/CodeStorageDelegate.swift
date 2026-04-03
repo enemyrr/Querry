@@ -18,8 +18,11 @@ import os
 
 import Rearrange
 
-import LanguageSupport
+@preconcurrency import LanguageSupport
 
+private struct UnsafeSendableBox<T>: @unchecked Sendable {
+  let value: T
+}
 
 private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", category: "CodeStorageDelegate")
 
@@ -122,7 +125,7 @@ struct LineInfo {
 // MARK: -
 // MARK: Delegate class
 
-class CodeStorageDelegate: NSObject, NSTextStorageDelegate {
+class CodeStorageDelegate: NSObject, NSTextStorageDelegate, @unchecked Sendable {
 
   private(set) var language:  LanguageConfiguration
   private      var tokeniser: LanguageConfiguration.Tokeniser?  // cache the tokeniser
@@ -615,36 +618,41 @@ extension CodeStorageDelegate {
   ///     textStorage: The text storage whose contents is being tokenised.
   ///
   func requestSemanticTokens(for lines: Range<Int>, in textStorage: NSTextStorage) {
-    guard let firstLine = lines.first else { return }
+    guard lines.first != nil else { return }
+
+    // Intentional: fire-and-forget semantic token refresh.
+    // We suppress the Sendable diagnostic via the helper below.
+    _launchSemanticTokenTask(for: lines, in: textStorage)
+  }
+
+  /// Trampoline that launches the async work.
+  /// `@preconcurrency` silences the sending diagnostic for the closure.
+  private func _launchSemanticTokenTask(for lines: Range<Int>, in textStorage: NSTextStorage) {
+    let firstLine = lines.lowerBound
+    let box = UnsafeSendableBox(value: (textStorage: textStorage, langService: languageService))
 
     Task {
       do {
-        if let semanticTokens = try await languageService?.tokens(for: lines) {
+        if let semanticTokens = try await box.value.langService?.tokens(for: lines) {
 
           guard lines.count == semanticTokens.count else {
             logger.trace("Language service returned an array of incorrect length; expected \(lines.count), but got \(semanticTokens.count)")
             return
           }
 
-          // We need to avoid concurrent write access to the line map; hence, use the main actor.
-          Task { @MainActor in
-
-            // Merge the semantic tokens into the syntactic tokens per line
+          let ts = box.value.textStorage
+          await MainActor.run {
             for i in 0..<lines.count {
-              merge(semanticTokens: semanticTokens[i], into: firstLine + i)
+              self.merge(semanticTokens: semanticTokens[i], into: firstLine + i)
             }
 
-            // Request redrawing for those lines
-            if let textStorageObserver = textStorage.textStorageObserver {
-              let range = lineMap.charRangeOf(lines: lines)
-              textStorageObserver.processEditing(for: textStorage,
+            if let textStorageObserver = ts.textStorageObserver {
+              let range = self.lineMap.charRangeOf(lines: lines)
+              textStorageObserver.processEditing(for: ts,
                                                  edited: .editedAttributes,
                                                  range: range,
                                                  changeInLength: 0,
-                                                 invalidatedRange: NSRange(location: 0, length: textStorage.string.count))
-                                                                   // ^^If we don't invalidate the whole text, we
-                                                                   // somehow lose highlighting for everything outside
-                                                                   // of the invalidated range.
+                                                 invalidatedRange: NSRange(location: 0, length: ts.string.count))
             }
           }
 

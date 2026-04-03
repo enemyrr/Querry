@@ -15,7 +15,7 @@ extension SQLiteDriver {
     ///   - conditions: Array of filter conditions
     ///   - tableName: Name of the table to query
     /// - Returns: Complete SQL query string
-    func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
+    nonisolated func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
         let validConditions = conditions.filter { condition in
             !condition.field.isEmpty && 
             (condition.filterOperator == .isNull || condition.filterOperator == .isNotNull || 

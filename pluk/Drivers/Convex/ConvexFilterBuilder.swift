@@ -5,7 +5,7 @@ import ConvexMobile
 // Produces a FilterExpression JSON for `_system/frontend/paginatedTableDocuments`.
 
 extension ConvexDriver {
-    private func mapToConvexOperator(_ op: FilterOperator) -> String {
+    nonisolated private func mapToConvexOperator(_ op: FilterOperator) -> String {
         switch op {
         case .equals: return "eq"          // built-in
         case .notEquals: return "neq"      // built-in
@@ -26,7 +26,7 @@ extension ConvexDriver {
     }
 
     /// Convert a user-entered string into a JSON-compatible primitive if possible (number/bool), else string.
-    private func toJSONPrimitive(from string: String) -> Any {
+    nonisolated private func toJSONPrimitive(from string: String) -> Any {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.lowercased() == "true" { return true }
         if trimmed.lowercased() == "false" { return false }
@@ -37,7 +37,7 @@ extension ConvexDriver {
 
     /// Builds a FilterExpression dictionary:
     /// { clauses: Filter[], order?: "asc" | "desc", index?: ... }
-    func generateFilterPayload(from conditions: [FilterCondition]) -> [String: Any]? {
+    nonisolated func generateFilterPayload(from conditions: [FilterCondition]) -> [String: Any]? {
         let validConditions: [FilterCondition] = conditions.filter { condition in
             guard !condition.field.isEmpty else { return false }
             switch condition.filterOperator {
@@ -88,7 +88,7 @@ extension ConvexDriver {
     }
 
     /// Builds a JSON string representing the FilterExpression payload.
-    func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
+    nonisolated func generateFilterQuery(from conditions: [FilterCondition], tableName: String) -> String {
         guard let payload = generateFilterPayload(from: conditions) else { return "" }
         do {
             let data = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes, .sortedKeys])
@@ -102,7 +102,7 @@ extension ConvexDriver {
     }
 
     /// Human-readable preview (not the real schema), for quick UI/debug.
-    func generateFilterPreviewString(from conditions: [FilterCondition], tableName: String) -> String {
+    nonisolated func generateFilterPreviewString(from conditions: [FilterCondition], tableName: String) -> String {
         let validConditions: [FilterCondition] = conditions.filter { condition in
             guard !condition.field.isEmpty else { return false }
             switch condition.filterOperator {
@@ -138,5 +138,3 @@ extension ConvexDriver {
         return "convex \(tableName) " + parts.joined(separator: " ")
     }
 }
-
-

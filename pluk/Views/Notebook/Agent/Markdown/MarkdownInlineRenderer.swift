@@ -129,15 +129,19 @@ private final class InlineCodeAttachmentCell: NSTextAttachmentCell {
     }
 
     override func cellSize() -> NSSize {
-        let textSize = (text as NSString).size(withAttributes: [.font: codeFont])
-        return NSSize(
-            width: ceil(textSize.width) + Self.hPad * 2,
-            height: ceil(lineFont.ascender - lineFont.descender + Self.vPad * 2)
-        )
+        MainActor.assumeIsolated {
+            let textSize = (text as NSString).size(withAttributes: [.font: codeFont])
+            return NSSize(
+                width: ceil(textSize.width) + Self.hPad * 2,
+                height: ceil(lineFont.ascender - lineFont.descender + Self.vPad * 2)
+            )
+        }
     }
 
     override func cellBaselineOffset() -> NSPoint {
-        NSPoint(x: 0, y: lineFont.descender - Self.vPad)
+        MainActor.assumeIsolated {
+            NSPoint(x: 0, y: lineFont.descender - Self.vPad)
+        }
     }
 
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {

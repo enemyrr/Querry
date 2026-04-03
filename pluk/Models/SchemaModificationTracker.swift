@@ -10,7 +10,7 @@ import SwiftUI
 
 // MARK: - Modification Types
 
-enum SchemaModificationType: Equatable {
+enum SchemaModificationType: Equatable, Sendable {
     case addColumn
     case modifyColumn
     case dropColumn
@@ -21,7 +21,7 @@ enum SchemaModificationType: Equatable {
 
 // MARK: - Column Modification
 
-struct ColumnModification: Equatable, Identifiable {
+struct ColumnModification: Equatable, Identifiable, Sendable {
     let id = UUID()
     let type: SchemaModificationType
     let timestamp: Date
@@ -59,7 +59,7 @@ struct ColumnModification: Equatable, Identifiable {
 
 // MARK: - Index Modification
 
-struct IndexModification: Equatable, Identifiable {
+struct IndexModification: Equatable, Identifiable, Sendable {
     let id = UUID()
     let type: SchemaModificationType
     let timestamp: Date
@@ -97,14 +97,23 @@ struct IndexModification: Equatable, Identifiable {
 
 // MARK: - Table Rename
 
-struct TableRename: Equatable {
+struct TableRename: Equatable, Sendable {
     let oldName: String
     let newName: String
 }
 
+struct SchemaModificationPlan: Sendable {
+    let columnAdditions: [ColumnModification]
+    let columnUpdates: [ColumnModification]
+    let columnDeletions: [ColumnModification]
+    let indexAdditions: [IndexModification]
+    let indexUpdates: [IndexModification]
+    let indexDeletions: [IndexModification]
+}
+
 // MARK: - Schema Modification Tracker
 
-@Observable class SchemaModificationTracker {
+@Observable @MainActor class SchemaModificationTracker {
     private(set) var columnModifications: [ColumnModification] = []
     private(set) var indexModifications: [IndexModification] = []
     private(set) var tableRename: TableRename?
@@ -172,6 +181,17 @@ struct TableRename: Equatable {
         return indexUpdates.count
     }
 
+    func snapshot() -> SchemaModificationPlan {
+        SchemaModificationPlan(
+            columnAdditions: columnAdditions,
+            columnUpdates: columnUpdates,
+            columnDeletions: columnDeletions,
+            indexAdditions: indexAdditions,
+            indexUpdates: indexUpdates,
+            indexDeletions: indexDeletions
+        )
+    }
+
     // MARK: - Column Operations
 
     func trackColumnAddition(_ column: DatabaseSchemaInfo) {
@@ -185,9 +205,8 @@ struct TableRename: Equatable {
     func updateColumnAddition(originalName: String, updatedColumn: DatabaseSchemaInfo) {
         // Find and update the existing addition
         if let index = columnModifications.firstIndex(where: { $0.type == .addColumn && $0.columnName == originalName }) {
-            let oldModification = columnModifications[index]
             // Create a new modification with updated column but same ID for undo tracking
-            var newModification = ColumnModification(type: .addColumn, column: updatedColumn)
+            let newModification = ColumnModification(type: .addColumn, column: updatedColumn)
             columnModifications[index] = newModification
             debugLog("📝 Column addition updated: \(originalName) → \(updatedColumn.columnName)")
         }

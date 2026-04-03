@@ -427,6 +427,7 @@ struct CustomComponentPicker: NSViewRepresentable {
         Coordinator()
     }
 
+    @MainActor
     class Coordinator: NSObject {
         var onSelectionChange: ((String) -> Void)?
         var selectedItemBinding: Binding<String>?

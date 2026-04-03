@@ -12,7 +12,7 @@ import LanguageSupport
 
 /// Protocol with all code editor actions for maximum flexibility in invoking them via the responder chain.
 ///
-@objc public protocol CodeEditorActions {
+@MainActor @objc public protocol CodeEditorActions {
 
   func duplicate(_ sender: Any?)
   func reindent(_ sender: Any?)

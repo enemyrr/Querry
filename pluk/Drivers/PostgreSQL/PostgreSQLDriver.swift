@@ -90,9 +90,18 @@ struct PostgreSQLQueryResult {
 }
 
 // MARK: - PostgreSQL Driver
-class PostgreSQLDriver: DatabaseDriver {
-    func findDocuments(in collectionName: String, filter: [String : Any]) async throws -> [QueryResult] {
-        throw DatabaseError.notImplemented("PostgreSQL bulk find not yet implemented")
+actor PostgreSQLDriver: DatabaseDriver {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument) async throws -> [QueryResult] {
+        let result = try await findDocuments(
+            in: collectionName,
+            databaseSchema: nil,
+            filter: filter,
+            skip: 0,
+            limit: 100,
+            sortBy: nil,
+            ascending: nil
+        )
+        return [result]
     }
     
     typealias Database = PostgreSQLDatabaseWrapper
@@ -268,9 +277,9 @@ class PostgreSQLDriver: DatabaseDriver {
     /// Runs an async operation with a timeout. Throws if the operation doesn't
     /// complete within `seconds`. Used to prevent pool lease hangs when the
     /// server is unreachable.
-    private func withPoolTimeout<T>(
+    private func withPoolTimeout<T: Sendable>(
         seconds: Double = 15,
-        _ operation: @escaping () async throws -> T
+        _ operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
@@ -463,22 +472,22 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
         return 0
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
     
-    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
 
         do {
             let query: PostgresQuery
 
-            if let rawQuery = filter["rawQuery"] as? String, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let results = try await executeRawQuery(rawQuery, databaseSchema: databaseSchema)
                 return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
             } else {
@@ -509,7 +518,7 @@ class PostgreSQLDriver: DatabaseDriver {
             // Single-pass processing: build everything in one loop
             var queryColumns: [QueryColumnInfo] = []
             var convertedRows: [[String: QueryRowInfo]] = []
-            var convertedRawRows: [[String: Any?]] = []
+            var convertedRawRows: [DatabaseRawRow] = []
             var columnsInitialized = false
             
             for try await row in results {
@@ -530,22 +539,23 @@ class PostgreSQLDriver: DatabaseDriver {
                 
                 let randomAccessRow = row.makeRandomAccess()
                 var processedRowData: [String: QueryRowInfo] = [:]
-                var rawRowData: [String: Any?] = [:]
+                var rawRowData: DatabaseRawRow = [:]
                 
                 for column in queryColumns {
                     let columnName = column.name
-                    if randomAccessRow.contains(columnName) {
-                        let cell = randomAccessRow[columnName]
-                        rawRowData[columnName] = cell
-
-                        do {
-                            processedRowData[columnName] = try decode(from: cell)
-                        } catch {
-                            debugLog("extractValue: \(String(reflecting: error))")
+                        if randomAccessRow.contains(columnName) {
+                            let cell = randomAccessRow[columnName]
+                            do {
+                                let decoded = try decode(from: cell)
+                                processedRowData[columnName] = decoded
+                                rawRowData[columnName] = decoded.value
+                            } catch {
+                                debugLog("extractValue: \(String(reflecting: error))")
+                                processedRowData[columnName] = nil
+                                rawRowData[columnName] = nil
+                            }
+                        } else {
                             processedRowData[columnName] = nil
-                        }
-                    } else {
-                        processedRowData[columnName] = nil
                         rawRowData[columnName] = nil
                     }
                 }
@@ -568,7 +578,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
 
-    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard !document.isEmpty else {
@@ -609,12 +619,9 @@ class PostgreSQLDriver: DatabaseDriver {
                 }
                 
                 // Convert and add value
-                if let value = document[key] {
-                    let convertedValue = try encode(value, columnName: key, columnType: columnType)
-                    values.append(convertedValue)
-                } else {
-                    values.append(nil)
-                }
+                let value = document[key] ?? .null
+                let convertedValue = try encode(value, columnName: key, columnType: columnType)
+                values.append(convertedValue)
                 
                 parameterIndex += 1
             }
@@ -643,25 +650,26 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
 
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any], ) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
         
         guard !data.isEmpty else {
             throw DatabaseError.operationFailed("No changes detected to update")
         }
         
-        guard let primaryKey = id as? PostgresCell else {
-            throw DatabaseError.operationFailed("Failed to identify the primary key to update")
-        }
-        
         do {
             let (setClause, values) = try await buildParameterizedSetClause(dataToUpdate: data, for: collectionName)
+            let schema = try await getSchema(for: collectionName)
+            let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
+            let idColumnType = PostgresDataType(UInt32(columnTypes[id.columnName] ?? 0))
+            let encodedID = try encode(id.value, columnName: id.columnName, columnType: idColumnType)
+            let sanitizedIDColumn = try validateAndSanitizeColumnName(id.columnName)
             
             // Build the UPDATE query with parameter binding
             let queryString = """
                 UPDATE \(sanitizedCollectionName)
                 SET \(setClause)
-                WHERE \(primaryKey.columnName) = $\(values.count + 1)
+                WHERE \(sanitizedIDColumn) = $\(values.count + 1)
             """
             
             var bindings = PostgresBindings(capacity: values.count + 1)
@@ -675,15 +683,11 @@ class PostgreSQLDriver: DatabaseDriver {
                 }
             }
             
-            // Convert PostgresCell to PostgresData
-            let postgresData = PostgresData(
-                type: primaryKey.dataType,
-                typeModifier: nil,
-                formatCode: primaryKey.format,
-                value: primaryKey.bytes
-            )
-            
-            bindings.append(postgresData)
+            if let encodedID {
+                try bindings.append(encodedID)
+            } else {
+                bindings.appendNull()
+            }
             
             // Execute the update query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
@@ -709,31 +713,29 @@ class PostgreSQLDriver: DatabaseDriver {
         return (hour, minute, second, microsecond)
     }
     
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
-        
-        guard let primaryKey = id as? PostgresCell else {
-            throw DatabaseError.operationFailed("Cannot delete document without a primary key")
-        }
-        
+
         do {
+            let schema = try await getSchema(for: collectionName)
+            let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
+            let idColumnType = PostgresDataType(UInt32(columnTypes[id.columnName] ?? 0))
+            let encodedID = try encode(id.value, columnName: id.columnName, columnType: idColumnType)
+            let sanitizedIDColumn = try validateAndSanitizeColumnName(id.columnName)
             // Build the DELETE query with parameter binding
             let queryString = """
                 DELETE FROM \(sanitizedCollectionName)
-                WHERE \(primaryKey.columnName) = $1
+                WHERE \(sanitizedIDColumn) = $1
             """
             
             // Create PostgresBindings and append the primary key value
             var bindings = PostgresBindings(capacity: 1)
             
-            let postgresData = PostgresData(
-                type: primaryKey.dataType,
-                typeModifier: nil,
-                formatCode: primaryKey.format,
-                value: primaryKey.bytes
-            )
-            
-            bindings.append(postgresData)
+            if let encodedID {
+                try bindings.append(encodedID)
+            } else {
+                bindings.appendNull()
+            }
             
             // Execute the delete query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
@@ -761,7 +763,7 @@ class PostgreSQLDriver: DatabaseDriver {
 
                 var queryColumns: [QueryColumnInfo] = []
                 var convertedRows: [[String: QueryRowInfo]] = []
-                var convertedRawRows: [[String: Any?]] = []
+                var convertedRawRows: [DatabaseRawRow] = []
                 var columnsInitialized = false
 
                 for try await row in queryResults {
@@ -781,18 +783,20 @@ class PostgreSQLDriver: DatabaseDriver {
 
                     let randomAccessRow = row.makeRandomAccess()
                     var processedRowData: [String: QueryRowInfo] = [:]
-                    var rawRowData: [String: Any?] = [:]
+                    var rawRowData: DatabaseRawRow = [:]
 
                     for column in queryColumns {
                         let columnName = column.name
                         if randomAccessRow.contains(columnName) {
                             let cell = randomAccessRow[columnName]
-                            rawRowData[columnName] = cell
                             do {
-                                processedRowData[columnName] = try decode(from: cell)
+                                let decoded = try decode(from: cell)
+                                processedRowData[columnName] = decoded
+                                rawRowData[columnName] = decoded.value
                             } catch {
                                 debugLog("executeRawQuery decode error: \(String(reflecting: error))")
                                 processedRowData[columnName] = nil
+                                rawRowData[columnName] = nil
                             }
                         } else {
                             processedRowData[columnName] = nil
@@ -1560,19 +1564,28 @@ class PostgreSQLDriver: DatabaseDriver {
         return "\"\(trimmed)\""
     }
     
-    private func buildWhereClause(from filter: [String: Any]) -> String {
+    private func buildWhereClause(from filter: DatabaseDocument) -> String {
         // Filter out the rawQuery key as it's not meant for WHERE clause building
         let filteredDict = filter.filter { key, _ in key != "rawQuery" }
         
         guard !filteredDict.isEmpty else { return "" }
         
         let conditions = filteredDict.map { key, value in
-            if let stringValue = value as? String {
-                return "\(key) = '\(stringValue)'"
-            } else if let numberValue = value as? NSNumber {
-                return "\(key) = \(numberValue)"
-            } else {
-                return "\(key) = '\(value)'"
+            switch value {
+            case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
+                return "\(key) = '\(stringValue.replacing("'", with: "''"))'"
+            case .int(let value):
+                return "\(key) = \(value)"
+            case .int64(let value):
+                return "\(key) = \(value)"
+            case .double(let value):
+                return "\(key) = \(value)"
+            case .bool(let value):
+                return "\(key) = \(value)"
+            case .null:
+                return "\(key) IS NULL"
+            default:
+                return "\(key) = '\(value.description.replacing("'", with: "''"))'"
             }
         }
         
@@ -1603,7 +1616,7 @@ class PostgreSQLDriver: DatabaseDriver {
         }
     }
     
-    private func buildParameterizedSetClause(dataToUpdate: [String: Any], for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable?]) {
+    private func buildParameterizedSetClause(dataToUpdate: DatabaseDocument, for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable?]) {
         var setClauses: [String] = []
         var values: [PostgresEncodable?] = []
         var parameterIndex = 1

@@ -41,7 +41,7 @@ struct ModificationHistoryEntry {
 }
 
 // MARK: - Row History Entry
-struct RowHistoryEntry {
+struct RowHistoryEntry: @unchecked Sendable {
     let id = UUID()
     let timestamp: Date
     let rowIndex: Int
@@ -98,7 +98,7 @@ struct RowModification {
 }
 
 // MARK: - Table Modification Tracker
-@Observable class TableModificationTracker {
+@Observable @MainActor class TableModificationTracker {
     private var rowModifications: [Int: RowModification] = [:]
     private var modificationHistory: [ModificationHistoryEntry] = []
     private var rowHistory: [RowHistoryEntry] = []
@@ -523,13 +523,13 @@ struct RowModification {
 }
 
 // MARK: - Undo Delegate Protocol
-protocol TableModificationUndoDelegate: AnyObject {
+@MainActor protocol TableModificationUndoDelegate: AnyObject {
     func willUndoModification(rowIndex: Int, columnName: String, fromValue: String, toValue: String)
     func didUndoModification(rowIndex: Int, columnName: String, newValue: String)
 }
 
 // MARK: - Row Undo Delegate Protocol
-protocol RowUndoDelegate: AnyObject {
+@MainActor protocol RowUndoDelegate: AnyObject {
     func didUndoRowInsert(rowIndex: Int)
     func didUndoRowDelete(rowIndex: Int, rowData: [String: Any]?)
 }

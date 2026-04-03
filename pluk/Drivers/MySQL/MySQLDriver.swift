@@ -20,7 +20,7 @@ struct MySQLCollectionWrapper: CollectionWrapper {
 }
 
 // MARK: - MySQL Driver
-class MySQLDriver: DatabaseDriver {
+actor MySQLDriver: DatabaseDriver {
     func getInformationSchema() async throws -> [InformationSchema] {
         throw DatabaseError.notImplemented("MySql driver not yet implemented")
     }
@@ -178,7 +178,7 @@ class MySQLDriver: DatabaseDriver {
                 try? await oldGroup.shutdownGracefully()
             }
 
-            _ = try await establishConnection(with: connectionUri)
+            _ = try await self.establishConnection(with: connectionUri)
 
             guard let connection = self.connection else {
                 throw DatabaseError.connectionFailed("Failed to reconnect to MySQL database")
@@ -278,19 +278,13 @@ class MySQLDriver: DatabaseDriver {
     
     // MARK: - Document Operations
     
-    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
         let connection = try await ensureConnected()
         
         let query: String
         
-        // Check if filter contains filter conditions (advanced filtering)
-        if let filterConditions = filter["filterConditions"] as? [FilterCondition], !filterConditions.isEmpty {
-            let whereClause = buildWhereClause(from: filterConditions)
-            query = "SELECT COUNT(*) as count FROM `\(collectionName)`\(whereClause)"
-        } else {
-            let whereClause = buildWhereClause(from: filter)
-            query = "SELECT COUNT(*) as count FROM `\(collectionName)`\(whereClause)"
-        }
+        let whereClause = buildWhereClause(from: filter)
+        query = "SELECT COUNT(*) as count FROM `\(collectionName)`\(whereClause)"
         
         let rows = try await connection.simpleQuery(query).get()
         for row in rows {
@@ -301,30 +295,24 @@ class MySQLDriver: DatabaseDriver {
         return 0
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult] {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument) async throws -> [QueryResult] {
         let result = try await findDocuments(in: collectionName, filter: filter, skip: 0, limit: 100)
         return [result]
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
         
         let query: String
         
         // Check if filter contains a raw query
-        if let rawQuery = filter["rawQuery"] as? String, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Use the raw query directly
             query = rawQuery
-        } else if let filterConditions = filter["filterConditions"] as? [FilterCondition], !filterConditions.isEmpty {
-            // Use advanced filtering with filter conditions
-            let baseQuery = generateFilterQuery(from: filterConditions, tableName: collectionName)
-            let orderClause = buildOrderClause(sortBy: sortBy, ascending: ascending)
-            let limitClause = " LIMIT \(limit) OFFSET \(skip)"
-            query = "\(baseQuery)\(orderClause)\(limitClause)"
         } else {
             // Build standard query with WHERE clause
             let whereClause = buildWhereClause(from: filter)
@@ -345,24 +333,24 @@ class MySQLDriver: DatabaseDriver {
         
         // Convert rows to the expected format
         var queryRows: [[String: QueryRowInfo]] = []
-        var rawRows: [[String: Any?]] = []
+        var rawRows: [DatabaseRawRow] = []
         
         for row in rows {
             var queryRow: [String: QueryRowInfo] = [:]
-            var rawRow: [String: Any?] = [:]
+            var rawRow: DatabaseRawRow = [:]
             
             for column in columns {
                 let columnName = column.name
                 if let mysqlData = row.column(columnName) {
-                    // Store the raw MySQLData for compatibility with update operations
-                    rawRow[columnName] = mysqlData.mysqlData
-                    
                     // Convert to QueryRowInfo for processed row
                     do {
-                        queryRow[columnName] = try decode(from: mysqlData)
+                        let decoded = try decode(from: mysqlData)
+                        queryRow[columnName] = decoded
+                        rawRow[columnName] = decoded.value
                     } catch {
                         logger.warning("Failed to decode column \(columnName): \(error)")
                         queryRow[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                        rawRow[columnName] = nil
                     }
                 } else {
                     queryRow[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
@@ -385,12 +373,13 @@ class MySQLDriver: DatabaseDriver {
         )
     }
     
-    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
         let connection = try await ensureConnected()
         
-        let columns = document.keys.map { "`\($0)`" }.joined(separator: ", ")
-        let placeholders = document.keys.map { _ in "?" }.joined(separator: ", ")
-        let values = Array(document.values)
+        let sortedKeys = document.keys.sorted()
+        let columns = sortedKeys.map { "`\($0)`" }.joined(separator: ", ")
+        let placeholders = sortedKeys.map { _ in "?" }.joined(separator: ", ")
+        let values = sortedKeys.map { document[$0] ?? .null }
         
         let query = "INSERT INTO `\(collectionName)` (\(columns)) VALUES (\(placeholders))"
         
@@ -398,37 +387,29 @@ class MySQLDriver: DatabaseDriver {
         _ = try await connection.query(query, values.map(convertToMySQLBindable)).get()
     }
     
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
         let connection = try await ensureConnected()
         
         guard !data.isEmpty else {
             throw DatabaseError.operationFailed("No changes detected to update")
         }
         
-        let bindableId = try decodeAndConvertToBindable(id)
+        let sortedKeys = data.keys.sorted()
+        let setClauses = sortedKeys.map { "`\($0)` = ?" }.joined(separator: ", ")
+        let values = sortedKeys.map { data[$0] ?? .null } + [id.value]
         
-        // Get the primary key column name for this table
-        let primaryKeyColumn = try await getPrimaryKeyColumn(for: collectionName) ?? "id"
-        
-        let setClauses = data.keys.map { "`\($0)` = ?" }.joined(separator: ", ")
-        let values = Array(data.values) + [bindableId]
-        
-        let query = "UPDATE `\(collectionName)` SET \(setClauses) WHERE `\(primaryKeyColumn)` = ?"
+        let query = "UPDATE `\(collectionName)` SET \(setClauses) WHERE `\(id.columnName)` = ?"
         
         // Use direct parameter array approach
         _ = try await connection.query(query, values.map(convertToMySQLBindable)).get()
     }
     
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
         let connection = try await ensureConnected()
         
         do {
-            let primaryKeyColumn = try await getPrimaryKeyColumn(for: collectionName) ?? "id"
-            let query = "DELETE FROM `\(collectionName)` WHERE `\(primaryKeyColumn)` = ?"
-            
-            // Use the helper function to decode and convert the id
-            let bindableId = try decodeAndConvertToBindable(id)
-            _ = try await connection.query(query, [bindableId]).get()
+            let query = "DELETE FROM `\(collectionName)` WHERE `\(id.columnName)` = ?"
+            _ = try await connection.query(query, [convertToMySQLBindable(id.value)]).get()
         } catch {
             throw DatabaseError.operationFailed(error.localizedDescription)
         }
@@ -450,7 +431,7 @@ class MySQLDriver: DatabaseDriver {
 
                 var queryColumns: [QueryColumnInfo] = []
                 var convertedRows: [[String: QueryRowInfo]] = []
-                var convertedRawRows: [[String: Any?]] = []
+                var convertedRawRows: [DatabaseRawRow] = []
                 var columnsInitialized = false
 
                 for row in results {
@@ -473,18 +454,19 @@ class MySQLDriver: DatabaseDriver {
                     }
 
                     var processedRowData: [String: QueryRowInfo] = [:]
-                    var rawRowData: [String: Any?] = [:]
+                    var rawRowData: DatabaseRawRow = [:]
 
                     for column in queryColumns {
                         let columnName = column.name
                         if let mysqlData = row.column(columnName) {
-                            rawRowData[columnName] = mysqlData
-
                             do {
-                                processedRowData[columnName] = try decode(from: mysqlData)
+                                let decoded = try decode(from: mysqlData)
+                                processedRowData[columnName] = decoded
+                                rawRowData[columnName] = decoded.value
                             } catch {
                                 logger.warning("Failed to decode column \(columnName): \(error)")
                                 processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                                rawRowData[columnName] = nil
                             }
                         } else {
                             processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
@@ -1158,26 +1140,29 @@ class MySQLDriver: DatabaseDriver {
     
     // MARK: - Helper Methods
     
-    private func buildWhereClause(from filter: [String: Any]) -> String {
-        // Check if this is a filter conditions array (new advanced filtering)
-        if let filterConditions = filter["filterConditions"] as? [FilterCondition], !filterConditions.isEmpty {
-            return buildWhereClause(from: filterConditions)
-        }
-        
-        // Filter out special keys not meant for WHERE clause building
-        let filteredDict = filter.filter { key, _ in 
-            !["rawQuery", "filterConditions"].contains(key)
-        }
+    private func buildWhereClause(from filter: DatabaseDocument) -> String {
+        let filteredDict = filter.filter { key, _ in key != "rawQuery" }
         
         guard !filteredDict.isEmpty else { return "" }
         
         let conditions = filteredDict.map { key, value in
             let escapedKey = "`\(key)`"
-            if let stringValue = value as? String {
-                let escapedValue = stringValue.replacingOccurrences(of: "'", with: "\\'")
+            switch value {
+            case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
+                let escapedValue = stringValue.replacing("'", with: "\\'")
                 return "\(escapedKey) = '\(escapedValue)'"
-            } else {
+            case .int(let value):
                 return "\(escapedKey) = \(value)"
+            case .int64(let value):
+                return "\(escapedKey) = \(value)"
+            case .double(let value):
+                return "\(escapedKey) = \(value)"
+            case .bool(let value):
+                return "\(escapedKey) = \(value ? 1 : 0)"
+            case .null:
+                return "\(escapedKey) IS NULL"
+            default:
+                return "\(escapedKey) = '\(value.description.replacing("'", with: "\\'"))'"
             }
         }.joined(separator: " AND ")
         

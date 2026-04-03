@@ -96,9 +96,12 @@ final class SingleValueConfigController: NSViewController {
             context.duration = 0.2
             picker.animator().alphaValue = 0
         } completionHandler: { [weak self] in
-            picker.removeFromSuperview()
-            self?.connectionPickerView = nil
-            self?.setupSingleValueDisplay()
+            Task { @MainActor [weak self] in
+                guard let self, let picker = self.connectionPickerView else { return }
+                picker.removeFromSuperview()
+                self.connectionPickerView = nil
+                self.setupSingleValueDisplay()
+            }
         }
     }
 
@@ -584,4 +587,3 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         return rounded
     }
 }
-

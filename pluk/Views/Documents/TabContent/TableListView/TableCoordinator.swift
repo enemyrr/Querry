@@ -1,12 +1,13 @@
 import AppKit
 
-class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, RowUndoDelegate, NSMenuDelegate {
+@MainActor class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, RowUndoDelegate, NSMenuDelegate {
     var rows: [[String: Any?]]
     var schema: DatabaseSchemaResult?
     var totalCount: Int
     var queryResult: QueryResult?
 
     private var paddingRowCount: Int { showPaddingRows ? 3 : 0 }
+    private static let schemaLessReadOnlyColumns: Set<String> = ["_id", "_creationTime"]
     private let showPaddingRows: Bool
     private let isReadOnly: Bool
 
@@ -19,8 +20,8 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
     let tableView = CustomTableView()
 
     // Static caches so user customizations survive coordinator recreation (tab switches)
-    private static var persistedColumnWidths: [String: CGFloat] = [:]  // Key: "autosaveKey.columnId"
-    private static var persistedColumnOrder: [String: [String]] = [:]  // Key: autosaveKey → [columnId...]
+    nonisolated(unsafe) private static var persistedColumnWidths: [String: CGFloat] = [:]  // Key: "autosaveKey.columnId"
+    nonisolated(unsafe) private static var persistedColumnOrder: [String: [String]] = [:]  // Key: autosaveKey → [columnId...]
 
     private var columnWidthCache: [String: CGFloat] = [:]
     private var knownColumns: Set<String> = []
@@ -408,6 +409,32 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         sortAscending = ascending
         updateTableHeaders()
     }
+
+    private var usesSchemaLessSystemColumns: Bool {
+        guard schema == nil, let queryResult else { return false }
+        let columnNames = Set(queryResult.columns.map(\.name))
+        return columnNames.contains("_id") && columnNames.contains("_creationTime")
+    }
+
+    private func isColumnReadOnly(_ columnName: String) -> Bool {
+        if isReadOnly {
+            return true
+        }
+
+        if let schemaColumn = schema?.column(named: columnName) {
+            return schemaColumn.isReadOnly
+        }
+
+        return usesSchemaLessSystemColumns && Self.schemaLessReadOnlyColumns.contains(columnName)
+    }
+
+    private func firstEditableColumnIndex() -> Int {
+        guard let editableIndex = tableView.tableColumns.firstIndex(where: { !isColumnReadOnly($0.identifier.rawValue) }) else {
+            return 0
+        }
+
+        return editableIndex
+    }
     
     func scrollToBottomAndSelectFirstCell() {
         Task { @MainActor in
@@ -415,12 +442,13 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
             guard self.totalCount > 0 else { return }
 
             let lastDataRowIndex = self.totalCount - 1
+            let targetColumnIndex = self.firstEditableColumnIndex()
             self.tableView.scrollRowToVisible(self.tableView.numberOfRows - 1)
 
             if self.tableView.numberOfColumns > 0 {
                 self.tableView.window?.makeFirstResponder(self.tableView)
-                self.tableView.editColumn(0, row: lastDataRowIndex, with: nil, select: true)
-                self.tableView.selectCell(row: lastDataRowIndex, column: 0)
+                self.tableView.editColumn(targetColumnIndex, row: lastDataRowIndex, with: nil, select: true)
+                self.tableView.selectCell(row: lastDataRowIndex, column: targetColumnIndex)
             }
         }
     }
@@ -964,7 +992,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         }
 
         if highlightedRows.contains(row) && highlightedFields.contains(columnName) {
-            debugLog("💡 TableCoordinator: Rendering highlighted cell [\(row), \(columnName)] = \(queryRowInfo.value ?? "nil")")
+            debugLog("💡 TableCoordinator: Rendering highlighted cell [\(row), \(columnName)] = \(queryRowInfo.value?.description ?? "nil")")
         }
 
         guard let columnInfo = queryResult.column(named: columnName) else {
@@ -972,7 +1000,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         }
 
         let schemaColumn = schema?.column(named: columnName)
-        let isReadOnly = self.isReadOnly || (schemaColumn?.isReadOnly ?? false)
+        let isReadOnly = isColumnReadOnly(columnName)
         let isNullable = schemaColumn?.isNullable.uppercased() == "YES"
 
         if let schemaColumn = schemaColumn,
@@ -980,7 +1008,7 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
            let enumValues = schemaColumn.enumValues {
             return configureEnumCell(
                 tableView: tableView,
-                value: (queryRowInfo.value as? String) ?? "",
+                value: queryRowInfo.value?.stringValue ?? "",
                 enumValues: enumValues,
                 row: row,
                 columnName: columnName,
@@ -1071,8 +1099,10 @@ class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, Ta
         let hasValidCell = hasValidRow && rightClickLocation.column >= 0
         let hasData = totalCount > 0
         let hasSelectedRows = !tableView.selectedRowIndexes.isEmpty
+        let selectedColumnName = hasValidCell ? tableView.tableColumns[rightClickLocation.column].identifier.rawValue : nil
+        let canEditCell = selectedColumnName.map { !isColumnReadOnly($0) } ?? false
 
-        editMenuItem?.isEnabled = hasValidCell && !isReadOnly
+        editMenuItem?.isEnabled = canEditCell
         deleteMenuItem?.isEnabled = hasValidRow && hasData && !isReadOnly
         addRowMenuItem?.isEnabled = !isReadOnly
         refreshMenuItem?.isEnabled = true

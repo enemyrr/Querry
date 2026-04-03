@@ -676,7 +676,7 @@ final class NotebookToolbarController: NSViewController {
         }
         previewToolbar.addSubview(previewTrailingGroup)
 
-        var previewConstraints = [
+        let previewConstraints = [
             previewTitleLabel.centerXAnchor.constraint(equalTo: previewToolbar.centerXAnchor),
             previewTitleLabel.centerYAnchor.constraint(equalTo: previewToolbar.centerYAnchor),
 
@@ -843,11 +843,13 @@ final class NotebookToolbarController: NSViewController {
             previewScrolledBackground.animator().alphaValue = scrolled ? 1 : 0
             publishedScrolledBackground.animator().alphaValue = scrolled ? 1 : 0
         } completionHandler: { [weak self] in
-            guard let self else { return }
-            if !self.dataController.isScrolled {
-                self.scrolledBackground.isHidden = true
-                self.previewScrolledBackground.isHidden = true
-                self.publishedScrolledBackground.isHidden = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if !self.dataController.isScrolled {
+                    self.scrolledBackground.isHidden = true
+                    self.previewScrolledBackground.isHidden = true
+                    self.publishedScrolledBackground.isHidden = true
+                }
             }
         }
     }
@@ -1803,7 +1805,7 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
     private var trackingArea: NSTrackingArea?
     private var isHovering = false
     private var popover: NSPopover?
-    private var refreshTimer: Timer?
+    private var refreshTask: Task<Void, Never>?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -1860,7 +1862,7 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
     }
 
     deinit {
-        refreshTimer?.invalidate()
+        refreshTask?.cancel()
     }
 
     override func viewDidMoveToWindow() {
@@ -1868,8 +1870,8 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
         if window != nil {
             updateDisplay()
         } else {
-            refreshTimer?.invalidate()
-            refreshTimer = nil
+            refreshTask?.cancel()
+            refreshTask = nil
         }
     }
 
@@ -1878,8 +1880,8 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
         if refreshing {
             popover?.performClose(nil)
             setLeadingMode(.spinner)
-            refreshTimer?.invalidate()
-            refreshTimer = nil
+            refreshTask?.cancel()
+            refreshTask = nil
             return
         }
 
@@ -1887,8 +1889,8 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
             setLeadingMode(.warning)
             timeLabel.stringValue = "Never refreshed"
             timeLabel.textColor = .tertiaryLabelColor
-            refreshTimer?.invalidate()
-            refreshTimer = nil
+            refreshTask?.cancel()
+            refreshTask = nil
             return
         }
 
@@ -1907,7 +1909,7 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
     }
 
     private func scheduleNextUpdate(elapsed: TimeInterval) {
-        refreshTimer?.invalidate()
+        refreshTask?.cancel()
         guard window != nil else { return }
 
         let interval: TimeInterval
@@ -1919,7 +1921,9 @@ final class RefreshStatusButton: NSView, NSPopoverDelegate {
             interval = 300
         }
 
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+        refreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(interval))
+            guard !Task.isCancelled else { return }
             self?.updateDisplay()
         }
     }

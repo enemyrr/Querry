@@ -36,18 +36,14 @@ struct TableChangeDetector {
         var changedCells: [Int: Set<String>] = [:]
         
         // Build old rows map by ID (fallback to index when missing)
-        var oldRowsByID: [String: [String: Any?]] = [:]
+        var oldRowsByID: [String: DatabaseRawRow] = [:]
         for (index, row) in oldResult.rawRows.enumerated() {
-            if let id = row["_id"] as? String {
-                oldRowsByID[id] = row
-            } else {
-                oldRowsByID["index_\(index)"] = row
-            }
+            oldRowsByID[Self.rowIdentifier(for: row, fallbackIndex: index)] = row
         }
-        
+
         // Compare new against old
         for (index, row) in newResult.rawRows.enumerated() {
-            let id = (row["_id"] as? String) ?? "index_\(index)"
+            let id = Self.rowIdentifier(for: row, fallbackIndex: index)
             if let oldRow = oldRowsByID[id] {
                 let allFieldNames = Set(oldRow.keys).union(Set(row.keys))
                 var rowHasChanges = false
@@ -102,19 +98,16 @@ struct TableChangeDetector {
         }
         
         // Build id maps
-        var oldByID: [String: [String: Any?]] = [:]
-        for row in oldResult.rawRows {
-            if let id = row["_id"] as? String {
-                oldByID[id] = row
-            }
+        var oldByID: [String: DatabaseRawRow] = [:]
+        for (index, row) in oldResult.rawRows.enumerated() {
+            oldByID[Self.rowIdentifier(for: row, fallbackIndex: index)] = row
         }
-        var newByID: [String: [String: Any?]] = [:]
+        var newByID: [String: DatabaseRawRow] = [:]
         var newIndexByID: [String: Int] = [:]
         for (index, row) in newResult.rawRows.enumerated() {
-            if let id = row["_id"] as? String {
-                newByID[id] = row
-                newIndexByID[id] = index
-            }
+            let id = Self.rowIdentifier(for: row, fallbackIndex: index)
+            newByID[id] = row
+            newIndexByID[id] = index
         }
         
         let commonIDs = Set(oldByID.keys).intersection(Set(newByID.keys))
@@ -162,25 +155,36 @@ struct TableChangeDetector {
         for row in result.rawRows {
             for (key, value) in row.sorted(by: { $0.key < $1.key }) {
                 hasher.combine(key)
-                if let stringValue = value as? String {
-                    hasher.combine(stringValue)
-                } else if let numberValue = value as? NSNumber {
-                    hasher.combine(numberValue.description)
-                } else if let boolValue = value as? Bool {
-                    hasher.combine(boolValue)
-                } else if value == nil {
-                    hasher.combine("null")
+                if let value {
+                    hasher.combine(value)
                 } else {
-                    hasher.combine(String(describing: value))
+                    hasher.combine("null")
                 }
             }
         }
         return hasher.finalize()
     }
     
-    private static func areValuesEqual(_ value1: Any?, _ value2: Any?) -> Bool {
-        if value1 == nil && value2 == nil { return true }
-        if value1 == nil || value2 == nil { return false }
-        return String(describing: value1!) == String(describing: value2!)
+    private static func rowIdentifier(for row: DatabaseRawRow, fallbackIndex: Int) -> String {
+        guard let value = row["_id"] ?? nil else {
+            return "index_\(fallbackIndex)"
+        }
+
+        switch value {
+        case .string(let id), .objectID(let id), .decimalString(let id):
+            return id
+        case .uuid(let id):
+            return id.uuidString
+        case .int(let id):
+            return String(id)
+        case .int64(let id):
+            return String(id)
+        default:
+            return "index_\(fallbackIndex)"
+        }
+    }
+
+    private static func areValuesEqual(_ value1: DatabaseValue?, _ value2: DatabaseValue?) -> Bool {
+        value1 == value2
     }
 }

@@ -18,11 +18,12 @@ struct CachedCollectionWrapper: CollectionWrapper {
     let schema: String?
 }
 
-@Observable class ConnectionInstance: Identifiable {
+@Observable @MainActor class ConnectionInstance: Identifiable {
     let id = UUID()
     let connection: Connection
     private var _databaseDriver: (any DatabaseDriver)?
-    private var connectedDatabaseObserver: NSObjectProtocol?
+    @ObservationIgnored
+    nonisolated(unsafe) private var connectedDatabaseObserver: NSObjectProtocol?
     private var connectionAttemptID = UUID()
     private var isConnectionAttemptActive = false
     var databaseService = DatabaseService()
@@ -70,9 +71,7 @@ struct CachedCollectionWrapper: CollectionWrapper {
     init(connection: Connection) {
         self.connection = connection
         setupNotificationObservation()
-        Task { @MainActor in
-            self.setupQueryHistoryService()
-        }
+        setupQueryHistoryService()
     }
 
     @MainActor
@@ -155,8 +154,7 @@ struct CachedCollectionWrapper: CollectionWrapper {
 
             // Persist fetched deployments back to keychain so they're cached for next connect
             if connection.databaseType == .convex,
-               let driver = databaseService.driver as? ConvexDriver,
-               let updatedToken = driver.buildUpdatedEmbeddedToken() {
+               let updatedToken = await databaseService.buildUpdatedConvexEmbeddedToken() {
                 connection.password = updatedToken
             }
 
@@ -170,9 +168,10 @@ struct CachedCollectionWrapper: CollectionWrapper {
             lastError = error
             connectionStatus = .error
             let errorType = AnalyticsService.categorizeError(error)
+            let dbType = connection.databaseType
             Task { @MainActor in
                 AnalyticsService.shared.trackConnectionFailed(
-                    databaseType: connection.databaseType,
+                    databaseType: dbType,
                     errorType: errorType
                 )
             }
@@ -236,9 +235,7 @@ struct CachedCollectionWrapper: CollectionWrapper {
             self.databases = databaseList
 
             // Notify that databases have been updated
-            await MainActor.run {
-                NotificationCenter.default.post(name: .databasesUpdated, object: self)
-            }
+            NotificationCenter.default.post(name: .databasesUpdated, object: self)
         } catch is CancellationError {
         } catch {
             guard connectionStatus != .disconnected, !Task.isCancelled else { return }

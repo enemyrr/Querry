@@ -87,7 +87,7 @@ final class CanvasViewController: NSViewController, CanvasNSViewDelegate {
     }
 
     private func loadSchemasAndGenerate() {
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
 
             let dbType = instance.databaseType
@@ -121,7 +121,7 @@ final class CanvasViewController: NSViewController, CanvasNSViewDelegate {
         loadingOverlay.isHidden = false
         spinner.startAnimation(nil)
 
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 var document = try await ERDSchemaReader.generateERD(from: instance, schema: schema)

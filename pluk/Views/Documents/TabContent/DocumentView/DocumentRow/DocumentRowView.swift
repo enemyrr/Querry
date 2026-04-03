@@ -18,6 +18,7 @@ struct DocumentRowView: View {
     @State private var showActionButton = false
     @State private var pendingAction: DocumentAction? = nil
     @State private var showCopyFeedback = false
+    @State private var copyFeedbackTask: Task<Void, Never>?
     @State private var editingJSON: String = ""
     @State private var errorMessage: String?
     @State private var showErrorAlert = false
@@ -137,6 +138,9 @@ struct DocumentRowView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred")
         }
+        .onDisappear {
+            copyFeedbackTask?.cancel()
+        }
     }
 
     // MARK: - Action Handlers
@@ -163,22 +167,21 @@ struct DocumentRowView: View {
         pasteboard.clearContents()
         pasteboard.setString(jsonString, forType: .string)
 
+        copyFeedbackTask?.cancel()
         showCopyFeedback = true
-        Task {
+        copyFeedbackTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
             showCopyFeedback = false
         }
     }
 
     private func getDocumentJSON() -> String {
-        // Extract the FormattedDocument from metadata (use displayDocument to get latest state)
         guard let formattedDocInfo = displayDocument["__formattedDocument"],
-              let formattedDoc = formattedDocInfo.value as? MongoKitten.Document.FormattedDocument else {
+              case let .mongoDocument(formattedDoc)? = formattedDocInfo.metadata else {
             return "{}"
         }
-
-        // Get JSON string from the raw document
-        return formattedDoc.rawDocument.jsonString
+        return formattedDoc.jsonString
     }
 
     private func handleSave() {
@@ -186,10 +189,10 @@ struct DocumentRowView: View {
             do {
                 // 1. Extract document ID
                 guard let idInfo = document["_id"],
-                      let documentId = idInfo.value as? String,
-                      let objectId = ObjectId(documentId) else {
+                      let documentId = idInfo.value?.stringValue else {
                     throw MongoError.invalidData
                 }
+                let recordID = DatabaseRecordID(columnName: "_id", value: .objectID(documentId))
 
                 // 2. Get collection name from selected tab
                 guard let collectionName = instance.selectedTab?.name else {
@@ -211,7 +214,7 @@ struct DocumentRowView: View {
                 try await instance.databaseService.updateDocument(
                     in: collectionName,
                     databaseSchema: nil,
-                    id: objectId,
+                    id: recordID,
                     data: documentData
                 )
 
@@ -241,60 +244,31 @@ struct DocumentRowView: View {
     }
 
     private func formatUpdatedDocument(_ mongoDocument: MongoKitten.Document) -> [String: QueryRowInfo] {
-        // Format the document similar to how MongoDBDriver does it
-        let formattedDoc = formatMongoDocument(mongoDocument)
-        return convertFormattedDocumentToRow(formattedDoc)
+        convertFormattedDocumentToRow(mongoDocument.formattedPayload())
     }
 
-    private func formatMongoDocument(_ mongoDocument: MongoKitten.Document) -> MongoKitten.Document.FormattedDocument {
-        guard let id = mongoDocument["_id"] as? ObjectId else {
-            return MongoKitten.Document.FormattedDocument(id: "", fields: [], rawDocument: mongoDocument)
-        }
-
-        let fields = mongoDocument.keys.map { key in
-            formatField(key: key, value: mongoDocument[key])
-        }
-
-        return MongoKitten.Document.FormattedDocument(id: id.hexString, fields: fields, rawDocument: mongoDocument)
-    }
-
-    private func formatField(key: String, value: Primitive?) -> MongoKitten.Document.FormattedDocument.FormattedField {
-        let formatted = MongoKitten.Document().formatValue(value)
-
-        var nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
-        if let doc = value as? MongoKitten.Document {
-            nestedFields = doc.keys.map { key in
-                formatField(key: key, value: doc[key])
-            }
-        }
-
-        return MongoKitten.Document.FormattedDocument.FormattedField(
-            key: key,
-            formattedValue: formatted,
-            rawValue: value ?? "nil",
-            nestedFields: nestedFields
-        )
-    }
-
-    private func convertFormattedDocumentToRow(_ formattedDoc: MongoKitten.Document.FormattedDocument) -> [String: QueryRowInfo] {
+    private func convertFormattedDocumentToRow(_ formattedDoc: MongoFormattedDocumentPayload) -> [String: QueryRowInfo] {
         var row: [String: QueryRowInfo] = [:]
 
-        // Store the FormattedDocument as metadata for access to rawDocument
         row["__formattedDocument"] = QueryRowInfo(
-            value: formattedDoc,
+            value: .string(formattedDoc.jsonString),
             dataType: "FormattedDocument",
-            format: nil
+            format: nil,
+            metadata: .mongoDocument(formattedDoc)
         )
 
-        // Add the document ID
-        row["_id"] = QueryRowInfo(value: formattedDoc.id, dataType: "ObjectId", format: nil)
+        row["_id"] = QueryRowInfo(value: .objectID(formattedDoc.id), dataType: "ObjectId", format: nil)
 
-        // Convert each formatted field to display value
         for field in formattedDoc.fields {
             if field.key == "_id" {
                 continue
             }
-            row[field.key] = QueryRowInfo(value: field, dataType: field.formattedValue.type, format: nil)
+            row[field.key] = QueryRowInfo(
+                value: .string(field.formattedValue.value),
+                dataType: field.formattedValue.type,
+                format: nil,
+                metadata: .mongoField(field)
+            )
         }
 
         return row
@@ -305,10 +279,10 @@ struct DocumentRowView: View {
             do {
                 // 1. Extract document ID
                 guard let idInfo = document["_id"],
-                      let documentId = idInfo.value as? String,
-                      let objectId = ObjectId(documentId) else {
+                      let documentId = idInfo.value?.stringValue else {
                     throw MongoError.invalidData
                 }
+                let recordID = DatabaseRecordID(columnName: "_id", value: .objectID(documentId))
 
                 // 2. Get collection name from selected tab
                 guard let collectionName = instance.selectedTab?.name else {
@@ -319,7 +293,7 @@ struct DocumentRowView: View {
                 try await instance.databaseService.deleteDocument(
                     in: collectionName,
                     databaseSchema: nil,
-                    id: objectId
+                    id: recordID
                 )
 
                 // 4. Refresh the document list
@@ -349,25 +323,54 @@ struct DocumentKeyValueList: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(document.keys.filter { $0 != "__formattedDocument" }.sorted()), id: \.self) { key in
                 if let queryRowInfo = document[key] {
-
-                    // Try to cast to FormattedField first (for MongoDB with nested fields)
-                    if let formattedField = queryRowInfo.value as? MongoKitten.Document.FormattedDocument.FormattedField {
+                    if case let .mongoField(formattedField)? = queryRowInfo.metadata {
                         RecursiveKeyValueRow(
                             formattedField: formattedField,
                             key: key
                         )
                         .fixedSize(horizontal: false, vertical: true)
                     }
-                    // Fallback to FormattedPrimitive (for other database types)
-                    else if let formattedPrimitive = queryRowInfo.value as? FormattedPrimitive {
+                    else {
                         KeyValueRow(
                             key: key,
-                            formattedPrimitive: formattedPrimitive
+                            formattedPrimitive: formattedPrimitive(for: queryRowInfo)
                         )
                         .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
+        }
+    }
+
+    private func formattedPrimitive(for rowInfo: QueryRowInfo) -> FormattedPrimitive {
+        if case let .mongoField(field)? = rowInfo.metadata {
+            return field.formattedValue.formattedPrimitive
+        }
+
+        return FormattedPrimitive(
+            value: rowInfo.value?.description ?? "null",
+            color: color(for: rowInfo.dataType),
+            isExpandable: false,
+            type: rowInfo.dataType
+        )
+    }
+
+    private func color(for dataType: String) -> Color {
+        switch dataType.lowercased() {
+        case "string", "text", "varchar", "char":
+            .green
+        case "bool", "boolean":
+            .green
+        case "int", "int32", "int64", "integer", "double", "float", "number", "numeric", "decimal":
+            .blue
+        case "date", "timestamp", "datetime":
+            .purple
+        case "objectid":
+            .orange
+        case "null":
+            .gray
+        default:
+            .primary
         }
     }
 }
@@ -456,11 +459,11 @@ struct ExpandableHeader: View {
 }
 
 struct RecursiveKeyValueRow: View {
-    let formattedField: MongoKitten.Document.FormattedDocument.FormattedField
+    let formattedField: MongoFormattedFieldPayload
     let key: String
 
     var body: some View {
-        let formattedPrimitive = formattedField.formattedValue
+        let formattedPrimitive = formattedField.formattedValue.formattedPrimitive
 
         Group {
             if formattedPrimitive.isExpandable {
@@ -483,7 +486,7 @@ struct RecursiveKeyValueRow: View {
 struct ExpandableValueView: View {
     let formattedPrimitive: FormattedPrimitive
     let key: String
-    let nestedFields: [MongoKitten.Document.FormattedDocument.FormattedField]?
+    let nestedFields: [MongoFormattedFieldPayload]?
     
     private static let monoFont = Font.system(.body, design: .monospaced)
     

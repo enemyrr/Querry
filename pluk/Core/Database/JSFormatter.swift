@@ -1,7 +1,7 @@
 import Foundation
 import JavaScriptCore
 
-class JSFormatter {
+@MainActor class JSFormatter {
     private static let shared = JSFormatter()
     private let jsContext: JSContext
     private var isLoaded = false

@@ -243,9 +243,8 @@ struct CommandPalette: View {
 
         private func openFunction(name: String, oid: String, schema: String?) {
             Task {
-                guard let driver = instance.databaseService.driver as? PostgreSQLDriver else { return }
                 do {
-                    let definition = try await driver.getFunctionDefinition(oid: oid)
+                    let definition = try await instance.databaseService.getFunctionDefinition(oid: oid)
                     instance.createFunctionEditorTab(name: name, definition: definition, oid: oid, schema: schema)
                 } catch {
                     debugLog("Failed to open function: \(error)")

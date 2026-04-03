@@ -57,7 +57,7 @@ class CreateEditorViewModel {
             let jsonDocumentWithoutComments = cleanupJsonInput(jsonDocument)
             
             // Attempt to parse the JSON to ensure it's valid
-            guard let document = try? Document(fromJSON: jsonDocumentWithoutComments) else {
+            guard (try? Document(fromJSON: jsonDocumentWithoutComments)) != nil else {
                 throw MongoError.invalidData
             }
             

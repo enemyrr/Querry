@@ -65,22 +65,29 @@ struct RowDetailField: View {
             return "NULL"
         }
 
-        if let stringValue = value as? String {
+        switch value {
+        case .null:
+            return "NULL"
+        case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
             return stringValue.isEmpty ? "(empty)" : stringValue
-        } else if let intValue = value as? Int {
+        case .int(let intValue):
             return String(intValue)
-        } else if let doubleValue = value as? Double {
+        case .int64(let intValue):
+            return String(intValue)
+        case .double(let doubleValue):
             return doubleValue.formatted()
-        } else if let boolValue = value as? Bool {
+        case .bool(let boolValue):
             return boolValue ? "true" : "false"
-        } else if let dateValue = value as? Date {
+        case .date(let dateValue):
             return dateValue.formatted(date: .abbreviated, time: .standard)
-        } else if let arrayValue = value as? [Any] {
-            return formatJSON(arrayValue)
-        } else if let dictValue = value as? [String: Any] {
-            return formatJSON(dictValue)
-        } else {
-            return String(describing: value)
+        case .array(let arrayValue):
+            return formatJSON(arrayValue.map(jsonCompatibleValue))
+        case .object(let objectValue):
+            return formatJSON(objectValue.mapValues(jsonCompatibleValue))
+        case .uuid(let uuidValue):
+            return uuidValue.uuidString
+        case .data(let dataValue):
+            return dataValue.base64EncodedString()
         }
     }
 
@@ -90,6 +97,33 @@ struct RowDetailField: View {
             return String(data: data, encoding: .utf8) ?? String(describing: value)
         } catch {
             return String(describing: value)
+        }
+    }
+
+    private func jsonCompatibleValue(_ value: DatabaseValue) -> Any {
+        switch value {
+        case .null:
+            return NSNull()
+        case .bool(let value):
+            return value
+        case .int(let value):
+            return value
+        case .int64(let value):
+            return value
+        case .double(let value):
+            return value
+        case .string(let value), .decimalString(let value), .objectID(let value):
+            return value
+        case .date(let value):
+            return value.ISO8601Format()
+        case .data(let value):
+            return value.base64EncodedString()
+        case .uuid(let value):
+            return value.uuidString
+        case .array(let values):
+            return values.map(jsonCompatibleValue)
+        case .object(let values):
+            return values.mapValues(jsonCompatibleValue)
         }
     }
 }

@@ -192,6 +192,68 @@ extension PostgreSQLDriver {
             return stringValue
         }
     }
+
+    func encode(_ value: DatabaseValue, columnName: String, columnType: PostgresDataType) throws -> PostgresEncodable? {
+        switch value {
+        case .null:
+            return nil
+        case .bool(let value):
+            if columnType == .bool {
+                return value
+            }
+            return try encode(value.description, columnName: columnName, columnType: columnType)
+        case .int(let value):
+            switch columnType {
+            case .int2:
+                return Int16(clamping: value)
+            case .int4:
+                return Int32(clamping: value)
+            case .int8:
+                return Int64(value)
+            default:
+                return try encode(String(value), columnName: columnName, columnType: columnType)
+            }
+        case .int64(let value):
+            switch columnType {
+            case .int2:
+                return Int16(clamping: Int(value))
+            case .int4:
+                return Int32(clamping: Int(value))
+            case .int8:
+                return value
+            default:
+                return try encode(String(value), columnName: columnName, columnType: columnType)
+            }
+        case .double(let value):
+            switch columnType {
+            case .float4:
+                return Float(value)
+            case .float8, .numeric:
+                return value
+            default:
+                return try encode(String(value), columnName: columnName, columnType: columnType)
+            }
+        case .string(let value), .decimalString(let value), .objectID(let value):
+            return try encode(value, columnName: columnName, columnType: columnType)
+        case .date(let value):
+            if [.date, .timestamp, .timestamptz].contains(columnType) {
+                return value
+            }
+            return try encode(value.ISO8601Format(), columnName: columnName, columnType: columnType)
+        case .data(let value):
+            if columnType == .bytea {
+                return value
+            }
+            return try encode(value.base64EncodedString(), columnName: columnName, columnType: columnType)
+        case .uuid(let value):
+            if columnType == .uuid {
+                return value
+            }
+            return try encode(value.uuidString, columnName: columnName, columnType: columnType)
+        case .array, .object:
+            return try encode(value.description, columnName: columnName, columnType: columnType)
+        }
+    }
 }
 
 

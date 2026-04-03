@@ -10,6 +10,9 @@ final class BlockDragController {
     private var dragOffset: NSPoint = .zero
     private var dimOverlayLayer: CALayer?
     private var autoScrollTimer: Timer?
+    private weak var autoScrollScrollView: NSScrollView?
+    private var autoScrollDelta: CGFloat = 0
+    private var autoScrollOnTick: (@MainActor () -> Void)?
 
     deinit {
         autoScrollTimer?.invalidate()
@@ -17,6 +20,7 @@ final class BlockDragController {
 
     // MARK: - Snapshot
 
+    @MainActor
     func beginDrag(
         sourceIndex: Int,
         block: NotebookBlock,
@@ -48,6 +52,7 @@ final class BlockDragController {
         dimOverlayLayer = overlay
     }
 
+    @MainActor
     func updateSnapshotPosition(event: NSEvent, containerView: NSView) {
         guard let snapshot = dragSnapshotLayer else { return }
         let location = containerView.convert(event.locationInWindow, from: nil)
@@ -64,7 +69,12 @@ final class BlockDragController {
 
     // MARK: - Auto-scroll
 
-    func updateAutoScroll(scrollView: NSScrollView, sourceView: NSView? = nil, onTick: @escaping () -> Void) {
+    @MainActor
+    func updateAutoScroll(
+        scrollView: NSScrollView,
+        sourceView: NSView? = nil,
+        onTick: @escaping @MainActor () -> Void
+    ) {
         let locationInScroll = scrollView.convert(lastDragPoint, from: sourceView ?? scrollView.superview)
         let visibleHeight = scrollView.bounds.height
         let scrollDelta = NotebookDragVisuals.autoScrollDelta(
@@ -73,29 +83,36 @@ final class BlockDragController {
         )
 
         if abs(scrollDelta) > 0.5 {
+            autoScrollScrollView = scrollView
+            autoScrollDelta = scrollDelta
+            autoScrollOnTick = onTick
             if autoScrollTimer == nil {
-                autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-                    guard self != nil else { return }
-                    let clipView = scrollView.contentView
-                    var origin = clipView.bounds.origin
-                    let maxY = max(0, (scrollView.documentView?.frame.height ?? 0) - clipView.bounds.height)
-                    origin.y = min(max(origin.y + scrollDelta, 0), maxY)
-                    clipView.scroll(to: origin)
-                    scrollView.reflectScrolledClipView(clipView)
-                    onTick()
-                }
+                autoScrollTimer = Timer.scheduledTimer(
+                    timeInterval: 1.0 / 60.0,
+                    target: self,
+                    selector: #selector(handleAutoScrollTick),
+                    userInfo: nil,
+                    repeats: true
+                )
             }
         } else {
             autoScrollTimer?.invalidate()
             autoScrollTimer = nil
+            autoScrollScrollView = nil
+            autoScrollOnTick = nil
+            autoScrollDelta = 0
         }
     }
 
     // MARK: - Cleanup
 
+    @MainActor
     func cleanup() {
         autoScrollTimer?.invalidate()
         autoScrollTimer = nil
+        autoScrollScrollView = nil
+        autoScrollOnTick = nil
+        autoScrollDelta = 0
 
         dragSnapshotLayer?.removeFromSuperlayer()
         dragSnapshotLayer = nil
@@ -106,6 +123,25 @@ final class BlockDragController {
         isDragging = false
         dragSourceIndex = nil
         lastDragPoint = .zero
+    }
+
+    @MainActor
+    @objc private func handleAutoScrollTick() {
+        guard let scrollView = autoScrollScrollView else {
+            autoScrollTimer?.invalidate()
+            autoScrollTimer = nil
+            autoScrollOnTick = nil
+            autoScrollDelta = 0
+            return
+        }
+
+        let clipView = scrollView.contentView
+        var origin = clipView.bounds.origin
+        let maxY = max(0, (scrollView.documentView?.frame.height ?? 0) - clipView.bounds.height)
+        origin.y = min(max(origin.y + autoScrollDelta, 0), maxY)
+        clipView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(clipView)
+        autoScrollOnTick?()
     }
 
     // MARK: - Indicator Helpers

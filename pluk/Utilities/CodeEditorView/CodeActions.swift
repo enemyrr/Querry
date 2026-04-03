@@ -10,7 +10,7 @@ import AppKit
 import SwiftUI  // Required for LanguageService `any View` types (InfoPopover, completion row/doc views)
 import os
 
-import LanguageSupport
+@preconcurrency import LanguageSupport
 
 
 private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", category: "CodeActions")
@@ -132,7 +132,7 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
   private let docScrollView = NSScrollView()
   private var docHostingView: NSHostingView<AnyView>?
 
-  private var didResignObserver: NSObjectProtocol?
+  nonisolated(unsafe) private var didResignObserver: NSObjectProtocol?
 
   init() {
     super.init(contentRect: NSRect(x: 0, y: 0, width: 500, height: 300),
@@ -157,7 +157,9 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
       object: self,
       queue: nil
     ) { [weak self] _ in
-      self?.close()
+      MainActor.assumeIsolated {
+        self?.close()
+      }
     }
   }
 
@@ -411,10 +413,11 @@ extension CodeView {
 
   func computeAndShowCompletions(at location: Int) async throws {
     guard let languageService = optLanguageService else { return }
+    nonisolated(unsafe) let langService = languageService
 
     do {
       let reason: CompletionTriggerReason = if completionPanel.isKeyWindow { .incomplete } else { .standard },
-          completions                     = try await languageService.completions(at: location, reason: reason)
+          completions                     = try await langService.completions(at: location, reason: reason)
       try Task.checkCancellation()
       show(completions: completions, for: rangeForUserCompletion)
     } catch let error { logger.trace("Completion action failed: \(error.localizedDescription)") }

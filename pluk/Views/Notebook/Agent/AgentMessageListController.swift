@@ -12,7 +12,7 @@ final class AgentMessageListController: NSViewController {
     private weak var lastAssistantRow: AgentMessageRowView?
     private var userScrolledAway = false
     private var suppressScrollTracking = false
-    private var scrollObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var scrollObserver: NSObjectProtocol?
 
     init(chatController: AgentChatController) {
         self.chatController = chatController
@@ -85,8 +85,10 @@ final class AgentMessageListController: NSViewController {
             object: scrollView.contentView,
             queue: .main
         ) { [weak self] _ in
-            guard let self, !self.suppressScrollTracking else { return }
-            self.userScrolledAway = !self.isNearBottom()
+            MainActor.assumeIsolated {
+                guard let self, !self.suppressScrollTracking else { return }
+                self.userScrolledAway = !self.isNearBottom()
+            }
         }
         scrollView.contentView.postsBoundsChangedNotifications = true
     }

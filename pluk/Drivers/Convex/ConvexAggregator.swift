@@ -34,7 +34,7 @@ enum ConvexAggregator {
         let columns = buildAggregateColumns(dimensions: dimensions, measures: measures)
 
         var outputRows: [[String: QueryRowInfo]] = []
-        var outputRawRows: [[String: Any?]] = []
+        var outputRawRows: [DatabaseRawRow] = []
 
         for key in orderedKeys {
             guard let idx = groupIndex[key],
@@ -42,7 +42,7 @@ enum ConvexAggregator {
             let groupRows = groups[idx]
 
             var row: [String: QueryRowInfo] = [:]
-            var rawRow: [String: Any?] = [:]
+            var rawRow: DatabaseRawRow = [:]
 
             for dim in dimensions {
                 let info = firstRow[dim] ?? QueryRowInfo(value: nil, dataType: "text", format: nil)
@@ -57,8 +57,9 @@ enum ConvexAggregator {
                     column: measure.column,
                     aggregation: measure.aggregation
                 )
-                row[aliasCol] = QueryRowInfo(value: value, dataType: "float8", format: nil)
-                rawRow[aliasCol] = value
+                let databaseValue = value.map(DatabaseValue.double)
+                row[aliasCol] = QueryRowInfo(value: databaseValue, dataType: "float8", format: nil)
+                rawRow[aliasCol] = databaseValue
             }
 
             outputRows.append(row)
@@ -154,16 +155,18 @@ enum ConvexAggregator {
         }
     }
 
-    private static func toDouble(_ value: Any?) -> Double? {
+    private static func toDouble(_ value: DatabaseValue?) -> Double? {
         switch value {
-        case let d as Double: d
-        case let i as Int: Double(i)
-        case let i as Int64: Double(i)
-        case let i as Int32: Double(i)
-        case let f as Float: Double(f)
-        case let s as String: Double(s)
-        case let d as Decimal: NSDecimalNumber(decimal: d).doubleValue
-        default: nil
+        case .double(let value):
+            value
+        case .int(let value):
+            Double(value)
+        case .int64(let value):
+            Double(value)
+        case .string(let value), .decimalString(let value):
+            Double(value)
+        default:
+            nil
         }
     }
 }

@@ -146,7 +146,7 @@ class IndexDropdownCellView: NSTableCellView {
     }
 
     private struct AssociatedKeys {
-        static var popoverKey = "popoverKey"
+        nonisolated(unsafe) static var popoverKey = "popoverKey"
     }
 
     @objc private func manualInputFieldAction(_ sender: NSTextField) {

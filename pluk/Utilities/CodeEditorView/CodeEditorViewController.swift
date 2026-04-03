@@ -53,7 +53,7 @@ public final class CodeEditorViewController: NSViewController {
 
   private(set) var codeView: CodeView!
   private var scrollView: NSScrollView!
-  private var boundsChangedObserver: NSObjectProtocol?
+  nonisolated(unsafe) private var boundsChangedObserver: NSObjectProtocol?
   private var extraActionsCancellable: Cancellable?
 
   /// Prevents delegate callbacks during programmatic updates to avoid feedback loops.

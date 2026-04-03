@@ -10,8 +10,9 @@ import SwiftUI
 import MongoKitten
 
 @Observable
-class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
-    let id: UUID
+@MainActor
+final class DatabaseTab: Identifiable, Equatable, Transferable {
+    nonisolated let id: UUID
     var name: String
     var type: TabType
     var queryState: QueryState
@@ -25,7 +26,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
 
     // Per-tab selection state (transient, not persisted)
     var selectedRowData: [String: QueryRowInfo]?
-    var selectedRawRowData: [String: Any?]?
+    var selectedRawRowData: DatabaseRawRow?
     var selectedRowIndex: Int?
     var selectedColumnOrder: [String]?
 
@@ -56,6 +57,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
     }
 
     // Custom Codable implementation to exclude transient selection state
+    @MainActor
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -72,6 +74,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         // Transient properties are not decoded - they start as nil
     }
 
+    @MainActor
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -88,7 +91,7 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         // Transient properties (selectedRowData, selectedRowIndex) are not encoded
     }
     
-    static func == (lhs: DatabaseTab, rhs: DatabaseTab) -> Bool {
+    nonisolated static func == (lhs: DatabaseTab, rhs: DatabaseTab) -> Bool {
         lhs.id == rhs.id
     }
     
@@ -163,10 +166,12 @@ class DatabaseTab: Identifiable, Equatable, Transferable, Codable {
         }
     }
     
-    static var transferRepresentation: some TransferRepresentation {
+    nonisolated static var transferRepresentation: some TransferRepresentation {
         ProxyRepresentation(exporting: \.id.uuidString)
     }
 }
+
+extension DatabaseTab: @MainActor Codable {}
 
 enum QueryState: Equatable, Codable {
     case idle

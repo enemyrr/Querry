@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 import PostHog
 
-@Observable
+@Observable @MainActor
 class TabManager {
     static let shared = TabManager()
 

@@ -7,7 +7,7 @@
 
 import Foundation
 
-class AIService {
+class AIService: @unchecked Sendable {
 
     private static let modelId = BedrockConfig.haikuModelId
 

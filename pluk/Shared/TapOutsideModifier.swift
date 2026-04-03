@@ -23,7 +23,7 @@ private struct TapOutsideTracker: NSViewRepresentable {
 
 private final class TapOutsideNSView: NSView {
     var action: (() -> Void)?
-    private var eventMonitor: Any?
+    nonisolated(unsafe) private var eventMonitor: Any?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -64,6 +64,8 @@ private final class TapOutsideNSView: NSView {
     }
 
     deinit {
-        removeMonitor()
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
     }
 }

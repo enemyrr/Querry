@@ -368,7 +368,7 @@ final class BlockActionBar: NSView {
 
         buttonStack.addArrangedSubview(runButton)
 
-        if let onMenu {
+        if onMenu != nil {
             let menu = BlockActionMenuButton(
                 action: { [weak self] sender in self?.onMenu?(sender) }
             )

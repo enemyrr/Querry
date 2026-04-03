@@ -23,14 +23,14 @@ final class TableContentViewController: NSViewController {
     private var contentArea: NSView!
     private var floatingBarHostingView: NSHostingView<AnyView>?
     private var currentContentView: NSView?
-    private var filterLayoutTask: Task<Void, Never>?
+    nonisolated(unsafe) private var filterLayoutTask: Task<Void, Never>?
 
     // MARK: - Notification Observers
 
-    private var markRowObserver: Any?
-    private var pasteObserver: Any?
-    private var toggleFilterBuilderObserver: Any?
-    private var filterBuilderDidCloseObserver: Any?
+    nonisolated(unsafe) private var markRowObserver: Any?
+    nonisolated(unsafe) private var pasteObserver: Any?
+    nonisolated(unsafe) private var toggleFilterBuilderObserver: Any?
+    nonisolated(unsafe) private var filterBuilderDidCloseObserver: Any?
 
     // MARK: - Init
 
@@ -237,7 +237,9 @@ final class TableContentViewController: NSViewController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.scheduleFilterBarLayout(afterAnimation: true)
+            Task { @MainActor [weak self] in
+                self?.scheduleFilterBarLayout(afterAnimation: true)
+            }
         }
 
         filterBuilderDidCloseObserver = NotificationCenter.default.addObserver(
@@ -245,7 +247,9 @@ final class TableContentViewController: NSViewController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.scheduleFilterBarLayout(afterAnimation: true)
+            Task { @MainActor [weak self] in
+                self?.scheduleFilterBarLayout(afterAnimation: true)
+            }
         }
     }
 

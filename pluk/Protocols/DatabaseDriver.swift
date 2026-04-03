@@ -1,24 +1,267 @@
 import Foundation
 
+typealias DatabaseDocument = [String: DatabaseValue]
+typealias DatabaseRawRow = [String: DatabaseValue?]
+
+enum DatabaseValue: Hashable, Sendable, Codable, CustomStringConvertible {
+    case null
+    case bool(Bool)
+    case int(Int)
+    case int64(Int64)
+    case double(Double)
+    case string(String)
+    case date(Date)
+    case data(Data)
+    case uuid(UUID)
+    case decimalString(String)
+    case objectID(String)
+    case array([DatabaseValue])
+    case object([String: DatabaseValue])
+
+    init?(_ value: Any?) {
+        switch value {
+        case nil:
+            self = .null
+        case is NSNull:
+            self = .null
+        case let value as DatabaseValue:
+            self = value
+        case let value as Bool:
+            self = .bool(value)
+        case let value as Int:
+            self = .int(value)
+        case let value as Int64:
+            self = .int64(value)
+        case let value as Int32:
+            self = .int64(Int64(value))
+        case let value as Int16:
+            self = .int(Int(value))
+        case let value as Int8:
+            self = .int(Int(value))
+        case let value as UInt:
+            self = .int64(Int64(value))
+        case let value as UInt64:
+            guard value <= UInt64(Int64.max) else { return nil }
+            self = .int64(Int64(value))
+        case let value as UInt32:
+            self = .int64(Int64(value))
+        case let value as UInt16:
+            self = .int(Int(value))
+        case let value as UInt8:
+            self = .int(Int(value))
+        case let value as Double:
+            self = .double(value)
+        case let value as Float:
+            self = .double(Double(value))
+        case let value as String:
+            self = .string(value)
+        case let value as Date:
+            self = .date(value)
+        case let value as Data:
+            self = .data(value)
+        case let value as UUID:
+            self = .uuid(value)
+        case let value as Decimal:
+            self = .decimalString(NSDecimalNumber(decimal: value).stringValue)
+        case let value as [DatabaseValue]:
+            self = .array(value)
+        case let value as [Any]:
+            let converted = value.compactMap(DatabaseValue.init)
+            guard converted.count == value.count else { return nil }
+            self = .array(converted)
+        case let value as [String: DatabaseValue]:
+            self = .object(value)
+        case let value as [String: Any]:
+            var converted: [String: DatabaseValue] = [:]
+            for (key, nestedValue) in value {
+                guard let nested = DatabaseValue(nestedValue) else { return nil }
+                converted[key] = nested
+            }
+            self = .object(converted)
+        default:
+            return nil
+        }
+    }
+
+    var anyValue: Any? {
+        switch self {
+        case .null:
+            nil
+        case .bool(let value):
+            value
+        case .int(let value):
+            value
+        case .int64(let value):
+            value
+        case .double(let value):
+            value
+        case .string(let value):
+            value
+        case .date(let value):
+            value
+        case .data(let value):
+            value
+        case .uuid(let value):
+            value
+        case .decimalString(let value):
+            value
+        case .objectID(let value):
+            value
+        case .array(let values):
+            values.compactMap(\.anyValue)
+        case .object(let values):
+            values.mapValues(\.anyValue)
+        }
+    }
+
+    var stringValue: String? {
+        switch self {
+        case .string(let value), .decimalString(let value), .objectID(let value):
+            value
+        case .uuid(let value):
+            value.uuidString
+        default:
+            nil
+        }
+    }
+
+    var int64Value: Int64? {
+        switch self {
+        case .int(let value):
+            Int64(value)
+        case .int64(let value):
+            value
+        case .double(let value):
+            Int64(value)
+        case .string(let value), .decimalString(let value):
+            Int64(value)
+        default:
+            nil
+        }
+    }
+
+    var doubleValue: Double? {
+        switch self {
+        case .int(let value):
+            Double(value)
+        case .int64(let value):
+            Double(value)
+        case .double(let value):
+            value
+        case .string(let value), .decimalString(let value):
+            Double(value)
+        default:
+            nil
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .null:
+            "NULL"
+        case .bool(let value):
+            value.description
+        case .int(let value):
+            value.description
+        case .int64(let value):
+            value.description
+        case .double(let value):
+            value.description
+        case .string(let value):
+            value
+        case .date(let value):
+            value.description
+        case .data(let value):
+            value.base64EncodedString()
+        case .uuid(let value):
+            value.uuidString
+        case .decimalString(let value):
+            value
+        case .objectID(let value):
+            value
+        case .array(let values):
+            "[\(values.map(\.description).joined(separator: ", "))]"
+        case .object(let values):
+            "{\(values.map { "\($0): \($1.description)" }.sorted().joined(separator: ", "))}"
+        }
+    }
+}
+
+struct DatabaseRecordID: Hashable, Sendable, Codable {
+    let columnName: String
+    let value: DatabaseValue
+}
+
 // MARK: - Unified Query Result Types
-struct QueryColumnInfo {
+struct QueryColumnInfo: Sendable {
     let name: String
     let dataType: String
     let format: String?
     let index: Int
 }
 
-struct QueryRowInfo {
-    let value: Any?
-    let dataType: String
-    let format: String?
+enum MongoFormattedColorToken: String, Sendable, Hashable {
+    case primary
+    case secondary
+    case gray
+    case orange
+    case purple
+    case cyan
+    case green
+    case blue
+    case white
 }
 
-struct InformationSchema {
+struct MongoFormattedPrimitivePayload: Sendable, Hashable {
+    let value: String
+    let colorToken: MongoFormattedColorToken
+    let isExpandable: Bool
+    let type: String
+}
+
+struct MongoFormattedFieldPayload: Sendable, Hashable {
+    let key: String
+    let formattedValue: MongoFormattedPrimitivePayload
+    let nestedFields: [MongoFormattedFieldPayload]?
+}
+
+struct MongoFormattedDocumentPayload: Sendable, Hashable {
+    let id: String
+    let jsonString: String
+    let fields: [MongoFormattedFieldPayload]
+}
+
+enum QueryRowMetadata: Sendable, Hashable {
+    case mongoDocument(MongoFormattedDocumentPayload)
+    case mongoField(MongoFormattedFieldPayload)
+}
+
+struct QueryRowInfo: Sendable {
+    let value: DatabaseValue?
+    let dataType: String
+    let format: String?
+    let metadata: QueryRowMetadata?
+
+    init(value: DatabaseValue?, dataType: String, format: String?, metadata: QueryRowMetadata? = nil) {
+        self.value = value
+        self.dataType = dataType
+        self.format = format
+        self.metadata = metadata
+    }
+
+    init(value: Any?, dataType: String, format: String?, metadata: QueryRowMetadata? = nil) {
+        self.value = DatabaseValue(value) ?? (value as? any CustomStringConvertible).map { .string($0.description) }
+        self.dataType = dataType
+        self.format = format
+        self.metadata = metadata
+    }
+}
+
+struct InformationSchema: Sendable {
     let name: String
 }
 
-struct CreateDatabaseOptions {
+struct CreateDatabaseOptions: Sendable {
     let encoding: String?
     let charset: String?
     let collation: String?
@@ -32,7 +275,7 @@ struct CreateDatabaseOptions {
     static let `default` = CreateDatabaseOptions()
 }
 
-struct CreateSchemaOptions {
+struct CreateSchemaOptions: Sendable {
     let authorization: String?
 
     init(authorization: String? = nil) {
@@ -42,11 +285,11 @@ struct CreateSchemaOptions {
     static let `default` = CreateSchemaOptions()
 }
 
-struct QueryResult {
+struct QueryResult: Sendable {
     let columns: [QueryColumnInfo]
     let rows: [[String: QueryRowInfo]]
     let totalCount: Int
-    let rawRows: [[String: Any?]]
+    let rawRows: [DatabaseRawRow]
     
     // Convenience computed properties
     var columnNames: [String] {
@@ -75,20 +318,31 @@ struct QueryResult {
     }
     
     // Get raw value from row by column name (for lazy decoding)
-    func rawValue(row: Int, column: String) -> Any? {
+    func rawValue(row: Int, column: String) -> DatabaseValue? {
         guard row < rawRows.count else { return nil }
         return rawRows[row][column] ?? nil
     }
-    
-    // Get raw cell for lazy decoding - compatible with PostgresCell usage
-    func rawCell(row: Int, column: String) -> Any? {
-        guard row < rawRows.count else { return nil }
-        return rawRows[row][column] ?? nil
+
+    func recordID(row: Int) -> DatabaseRecordID? {
+        guard row < rows.count else { return nil }
+
+        let rowData = rows[row]
+        if let id = rowData["_id"]?.value {
+            return DatabaseRecordID(columnName: "_id", value: id)
+        }
+        if let id = rowData["id"]?.value {
+            return DatabaseRecordID(columnName: "id", value: id)
+        }
+        guard let firstColumn = columns.first,
+              let value = rowData[firstColumn.name]?.value else {
+            return nil
+        }
+        return DatabaseRecordID(columnName: firstColumn.name, value: value)
     }
 }
 
 // MARK: - Database Driver Protocol
-protocol DatabaseDriver {
+protocol DatabaseDriver: Actor {
     associatedtype Database: DatabaseWrapper
     associatedtype Collection: CollectionWrapper
     
@@ -102,7 +356,7 @@ protocol DatabaseDriver {
     func switchDatabase(to databaseName: String) async throws
 
     // Optional: Get the current deployment/host URL (useful for Convex environments)
-    func getCurrentDeploymentUrl() -> String?
+    func getCurrentDeploymentUrl() async -> String?
     
     // Database operations
     func listDatabases() async throws -> [Database]
@@ -114,13 +368,13 @@ protocol DatabaseDriver {
     func createSchema(named schemaName: String, options: CreateSchemaOptions) async throws
     
     // Collection operations
-    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult]
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult
-    func findDocuments(in collectionName: String,  databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult
-    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws
+    func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int
+    func findDocuments(in collectionName: String, filter: DatabaseDocument) async throws -> [QueryResult]
+    func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult
+    func findDocuments(in collectionName: String,  databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult
+    func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws
     
     // Raw Query Execution
     @discardableResult
@@ -148,12 +402,12 @@ protocol DatabaseDriver {
         sortBy: String?,
         ascending: Bool?,
         page: Int?,
-        onUpdate: @escaping (QueryResult) -> Void,
-        onError: @escaping (Error) -> Void
+        onUpdate: @escaping @Sendable (QueryResult) -> Void,
+        onError: @escaping @Sendable (Error) -> Void
     ) async throws
 
     // Clear subscription cache for a specific table (optional - only needed for databases with caching)
-    func clearSubscriptionCache(for tableName: String)
+    func clearSubscriptionCache(for tableName: String) async
 
     // Clear schema cache for a specific table (optional - only needed for databases with schema caching)
     func clearSchemaCache(for tableName: String, schema: String?) async
@@ -200,7 +454,7 @@ protocol DatabaseDriver {
 // MARK: - Default Implementations
 extension DatabaseDriver {
     // Default implementation for drivers that don't need deployment URL
-    func getCurrentDeploymentUrl() -> String? {
+    func getCurrentDeploymentUrl() async -> String? {
         return nil
     }
 }
@@ -217,15 +471,15 @@ extension DatabaseDriver {
         sortBy: String?,
         ascending: Bool?,
         page: Int?,
-        onUpdate: @escaping (QueryResult) -> Void,
-        onError: @escaping (Error) -> Void
+        onUpdate: @escaping @Sendable (QueryResult) -> Void,
+        onError: @escaping @Sendable (Error) -> Void
     ) async throws {
         throw DatabaseError.notImplemented("Real-time subscriptions not supported for this database type")
     }
 
     // Provide default no-op implementation for subscription cache clearing
     // Only databases that support real-time caching will override this
-    func clearSubscriptionCache(for tableName: String) {
+    func clearSubscriptionCache(for tableName: String) async {
         // Default implementation does nothing
     }
 
@@ -296,13 +550,13 @@ extension DatabaseDriver {
 }
 
 // MARK: - Build Info Structure
-struct BuildInfo {
+struct BuildInfo: Sendable {
     let version: String
     let databaseType: DatabaseType
 }
 
 // MARK: - Database Constraint Information Structure
-enum ConstraintType: String, Equatable {
+enum ConstraintType: String, Equatable, Sendable {
     case foreignKey = "f"
     case primaryKey = "p"
     case unique = "u"
@@ -311,7 +565,7 @@ enum ConstraintType: String, Equatable {
     case trigger = "t"
 }
 
-struct ConstraintInfo: Equatable {
+struct ConstraintInfo: Equatable, Sendable {
     let oid: Int64
     let name: String
     let type: ConstraintType
@@ -375,7 +629,7 @@ struct ConstraintInfo: Equatable {
 }
 
 // MARK: - Database Index Information Structure
-enum IndexType: String, Equatable {
+enum IndexType: String, Equatable, Sendable {
     case btree = "btree"
     case hash = "hash"
     case gin = "gin"
@@ -387,7 +641,7 @@ enum IndexType: String, Equatable {
     case other = "other"
 }
 
-struct DatabaseIndexInfo: Equatable {
+struct DatabaseIndexInfo: Equatable, Sendable {
     let name: String
     let tableName: String
     let schemaName: String
@@ -440,7 +694,7 @@ struct DatabaseIndexInfo: Equatable {
 }
 
 // MARK: - Schema Information Structures
-struct DatabaseSchemaInfo: Equatable {
+struct DatabaseSchemaInfo: Equatable, Sendable {
     let ordinalPosition: Int?
     let columnName: String
     let dataType: String
@@ -542,7 +796,7 @@ struct DatabaseSchemaInfo: Equatable {
     }
 }
 
-struct DatabaseSchemaResult: Equatable {
+struct DatabaseSchemaResult: Equatable, Sendable {
     let tableName: String
     let schemaName: String
     let columns: [DatabaseSchemaInfo]
@@ -589,14 +843,14 @@ struct DatabaseSchemaResult: Equatable {
 }
 
 // MARK: - Generic Database Wrapper
-protocol DatabaseWrapper {
+protocol DatabaseWrapper: Sendable {
     var name: String { get }
     var size: String? { get }
     var tableCount: Int? { get }
 }
 
 // MARK: - Generic Collection Wrapper
-protocol CollectionWrapper: Identifiable {
+protocol CollectionWrapper: Identifiable, Sendable {
     var name: String { get }
     var type: String { get }
     var schema: String? { get }

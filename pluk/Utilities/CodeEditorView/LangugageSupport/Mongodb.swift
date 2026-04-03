@@ -62,14 +62,14 @@ extension LanguageConfiguration {
   }
   
   // MongoDB identifier rules (similar to JavaScript)
-  private static let mongodbIdentifierHeadCharacters: CharacterClass = CharacterClass(
+  nonisolated(unsafe) private static let mongodbIdentifierHeadCharacters: CharacterClass = CharacterClass(
     "a"..."z",
     "A"..."Z",
     .anyOf("_$"),
     "\u{80}" ... "\u{10FFFF}"
   )
   
-  private static let mongodbIdentifierCharacters: CharacterClass = CharacterClass(
+  nonisolated(unsafe) private static let mongodbIdentifierCharacters: CharacterClass = CharacterClass(
     mongodbIdentifierHeadCharacters,
     "0"..."9"
   )

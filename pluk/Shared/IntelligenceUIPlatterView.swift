@@ -203,7 +203,7 @@ fileprivate extension IntelligenceUIPlatterView.ShimmerAction {
 /// # Note
 /// There's something wrong with the preview extent that causes the outer glow to clip. This doesn't happen at runtime.
 
-fileprivate let PreviewContent = { (_ action: @escaping () -> Void) in
+nonisolated(unsafe) fileprivate let PreviewContent = { (_ action: @escaping () -> Void) in
   AnyView(RoundedRectangle(cornerRadius: 30)
     .foregroundStyle(.ultraThickMaterial)
     .padding(2)

@@ -119,6 +119,7 @@ struct SchemaTableView: NSViewRepresentable {
         }
     }
 
+    @MainActor
     func makeCoordinator() -> SchemaTableCoordinator {
         SchemaTableCoordinator(columns: filteredColumns(), colorScheme: colorScheme, databaseType: databaseType, modificationTracker: modificationTracker)
     }

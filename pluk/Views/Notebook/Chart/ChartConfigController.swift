@@ -182,11 +182,13 @@ final class ChartConfigController: NSViewController {
             context.duration = 0.2
             picker.animator().alphaValue = 0
         } completionHandler: { [weak self] in
-            picker.removeFromSuperview()
-            self?.connectionPickerView = nil
-            self?.splitView.isHidden = false
-            self?.view.layoutSubtreeIfNeeded()
-            self?.applyInitialDividerPositionsIfNeeded()
+            MainActor.assumeIsolated {
+                picker.removeFromSuperview()
+                self?.connectionPickerView = nil
+                self?.splitView.isHidden = false
+                self?.view.layoutSubtreeIfNeeded()
+                self?.applyInitialDividerPositionsIfNeeded()
+            }
         }
     }
 

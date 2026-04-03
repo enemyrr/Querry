@@ -136,22 +136,27 @@ private struct RowFieldsSection: View {
             return "NULL"
         }
 
-        if let stringValue = value as? String {
+        switch value {
+        case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
             return stringValue.isEmpty ? "" : stringValue
-        } else if let intValue = value as? Int {
+        case .int(let intValue):
             return String(intValue)
-        } else if let doubleValue = value as? Double {
+        case .int64(let intValue):
+            return String(intValue)
+        case .double(let doubleValue):
             return doubleValue.formatted()
-        } else if let boolValue = value as? Bool {
+        case .bool(let boolValue):
             return boolValue ? "true" : "false"
-        } else if let dateValue = value as? Date {
+        case .date(let dateValue):
             return dateValue.formatted(date: .abbreviated, time: .standard)
-        } else if let arrayValue = value as? [Any] {
-            return formatJSON(arrayValue)
-        } else if let dictValue = value as? [String: Any] {
-            return formatJSON(dictValue)
-        } else {
-            return String(describing: value)
+        case .array, .object:
+            return formatJSON(value.anyValue ?? NSNull())
+        case .data(let dataValue):
+            return dataValue.base64EncodedString()
+        case .uuid(let uuidValue):
+            return uuidValue.uuidString
+        case .null:
+            return "NULL"
         }
     }
 
@@ -292,17 +297,7 @@ private struct RowActionsMenu: View {
               let rawRowData = tab.selectedRawRowData,
               let columnOrder = tab.selectedColumnOrder else { return }
 
-        // Find the row identifier from raw data - check _id, id, or fall back to first column
-        var idValue: Any?
-        if let value = rawRowData["_id"] {
-            idValue = value
-        } else if let value = rawRowData["id"] {
-            idValue = value
-        } else if let firstColumn = columnOrder.first, let value = rawRowData[firstColumn] {
-            idValue = value
-        }
-
-        guard let id = idValue else {
+        guard let id = selectedRowRecordID(from: rawRowData, columnOrder: columnOrder) else {
             saveError = "Cannot find row identifier"
             return
         }
@@ -377,22 +372,27 @@ private struct RowActionsMenu: View {
             return "NULL"
         }
 
-        if let stringValue = value as? String {
-            return stringValue
-        } else if let intValue = value as? Int {
-            return String(intValue)
-        } else if let doubleValue = value as? Double {
-            return doubleValue.formatted()
-        } else if let boolValue = value as? Bool {
-            return boolValue ? "true" : "false"
-        } else if let dateValue = value as? Date {
-            return dateValue.formatted(date: .abbreviated, time: .standard)
-        } else if let arrayValue = value as? [Any] {
-            return formatJSON(arrayValue)
-        } else if let dictValue = value as? [String: Any] {
-            return formatJSON(dictValue)
-        } else {
-            return String(describing: value)
+        switch value {
+        case .string(let value), .decimalString(let value), .objectID(let value):
+            return value
+        case .int(let value):
+            return String(value)
+        case .int64(let value):
+            return String(value)
+        case .double(let value):
+            return value.formatted()
+        case .bool(let value):
+            return value ? "true" : "false"
+        case .date(let value):
+            return value.formatted(date: .abbreviated, time: .standard)
+        case .array, .object:
+            return formatJSON(value.anyValue ?? NSNull())
+        case .data(let value):
+            return value.base64EncodedString()
+        case .uuid(let value):
+            return value.uuidString
+        case .null:
+            return "NULL"
         }
     }
 
@@ -410,7 +410,7 @@ private struct RowActionsMenu: View {
 
         var jsonDict: [String: Any] = [:]
         for (key, info) in rowData {
-            jsonDict[key] = info.value ?? NSNull()
+            jsonDict[key] = info.value?.anyValue ?? NSNull()
         }
 
         do {
@@ -448,17 +448,7 @@ private struct RowActionsMenu: View {
               let rawRowData = tab.selectedRawRowData,
               let columnOrder = tab.selectedColumnOrder else { return }
 
-        // Find the row identifier - check _id, id, or fall back to first column
-        var idValue: Any?
-        if let value = rawRowData["_id"] {
-            idValue = value
-        } else if let value = rawRowData["id"] {
-            idValue = value
-        } else if let firstColumn = columnOrder.first, let value = rawRowData[firstColumn] {
-            idValue = value
-        }
-
-        guard let id = idValue else {
+        guard let id = selectedRowRecordID(from: rawRowData, columnOrder: columnOrder) else {
             deleteError = "Cannot find row identifier"
             return
         }
@@ -497,6 +487,20 @@ private struct RowActionsMenu: View {
                 }
             }
         }
+    }
+
+    private func selectedRowRecordID(from rawRowData: DatabaseRawRow, columnOrder: [String]) -> DatabaseRecordID? {
+        if let value = rawRowData["_id"] ?? nil {
+            return DatabaseRecordID(columnName: "_id", value: value)
+        }
+        if let value = rawRowData["id"] ?? nil {
+            return DatabaseRecordID(columnName: "id", value: value)
+        }
+        guard let firstColumn = columnOrder.first,
+              let value = rawRowData[firstColumn] ?? nil else {
+            return nil
+        }
+        return DatabaseRecordID(columnName: firstColumn, value: value)
     }
 }
 
@@ -628,13 +632,14 @@ private class ResizeDividerView: NSView {
         wantsLayer = true
     }
 
-    deinit {
-        stopDisplayLink()
-    }
-
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        setupDisplayLink()
+        if window != nil {
+            setupDisplayLink()
+        } else {
+            displayLink?.invalidate()
+            displayLink = nil
+        }
     }
 
     private func setupDisplayLink() {

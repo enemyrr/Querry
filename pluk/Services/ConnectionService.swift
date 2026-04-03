@@ -10,7 +10,7 @@ import MongoKitten
 import SwiftUI
 import AppKit
 
-@Observable
+@Observable @MainActor
 class ConnectionService {
     static let shared = ConnectionService()
     
@@ -56,7 +56,7 @@ class ConnectionService {
         }
 
         if closeWindow {
-            await closeNativeTab(for: instanceId)
+            closeNativeTab(for: instanceId)
         }
 
         await disconnectDBInstance(instanceToDisconnect)

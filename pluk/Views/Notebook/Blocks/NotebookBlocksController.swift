@@ -19,7 +19,7 @@ final class NotebookBlocksController: NSViewController {
     private var scrollView: NSScrollView!
     private var collectionView: NSCollectionView!
     private var collectionHeightConstraint: NSLayoutConstraint?
-    private var scrollBoundsObserver: Any?
+    nonisolated(unsafe) private var scrollBoundsObserver: Any?
 
     private var blockControllers: [UUID: NSViewController] = [:]
     private var actionBarView: NotebookActionBarView?
@@ -27,7 +27,7 @@ final class NotebookBlocksController: NSViewController {
     private var insertionIndicators: [BlockInsertionIndicatorView] = []
     private var inlineActionBar: NotebookActionBarView?
     private var expandedGapIndex: Int?
-    private var clickAwayMonitor: Any?
+    nonisolated(unsafe) private var clickAwayMonitor: Any?
     private var pendingFocusBlockId: UUID?
     private var initialLoadComplete = false
     private var previousBlockIds: [UUID] = []
@@ -193,10 +193,12 @@ final class NotebookBlocksController: NSViewController {
             object: clipView,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
-            let offset = max(0, self.scrollView.contentView.bounds.origin.y)
-            self.onScrollOffsetChanged?(offset)
-            self.loadVisibleBlockData()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let offset = max(0, self.scrollView.contentView.bounds.origin.y)
+                self.onScrollOffsetChanged?(offset)
+                self.loadVisibleBlockData()
+            }
         }
     }
 
@@ -244,9 +246,6 @@ final class NotebookBlocksController: NSViewController {
         }
 
         let collectionOriginY = collectionView.frame.origin.y
-        let insets = layout.sectionInsets
-        let width = collectionView.bounds.width - insets.left - insets.right
-
         for i in 0..<neededCount {
             let indicator = insertionIndicators[i]
 

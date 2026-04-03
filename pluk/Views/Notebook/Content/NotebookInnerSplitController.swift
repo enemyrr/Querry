@@ -116,20 +116,22 @@ final class NotebookInnerSplitController: NSSplitViewController {
             inspectorView.animator().alphaValue = collapsed ? 0 : 1
             inspectorItem.animator().isCollapsed = collapsed
         } completionHandler: { [weak self] in
-            guard let self else { return }
-            isAnimating = false
-            isProgrammaticCollapse = false
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isAnimating = false
+                self.isProgrammaticCollapse = false
 
-            if !collapsed {
-                setInspectorWidth(lastExpandedWidth)
-                inspectorView.alphaValue = 1
+                if !collapsed {
+                    self.setInspectorWidth(self.lastExpandedWidth)
+                    inspectorView.alphaValue = 1
+                }
+
+                if let hoverSplitView = self.splitView as? HoverDividerSplitView {
+                    hoverSplitView.isSidebarCollapsed = collapsed
+                }
+
+                NotificationCenter.default.post(name: .notebookChartUnfreeze, object: self.view.window)
             }
-
-            if let hoverSplitView = splitView as? HoverDividerSplitView {
-                hoverSplitView.isSidebarCollapsed = collapsed
-            }
-
-            NotificationCenter.default.post(name: .notebookChartUnfreeze, object: view.window)
         }
     }
 

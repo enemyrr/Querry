@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 func getTabIconName(for tab: DatabaseTab, databaseType: DatabaseType) -> String {
     guard tab.type != .functionEditor else { return "f.cursive" }
     guard tab.type != .sqlEditor else { return "terminal" }
@@ -35,7 +36,7 @@ class DraggableTabNSView: NSView, NSDraggingSource {
     private let dragThreshold: CGFloat = 3
     private var mouseDownLocation: NSPoint?
     private var trackingArea: NSTrackingArea?
-    private var frameUpdateObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var frameUpdateObserver: NSObjectProtocol?
 
     private var isDragging = false
     private var hasBeenPulledOut = false

@@ -275,8 +275,8 @@ final class BedrockService: Sendable {
             } else if let tool = toolUseBlocks[idx] {
                 let inputData = Data(tool.inputJSON.utf8)
                 let inputDict: [String: any Sendable]
-                if let parsed = try? JSONSerialization.jsonObject(with: inputData) as? [String: Any] {
-                    inputDict = parsed.mapValues { $0 as any Sendable }
+                if let parsed = try? JSONSerialization.jsonObject(with: inputData) as? [String: any Sendable] {
+                    inputDict = parsed
                 } else {
                     inputDict = [:]
                 }

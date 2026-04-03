@@ -486,22 +486,22 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     }
 
     private func refreshDeployments(for instance: ConnectionInstance) async {
-        guard let driver = instance.databaseService.driver as? ConvexDriver else { return }
-
         await MainActor.run {
             isRefreshingDeployments = true
             refreshEnvironmentMenu()
         }
 
         do {
-            let fresh = try await driver.refreshDeploymentsFromAPI()
+            let fresh = try await instance.databaseService.refreshConvexDeployments()
             await MainActor.run {
                 instance.databases = fresh
                 isRefreshingDeployments = false
                 refreshEnvironmentMenu()
 
-                if let updatedToken = driver.buildUpdatedEmbeddedToken() {
-                    instance.connection.password = updatedToken
+                Task { @MainActor in
+                    if let updatedToken = await instance.databaseService.buildUpdatedConvexEmbeddedToken() {
+                        instance.connection.password = updatedToken
+                    }
                 }
             }
         } catch {

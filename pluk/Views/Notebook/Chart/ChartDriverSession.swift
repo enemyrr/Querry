@@ -41,7 +41,7 @@ actor ChartDriverSession {
         let validFilters = filters.filter(\.isComplete)
 
         if databaseType == .convex {
-            let filterDict = convexFilterDict(from: validFilters, tableName: tableName)
+            let filterDict = convexFilterDocument(from: validFilters, tableName: tableName)
             let convexSchema = (schema == "app") ? nil : schema
             let result = try await driver.findDocuments(
                 in: tableName,
@@ -89,7 +89,7 @@ actor ChartDriverSession {
         let validFilters = filters.filter(\.isComplete)
 
         if databaseType == .convex {
-            let filterDict = convexFilterDict(from: validFilters, tableName: tableName)
+            let filterDict = convexFilterDocument(from: validFilters, tableName: tableName)
             // Convex root "app" component does not need componentId — pass nil to avoid it
             let convexSchema = (schema == "app") ? nil : schema
             let raw = try await driver.findDocuments(
@@ -144,7 +144,7 @@ actor ChartDriverSession {
         let validFilters = filters.filter(\.isComplete)
 
         if databaseType == .convex {
-            let filterDict = convexFilterDict(from: validFilters, tableName: tableName)
+            let filterDict = convexFilterDocument(from: validFilters, tableName: tableName)
             let convexSchema = (schema == "app") ? nil : schema
             let raw = try await driver.findDocuments(
                 in: tableName,
@@ -175,13 +175,14 @@ actor ChartDriverSession {
               let value = info.value else { return nil }
 
         switch value {
-        case let d as Double: return d
-        case let i as Int: return Double(i)
-        case let i as Int64: return Double(i)
-        case let i as Int32: return Double(i)
-        case let f as Float: return Double(f)
-        case let s as String: return Double(s)
-        case let d as Decimal: return NSDecimalNumber(decimal: d).doubleValue
+        case .double(let value):
+            return value
+        case .int(let value):
+            return Double(value)
+        case .int64(let value):
+            return Double(value)
+        case .string(let value), .decimalString(let value):
+            return Double(value)
         default: return nil
         }
     }
@@ -205,7 +206,7 @@ actor ChartDriverSession {
 
     // MARK: - Convex Filter Helpers
 
-    private func convexFilterDict(from filters: [ChartFilterCondition], tableName: String) -> [String: Any] {
+    private func convexFilterDocument(from filters: [ChartFilterCondition], tableName: String) -> DatabaseDocument {
         guard !filters.isEmpty else { return [:] }
 
         guard let convexDriver = driver as? ConvexDriver else { return [:] }
@@ -221,7 +222,7 @@ actor ChartDriverSession {
 
         let json = convexDriver.generateFilterQuery(from: conditions, tableName: tableName)
         guard !json.isEmpty else { return [:] }
-        return ["rawQuery": json]
+        return ["rawQuery": .string(json)]
     }
 }
 

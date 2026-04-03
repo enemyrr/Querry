@@ -30,9 +30,9 @@ final class TabBarView: NSView {
 
     private var leadingConstraint: NSLayoutConstraint!
     private var isSidebarVisible = true
-    private var sidebarObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var sidebarObserver: NSObjectProtocol?
 
-    private var eventMonitor: Any?
+    nonisolated(unsafe) private var eventMonitor: Any?
     private var isLayoutingTabs = false
 
     private let tabWidth: CGFloat = 182
@@ -554,11 +554,10 @@ final class TabBarView: NSView {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self else { return }
             let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
-            self.isSidebarVisible = !isCollapsing
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.isSidebarVisible = !isCollapsing
                 await NSAnimationContext.runAnimationGroup { context in
                     context.duration = 0.17
                     context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)

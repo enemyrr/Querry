@@ -7,12 +7,18 @@
 
 import SwiftUI
 import Sparkle
+import Combine
 
+@MainActor
 final class CheckForUpdatesViewModel: ObservableObject {
     @Published var canCheckForUpdates = false
+    private var cancellable: AnyCancellable?
 
     init(updater: SPUUpdater) {
-        updater.publisher(for: \.canCheckForUpdates)
-            .assign(to: &$canCheckForUpdates)
+        cancellable = updater.publisher(for: \.canCheckForUpdates)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] value in
+                self?.canCheckForUpdates = value
+            }
     }
 }

@@ -78,6 +78,7 @@ Mega-component (14 files) that provides contextual controls below the table:
 - Do NOT search for "DocumentView" expecting a single class — there's a file and a directory with the same name
 - Do NOT add MongoDB to the `TableContentViewController` routing — it has a different data model
 - Do NOT modify `TabBarView` without testing drag-and-drop — it has complex animation state
+- Convex content tabs can render from `QueryResult` columns while `cachedSchema` is still `nil`; new-row flows must not assume schema exists, and auto-focus should skip read-only system fields like `_id`
 - In `EmptyStateView`, avoid keeping a separate search-text state; derive filtering/visibility from the live field-editor text (`currentEditor()?.string`, fallback to `searchField.stringValue`) to prevent one-change-late header/result mismatches
 - In `EmptyStateView`, scrolling to the active row right after reloading can run before `NSScrollView` height settles (especially when toggling from no-results to results); perform a deferred second scroll pass after `Task.yield()`
 - In `EmptyStateView`, clear rows from `NSStackView` with `removeArrangedSubview(_:)` + `removeFromSuperview()`; using only `removeFromSuperview()` can leave stale arranged-subview state across search transitions

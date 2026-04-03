@@ -1,6 +1,6 @@
 import AppKit
 
-protocol CanvasToolbarViewDelegate: AnyObject {
+@MainActor protocol CanvasToolbarViewDelegate: AnyObject {
     func toolbarDidSelectSchema(_ schema: String?)
     func toolbarDidTapResetLayout()
 }

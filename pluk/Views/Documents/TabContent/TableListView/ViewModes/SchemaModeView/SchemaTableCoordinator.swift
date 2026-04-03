@@ -9,6 +9,7 @@ import Foundation
 import AppKit
 import SwiftUI
 
+@MainActor
 class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, NSMenuDelegate {
     var columns: [DatabaseSchemaInfo]
     var colorScheme: ColorScheme
@@ -95,19 +96,21 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
     @objc private func handleTableReloadData(notification: Notification) {
         let autoEditLastRow = (notification.userInfo?["autoEditLastRow"] as? Bool) ?? false
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, let tableView = self.tableView else { return }
-            tableView.reloadData()
+        RunLoop.main.perform { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let tableView = self.tableView else { return }
+                tableView.reloadData()
 
-            // Auto-edit the name cell of the last row if requested
-            // Use tableView.numberOfRows instead of columns.count since columns may not be updated yet
-            if autoEditLastRow && tableView.numberOfRows > 0 {
-                self.scrollToLastRowAndEditNameCell()
+                // Auto-edit the name cell of the last row if requested.
+                // Use tableView.numberOfRows instead of columns.count since columns may not be updated yet.
+                if autoEditLastRow && tableView.numberOfRows > 0 {
+                    self.scrollToLastRowAndEditNameCell()
+                }
             }
         }
     }
 
-    @objc private func handleDeleteKey(notification: Notification) {
+    @MainActor @objc private func handleDeleteKey(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let rows = userInfo["rows"] as? IndexSet,
               let notificationTableView = userInfo["tableView"] as? NSTableView,
@@ -216,10 +219,12 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
         }
 
         // Delay slightly to ensure the view is created
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let tableView = self?.tableView else { return }
-            if let nameCell = tableView.view(atColumn: nameColumnIndex, row: lastRowIndex, makeIfNecessary: true) as? SchemaEditableCellView {
-                nameCell.enterEditMode()
+        RunLoop.main.perform { [weak self] in
+            MainActor.assumeIsolated {
+                guard let tableView = self?.tableView else { return }
+                if let nameCell = tableView.view(atColumn: nameColumnIndex, row: lastRowIndex, makeIfNecessary: true) as? SchemaEditableCellView {
+                    nameCell.enterEditMode()
+                }
             }
         }
     }
@@ -234,8 +239,7 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
               clickedColumn < tableView.tableColumns.count else { return }
 
         // Check if this is an editable column
-        let column = tableView.tableColumns[clickedColumn]
-        guard let identifier = column.identifier as? NSUserInterfaceItemIdentifier else { return }
+        let identifier = tableView.tableColumns[clickedColumn].identifier
 
         // Only handle double-click for editable text columns
         switch identifier.rawValue {

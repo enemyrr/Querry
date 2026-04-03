@@ -12,13 +12,13 @@ import MongoKitten
 
 /// Facilitates the decoding of ExtendedJSON values into BSON Document objects.
 struct ExtendedJSONDecoder {
-    internal static var extJSONDateFormatterSeconds: ISO8601DateFormatter = {
+    nonisolated(unsafe) internal static var extJSONDateFormatterSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
     
-    internal static var extJSONDateFormatterMilliseconds: ISO8601DateFormatter = {
+    nonisolated(unsafe) internal static var extJSONDateFormatterMilliseconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

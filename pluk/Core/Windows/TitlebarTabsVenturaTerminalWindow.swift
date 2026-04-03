@@ -1,9 +1,11 @@
 import AppKit
 
+@MainActor
 class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     private weak var tabBarMouseTarget: NSView?
 
+    @MainActor
     override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
         super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
         titlebarAppearsTransparent = true
@@ -28,9 +30,11 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     override func awakeFromNib() {
         super.awakeFromNib()
-        titlebarAppearsTransparent = true
-        setupFullscreenNotifications()
-        updateTitlebarVisibility()
+        MainActor.assumeIsolated {
+            titlebarAppearsTransparent = true
+            setupFullscreenNotifications()
+            updateTitlebarVisibility()
+        }
     }
 
     override func toggleTabBar(_ sender: Any?) {}

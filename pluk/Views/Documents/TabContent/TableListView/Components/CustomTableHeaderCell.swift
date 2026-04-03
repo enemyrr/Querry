@@ -10,11 +10,11 @@ import AppKit
 import ObjectiveC
 
 // Associated object keys
-private var fieldTypeKey: UInt8 = 0
-private var tooltipTextKey: UInt8 = 0
-private var isForeignKeyKey: UInt8 = 0
-private var isActiveSortColumnKey: UInt8 = 0
-private var sortAscendingKey: UInt8 = 0
+nonisolated(unsafe) private var fieldTypeKey: UInt8 = 0
+nonisolated(unsafe) private var tooltipTextKey: UInt8 = 0
+nonisolated(unsafe) private var isForeignKeyKey: UInt8 = 0
+nonisolated(unsafe) private var isActiveSortColumnKey: UInt8 = 0
+nonisolated(unsafe) private var sortAscendingKey: UInt8 = 0
 
 class CustomTableHeaderCell: NSTableHeaderCell {
     private var titleLabel: NSTextField?

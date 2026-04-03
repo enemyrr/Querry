@@ -362,16 +362,19 @@ final class SingleValueBlockViewModel {
                 return
             }
 
-            let values: [Double] = result.rows.compactMap { row in
+            let values: [Double] = result.rows.compactMap { row -> Double? in
                 guard let info = row[column], let value = info.value else { return nil }
                 switch value {
-                case let d as Double: return d
-                case let i as Int: return Double(i)
-                case let i as Int64: return Double(i)
-                case let f as Float: return Double(f)
-                case let s as String: return Double(s)
-                case let d as Decimal: return NSDecimalNumber(decimal: d).doubleValue
-                default: return nil
+                case .double(let value):
+                    return value
+                case .int(let value):
+                    return Double(value)
+                case .int64(let value):
+                    return Double(value)
+                case .string(let value), .decimalString(let value):
+                    return Double(value)
+                default:
+                    return nil
                 }
             }
 

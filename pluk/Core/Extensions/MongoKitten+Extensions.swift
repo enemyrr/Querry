@@ -22,9 +22,9 @@ extension Document {
             case let decimal as BSON.Decimal128:
                 jsonDict[key] = ["$numberDecimal": decimal.toString]
                 
-            case let number as Int32:
+            case let number as Int:
                 jsonDict[key] = number
-            case let number as Int64:
+            case let number as Int32:
                 jsonDict[key] = number
             case let number as Double:
                 jsonDict[key] = number
@@ -77,9 +77,9 @@ extension Document {
         case let decimal as BSON.Decimal128:
             return ["$numberDecimal": decimal.toString]
             
-        case let number as Int32:
+        case let number as Int:
             return number
-        case let number as Int64:
+        case let number as Int32:
             return number
         case let number as Double:
             return number
@@ -121,6 +121,5 @@ extension Document {
         }
     }
 }
-
 
 

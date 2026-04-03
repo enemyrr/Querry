@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-class BookmarkManager {
+final class BookmarkManager: Sendable {
     static let shared = BookmarkManager()
     
     private init() {}

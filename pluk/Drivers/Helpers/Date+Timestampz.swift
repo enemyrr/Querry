@@ -80,7 +80,6 @@ extension String {
                 
                 // Verify round-trip
                 formatter.timeZone = TimeZone(secondsFromGMT: offsetToSeconds(offset))
-                var reconstructed = formatter.string(from: date)
                 
                 // PostgreSQL is flexible with format, so just verify date is correct
                 return (date, offset)

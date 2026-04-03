@@ -21,9 +21,9 @@ struct ERDNodeRenderer {
     private static let titleColorDark = NSColor.white
     private static let titleColorLight = NSColor(white: 0.1, alpha: 1)
 
-    private static let nameFont = NSFont.systemFont(ofSize: 14, weight: .regular)
-    private static let colNameFont = NSFont.systemFont(ofSize: 13, weight: .regular)
-    private static let typeFont = NSFont.systemFont(ofSize: 12, weight: .regular)
+    nonisolated(unsafe) private static let nameFont = NSFont.systemFont(ofSize: 14, weight: .regular)
+    nonisolated(unsafe) private static let colNameFont = NSFont.systemFont(ofSize: 13, weight: .regular)
+    nonisolated(unsafe) private static let typeFont = NSFont.systemFont(ofSize: 12, weight: .regular)
 
     private static nonisolated(unsafe) var symbolCache: [String: NSImage] = [:]
 

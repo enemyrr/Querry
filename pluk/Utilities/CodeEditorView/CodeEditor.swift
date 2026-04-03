@@ -56,7 +56,7 @@ public enum CodeEditorTypes {
       self.dynamicHeight = dynamicHeight
     }
 
-    public static let standard = LayoutConfiguration(wrapText: true)
+    nonisolated(unsafe) public static let standard = LayoutConfiguration(wrapText: true)
 
     public var rawValue: String { "\(wrapText ? "t" : "f")" }
 
@@ -135,7 +135,7 @@ public enum CodeEditorTypes {
       self.indentOnReturn = indentOnReturn
     }
 
-    public static let standard = IndentationConfiguration(preference: .preferSpaces,
+    nonisolated(unsafe) public static let standard = IndentationConfiguration(preference: .preferSpaces,
                                                           tabWidth: 2,
                                                           indentWidth: 2,
                                                           tabKey: .identsInWhitespace,
@@ -175,7 +175,7 @@ public enum CodeEditorTypes {
   public struct SetActions {
     let setActions: (Actions) -> Void
 
-    public static let ignore: SetActions = .init({ _ in })
+    nonisolated(unsafe) public static let ignore: SetActions = .init({ _ in })
 
     public init(_ setActions: @escaping (Actions) -> Void) {
       self.setActions = setActions
@@ -232,7 +232,7 @@ public enum CodeEditorTypes {
   public struct SetInfo {
     let setInfo: (Info) -> Void
 
-    public static let ignore: SetInfo = .init({ _ in })
+    nonisolated(unsafe) public static let ignore: SetInfo = .init({ _ in })
 
     public init(_ setInfo: @escaping (Info) -> Void) {
       self.setInfo = setInfo

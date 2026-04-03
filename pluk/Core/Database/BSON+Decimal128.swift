@@ -151,9 +151,9 @@ public struct BSONDecimal128: Equatable, Hashable, CustomStringConvertible {
 
     private static let decimalShift17Zeroes: UInt64 = 100_000_000_000_000_000
 
-    private static let negativeInfinity = UInt128(high: 0xF800_0000_0000_0000, low: 0)
-    private static let infinity = UInt128(high: 0x7800_0000_0000_0000, low: 0)
-    private static let NaN = UInt128(high: 0x7C00_0000_0000_0000, low: 0)
+    nonisolated(unsafe) private static let negativeInfinity = UInt128(high: 0xF800_0000_0000_0000, low: 0)
+    nonisolated(unsafe) private static let infinity = UInt128(high: 0x7800_0000_0000_0000, low: 0)
+    nonisolated(unsafe) private static let NaN = UInt128(high: 0x7C00_0000_0000_0000, low: 0)
 
     private enum REGroups: Int, CaseIterable {
         case sign = 1

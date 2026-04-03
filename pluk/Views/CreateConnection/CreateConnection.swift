@@ -49,7 +49,7 @@ struct HTTPResponse {
     }
 }
 
-class HTTPServer {
+class HTTPServer: @unchecked Sendable {
     private let port: Int
     private let handler: (HTTPRequest) -> HTTPResponse
     private var listener: NWListener?

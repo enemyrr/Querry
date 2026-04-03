@@ -8,7 +8,7 @@
 import Foundation
 import JavaScriptCore
 
-class SQLFormatter {
+@MainActor class SQLFormatter {
     private static let shared = SQLFormatter()
     private let jsContext: JSContext
     

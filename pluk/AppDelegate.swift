@@ -13,6 +13,7 @@ import Sentry
 import OSLog
 
 @main
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var systemAppearanceObservation: NSKeyValueObservation?

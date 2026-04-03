@@ -18,7 +18,7 @@ import LanguageSupport
 // MARK: Environment keys
 
 public struct CodeEditorTheme: EnvironmentKey {
-  public static var defaultValue: Theme = Theme.defaultLight
+  nonisolated(unsafe) public static var defaultValue: Theme = Theme.defaultLight
 }
 
 extension EnvironmentValues {

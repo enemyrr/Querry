@@ -541,18 +541,17 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
             return
         }
         
-        // Cast to String and check if empty
-        if let stringValue = value as? String {
+        switch value {
+        case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
             textField.stringValue = stringValue
-            
+
             if stringValue.isEmpty {
                 textField.placeholderString = "(EMPTY)"
             } else {
                 textField.textColor = NSColor.controlTextColor
             }
-        } else {
-            // Handle non-string values by converting to string
-            let stringRepresentation = String(describing: value)
+        default:
+            let stringRepresentation = value.description
             textField.stringValue = stringRepresentation
             textField.textColor = NSColor.controlTextColor
         }

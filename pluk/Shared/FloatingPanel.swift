@@ -164,7 +164,7 @@ fileprivate struct FloatingPanelModifier<PanelContent: View>: ViewModifier {
 
 // Preference key to track anchor frame
 struct AnchorFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
+    nonisolated(unsafe) static var defaultValue: CGRect = .zero
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
     }

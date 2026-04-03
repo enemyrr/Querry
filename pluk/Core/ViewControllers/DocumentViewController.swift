@@ -454,7 +454,9 @@ final class DocumentViewController: NSViewController {
             self.rightSidebarHostingView?.animator().alphaValue = 1
             self.contentContainer?.layoutSubtreeIfNeeded()
         } completionHandler: { [weak self] in
-            self?.isAnimatingRightSidebar = false
+            Task { @MainActor [weak self] in
+                self?.isAnimatingRightSidebar = false
+            }
         }
     }
 
@@ -470,8 +472,10 @@ final class DocumentViewController: NSViewController {
             self.rightSidebarHostingView?.animator().alphaValue = 0
             self.contentContainer?.layoutSubtreeIfNeeded()
         } completionHandler: { [weak self] in
-            self?.hideRightSidebar()
-            self?.isAnimatingRightSidebar = false
+            Task { @MainActor [weak self] in
+                self?.hideRightSidebar()
+                self?.isAnimatingRightSidebar = false
+            }
         }
     }
 
@@ -599,7 +603,6 @@ private final class EmptyDocumentStateView: NSView {
     }
 
     deinit {
-        emptyStateVC?.tearDown()
         NotificationCenter.default.removeObserver(self)
     }
 }

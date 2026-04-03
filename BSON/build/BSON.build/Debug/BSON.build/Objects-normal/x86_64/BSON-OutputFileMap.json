@@ -1,9 +1,10 @@
 {
   "" : {
-    "diagnostics" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-master.dia",
-    "emit-module-dependencies" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-master-emit-module.d",
-    "emit-module-diagnostics" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-master-emit-module.dia",
-    "swift-dependencies" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-master.swiftdeps"
+    "diagnostics" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-primary.dia",
+    "emit-module-dependencies" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-primary-emit-module.dia",
+    "pch" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/BSON-primary.swiftdeps"
   },
   "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/Sources/BSON/Codable/Codable.swift" : {
     "const-values" : "/Users/fauzaan/Desktop/Pluk/app-pluk/BSON/build/BSON.build/Debug/BSON.build/Objects-normal/x86_64/Codable.swiftconstvalues",

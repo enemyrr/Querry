@@ -5,10 +5,11 @@
 
 import AppKit
 
+@MainActor
 enum TableAppearanceSettings {
-    private(set) static var alternatingRowColors = UserDefaults.standard.bool(forKey: "alternatingRowColors")
+    nonisolated(unsafe) private(set) static var alternatingRowColors = UserDefaults.standard.bool(forKey: "alternatingRowColors")
 
-    private static let observer: NSObjectProtocol = {
+    nonisolated(unsafe) private static let observer: NSObjectProtocol = {
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,
@@ -22,7 +23,7 @@ enum TableAppearanceSettings {
         }
     }()
 
-    private static let appearanceObserver: NSObjectProtocol = {
+    nonisolated(unsafe) private static let appearanceObserver: NSObjectProtocol = {
         NotificationCenter.default.addObserver(
             forName: .appAppearanceDidChange,
             object: nil,

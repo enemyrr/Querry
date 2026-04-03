@@ -56,10 +56,6 @@ final class NotebookViewController: NSViewController {
         removeWindowActivationObserver()
     }
 
-    deinit {
-        removeWindowActivationObserver()
-    }
-
     private func setupContent() {
         let sidebarVC = NotebookDataBrowserController()
 
@@ -94,7 +90,9 @@ final class NotebookViewController: NSViewController {
             object: window,
             queue: .main
         ) { [weak self] _ in
-            self?.dataController.refreshConnections()
+            Task { @MainActor [weak self] in
+                self?.dataController.refreshConnections()
+            }
         }
     }
 

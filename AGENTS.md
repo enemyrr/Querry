@@ -42,6 +42,16 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 - Always use github cli instead of API
 - When the user asks anything about **prompts** or **prompt engineering**, always fetch and follow the guidance from `https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices` before responding
 
+## Building
+
+To build the project from the command line:
+
+```
+xcodebuild -project Pluk.xcodeproj -scheme Collection -configuration Debug build
+```
+
+The scheme is **`Collection`**, not `Pluk` — the app was originally named Collection and the scheme was never renamed. Using `-scheme Pluk` will fail.
+
 ## Debugging Surprises
 
 - When debugging live app data, the active SwiftData store for Pluk runs from the app container at `~/Library/Containers/doc.pluk/Data/Library/Application Support/default.store`. The similarly named `~/Library/Application Support/default.store` may belong to a different app and can send you down the wrong path.

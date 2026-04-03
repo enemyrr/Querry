@@ -262,20 +262,22 @@ final class SidebarSplitViewController: NSSplitViewController {
             sidebarView.animator().alphaValue = collapsed ? 0 : 1
             sidebarItem.animator().isCollapsed = collapsed
         } completionHandler: { [weak self] in
-            guard let self else { return }
-            isAnimating = false
-            isProgrammaticCollapse = false
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isAnimating = false
+                self.isProgrammaticCollapse = false
 
-            if !collapsed {
-                sidebarView.alphaValue = 1
-            }
+                if !collapsed {
+                    sidebarView.alphaValue = 1
+                }
 
-            postVisibilityChange(isVisible: !collapsed)
-            NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: view.window)
+                self.postVisibilityChange(isVisible: !collapsed)
+                NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: self.view.window)
 
-            if !collapsed {
-                let targetWidth = max(lastExpandedWidth, configuration.minWidth)
-                splitView.setPosition(targetWidth, ofDividerAt: 0)
+                if !collapsed {
+                    let targetWidth = max(self.lastExpandedWidth, self.configuration.minWidth)
+                    self.splitView.setPosition(targetWidth, ofDividerAt: 0)
+                }
             }
         }
     }

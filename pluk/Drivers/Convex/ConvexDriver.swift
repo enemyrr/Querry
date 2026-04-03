@@ -1,5 +1,5 @@
 import Foundation
-import ConvexMobile
+@preconcurrency import ConvexMobile
 import Combine
 import Synchronization
 
@@ -34,7 +34,7 @@ struct ConvexCollectionWrapper: CollectionWrapper {
 }
 
 // MARK: - Convex Driver
-class ConvexDriver: DatabaseDriver {
+actor ConvexDriver: DatabaseDriver {
     func ping(to connectionUri: String) async throws {
         throw DatabaseError.notImplemented("Driver does not support this")
     }
@@ -70,7 +70,7 @@ class ConvexDriver: DatabaseDriver {
         filterPayload.removeValue(forKey: "join")
         filterPayload.removeValue(forKey: "aggregate")
         let filterJSON = try JSONSerialization.data(withJSONObject: filterPayload, options: [.withoutEscapingSlashes, .sortedKeys])
-        let filterDict: [String: Any] = ["rawQuery": String(data: filterJSON, encoding: .utf8) ?? trimmed]
+        let filterDict: DatabaseDocument = ["rawQuery": .string(String(data: filterJSON, encoding: .utf8) ?? trimmed)]
         let result = try await findDocuments(in: tableName, databaseSchema: convexSchema, filter: filterDict, skip: 0, limit: fetchLimit, sortBy: nil, ascending: nil)
 
         // Apply join if specified
@@ -166,14 +166,14 @@ class ConvexDriver: DatabaseDriver {
             }
 
             var rows: [[String: QueryRowInfo]] = []
-            var rawRows: [[String: Any?]] = []
+            var rawRows: [DatabaseRawRow] = []
             for obj in array {
                 var row: [String: QueryRowInfo] = [:]
-                var rawRow: [String: Any?] = [:]
+                var rawRow: DatabaseRawRow = [:]
                 for col in columns {
                     let val = obj[col.name]
                     row[col.name] = ConvexValue.createQueryRowInfo(value: val, fieldName: col.name)
-                    rawRow[col.name] = val
+                    rawRow[col.name] = makeDatabaseValue(from: val)
                 }
                 rows.append(row)
                 rawRows.append(rawRow)
@@ -191,10 +191,10 @@ class ConvexDriver: DatabaseDriver {
         if let array = value as? [Any] {
             let columns = [QueryColumnInfo(name: "value", dataType: "text", format: nil, index: 0)]
             var rows: [[String: QueryRowInfo]] = []
-            var rawRows: [[String: Any?]] = []
+            var rawRows: [DatabaseRawRow] = []
             for item in array {
                 rows.append(["value": ConvexValue.createQueryRowInfo(value: item)])
-                rawRows.append(["value": item])
+                rawRows.append(["value": makeDatabaseValue(from: item)])
             }
             return QueryResult(columns: columns, rows: rows, totalCount: array.count, rawRows: rawRows)
         }
@@ -203,7 +203,7 @@ class ConvexDriver: DatabaseDriver {
         if let val = value {
             let columns = [QueryColumnInfo(name: "value", dataType: "text", format: nil, index: 0)]
             let rows: [[String: QueryRowInfo]] = [["value": ConvexValue.createQueryRowInfo(value: val)]]
-            let rawRows: [[String: Any?]] = [["value": val]]
+            let rawRows: [DatabaseRawRow] = [["value": makeDatabaseValue(from: val)]]
             return QueryResult(columns: columns, rows: rows, totalCount: 1, rawRows: rawRows)
         }
 
@@ -226,7 +226,7 @@ class ConvexDriver: DatabaseDriver {
         var uniqueIds: [String] = []
         var seenIds: Set<String> = []
         for row in result.rawRows {
-            if let idValue = row[joinField] as? String, !seenIds.contains(idValue) {
+            if let idValue = (row[joinField] ?? nil)?.stringValue, !seenIds.contains(idValue) {
                 seenIds.insert(idValue)
                 uniqueIds.append(idValue)
             }
@@ -283,14 +283,14 @@ class ConvexDriver: DatabaseDriver {
 
         // Merge rows
         var newRows: [[String: QueryRowInfo]] = []
-        var newRawRows: [[String: Any?]] = []
+        var newRawRows: [DatabaseRawRow] = []
 
         for (rowIdx, row) in result.rows.enumerated() {
             var mergedRow = row
-            let rawRow = rowIdx < result.rawRows.count ? result.rawRows[rowIdx] : [:]
+            let rawRow = rowIdx < result.rawRows.count ? result.rawRows[rowIdx] : DatabaseRawRow()
             var mergedRawRow = rawRow
 
-            let refId = rawRow[joinField] as? String
+            let refId = (rawRow[joinField] ?? nil)?.stringValue
             let refDoc = refId.flatMap { docLookup[$0] }
 
             for field in fieldsToInclude {
@@ -298,7 +298,7 @@ class ConvexDriver: DatabaseDriver {
                 let value: Any? = refDoc?[field] ?? nil
                 let displayValue = value.map { ConvexValue.formatValueForDisplay(value: $0, fieldName: field, dataType: "text") }
                 mergedRow[columnName] = QueryRowInfo(value: displayValue as Any?, dataType: "text", format: nil)
-                mergedRawRow[columnName] = value
+                mergedRawRow[columnName] = makeDatabaseValue(from: value)
             }
 
             newRows.append(mergedRow)
@@ -440,8 +440,7 @@ class ConvexDriver: DatabaseDriver {
     // Pagination cursor storage (per table, per filter signature, per page number)
     private var tablePageCursors: [String: [String: [Int: String?]]] = [:]
 
-    // Component ID mapping (schema name -> component ID) with thread safety
-    private let componentIdMappingQueue = DispatchQueue(label: "componentIdMapping", attributes: .concurrent)
+    // Component ID mapping (schema name -> component ID)
     private var _componentIdMapping: [String: String] = [:]
 
     // Subscription payload deduplication (per table)
@@ -449,23 +448,19 @@ class ConvexDriver: DatabaseDriver {
 
     private var componentIdMapping: [String: String] {
         get {
-            return componentIdMappingQueue.sync { _componentIdMapping }
+            _componentIdMapping
         }
         set {
-            componentIdMappingQueue.async(flags: .barrier) { [weak self] in
-                self?._componentIdMapping = newValue
-            }
+            _componentIdMapping = newValue
         }
     }
 
     private func setComponentId(_ componentId: String, for schema: String) {
-        componentIdMappingQueue.async(flags: .barrier) { [weak self] in
-            self?._componentIdMapping[schema] = componentId
-        }
+        _componentIdMapping[schema] = componentId
     }
 
     private func getComponentId(for schema: String) -> String? {
-        return componentIdMappingQueue.sync { _componentIdMapping[schema] }
+        _componentIdMapping[schema]
     }
     
     // MARK: - Connection Management
@@ -558,7 +553,7 @@ class ConvexDriver: DatabaseDriver {
     // MARK: - Convex-specific Info
 
     /// Get the deployment URL for the currently connected environment
-    func getCurrentDeploymentUrl() -> String? {
+    func getCurrentDeploymentUrl() async -> String? {
         return selectedDeployment?.deploymentUrl
     }
 
@@ -684,12 +679,14 @@ class ConvexDriver: DatabaseDriver {
         schemaCache.withLock { $0 = SchemaCache() }
 
         return try await wrapConvexError("query") {
-            let schemaArgs = componentArgs(for: schema)
+            var schemaArgs: [String: ConvexEncodable?] = [:]
+            if let schema, schema != "app",
+               let componentId = componentIdMapping[schema], !componentId.isEmpty {
+                schemaArgs["componentId"] = componentId
+            }
 
-            async let tableMappingTask: ConvexMobile.ConvexValue = mobileClient.query(name: "_system/frontend/getTableMapping", with: schemaArgs)
-            async let schemasTask: ConvexMobile.ConvexValue = mobileClient.query(name: "_system/frontend/getSchemas", with: schemaArgs)
-
-            let (tableMappingJson, schemasJson) = try await (tableMappingTask, schemasTask)
+            let tableMappingJson: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/getTableMapping", with: schemaArgs)
+            let schemasJson: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/getSchemas", with: schemaArgs)
 
             if let schemasDict = schemasJson.objectValue, !schemasDict.isEmpty {
                 self.schemaCache.withLock {
@@ -712,20 +709,20 @@ class ConvexDriver: DatabaseDriver {
     
     // MARK: - Collection Operations (Stub implementations)
     
-    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
         throw DatabaseError.notImplemented("Document operations not yet implemented for Convex")
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult] {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument) async throws -> [QueryResult] {
         let result = try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: 0, limit: 100, sortBy: nil, ascending: true)
         return [result]
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: true)
     }
     
-    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
@@ -733,7 +730,7 @@ class ConvexDriver: DatabaseDriver {
         return try await wrapConvexError("query") {
             let orderString = ascending.map { $0 ? "asc" : "desc" }
             let filtersBase64 = try encodeFilterToBase64(
-                rawFilterJSON: filter["rawQuery"] as? String,
+                rawFilterJSON: filter["rawQuery"]?.stringValue,
                 order: orderString
             )
 
@@ -773,7 +770,7 @@ class ConvexDriver: DatabaseDriver {
         }
     }
     
-    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
@@ -792,13 +789,13 @@ class ConvexDriver: DatabaseDriver {
         }
     }
 
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
 
         try await wrapConvexError("update") {
-            let docId = documentId(from: id)
+            let docId = documentId(from: id.value)
             let encodableFields: [String: ConvexEncodable?] = data.mapValues { convertToConvexEncodable($0) }
             var args: [String: ConvexEncodable?] = [
                 "table": collectionName,
@@ -816,13 +813,13 @@ class ConvexDriver: DatabaseDriver {
         }
     }
 
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
 
         try await wrapConvexError("delete") {
-            let docId = documentId(from: id)
+            let docId = documentId(from: id.value)
             var args: [String: ConvexEncodable?] = [
                 "toDelete": [["id": docId, "tableName": collectionName] as [String: ConvexEncodable?]]
             ]
@@ -1037,11 +1034,57 @@ class ConvexDriver: DatabaseDriver {
     }
 
     // MARK: - Helper Methods
+
+    private func makeDatabaseValue(from value: Any?) -> DatabaseValue? {
+        guard let value, !(value is NSNull) else { return nil }
+        if let databaseValue = DatabaseValue(value) {
+            return databaseValue
+        }
+        if let number = value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return .bool(number.boolValue)
+            }
+            return .double(number.doubleValue)
+        }
+        if let convertible = value as? any CustomStringConvertible {
+            return .string(convertible.description)
+        }
+        return nil
+    }
+
+    func convertToConvexEncodable(_ value: DatabaseValue) -> ConvexEncodable? {
+        switch value {
+        case .null:
+            nil
+        case .bool(let value):
+            value
+        case .int(let value):
+            abs(value) > Int32.max ? Int64(value) : Double(value)
+        case .int64(let value):
+            value
+        case .double(let value):
+            value
+        case .string(let value), .decimalString(let value), .objectID(let value):
+            value
+        case .date(let value):
+            value.formatted(.iso8601)
+        case .data(let value):
+            value.base64EncodedString()
+        case .uuid(let value):
+            value.uuidString
+        case .array(let values):
+            values.map { convertToConvexEncodable($0) }
+        case .object(let values):
+            values.mapValues { convertToConvexEncodable($0) }
+        }
+    }
     
     func convertToConvexEncodable(_ value: Any?) -> ConvexEncodable? {
         guard let value = value else { return nil }
         
         switch value {
+        case let value as DatabaseValue:
+            return convertToConvexEncodable(value)
         case let string as String:
             // Try to convert numeric strings to actual numbers
             // First check if it's a large integer (potential bigint)
@@ -1186,8 +1229,8 @@ class ConvexDriver: DatabaseDriver {
 
     // MARK: - Document ID Conversion
 
-    private func documentId(from id: Any) -> String {
-        (id as? String) ?? String(describing: id)
+    private func documentId(from id: DatabaseValue) -> String {
+        id.stringValue ?? id.description
     }
 
     // MARK: - System Schema Fields
@@ -1224,17 +1267,6 @@ class ConvexDriver: DatabaseDriver {
             comment: "Document creation timestamp",
             isReadOnly: true
         )
-    }
-
-    // MARK: - Component ID Args
-
-    private func componentArgs(for schema: String?) -> [String: ConvexEncodable?] {
-        var args: [String: ConvexEncodable?] = [:]
-        if let schema, schema != "app",
-           let componentId = componentIdMapping[schema], !componentId.isEmpty {
-            args["componentId"] = String(describing: componentId)
-        }
-        return args
     }
 
     // MARK: - Schema Caching
@@ -1342,13 +1374,13 @@ class ConvexDriver: DatabaseDriver {
         sortBy: String?,
         ascending: Bool?,
         page: Int?,
-        onUpdate: @escaping (QueryResult) -> Void,
-        onError: @escaping (Error) -> Void
+        onUpdate: @escaping @Sendable (QueryResult) -> Void,
+        onError: @escaping @Sendable (Error) -> Void
     ) async throws {
         guard isConnected, let mobileClient = convexMobileClient else {
             throw DatabaseError.connectionFailed("Not connected to Convex or no mobile client available")
         }
-        
+
         let orderString = ascending.map { $0 ? "asc" : "desc" }
         let filtersBase64 = try encodeFilterToBase64(
             rawFilterJSON: filter,
@@ -1465,13 +1497,13 @@ class ConvexDriver: DatabaseDriver {
 
         // Convert documents to rows using schema types
         var rows: [[String: QueryRowInfo]] = []
-        var rawRows: [[String: Any?]] = []
+        var rawRows: [DatabaseRawRow] = []
         rows.reserveCapacity(documents.count)
         rawRows.reserveCapacity(documents.count)
 
         for document in documents {
             var row = [String: QueryRowInfo](minimumCapacity: columns.count)
-            var rawRow = [String: Any?](minimumCapacity: columns.count)
+            var rawRow = DatabaseRawRow(minimumCapacity: columns.count)
 
             for column in columns {
                 let key = column.name
@@ -1484,7 +1516,7 @@ class ConvexDriver: DatabaseDriver {
                     dataType: dataType,
                     format: formatType
                 )
-                rawRow[key] = value
+                rawRow[key] = makeDatabaseValue(from: value)
             }
 
             rows.append(row)
@@ -1513,7 +1545,7 @@ class ConvexDriver: DatabaseDriver {
     }
 
     // Clear subscription payload hash for a specific table (called when subscription is cancelled)
-    func clearSubscriptionCache(for tableName: String) {
+    func clearSubscriptionCache(for tableName: String) async {
         lastSubscriptionPayloadHash.removeValue(forKey: tableName)
         debugLog("🧹 Cleared subscription cache for table: \(tableName)")
     }
@@ -1543,7 +1575,7 @@ extension ConvexDriver {
     }
 
     /// Rebuilds the embedded token with current deployments for keychain persistence.
-    func buildUpdatedEmbeddedToken() -> String? {
+    func buildUpdatedEmbeddedToken() async -> String? {
         guard let deployKey = accessToken, let projectId = projectId else { return nil }
         let embeddedDeployments = deployments.map { dep in
             EmbeddedDeployment(

@@ -153,9 +153,11 @@ final class DashboardGridController: NSViewController {
             object: clipView,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
-            let offset = max(0, self.scrollView.contentView.bounds.origin.y)
-            self.onScrollOffsetChanged?(offset)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let offset = max(0, self.scrollView.contentView.bounds.origin.y)
+                self.onScrollOffsetChanged?(offset)
+            }
         }
     }
 
@@ -388,7 +390,7 @@ final class DashboardGridController: NSViewController {
 
         dragController.updateSnapshotPosition(event: event, containerView: collectionView)
 
-        dragController.updateAutoScroll(scrollView: scrollView, sourceView: collectionView) { [weak self] in
+        dragController.updateAutoScroll(scrollView: scrollView, sourceView: collectionView) {
             // no-op: auto-scroll tick doesn't need to recompute drop for dashboard
         }
 

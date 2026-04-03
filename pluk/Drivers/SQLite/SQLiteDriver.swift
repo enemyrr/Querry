@@ -20,7 +20,7 @@ struct SQLiteCollectionWrapper: CollectionWrapper {
 }
 
 // MARK: - SQLite Driver
-class SQLiteDriver: DatabaseDriver {
+actor SQLiteDriver: DatabaseDriver {
     func getInformationSchema() async throws -> [InformationSchema] {
         throw DatabaseError.notImplemented("MySQL driver not yet implemented")
     }
@@ -341,7 +341,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func getDocumentCount(for collectionName: String, filter: [String: Any]) async throws -> Int {
+    func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -367,16 +367,16 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any]) async throws -> [QueryResult] {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument) async throws -> [QueryResult] {
         let result = try await findDocuments(in: collectionName, filter: filter, skip: 0, limit: 1000)
         return [result]
     }
     
-    func findDocuments(in collectionName: String, filter: [String: Any], skip: Int, limit: Int) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
     
-    func findDocuments(in collectionName: String, databaseSchema: String?, filter: [String: Any], skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
+    func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -384,7 +384,7 @@ class SQLiteDriver: DatabaseDriver {
             let queryString: String
             
             // Check if filter contains a raw query
-            if let rawQuery = filter["rawQuery"] as? String, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 // Use the raw query directly
                 queryString = rawQuery
             } else {
@@ -411,7 +411,7 @@ class SQLiteDriver: DatabaseDriver {
             // Get column information from the first row
             var queryColumns: [QueryColumnInfo] = []
             var convertedRows: [[String: QueryRowInfo]] = []
-            var rawRows: [[String: Any?]] = []
+            var rawRows: [DatabaseRawRow] = []
             
             // Get column information using PRAGMA table_info if this is the first call
             if queryColumns.isEmpty && !rows.isEmpty {
@@ -457,34 +457,35 @@ class SQLiteDriver: DatabaseDriver {
             for (_, row) in rows.enumerated() {
                 // Process row data
                 var processedRowData: [String: QueryRowInfo] = [:]
-                var rawRowData: [String: Any?] = [:]
+                var rawRowData: DatabaseRawRow = [:]
                 
                 for column in queryColumns {
                     let columnName = column.name
                     let sqliteColumn = row.column(columnName)
                     
                     // Store raw value - use the appropriate accessor based on the column type
-                    var rawValue: Any? = nil
-                    var processedValue: Any? = nil
+                    var rawValue: DatabaseValue? = .null
+                    var processedValue: DatabaseValue? = .null
                     
                     if let sqliteColumn = sqliteColumn {
                         // SQLite NIO provides different accessors for different types
                         if let stringValue = sqliteColumn.string {
-                            rawValue = stringValue
-                            processedValue = stringValue
+                            rawValue = .string(stringValue)
+                            processedValue = rawValue
                         } else if let intValue = sqliteColumn.integer {
-                            rawValue = intValue
-                            processedValue = Int(intValue)
+                            rawValue = .int(Int(intValue))
+                            processedValue = rawValue
                         } else if let doubleValue = sqliteColumn.double {
-                            rawValue = doubleValue
-                            processedValue = doubleValue
+                            rawValue = .double(doubleValue)
+                            processedValue = rawValue
                         } else if let blobValue = sqliteColumn.blob {
-                            rawValue = blobValue
-                            processedValue = blobValue
+                            let data = Data(blobValue.readableBytesView)
+                            rawValue = .data(data)
+                            processedValue = rawValue
                         } else {
                             // NULL value
-                            rawValue = nil
-                            processedValue = nil
+                            rawValue = .null
+                            processedValue = .null
                         }
                     }
                     
@@ -513,7 +514,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func createDocument(in collectionName: String, databaseSchema: String?, document: [String: Any]) async throws {
+    func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -530,11 +531,7 @@ class SQLiteDriver: DatabaseDriver {
             
             var binds: [SQLiteData] = []
             for key in sortedKeys {
-                if let value = document[key] {
-                    binds.append(convertToSQLiteData(value))
-                } else {
-                    binds.append(.null)
-                }
+                binds.append(convertToSQLiteData(document[key] ?? .null))
             }
             
             let _ = try await connection.query(queryString, binds)
@@ -543,7 +540,7 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func updateDocument(in collectionName: String, databaseSchema: String?, id: Any, data: [String: Any]) async throws {
+    func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
@@ -552,17 +549,15 @@ class SQLiteDriver: DatabaseDriver {
         }
         
         do {
-            // Get the primary key column name
-            let primaryKeyColumn = try await getPrimaryKeyColumn(for: collectionName) ?? "rowid"
-            
             let setClauses = data.keys.map { "\"\($0)\" = ?" }.joined(separator: ", ")
-            let queryString = "UPDATE \(sanitizedTableName) SET \(setClauses) WHERE \(primaryKeyColumn) = ?"
+            let recordColumn = try validateAndSanitizeIdentifier(id.columnName)
+            let queryString = "UPDATE \(sanitizedTableName) SET \(setClauses) WHERE \(recordColumn) = ?"
             
             var binds: [SQLiteData] = []
             for (_, value) in data {
                 binds.append(convertToSQLiteData(value))
             }
-            binds.append(convertToSQLiteData(id))
+            binds.append(convertToSQLiteData(id.value))
             
             let _ = try await connection.query(queryString, binds)
         } catch {
@@ -570,15 +565,14 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    func deleteDocument(in collectionName: String, databaseSchema: String?, id: Any) async throws {
+    func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
         let connection = try await ensureConnected()
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName)
         
         do {
-            let primaryKeyColumn = try await getPrimaryKeyColumn(for: collectionName) ?? "rowid"
-            
-            let queryString = "DELETE FROM \(sanitizedTableName) WHERE \(primaryKeyColumn) = ?"
-            let binds = [convertToSQLiteData(id)]
+            let recordColumn = try validateAndSanitizeIdentifier(id.columnName)
+            let queryString = "DELETE FROM \(sanitizedTableName) WHERE \(recordColumn) = ?"
+            let binds = [convertToSQLiteData(id.value)]
             
             let _ = try await connection.query(queryString, binds)
         } catch {
@@ -602,7 +596,7 @@ class SQLiteDriver: DatabaseDriver {
 
                 var queryColumns: [QueryColumnInfo] = []
                 var convertedRows: [[String: QueryRowInfo]] = []
-                var convertedRawRows: [[String: Any?]] = []
+                var convertedRawRows: [DatabaseRawRow] = []
 
                 if let firstRow = rows.first {
                     for (columnIndex, column) in firstRow.columns.enumerated() {
@@ -617,28 +611,29 @@ class SQLiteDriver: DatabaseDriver {
 
                 for row in rows {
                     var processedRowData: [String: QueryRowInfo] = [:]
-                    var rawRowData: [String: Any?] = [:]
+                    var rawRowData: DatabaseRawRow = [:]
 
                     for column in queryColumns {
                         let columnName = column.name
                         let sqliteColumn = row.column(columnName)
 
-                        var rawValue: Any? = nil
-                        var processedValue: Any? = nil
+                        var rawValue: DatabaseValue? = .null
+                        var processedValue: DatabaseValue? = .null
 
                         if let sqliteColumn = sqliteColumn {
                             if let stringValue = sqliteColumn.string {
-                                rawValue = stringValue
-                                processedValue = stringValue
+                                rawValue = .string(stringValue)
+                                processedValue = rawValue
                             } else if let intValue = sqliteColumn.integer {
-                                rawValue = intValue
-                                processedValue = Int(intValue)
+                                rawValue = .int(Int(intValue))
+                                processedValue = rawValue
                             } else if let doubleValue = sqliteColumn.double {
-                                rawValue = doubleValue
-                                processedValue = doubleValue
+                                rawValue = .double(doubleValue)
+                                processedValue = rawValue
                             } else if let blobValue = sqliteColumn.blob {
-                                rawValue = blobValue
-                                processedValue = blobValue
+                                let data = Data(blobValue.readableBytesView)
+                                rawValue = .data(data)
+                                processedValue = rawValue
                             }
                         }
 
@@ -1098,17 +1093,26 @@ class SQLiteDriver: DatabaseDriver {
         return "\"\(trimmed)\""
     }
     
-    private func buildWhereClause(from filter: [String: Any]) -> String {
+    private func buildWhereClause(from filter: DatabaseDocument) -> String {
         let filteredDict = filter.filter { key, _ in key != "rawQuery" }
         guard !filteredDict.isEmpty else { return "" }
         
         let conditions = filteredDict.map { key, value in
-            if let stringValue = value as? String {
-                return "\"\(key)\" = '\(stringValue)'"
-            } else if let numberValue = value as? NSNumber {
+            switch value {
+            case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
+                return "\"\(key)\" = '\(stringValue.replacing("'", with: "''"))'"
+            case .int(let numberValue):
                 return "\"\(key)\" = \(numberValue)"
-            } else {
-                return "\"\(key)\" = '\(value)'"
+            case .int64(let numberValue):
+                return "\"\(key)\" = \(numberValue)"
+            case .double(let numberValue):
+                return "\"\(key)\" = \(numberValue)"
+            case .bool(let boolValue):
+                return "\"\(key)\" = \(boolValue ? 1 : 0)"
+            case .null:
+                return "\"\(key)\" IS NULL"
+            default:
+                return "\"\(key)\" = '\(value.description.replacing("'", with: "''"))'"
             }
         }
         
@@ -1167,27 +1171,31 @@ class SQLiteDriver: DatabaseDriver {
         }
     }
     
-    private func convertToSQLiteData(_ value: Any) -> SQLiteData {
-        if let intValue = value as? Int {
-            return .integer(intValue)
-        } else if let int64Value = value as? Int64 {
-            return .integer(Int(int64Value))
-        } else if let doubleValue = value as? Double {
-            return .float(doubleValue)
-        } else if let floatValue = value as? Float {
-            return .float(Double(floatValue))
-        } else if let stringValue = value as? String {
-            return .text(stringValue)
-        } else if let dataValue = value as? Data {
-            // Convert Data to ByteBuffer for SQLite NIO
+    private func convertToSQLiteData(_ value: DatabaseValue) -> SQLiteData {
+        switch value {
+        case .null:
+            return .null
+        case .int(let value):
+            return .integer(value)
+        case .int64(let value):
+            return .integer(Int(clamping: value))
+        case .double(let value):
+            return .float(value)
+        case .string(let value), .decimalString(let value), .objectID(let value):
+            return .text(value)
+        case .data(let value):
             let allocator = ByteBufferAllocator()
-            var buffer = allocator.buffer(capacity: dataValue.count)
-            buffer.writeBytes(dataValue)
+            var buffer = allocator.buffer(capacity: value.count)
+            buffer.writeBytes(value)
             return .blob(buffer)
-        } else if let boolValue = value as? Bool {
-            return .integer(boolValue ? 1 : 0)
-        } else {
-            return .text(String(describing: value))
+        case .bool(let value):
+            return .integer(value ? 1 : 0)
+        case .date(let value):
+            return .text(value.ISO8601Format())
+        case .uuid(let value):
+            return .text(value.uuidString)
+        case .array, .object:
+            return .text(value.description)
         }
     }
     

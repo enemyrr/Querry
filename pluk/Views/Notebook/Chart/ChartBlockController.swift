@@ -1291,7 +1291,7 @@ final class BlockHoverTrackingView: NSView {
     private let onHoverChanged: (Bool) -> Void
     private var trackingArea: NSTrackingArea?
     private var isHovered = false
-    private var scrollBoundsObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var scrollBoundsObserver: NSObjectProtocol?
 
     init(onHoverChanged: @escaping (Bool) -> Void) {
         self.onHoverChanged = onHoverChanged
@@ -1354,7 +1354,9 @@ final class BlockHoverTrackingView: NSView {
             object: clipView,
             queue: .main
         ) { [weak self] _ in
-            self?.refreshHoverState()
+            MainActor.assumeIsolated {
+                self?.refreshHoverState()
+            }
         }
     }
 

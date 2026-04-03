@@ -1,7 +1,7 @@
 import Foundation
 
 struct ERDSchemaReader {
-    static func generateERD(from instance: ConnectionInstance, schema: String? = nil) async throws -> CanvasDocument {
+    @MainActor static func generateERD(from instance: ConnectionInstance, schema: String? = nil) async throws -> CanvasDocument {
         let databaseService = instance.databaseService
 
         let collections = try await databaseService.listCollections(schema: schema)

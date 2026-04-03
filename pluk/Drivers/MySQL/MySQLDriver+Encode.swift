@@ -11,40 +11,35 @@ import NIOCore
 
 extension MySQLDriver {
     /// Helper method to convert Swift types to MySQL bindable values
-    func convertToMySQLBindable(_ value: Any) -> MySQLData {
+    func convertToMySQLBindable(_ value: DatabaseValue) -> MySQLData {
         switch value {
-        case let stringValue as String:
-            return MySQLData(string: stringValue)
-        case let intValue as Int:
-            return MySQLData(int: intValue)
-        case let doubleValue as Double:
-            return MySQLData(double: doubleValue)
-        case let floatValue as Float:
-            return MySQLData(float: floatValue)
-        case let boolValue as Bool:
-            return MySQLData(bool: boolValue)
-        case let dateValue as Date:
-            return MySQLData(date: dateValue)
-        case let mysqlData as MySQLData:
-            // Create a fresh MySQLData with a fresh buffer
-            if let originalBuffer = mysqlData.buffer {
-                // Create a new buffer with the original data
-                var freshBuffer = ByteBufferAllocator().buffer(capacity: originalBuffer.readableBytes)
-                freshBuffer.writeImmutableBuffer(originalBuffer)
-                return MySQLData(
-                    type: mysqlData.type,
-                    format: mysqlData.format,
-                    buffer: freshBuffer,
-                    isUnsigned: mysqlData.isUnsigned
-                )
-            } else {
-                // Handle null case
-                return MySQLData.null
-            }
-        case is NSNull:
+        case .null:
             return MySQLData.null
-        default:
-            return MySQLData(string: String(describing: value))
+        case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
+            return MySQLData(string: stringValue)
+        case .int(let intValue):
+            return MySQLData(int: intValue)
+        case .int64(let intValue):
+            return MySQLData(int: Int(clamping: intValue))
+        case .double(let doubleValue):
+            return MySQLData(double: doubleValue)
+        case .bool(let boolValue):
+            return MySQLData(bool: boolValue)
+        case .date(let dateValue):
+            return MySQLData(date: dateValue)
+        case .data(let dataValue):
+            var buffer = ByteBufferAllocator().buffer(capacity: dataValue.count)
+            buffer.writeBytes(dataValue)
+            return MySQLData(
+                type: .blob,
+                format: .binary,
+                buffer: buffer,
+                isUnsigned: false
+            )
+        case .uuid(let value):
+            return MySQLData(string: value.uuidString)
+        case .array, .object:
+            return MySQLData(string: value.description)
         }
     }
 }

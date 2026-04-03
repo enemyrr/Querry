@@ -7,7 +7,7 @@ final class NavigationSidebarViewController: NSViewController {
     private var itemButtonsContainer = NSStackView()
     private var feedbackPopover: NSPopover?
     private var sidebarViewModel: SidebarViewModel?
-    private var notificationObservers: [Any] = []
+    nonisolated(unsafe) private var notificationObservers: [Any] = []
 
     func configure(sidebarViewModel: SidebarViewModel) {
         self.sidebarViewModel = sidebarViewModel
@@ -61,12 +61,20 @@ final class NavigationSidebarViewController: NSViewController {
         notificationObservers.append(
             NotificationCenter.default.addObserver(
                 forName: .sidebarItemsDidChange, object: nil, queue: .main
-            ) { [weak self] _ in self?.rebuildItems() }
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.rebuildItems()
+                }
+            }
         )
         notificationObservers.append(
             NotificationCenter.default.addObserver(
                 forName: .tabDidChange, object: nil, queue: .main
-            ) { [weak self] _ in self?.updateSelection() }
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.updateSelection()
+                }
+            }
         )
 
         rebuildItems()

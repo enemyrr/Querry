@@ -275,17 +275,17 @@ struct SchemaModeView: View {
 
         do {
             // Create modification service
-            guard let driver = instance.databaseService.driver else {
+            guard let service = instance.databaseService.makeSchemaModificationService() else {
                 throw DatabaseError.operationFailed("No active database driver")
             }
 
-            let service = SchemaModificationService(databaseDriver: driver)
+            let plan = modificationTracker.snapshot()
 
             // Execute all modifications in a transaction
             try await service.executeModifications(
                 tableName: tableName,
                 schema: schemaName,
-                modifications: modificationTracker
+                plan: plan
             )
 
             // Clear modifications on success
@@ -513,4 +513,3 @@ struct ShemaTableView: View {
         }
     }
 }
-

@@ -735,14 +735,13 @@ struct FunctionsSection: View {
 
     @MainActor
     private func openFunction(_ function: any CollectionWrapper) async {
-        guard let pgWrapper = function as? PostgreSQLCollectionWrapper,
-              let driver = instance.databaseService.driver as? PostgreSQLDriver else { return }
+        guard let pgWrapper = function as? PostgreSQLCollectionWrapper else { return }
 
         loadingOid = pgWrapper.oid
         defer { loadingOid = nil }
 
         do {
-            let definition = try await driver.getFunctionDefinition(oid: pgWrapper.oid)
+            let definition = try await instance.databaseService.getFunctionDefinition(oid: pgWrapper.oid)
             instance.createFunctionEditorTab(
                 name: function.name,
                 definition: definition,

@@ -270,6 +270,44 @@ struct TableListView: View {
         viewState = .loading
         viewState = .loaded(result, schema)
     }
+
+    private func makeDatabaseValue(from value: Any?) -> DatabaseValue? {
+        guard let value else { return nil }
+        if let databaseValue = DatabaseValue(value) {
+            return databaseValue
+        }
+        if let convertible = value as? any CustomStringConvertible {
+            return .string(convertible.description)
+        }
+        return nil
+    }
+
+    private func makeTrackerRow(from rawRow: DatabaseRawRow) -> [String: Any] {
+        rawRow.reduce(into: [:]) { partialResult, entry in
+            if let value = entry.value?.anyValue {
+                partialResult[entry.key] = value
+            }
+        }
+    }
+
+    private func columnsForNewRecord() -> [QueryColumnInfo]? {
+        if let currentSchema {
+            return currentSchema.columns.enumerated().map { index, column in
+                QueryColumnInfo(
+                    name: column.columnName,
+                    dataType: column.dataType,
+                    format: column.formatType,
+                    index: index
+                )
+            }
+        }
+
+        guard let currentQueryResult, !currentQueryResult.columns.isEmpty else {
+            return nil
+        }
+
+        return currentQueryResult.columns
+    }
     
     // MARK: - Save Schema Modifications
     private func commitSchemaModifications() async {
@@ -287,17 +325,17 @@ struct TableListView: View {
 
         do {
             // Create modification service
-            guard let driver = instance.databaseService.driver else {
+            guard let service = instance.databaseService.makeSchemaModificationService() else {
                 throw DatabaseError.operationFailed("No active database driver")
             }
 
-            let service = SchemaModificationService(databaseDriver: driver)
+            let plan = schemaModificationTracker.snapshot()
 
             // Execute all modifications in a transaction
             try await service.executeModifications(
                 tableName: selectedTab.name,
                 schema: selectedTab.databaseSchema,
-                modifications: schemaModificationTracker
+                plan: plan
             )
 
             // Clear modifications on success
@@ -351,8 +389,6 @@ struct TableListView: View {
                         continue
                     }
                     
-                    let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
-                    
                     // Create update data with only modified columns
                     var updateData: [String: Any] = [:]
                     for (columnName, cellMod) in rowModification.cellModifications {
@@ -360,18 +396,8 @@ struct TableListView: View {
                             updateData[columnName] = cellMod.newValue
                         }
                     }
-                    
-                    // Find the primary key or unique identifier for this row
-                    var rowId: Any?
-                    if let idValue = originalRow["_id"] {
-                        rowId = idValue
-                    } else if let idValue = originalRow["id"] {
-                        rowId = idValue
-                    } else if let firstColumn = currentQueryResult.columns.first {
-                        rowId = originalRow[firstColumn.name]
-                    }
-                    
-                    guard let id = rowId else {
+
+                    guard let id = currentQueryResult.recordID(row: rowModification.rowIndex) else {
                         debugLog("❌ Could not find row identifier for row \(rowModification.rowIndex)")
                         continue
                     }
@@ -393,19 +419,7 @@ struct TableListView: View {
                         continue
                     }
                     
-                    let originalRow = currentQueryResult.rawRows[rowModification.rowIndex]
-                    
-                    // Find the primary key or unique identifier for this row
-                    var rowId: Any?
-                    if let idValue = originalRow["_id"] {
-                        rowId = idValue
-                    } else if let idValue = originalRow["id"] {
-                        rowId = idValue
-                    } else if let firstColumn = currentQueryResult.columns.first {
-                        rowId = originalRow[firstColumn.name]
-                    }
-                    
-                    guard let id = rowId else {
+                    guard let id = currentQueryResult.recordID(row: rowModification.rowIndex) else {
                         debugLog("❌ Could not find row identifier for row \(rowModification.rowIndex)")
                         continue
                     }
@@ -430,22 +444,23 @@ struct TableListView: View {
     }
     
     private func handleNewRecord() {
-        guard let schema = cachedSchema, let currentResult = cachedDocuments else { return }
+        guard let currentResult = currentQueryResult,
+              let columns = columnsForNewRecord(),
+              !columns.isEmpty else { return }
 
-        var newRawRow = [String: Any]()
+        let newRawRow: DatabaseRawRow = [:]
         var newProcessedRow = [String: QueryRowInfo]()
 
-        for column in schema.columns {
-            newRawRow[column.columnName] = nil
-            newProcessedRow[column.columnName] = QueryRowInfo(
+        for column in columns {
+            newProcessedRow[column.name] = QueryRowInfo(
                 value: nil,
                 dataType: column.dataType,
-                format: column.formatType
+                format: column.format
             )
         }
 
         let newIndex = currentResult.rawRows.count
-        modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: newRawRow)
+        modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: makeTrackerRow(from: newRawRow))
 
         var updatedRawRows = currentResult.rawRows
         updatedRawRows.append(newRawRow)
@@ -453,18 +468,8 @@ struct TableListView: View {
         var updatedProcessedRows = currentResult.rows
         updatedProcessedRows.append(newProcessedRow)
 
-        // Always use schema to populate columns for consistency
-        let columnsFromSchema = schema.columns.enumerated().map { (index, schemaColumn) in
-            QueryColumnInfo(
-                name: schemaColumn.columnName,
-                dataType: schemaColumn.dataType,
-                format: schemaColumn.formatType,
-                index: index
-            )
-        }
-
         let updatedResult = QueryResult(
-            columns: columnsFromSchema,
+            columns: columns,
             rows: updatedProcessedRows,
             totalCount: currentResult.totalCount + 1,
             rawRows: updatedRawRows
@@ -473,7 +478,7 @@ struct TableListView: View {
         cachedDocuments = updatedResult
 
         if let updatedDocuments = cachedDocuments {
-            viewState = .loaded(updatedDocuments, cachedSchema)
+            viewState = .loaded(updatedDocuments, currentSchema)
         }
 
         needsToSelectLastRow = true
@@ -493,16 +498,10 @@ struct TableListView: View {
         for rowData in parsedRows {
             let newIndex = updatedRawRows.count
 
-            // Convert [String: Any?] to [String: Any] for modificationTracker
-            var rawRow: [String: Any] = [:]
             var processedRow = [String: QueryRowInfo]()
 
             for column in schema.columns {
                 let value = rowData[column.columnName] ?? nil
-
-                if let v = value {
-                    rawRow[column.columnName] = v
-                }
 
                 processedRow[column.columnName] = QueryRowInfo(
                     value: value,
@@ -511,8 +510,8 @@ struct TableListView: View {
                 )
             }
 
-            modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: rawRow)
-            updatedRawRows.append(rawRow)
+            modificationTracker.markAsNewRow(rowIndex: newIndex, initialData: makeTrackerRow(from: rowData))
+            updatedRawRows.append(rowData)
             updatedProcessedRows.append(processedRow)
         }
 
@@ -586,7 +585,7 @@ struct TableListView: View {
         debugLog("✅ Discarded changes, removed \(insertIndices.count) inserted row(s)")
     }
 
-    private func parseClipboardContent(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]] {
+    private func parseClipboardContent(_ content: String, schema: DatabaseSchemaResult) -> [DatabaseRawRow] {
         // Try JSON first
         if let jsonRows = parseJSONClipboard(content, schema: schema), !jsonRows.isEmpty {
             return jsonRows
@@ -595,7 +594,7 @@ struct TableListView: View {
         return parseTSVClipboard(content, schema: schema)
     }
 
-    private func parseJSONClipboard(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]]? {
+    private func parseJSONClipboard(_ content: String, schema: DatabaseSchemaResult) -> [DatabaseRawRow]? {
         guard let data = content.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) else {
             return nil
@@ -610,19 +609,16 @@ struct TableListView: View {
             return nil
         }
 
-        var result: [[String: Any?]] = []
+        var result: [DatabaseRawRow] = []
 
         for jsonRow in jsonArray {
-            var rowData: [String: Any?] = [:]
+            var rowData: DatabaseRawRow = [:]
             for column in schema.columns {
                 if let value = jsonRow[column.columnName] {
-                    if value is NSNull {
-                        rowData[column.columnName] = nil
-                    } else {
-                        rowData[column.columnName] = value
+                    if value is NSNull == false,
+                       let databaseValue = makeDatabaseValue(from: value) {
+                        rowData[column.columnName] = databaseValue
                     }
-                } else {
-                    rowData[column.columnName] = nil
                 }
             }
             result.append(rowData)
@@ -631,27 +627,25 @@ struct TableListView: View {
         return result
     }
 
-    private func parseTSVClipboard(_ content: String, schema: DatabaseSchemaResult) -> [[String: Any?]] {
+    private func parseTSVClipboard(_ content: String, schema: DatabaseSchemaResult) -> [DatabaseRawRow] {
         let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
         guard !lines.isEmpty else { return [] }
 
         let columns = schema.columns
-        var result: [[String: Any?]] = []
+        var result: [DatabaseRawRow] = []
 
         for line in lines {
             let values = line.components(separatedBy: "\t")
-            var rowData: [String: Any?] = [:]
+            var rowData: DatabaseRawRow = [:]
 
             for (index, column) in columns.enumerated() {
                 if index < values.count {
                     let value = values[index]
-                    if value.isEmpty || value.uppercased() == "NULL" {
-                        rowData[column.columnName] = nil
-                    } else {
-                        rowData[column.columnName] = value
+                    if !value.isEmpty,
+                       value.uppercased() != "NULL",
+                       let databaseValue = makeDatabaseValue(from: value) {
+                        rowData[column.columnName] = databaseValue
                     }
-                } else {
-                    rowData[column.columnName] = nil
                 }
             }
             result.append(rowData)

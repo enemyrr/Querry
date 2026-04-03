@@ -13,7 +13,7 @@ import AppKit
 
 import Rearrange
 
-import LanguageSupport
+@preconcurrency import LanguageSupport
 
 
 private let logger = Logger(subsystem: "org.justtesting.CodeEditorView", category: "CodeView")
@@ -71,8 +71,8 @@ final class CodeView: NSTextView {
   var minimapDividerView:       NSBox?
 
   // Notification observer
-  private var frameChangedNotificationObserver: NSObjectProtocol?
-  private var didChangeNotificationObserver:    NSObjectProtocol?
+  nonisolated(unsafe) private var frameChangedNotificationObserver: NSObjectProtocol?
+  nonisolated(unsafe) private var didChangeNotificationObserver:    NSObjectProtocol?
 
   /// Contains the line on which the insertion point was located, the last time the selection range got set (if the
   /// selection was an insertion point at all; i.e., it's length was 0).
@@ -108,10 +108,13 @@ final class CodeView: NSTextView {
 
       if oldValue != language {
 
+        let lang = language
+        let delegate = codeStorageDelegate
+        let storage = codeStorage
         Task { @MainActor in
           do {
 
-            try await codeStorageDelegate.change(language: language, for: codeStorage)
+            try await delegate.change(language: lang, for: storage)
             try await startLanguageService()
 
           } catch let error {
@@ -912,7 +915,7 @@ extension CodeView {
 
 // MARK: Code container
 
-final class CodeContainer: NSTextContainer {
+final class CodeContainer: NSTextContainer, @unchecked Sendable {
 
   #if os(iOS) || os(visionOS)
   weak var textView: UITextView?
@@ -933,25 +936,22 @@ final class CodeContainer: NSTextContainer {
                                                 remaining: remainingRect),
         calculatedRect = CGRect(x: 0, y: superRect.minY, width: size.width, height: superRect.height)
 
-    guard let codeView    = textView as? CodeView,
-          let codeStorage = codeView.optCodeStorage,
+    nonisolated(unsafe) let tv = textView
+    guard let codeView    = tv as? CodeView,
+          let codeStorage = codeView.textStorage as? CodeStorage,
           let delegate    = codeStorage.delegate as? CodeStorageDelegate,
           let line        = delegate.lineMap.lineOf(index: characterIndex),
           let oneLine     = delegate.lineMap.lookup(line: line),
-          characterIndex == oneLine.range.location     // do the following only for the first line fragment of a line
+          characterIndex == oneLine.range.location
     else { return calculatedRect }
 
-    // On lines that contain messages, we reduce the width of the available line fragement rect such that there is
-    // always space for a minimal truncated message (provided the text container is wide enough to accomodate that).
     if let messageBundleId = delegate.messages(at: line)?.id,
        calculatedRect.width > 2 * MessageGeometry.minimumInlineWidth
     {
 
       codeView.messageViews[messageBundleId]?.characterIndex    = characterIndex
       codeView.messageViews[messageBundleId]?.lineFragementRect = calculatedRect
-      codeView.messageViews[messageBundleId]?.geometry = nil                      // invalidate the geometry
-
-      // If the bundle has a telescope, determine the telescope character index.
+      codeView.messageViews[messageBundleId]?.geometry = nil
 
       if let lines   = codeView.messageViews[messageBundleId]?.telescope,
          let oneLine = delegate.lineMap.lookup(line: line + lines)
@@ -959,8 +959,6 @@ final class CodeContainer: NSTextContainer {
         codeView.messageViews[messageBundleId]?.characterIndexTelescope = oneLine.range.max
       }
 
-      // To fully determine the layout of the message view, typesetting needs to complete for this line; hence, we defer
-      // configuring the view.
       DispatchQueue.main.async { codeView.layoutMessageView(identifiedBy: messageBundleId) }
 
       return CGRect(origin: calculatedRect.origin,
@@ -1027,7 +1025,7 @@ final class CodeContainer: NSTextContainer {
 
 /// Common code view actions triggered on a selection change.
 ///
-func selectionDidChange<TV: TextView>(_ textView: TV) {
+@MainActor func selectionDidChange<TV: TextView>(_ textView: TV) {
   guard let codeStorage  = textView.optCodeStorage,
         let visibleLines = textView.documentVisibleLines
   else { return }
