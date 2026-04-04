@@ -23,6 +23,7 @@ final class TableContentViewController: NSViewController {
     private var contentArea: NSView!
     private var floatingBarHostingView: NSHostingView<AnyView>?
     private var currentContentView: NSView?
+    private var measuredFilterBarHeight: CGFloat?
     nonisolated(unsafe) private var filterLayoutTask: Task<Void, Never>?
 
     // MARK: - Notification Observers
@@ -144,7 +145,10 @@ final class TableContentViewController: NSViewController {
         let filterBar = FilterBarContainer(
             dataController: dataController,
             onLayoutInvalidated: { [weak self] in
-                self?.scheduleFilterBarLayout(afterAnimation: true)
+                self?.scheduleFilterBarLayout()
+            },
+            onHeightChanged: { [weak self] height in
+                self?.updateMeasuredFilterBarHeight(height)
             }
         )
         let wrapped = injectEnvironments(filterBar)
@@ -180,8 +184,10 @@ final class TableContentViewController: NSViewController {
         var measurementFrame = filterBarHostingView.frame
         measurementFrame.size.width = bounds.width
         filterBarHostingView.frame = measurementFrame
+        filterBarHostingView.invalidateIntrinsicContentSize()
         filterBarHostingView.layoutSubtreeIfNeeded()
-        let filterHeight = max(0, filterBarHostingView.fittingSize.height.rounded(.up))
+        let measuredHeight = max(0, filterBarHostingView.fittingSize.height.rounded(.up))
+        let filterHeight = measuredFilterBarHeight ?? measuredHeight
 
         filterBarHostingView.frame = NSRect(
             x: 0,
@@ -373,32 +379,44 @@ final class TableContentViewController: NSViewController {
         observeViewMode()
         observeHighlighting()
         observeErrors()
-        observeFilterConditions()
     }
 
     private func scheduleFilterBarLayout(afterAnimation: Bool = false) {
         filterLayoutTask?.cancel()
         filterLayoutTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            self.filterBarHostingView?.invalidateIntrinsicContentSize()
             self.layoutContentViews()
             await Task.yield()
+            self.filterBarHostingView?.invalidateIntrinsicContentSize()
             self.layoutContentViews()
             if afterAnimation {
                 try? await Task.sleep(for: .milliseconds(250))
+                self.filterBarHostingView?.invalidateIntrinsicContentSize()
                 self.layoutContentViews()
             }
         }
     }
 
-    private func observeFilterConditions() {
-        withObservationTracking {
-            _ = dataController.filterConditions
-        } onChange: { [weak self] in
-            Task { @MainActor in
-                self?.scheduleFilterBarLayout()
-                self?.observeFilterConditions()
+    private func updateMeasuredFilterBarHeight(_ height: CGFloat) {
+        let resolvedHeight = max(0, height.rounded(.up))
+
+        if resolvedHeight == 0 {
+            if measuredFilterBarHeight == nil {
+                return
             }
+
+            measuredFilterBarHeight = nil
+            layoutContentViews()
+            return
         }
+
+        if let measuredFilterBarHeight, abs(measuredFilterBarHeight - resolvedHeight) < 0.5 {
+            return
+        }
+
+        measuredFilterBarHeight = resolvedHeight
+        layoutContentViews()
     }
 
     private func observeViewState() {
@@ -492,10 +510,12 @@ final class TableContentViewController: NSViewController {
 private struct FilterBarContainer: View {
     @Bindable var dataController: TableDataController
     var onLayoutInvalidated: () -> Void
+    var onHeightChanged: (CGFloat) -> Void
 
     var body: some View {
         FilterBuilderView(
             columns: dataController.cachedSchema?.columns ?? [],
+            fallbackColumns: dataController.instance.connection.databaseType == .convex && dataController.cachedSchema == nil ? (dataController.currentQueryResult?.columns ?? []) : [],
             tableName: dataController.tab.name,
             databaseSchema: dataController.tab.databaseSchema,
             onApplyFilter: { filter in
@@ -512,7 +532,8 @@ private struct FilterBarContainer: View {
                 }
             },
             conditions: $dataController.filterConditions,
-            onLayoutInvalidated: onLayoutInvalidated
+            onLayoutInvalidated: onLayoutInvalidated,
+            onHeightChanged: onHeightChanged
         )
     }
 }

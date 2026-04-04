@@ -65,6 +65,7 @@ struct TableListView: View {
             VStack(spacing: 0) {
                 FilterBuilderView(
                     columns: cachedSchema?.columns ?? [],
+                    fallbackColumns: instance.connection.databaseType == .convex && cachedSchema == nil ? (currentQueryResult?.columns ?? []) : [],
                     tableName: selectedTab.name,
                     databaseSchema: selectedTab.databaseSchema,
                     onApplyFilter: { filter in

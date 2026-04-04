@@ -9,7 +9,8 @@ import Foundation
 
 class AIService: @unchecked Sendable {
 
-    private static let modelId = BedrockConfig.haikuModelId
+    private static let modelId = BedrockConfig.glm47ModelId
+    private static let generationTemperature = 0.2
 
     private static let schemaToolName = "get_table_schema"
 
@@ -58,40 +59,40 @@ class AIService: @unchecked Sendable {
                         """
                     }
 
-                    var messages: [AnthropicMessage] = [
-                        AnthropicMessage(role: .user, content: .text(userMessage))
+                    var messages: [BedrockGLMChatMessage] = [
+                        BedrockGLMChatMessage(role: .user, content: userMessage)
                     ]
 
-                    // First request (non-streaming) to check for tool use
-                    let response = try await BedrockService.shared.messageRequest(
+                    let response = try await BedrockGLMService.shared.chatCompletion(
                         messages: messages,
-                        system: [SystemContentBlock(text: systemPrompt)],
+                        systemPrompt: systemPrompt,
                         tools: [schemaTool],
                         maxTokens: 4096,
-                        modelId: modelId
+                        model: modelId,
+                        temperature: generationTemperature,
+                        thinkingMode: .enabled
                     )
 
-                    let toolUses = extractToolUses(from: response.content)
+                    let toolUses = response.assistantMessage.toolCalls ?? []
 
                     if toolUses.isEmpty {
-                        for block in response.content {
-                            if case .text(let text) = block, !text.isEmpty {
-                                continuation.yield(text)
-                            }
+                        if let text = response.assistantMessage.content, !text.isEmpty {
+                            continuation.yield(text)
                         }
                     } else {
-                        messages.append(AnthropicMessage(role: .assistant, content: .blocks(buildAssistantBlocks(from: response.content))))
+                        messages.append(response.assistantMessage)
 
                         let toolResults = try await collectToolResults(for: toolUses, databaseService: databaseService)
-                        messages.append(AnthropicMessage(role: .user, content: .blocks(toolResults)))
+                        messages.append(contentsOf: toolResults)
 
-                        _ = try await BedrockService.shared.messageRequestStream(
+                        _ = try await BedrockGLMService.shared.chatCompletionStream(
                             messages: messages,
-                            system: [SystemContentBlock(text: systemPrompt)],
+                            systemPrompt: systemPrompt,
                             tools: [],
                             maxTokens: 4096,
-                            thinking: nil,
-                            modelId: modelId,
+                            model: modelId,
+                            temperature: generationTemperature,
+                            thinkingMode: .enabled,
                             onTextDelta: { delta in
                                 continuation.yield(delta)
                             }
@@ -251,7 +252,7 @@ class AIService: @unchecked Sendable {
         """
     }
 
-    private static let schemaTool = AnthropicToolDefinition(
+    private static let schemaTool = BedrockGLMToolDefinition(
         name: schemaToolName,
         description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
         inputSchema: [
@@ -270,81 +271,71 @@ class AIService: @unchecked Sendable {
         ]
     )
 
-    private static func extractToolUses(from content: [ResponseContentBlock]) -> [(id: String, name: String, input: [String: any Sendable])] {
-        content.compactMap { block in
-            guard case .toolUse(let id, let name, let input) = block else { return nil }
-            return (id, name, input)
-        }
-    }
-
-    private static func buildAssistantBlocks(from content: [ResponseContentBlock]) -> [ContentBlock] {
-        content.compactMap { block in
-            switch block {
-            case .text(let text): .text(text)
-            case .toolUse(let id, let name, let input):
-                .toolUse(id: id, name: name, input: input.mapValues { JSONValue.fromAny($0) })
-            case .thinking: nil
+    private static func collectToolResults(for toolUses: [BedrockGLMToolCall], databaseService: DatabaseService) async throws -> [BedrockGLMChatMessage] {
+        var results: [BedrockGLMChatMessage] = []
+        for toolUse in toolUses where toolUse.name == schemaToolName {
+            let inputDict: [String: Any]
+            if let data = toolUse.arguments.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                inputDict = parsed
+            } else {
+                inputDict = [:]
             }
-        }
-    }
 
-    private static func collectToolResults(for toolUses: [(id: String, name: String, input: [String: any Sendable])], databaseService: DatabaseService) async throws -> [ContentBlock] {
-        var results: [ContentBlock] = []
-        for toolUse in toolUses {
-            if toolUse.name == schemaToolName {
-                let inputDict = toolUse.input.mapValues { $0 as Any }
-                let toolResult = try await handleSchemaToolCall(
-                    input: inputDict,
-                    databaseService: databaseService
+            let toolResult = try await handleSchemaToolCall(
+                input: inputDict,
+                databaseService: databaseService
+            )
+
+            results.append(
+                BedrockGLMChatMessage(
+                    role: .tool,
+                    content: toolResult,
+                    toolCallId: toolUse.id,
+                    name: toolUse.name
                 )
-                results.append(.toolResult(toolUseId: toolUse.id, content: toolResult))
-            }
+            )
         }
         return results
     }
 
-    private static func extractText(from content: [ResponseContentBlock]) -> String {
-        content.compactMap { block in
-            guard case .text(let text) = block else { return nil }
-            return text
-        }.joined()
-    }
-
     private static func performRequestWithTools(systemPrompt: String, userPrompt: String, databaseService: DatabaseService) async throws -> String {
-        var messages: [AnthropicMessage] = [
-            AnthropicMessage(role: .user, content: .text(userPrompt))
+        var messages: [BedrockGLMChatMessage] = [
+            BedrockGLMChatMessage(role: .user, content: userPrompt)
         ]
 
-        let systemBlocks = [SystemContentBlock(text: systemPrompt)]
-
-        let response = try await BedrockService.shared.messageRequest(
+        let response = try await BedrockGLMService.shared.chatCompletion(
             messages: messages,
-            system: systemBlocks,
+            systemPrompt: systemPrompt,
             tools: [schemaTool],
             maxTokens: 4096,
-            modelId: modelId
+            model: modelId,
+            temperature: generationTemperature,
+            thinkingMode: .enabled
         )
 
-        let toolUses = extractToolUses(from: response.content)
+        let toolUses = response.assistantMessage.toolCalls ?? []
 
         if toolUses.isEmpty {
-            return extractText(from: response.content).trimmingCharacters(in: .whitespacesAndNewlines)
+            return response.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         }
 
-        messages.append(AnthropicMessage(role: .assistant, content: .blocks(buildAssistantBlocks(from: response.content))))
+        messages.append(response.assistantMessage)
 
         let toolResults = try await collectToolResults(for: toolUses, databaseService: databaseService)
-        messages.append(AnthropicMessage(role: .user, content: .blocks(toolResults)))
+        messages.append(contentsOf: toolResults)
 
-        let finalResponse = try await BedrockService.shared.messageRequest(
+        let finalResponse = try await BedrockGLMService.shared.chatCompletion(
             messages: messages,
-            system: systemBlocks,
+            systemPrompt: systemPrompt,
             tools: [],
             maxTokens: 4096,
-            modelId: modelId
+            model: modelId,
+            temperature: generationTemperature,
+            thinkingMode: .enabled
         )
 
-        return extractText(from: finalResponse.content).trimmingCharacters(in: .whitespacesAndNewlines)
+        return finalResponse.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private static func handleSchemaToolCall(input: [String: Any], databaseService: DatabaseService) async throws -> String {

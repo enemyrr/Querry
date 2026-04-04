@@ -6,6 +6,7 @@ struct AgentRoundResult {
     let text: String
     let toolCalls: [(id: String, name: String, input: [String: Any])]
     let responseContent: [ResponseContentBlock]
+    let assistantMessage: BedrockGLMChatMessage
 }
 
 struct BlockCreationRequest {
@@ -35,6 +36,11 @@ struct DashboardBlockLayout {
 struct DashboardArrangementRequest {
     let layouts: [DashboardBlockLayout]
     let switchToDashboard: Bool
+}
+
+private struct AgentGenerationConfig {
+    let temperature: Double
+    let thinkingMode: BedrockThinkingMode
 }
 
 @Observable
@@ -77,7 +83,11 @@ final class NotebookAgentEngine {
 
     // MARK: - System Prompt
 
-    func buildSystemBlocks(connections: [Connection], blocks: [NotebookBlock] = []) -> [SystemContentBlock] {
+    func buildSystemPrompt(
+        connections: [Connection],
+        blocks: [NotebookBlock] = [],
+        conversationSummary: String? = nil
+    ) -> String {
         let chartTypes = ChartBlockConfig.ChartType.allCases
             .map { "  - \($0.rawValue): \($0.displayName)" }
             .joined(separator: "\n")
@@ -88,7 +98,7 @@ final class NotebookAgentEngine {
 
         // Static block: instructions, guidance, rules, examples — never changes between rounds
         let staticPrompt = """
-        You are Pluk AI — the built-in data analyst for Pluk, a database notebook for macOS. Always refer to yourself as "Pluk AI" (never "data analysis assistant", "AI assistant", or similar generic labels). Users ask you to create notebook content — sometimes a single chart, sometimes a full report. Match the scope of your response to what the user actually asked for.
+        You are Pluk AI — the built-in data analyst for Pluk, a database notebook for macOS. Always refer to yourself as "Pluk AI" (never "data analysis assistant", "AI assistant", or similar generic labels). Users ask you to create notebook content — sometimes a single chart, sometimes a full report. Match the scope of your response to what the user actually asked for. When enough information is available, act by calling tools instead of narrating a plan.
 
         <tools>
         Database exploration:
@@ -117,11 +127,61 @@ final class NotebookAgentEngine {
         - `arrange_dashboard` — Arrange blocks into a dashboard grid layout with sizing and positioning
         </tools>
 
+        <tool_call_contract>
+        Tool calls must follow each tool schema exactly.
+
+        - Use only parameter names defined in the tool schema.
+        - Never invent aliases or renamed keys. For charts, use `x_axis_column`, `y_axis_columns`, `aggregations`, `source_query_output`, and `row_limit`.
+        - If any required field is unknown, call another discovery tool instead of guessing.
+        - Copy `connection_name`, `database_type`, and `database_name` exactly from <available_connections>.
+        - Copy table names and column names exactly from `list_tables`, `get_table_schema`, or query output. Do not rename, normalize, or paraphrase them.
+        - After any tool error, send a corrected tool call that fixes the reported fields.
+        - Prefer tool calls over natural-language planning once you have enough information to act.
+        </tool_call_contract>
+
+        <planning_phase>
+        For requests that create or update notebook blocks, especially charts:
+        1. Start with read-only discovery tools (`list_tables`, `get_table_schema`, `run_query`, `list_notebook_blocks`) until you know the exact source and field names.
+        2. Form a concrete field plan before any create or update call:
+           - data source
+           - exact x-axis field
+           - exact y-axis field(s)
+           - aggregation per Y field
+           - any filters
+        3. Do not create or update a chart until every field in that plan is grounded in schema or query output.
+        4. If the requested metric is not present in the current table, do not invent a column. Switch to `create_query_block` + `source_query_output`, inspect a related table, or ask a clarifying question.
+        5. If validation fails, repair the plan and resend the tool call instead of pushing through the old one.
+        </planning_phase>
+
         <query_block_guidance>
         Use `create_query_block` when you want query results visible in the notebook as a table that the user can see and re-run. Use `run_query` for exploratory queries whose results are only for your analysis.
 
         When a query block has an `output_name`, you can reference it as `source_query_output` in `create_chart_block` to chart its results directly. Use `source_query_output` only when the chart needs complex query logic (JOINs, CTEs, subqueries, window functions, or advanced Convex transformations) that the chart's built-in table + filters + aggregation cannot express. For simple single-table visualizations, create the chart directly with connection details.
         </query_block_guidance>
+
+        <chart_tool_protocol>
+        Before `create_chart_block` or `update_chart_block`:
+        1. Confirm the data source and exact field names with tools.
+        2. Choose one mode and do not mix them:
+           - Direct connection mode: include connection_keychain_id, connection_name, database_type, database_name, optional schema_name, and table_name.
+           - Query source mode: include source_query_output and omit connection/table fields.
+        3. Use `x_axis_column` for one exact field name.
+        4. Use `y_axis_columns` as an array even when there is only one Y field.
+        5. If you provide `aggregations`, every key must exactly match a value in `y_axis_columns`.
+        6. Never use `x_axis`, `y_axis`, `yAxis`, `metric`, or `metrics`.
+        7. If there is no valid chart configuration yet, ask a clarifying question or create a query block instead of guessing.
+
+        Chart field mapping heuristics:
+        - Categorical or date columns belong on `x_axis_column`.
+        - Numeric measure columns belong in `y_axis_columns`.
+        - For counts, use a stable identifier or primary key that actually exists in the schema and set its aggregation to `count`.
+        - For sums or averages, use only numeric measure columns confirmed by schema or query output.
+        </chart_tool_protocol>
+
+        <chart_tool_examples>
+        <bad_tool_call>{"chart_type":"groupedColumn","x_axis":"status","y_axis":"id"}</bad_tool_call>
+        <good_tool_call>{"chart_type":"groupedColumn","x_axis_column":"status","y_axis_columns":["id"],"aggregations":{"id":"count"}}</good_tool_call>
+        </chart_tool_examples>
 
         <database_exploration_guidance>
         When a user asks about tables or data that may be in a different database, call `list_databases` to discover available databases, then use the `database_name` parameter on `list_tables`, `get_table_schema`, and `run_query` to explore that database.
@@ -183,7 +243,7 @@ final class NotebookAgentEngine {
         </aggregation_functions>
 
         <use_parallel_tool_calls>
-        If you intend to call multiple tools and there are no dependencies between them, make all independent calls in parallel. For example, call `get_table_schema` on several tables simultaneously, or run multiple `run_query` calls at once. Only call tools sequentially when one result is needed to inform the next call.
+        If you intend to call multiple tools and there are no dependencies between them, parallelize only exploratory reads such as several `get_table_schema` calls or several `run_query` calls. For block creation or updates, prefer sequential tool calls so you can validate each dependency before acting.
         </use_parallel_tool_calls>
 
         <existing_content_awareness>
@@ -216,11 +276,15 @@ final class NotebookAgentEngine {
         Match your response to the intent. A targeted request gets only what was asked. A broad exploration gets the full notebook workflow.
         </intent_classification>
 
+        <conversation_memory>
+        If a <conversation_summary> block is present later in this prompt, treat it as durable memory from earlier turns. Use it to preserve prior decisions and unresolved user requests, but prefer newer explicit user messages if they conflict with the summary.
+        </conversation_memory>
+
         <workflow_targeted>
         For targeted requests, keep it minimal:
         1. Check <existing_notebook_blocks> — if a block already covers what the user is asking for, ask whether to update it or create a new one.
-        2. Call `get_table_schema` on the relevant table to confirm column names.
-        3. If needed, run a quick `run_query` to understand the data.
+        2. Call `get_table_schema` on the relevant table to confirm exact column names. Do not create a chart from guessed fields.
+        3. If needed, run a quick `run_query` to understand the data or verify which fields should be charted.
         4. Create only the block(s) the user asked for — a single chart, a single KPI, a query block, or a short text answer.
         5. Do not create KPI rows, table-of-contents text blocks, multi-section commentary, or set notebook info unless the user asked for it.
         6. Reply with a brief confirmation of what you created.
@@ -244,7 +308,7 @@ final class NotebookAgentEngine {
         <examples>
         <example>
         <user_message>Show me a bar chart of orders by status</user_message>
-        <correct_approach>This is a targeted request. Call `get_table_schema` on the orders table, then create a single `create_chart_block` with chart_type "groupedColumn", x_axis "status", y_axis "id", aggregation "count". No KPIs, no text blocks, no notebook info update.</correct_approach>
+        <correct_approach>This is a targeted request. Call `get_table_schema` on the orders table, then create a single `create_chart_block` with chart_type "groupedColumn", x_axis_column "status", y_axis_columns ["id"], and aggregations {"id":"count"}. No KPIs, no text blocks, no notebook info update.</correct_approach>
         </example>
 
         <example>
@@ -259,12 +323,17 @@ final class NotebookAgentEngine {
 
         <example>
         <user_message>Show me the top 10 products by revenue</user_message>
-        <correct_approach>This is a targeted request. Call `get_table_schema`, run a query to find the right columns, then create a single `create_chart_block` (horizontal bar) or `create_query_block` showing the top 10. No surrounding report structure.</correct_approach>
+        <correct_approach>This is a targeted request. Call `get_table_schema`, run a query if needed to verify the exact revenue field, then create a single `create_chart_block` or `create_query_block` using the exact schema keys `x_axis_column`, `y_axis_columns`, and `aggregations`. No surrounding report structure.</correct_approach>
         </example>
 
         <example>
         <user_message>Change the orders chart to a line chart</user_message>
-        <correct_approach>This is a modification request. Check <existing_notebook_blocks> for a chart with "orders" in its title. If exactly one match, call `update_chart_block` with the block_id and chart_type "line", preserving the existing connection details and axis configuration. If multiple matches, ask which one.</correct_approach>
+        <correct_approach>This is a modification request. Check <existing_notebook_blocks> for a chart with "orders" in its title. If exactly one match, call `update_chart_block` with the block_id and chart_type "line", preserving the existing connection details, x_axis_column, y_axis_columns, and aggregations. If multiple matches, ask which one.</correct_approach>
+        </example>
+
+        <example>
+        <user_message>The tool returned an error saying x_axis_column is required</user_message>
+        <correct_approach>Issue a corrected chart tool call that uses the exact schema keys. Do not retry with x_axis or y_axis aliases.</correct_approach>
         </example>
 
         <example>
@@ -305,11 +374,15 @@ final class NotebookAgentEngine {
 
         <rules>
         - Always call `get_table_schema` before using column names — do not guess.
+        - For chart tools, use exact schema keys and exact field names only.
+        - `y_axis_columns` must always be an array.
         - Every statistic in commentary must come from a `run_query` result.
         - Prefer numeric columns for Y axis, categorical/date for X axis.
         - If no connection is selected, ask the user to pick one from the connection picker.
         - `run_query` results are returned to you only. Use `create_chart_block` and `create_text_block` to add content to the notebook.
         - Never create markdown tables inside `create_text_block`. Text blocks are for written commentary, analysis, and section headings only — not for displaying data. Use `create_chart_block` or `create_single_value_block` to present data visually.
+        - If a tool returns a validation error, use the error to produce a corrected tool call instead of defending the previous one.
+        - Prefer one block-creation or block-update tool call at a time.
         - If a query returns unexpected data (nulls, zeros, outliers, empty results), run a follow-up query to investigate before drawing conclusions. Surface anomalies in your commentary.
         - For comprehensive reports, cover: key breakdowns, trends over time, and notable outliers. The notebook title and description handle the overview — do not add a separate overview block. For narrow questions, just answer what was asked.
         </rules>
@@ -368,7 +441,19 @@ final class NotebookAgentEngine {
             }.joined(separator: "\n")
         }
 
+        let summaryPrompt: String
+        if let conversationSummary, !conversationSummary.isEmpty {
+            summaryPrompt = """
+            <conversation_summary>
+            \(conversationSummary)
+            </conversation_summary>
+            """
+        } else {
+            summaryPrompt = ""
+        }
+
         let dynamicPrompt = """
+        \(summaryPrompt)
         <available_connections>
         \(connectionList)
         </available_connections>
@@ -379,16 +464,13 @@ final class NotebookAgentEngine {
         \(convexHint(connections: connections))
         """
 
-        return [
-            SystemContentBlock(text: staticPrompt, cacheControl: .ephemeralLong),
-            SystemContentBlock(text: dynamicPrompt),
-        ]
+        return "\(staticPrompt)\n\n\(dynamicPrompt)"
     }
 
     // MARK: - Tool Definitions
 
-    func buildTools(connections: [Connection]) -> [AnthropicToolDefinition] {
-        var tools: [AnthropicToolDefinition] = [
+    func buildTools(connections: [Connection]) -> [BedrockGLMToolDefinition] {
+        var tools: [BedrockGLMToolDefinition] = [
             listTablesTool,
             listDatabasesTool,
             getTableSchemaTool,
@@ -404,38 +486,33 @@ final class NotebookAgentEngine {
             tools.append(convexQueryGuideTool)
         }
 
-        // Cache breakpoint on last tool — all tool definitions are static
-        if !tools.isEmpty {
-            tools[tools.count - 1].cacheControl = .ephemeralLong
-        }
-
         return tools
     }
 
     // MARK: - API Round (Streaming)
 
     func performRound(
-        messages: [AnthropicMessage],
+        messages: [BedrockGLMChatMessage],
         connections: [Connection],
         blocks: [NotebookBlock] = [],
+        conversationSummary: String? = nil,
         onToken: @MainActor @Sendable (String) -> Void = { _ in },
         onThinking: @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> AgentRoundResult {
         let tools = buildTools(connections: connections)
-        let systemBlocks = buildSystemBlocks(connections: connections, blocks: blocks)
+        let systemPrompt = buildSystemPrompt(
+            connections: connections,
+            blocks: blocks,
+            conversationSummary: conversationSummary
+        )
+        let generationConfig = generationConfig(for: messages)
 
-        // Cache breakpoint on the last message (user tool results) to cache the conversation prefix.
-        // Must target a user message — Bedrock ignores cache_control on assistant messages.
-        var cachedMessages = messages
-        if cachedMessages.count >= 3 {
-            let targetIdx = cachedMessages.count - 1
-            cachedMessages[targetIdx] = addCacheControl(to: cachedMessages[targetIdx])
-        }
-
-        let response = try await BedrockService.shared.messageRequestStream(
-            messages: cachedMessages,
-            system: systemBlocks,
+        let response = try await BedrockGLMService.shared.chatCompletionStream(
+            messages: messages,
+            systemPrompt: systemPrompt,
             tools: tools,
+            temperature: generationConfig.temperature,
+            thinkingMode: generationConfig.thinkingMode,
             onTextDelta: onToken,
             onThinkingDelta: onThinking
         )
@@ -453,7 +530,8 @@ final class NotebookAgentEngine {
         return AgentRoundResult(
             text: text,
             toolCalls: toolCalls,
-            responseContent: response.content
+            responseContent: response.content,
+            assistantMessage: response.assistantMessage
         )
     }
 
@@ -477,7 +555,7 @@ final class NotebookAgentEngine {
         case "run_query":
             result = await executeRunQuery(json: json, connections: connections)
         case "create_chart_block":
-            result = executeCreateChartBlock(json: json)
+            result = await executeCreateChartBlock(json: json, connections: connections)
         case "create_single_value_block":
             result = executeCreateSingleValueBlock(json: json)
         case "create_text_block":
@@ -489,7 +567,7 @@ final class NotebookAgentEngine {
         case "list_notebook_blocks":
             result = executeListNotebookBlocks(blocks: blocks)
         case "update_chart_block":
-            result = executeUpdateChartBlock(json: json)
+            result = await executeUpdateChartBlock(json: json, connections: connections)
         case "update_single_value_block":
             result = executeUpdateSingleValueBlock(json: json)
         case "update_text_block":
@@ -735,7 +813,7 @@ final class NotebookAgentEngine {
 
     // MARK: - Create Chart Block
 
-    private func executeCreateChartBlock(json: [String: Any]) -> String {
+    private func executeCreateChartBlock(json: [String: Any], connections: [Connection]) async -> String {
         guard let title = json["title"] as? String,
               let chartTypeRaw = json["chart_type"] as? String,
               let xAxis = json["x_axis_column"] as? String else {
@@ -752,9 +830,20 @@ final class NotebookAgentEngine {
         }
 
         let chartType = ChartBlockConfig.ChartType(rawValue: chartTypeRaw) ?? .groupedColumn
+        let aggregations = parseStringDictionary(json["aggregations"])
+        let filters = parseFilterArray(json["filters"])
 
         // Query source path — chart reads data from a query block's output
         if let sourceOutput = json["source_query_output"] as? String {
+            if let validationError = validateChartParameterShape(
+                xAxis: xAxis,
+                yAxisColumns: yAxisColumns,
+                aggregations: aggregations,
+                filters: filters
+            ) {
+                return validationError
+            }
+
             var config = ChartBlockConfig(
                 connectionKeychainId: "",
                 connectionName: sourceOutput,
@@ -766,11 +855,9 @@ final class NotebookAgentEngine {
             config.xAxisColumn = xAxis
             config.fields["yAxis"] = yAxisColumns
 
-            if let aggs = json["aggregations"] as? [String: String] {
-                for (column, aggRaw) in aggs {
-                    if let agg = AggregationFunction(rawValue: aggRaw) {
-                        config.setAggregation(agg, forField: "yAxis", column: column)
-                    }
+            for (column, aggRaw) in aggregations {
+                if let agg = AggregationFunction(rawValue: aggRaw) {
+                    config.setAggregation(agg, forField: "yAxis", column: column)
                 }
             }
 
@@ -795,6 +882,22 @@ final class NotebookAgentEngine {
 
         let rowLimit = min(json["row_limit"] as? Int ?? 500, 500)
         let schemaName = json["schema_name"] as? String
+        guard let connection = connections.first(where: { $0.keychainId == keychainId }) else {
+            return "Error: Unknown connection_keychain_id '\(keychainId)'. Use one of the values from <available_connections>."
+        }
+
+        if let validationError = await validateDirectChartRequest(
+            connection: connection,
+            databaseName: dbName,
+            schemaName: schemaName,
+            tableName: tableName,
+            xAxis: xAxis,
+            yAxisColumns: yAxisColumns,
+            aggregations: aggregations,
+            filters: filters
+        ) {
+            return validationError
+        }
 
         var config = ChartBlockConfig(
             connectionKeychainId: keychainId,
@@ -809,8 +912,8 @@ final class NotebookAgentEngine {
         config.xAxisColumn = xAxis
         config.fields["yAxis"] = yAxisColumns
 
-        if let aggs = json["aggregations"] as? [String: String] {
-            for (column, aggRaw) in aggs {
+        if !aggregations.isEmpty {
+            for (column, aggRaw) in aggregations {
                 if let agg = AggregationFunction(rawValue: aggRaw) {
                     config.setAggregation(agg, forField: "yAxis", column: column)
                 }
@@ -821,14 +924,12 @@ final class NotebookAgentEngine {
             }
         }
 
-        if let filterArray = json["filters"] as? [[String: String]] {
-            for filterDict in filterArray {
-                guard let field = filterDict["field"],
-                      let opRaw = filterDict["operator"],
-                      let op = ChartFilterCondition.ChartFilterOperator(rawValue: opRaw) else { continue }
-                let value = filterDict["value"] ?? ""
-                config.filters.append(ChartFilterCondition(field: field, filterOperator: op, value: value))
-            }
+        for filterDict in filters {
+            guard let field = filterDict["field"],
+                  let opRaw = filterDict["operator"],
+                  let op = ChartFilterCondition.ChartFilterOperator(rawValue: opRaw) else { continue }
+            let value = filterDict["value"] ?? ""
+            config.filters.append(ChartFilterCondition(field: field, filterOperator: op, value: value))
         }
 
         pendingBlockCreations.append(BlockCreationRequest(
@@ -981,7 +1082,7 @@ final class NotebookAgentEngine {
 
     // MARK: - Update Chart Block
 
-    private func executeUpdateChartBlock(json: [String: Any]) -> String {
+    private func executeUpdateChartBlock(json: [String: Any], connections: [Connection]) async -> String {
         guard let blockIdStr = json["block_id"] as? String,
               let blockId = UUID(uuidString: blockIdStr) else {
             return "Error: block_id is required and must be a valid UUID"
@@ -1006,8 +1107,19 @@ final class NotebookAgentEngine {
         }
 
         let chartType = ChartBlockConfig.ChartType(rawValue: chartTypeRaw) ?? .groupedColumn
+        let aggregations = parseStringDictionary(mutableJson["aggregations"])
+        let filters = parseFilterArray(mutableJson["filters"])
 
         if let sourceOutput = mutableJson["source_query_output"] as? String {
+            if let validationError = validateChartParameterShape(
+                xAxis: xAxis,
+                yAxisColumns: yAxisColumns,
+                aggregations: aggregations,
+                filters: filters
+            ) {
+                return validationError
+            }
+
             var config = ChartBlockConfig(
                 connectionKeychainId: "",
                 connectionName: sourceOutput,
@@ -1019,11 +1131,9 @@ final class NotebookAgentEngine {
             config.xAxisColumn = xAxis
             config.fields["yAxis"] = yAxisColumns
 
-            if let aggs = mutableJson["aggregations"] as? [String: String] {
-                for (column, aggRaw) in aggs {
-                    if let agg = AggregationFunction(rawValue: aggRaw) {
-                        config.setAggregation(agg, forField: "yAxis", column: column)
-                    }
+            for (column, aggRaw) in aggregations {
+                if let agg = AggregationFunction(rawValue: aggRaw) {
+                    config.setAggregation(agg, forField: "yAxis", column: column)
                 }
             }
 
@@ -1044,6 +1154,22 @@ final class NotebookAgentEngine {
 
         let rowLimit = min(mutableJson["row_limit"] as? Int ?? 500, 500)
         let schemaName = mutableJson["schema_name"] as? String
+        guard let connection = connections.first(where: { $0.keychainId == keychainId }) else {
+            return "Error: Unknown connection_keychain_id '\(keychainId)'. Use one of the values from <available_connections>."
+        }
+
+        if let validationError = await validateDirectChartRequest(
+            connection: connection,
+            databaseName: dbName,
+            schemaName: schemaName,
+            tableName: tableName,
+            xAxis: xAxis,
+            yAxisColumns: yAxisColumns,
+            aggregations: aggregations,
+            filters: filters
+        ) {
+            return validationError
+        }
 
         var config = ChartBlockConfig(
             connectionKeychainId: keychainId,
@@ -1058,8 +1184,8 @@ final class NotebookAgentEngine {
         config.xAxisColumn = xAxis
         config.fields["yAxis"] = yAxisColumns
 
-        if let aggs = mutableJson["aggregations"] as? [String: String] {
-            for (column, aggRaw) in aggs {
+        if !aggregations.isEmpty {
+            for (column, aggRaw) in aggregations {
                 if let agg = AggregationFunction(rawValue: aggRaw) {
                     config.setAggregation(agg, forField: "yAxis", column: column)
                 }
@@ -1070,14 +1196,12 @@ final class NotebookAgentEngine {
             }
         }
 
-        if let filterArray = mutableJson["filters"] as? [[String: String]] {
-            for filterDict in filterArray {
-                guard let field = filterDict["field"],
-                      let opRaw = filterDict["operator"],
-                      let op = ChartFilterCondition.ChartFilterOperator(rawValue: opRaw) else { continue }
-                let value = filterDict["value"] ?? ""
-                config.filters.append(ChartFilterCondition(field: field, filterOperator: op, value: value))
-            }
+        for filterDict in filters {
+            guard let field = filterDict["field"],
+                  let opRaw = filterDict["operator"],
+                  let op = ChartFilterCondition.ChartFilterOperator(rawValue: opRaw) else { continue }
+            let value = filterDict["value"] ?? ""
+            config.filters.append(ChartFilterCondition(field: field, filterOperator: op, value: value))
         }
 
         pendingBlockCreations.append(BlockCreationRequest(
@@ -1216,27 +1340,6 @@ final class NotebookAgentEngine {
 
     // MARK: - Helpers
 
-    private func addCacheControl(to message: AnthropicMessage) -> AnthropicMessage {
-        switch message.content {
-        case .text(let text):
-            return AnthropicMessage(
-                role: message.role,
-                content: .blocks([.text(text, cacheControl: .ephemeral)])
-            )
-        case .blocks(var blocks):
-            guard let lastIdx = blocks.indices.last else { return message }
-            switch blocks[lastIdx] {
-            case .text(let t, _):
-                blocks[lastIdx] = .text(t, cacheControl: .ephemeral)
-            case .toolResult(let id, let content, _):
-                blocks[lastIdx] = .toolResult(toolUseId: id, content: content, cacheControl: .ephemeral)
-            default:
-                break
-            }
-            return AnthropicMessage(role: message.role, content: .blocks(blocks))
-        }
-    }
-
     private func convexHint(connections: [Connection]) -> String {
         let convexConnections = connections.filter { $0.databaseType == .convex }
         guard !convexConnections.isEmpty else { return "" }
@@ -1263,6 +1366,180 @@ final class NotebookAgentEngine {
         return connections.first
     }
 
+    private func generationConfig(for messages: [BedrockGLMChatMessage]) -> AgentGenerationConfig {
+        let latestUserText = messages
+            .last(where: { $0.role == .user })?
+            .content?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+        let hasToolContext = messages.contains { message in
+            message.role == .tool || !(message.toolCalls?.isEmpty ?? true)
+        }
+        let trivialTurns: Set<String> = ["hi", "hello", "hey", "thanks", "thank you", "ok", "okay"]
+
+        if !hasToolContext && trivialTurns.contains(latestUserText) {
+            return AgentGenerationConfig(temperature: 0.3, thinkingMode: .disabled)
+        }
+
+        return AgentGenerationConfig(temperature: 0.2, thinkingMode: .enabled)
+    }
+
+    private func parseStringDictionary(_ value: Any?) -> [String: String] {
+        if let dictionary = value as? [String: String] {
+            return dictionary
+        }
+        if let dictionary = value as? [String: Any] {
+            return dictionary.reduce(into: [String: String]()) { partialResult, item in
+                if let stringValue = item.value as? String {
+                    partialResult[item.key] = stringValue
+                }
+            }
+        }
+        return [:]
+    }
+
+    private func parseFilterArray(_ value: Any?) -> [[String: String]] {
+        if let filters = value as? [[String: String]] {
+            return filters
+        }
+        guard let rawFilters = value as? [Any] else {
+            return []
+        }
+
+        return rawFilters.compactMap { rawFilter in
+            guard let filter = rawFilter as? [String: Any] else {
+                return nil
+            }
+            var normalized: [String: String] = [:]
+            for (key, value) in filter {
+                if let stringValue = value as? String {
+                    normalized[key] = stringValue
+                }
+            }
+            return normalized.isEmpty ? nil : normalized
+        }
+    }
+
+    private func validateChartParameterShape(
+        xAxis: String,
+        yAxisColumns: [String],
+        aggregations: [String: String],
+        filters: [[String: String]]
+    ) -> String? {
+        guard !xAxis.isEmpty else {
+            return "Error: x_axis_column is required."
+        }
+        guard !yAxisColumns.isEmpty else {
+            return "Error: y_axis_columns must contain at least one column."
+        }
+
+        let aggregationKeys = Set(aggregations.keys)
+        let yAxisSet = Set(yAxisColumns)
+        let unknownAggregationColumns = aggregationKeys.subtracting(yAxisSet)
+        if !unknownAggregationColumns.isEmpty {
+            return "Error: aggregations may only reference columns from y_axis_columns. Invalid keys: \(unknownAggregationColumns.sorted().joined(separator: ", "))."
+        }
+
+        let invalidFilterFields = filters.compactMap { filter -> String? in
+            guard let field = filter["field"], !field.isEmpty else {
+                return "<missing field>"
+            }
+            return nil
+        }
+        if !invalidFilterFields.isEmpty {
+            return "Error: Every chart filter must include a non-empty field name."
+        }
+
+        return nil
+    }
+
+    private func validateDirectChartRequest(
+        connection: Connection,
+        databaseName: String,
+        schemaName: String?,
+        tableName: String,
+        xAxis: String,
+        yAxisColumns: [String],
+        aggregations: [String: String],
+        filters: [[String: String]]
+    ) async -> String? {
+        if let shapeError = validateChartParameterShape(
+            xAxis: xAxis,
+            yAxisColumns: yAxisColumns,
+            aggregations: aggregations,
+            filters: filters
+        ) {
+            return shapeError
+        }
+
+        do {
+            try await driverSession.connect(
+                databaseType: connection.databaseType,
+                uri: connection.connectionUri,
+                keychainId: connection.keychainId,
+                databaseName: databaseName
+            )
+
+            guard let schema = try await driverSession.getSchema(tableName: tableName, schema: schemaName) else {
+                return "Error: Could not load schema for \(qualifiedTableName(schemaName: schemaName, tableName: tableName)). Call get_table_schema first and only use confirmed columns."
+            }
+
+            let validColumnNames = Set(schema.columns.map(\.columnName))
+            var missingColumns = Set<String>()
+            if !validColumnNames.contains(xAxis) {
+                missingColumns.insert(xAxis)
+            }
+            for column in yAxisColumns where !validColumnNames.contains(column) {
+                missingColumns.insert(column)
+            }
+            for field in filters.compactMap({ $0["field"] }) where !validColumnNames.contains(field) {
+                missingColumns.insert(field)
+            }
+
+            if !missingColumns.isEmpty {
+                return """
+                Error: Invalid chart field plan for \(qualifiedTableName(schemaName: schemaName, tableName: tableName)). These columns do not exist: \(missingColumns.sorted().joined(separator: ", ")).
+                Valid columns: \(schema.columns.map(\.columnName).joined(separator: ", ")).
+                If the requested metric lives in another table, inspect that table or create a query block and chart its output instead of inventing a column.
+                """
+            }
+
+            let nonNumericMeasureColumns = aggregations.compactMap { column, aggregation -> String? in
+                guard aggregation == AggregationFunction.sum.rawValue || aggregation == AggregationFunction.average.rawValue else {
+                    return nil
+                }
+                guard let columnInfo = schema.column(named: column) else {
+                    return column
+                }
+                return isNumericColumn(columnInfo) ? nil : "\(column) (\(columnInfo.dataType))"
+            }
+            if !nonNumericMeasureColumns.isEmpty {
+                return "Error: sum and average require numeric columns. Invalid measure columns: \(nonNumericMeasureColumns.joined(separator: ", "))."
+            }
+
+            return nil
+        } catch {
+            return "Error validating chart fields for \(qualifiedTableName(schemaName: schemaName, tableName: tableName)): \(error.localizedDescription)"
+        }
+    }
+
+    private func qualifiedTableName(schemaName: String?, tableName: String) -> String {
+        guard let schemaName, !schemaName.isEmpty else {
+            return tableName
+        }
+        return "\(schemaName).\(tableName)"
+    }
+
+    private func isNumericColumn(_ column: DatabaseSchemaInfo) -> Bool {
+        let dataType = column.dataType.lowercased()
+        let formatType = column.formatType.lowercased()
+        let numericHints = [
+            "int", "integer", "bigint", "smallint", "decimal", "numeric",
+            "number", "double", "float", "real", "money"
+        ]
+        return numericHints.contains(where: { dataType.contains($0) || formatType.contains($0) }) || column.numericPrecision != nil
+    }
+
     private func sendableToAny(_ input: [String: any Sendable]) -> [String: Any] {
         input.mapValues { $0 as Any }
     }
@@ -1271,9 +1548,9 @@ final class NotebookAgentEngine {
         input.mapValues { JSONValue.fromAny($0) }
     }
 
-    // MARK: - Anthropic Tool Definitions
+    // MARK: - Tool Definitions
 
-    private let listTablesTool = AnthropicToolDefinition(
+    private let listTablesTool = BedrockGLMToolDefinition(
         name: "list_tables",
         description: "Lists all tables and collections in a database connection. Call this first to discover available data.",
         inputSchema: [
@@ -1296,7 +1573,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let runQueryTool = AnthropicToolDefinition(
+    private let runQueryTool = BedrockGLMToolDefinition(
         name: "run_query",
         description: "Execute a read-only query to explore data. Use SQL for SQL databases and JavaScript for Convex. Results are returned to you for analysis but are NOT added to the notebook.",
         inputSchema: [
@@ -1323,7 +1600,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let setNotebookInfoTool = AnthropicToolDefinition(
+    private let setNotebookInfoTool = BedrockGLMToolDefinition(
         name: "set_notebook_info",
         description: "Sets the notebook title and description. Call this early in the workflow to give the notebook a meaningful name based on the data being analyzed.",
         inputSchema: [
@@ -1342,7 +1619,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let listNotebookBlocksTool = AnthropicToolDefinition(
+    private let listNotebookBlocksTool = BedrockGLMToolDefinition(
         name: "list_notebook_blocks",
         description: "Returns all existing blocks in the notebook with their IDs, types, titles, and configuration summaries. Call this to get block_id values needed for update_* tools.",
         inputSchema: [
@@ -1351,7 +1628,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let getTableSchemaTool = AnthropicToolDefinition(
+    private let getTableSchemaTool = BedrockGLMToolDefinition(
         name: "get_table_schema",
         description: "Gets detailed column information for a table: names, data types, primary keys, foreign keys, and constraints.",
         inputSchema: [
@@ -1378,7 +1655,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let arrangeDashboardTool = AnthropicToolDefinition(
+    private let arrangeDashboardTool = BedrockGLMToolDefinition(
         name: "arrange_dashboard",
         description: """
         Arranges notebook blocks into a dashboard grid layout. Each block can be sized and positioned in rows. \
@@ -1428,7 +1705,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let listDatabasesTool = AnthropicToolDefinition(
+    private let listDatabasesTool = BedrockGLMToolDefinition(
         name: "list_databases",
         description: "Lists all databases available on a connection. Use this when the user references a table that may be in a different database.",
         inputSchema: [
@@ -1443,7 +1720,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let convexQueryGuideTool = AnthropicToolDefinition(
+    private let convexQueryGuideTool = BedrockGLMToolDefinition(
         name: "get_convex_query_guide",
         description: "Returns the Convex query guide. Call this before constructing any raw query for a Convex connection. The guide includes the JavaScript query template plus additional raw query details.",
         inputSchema: [

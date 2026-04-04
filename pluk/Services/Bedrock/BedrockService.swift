@@ -4,7 +4,7 @@ final class BedrockService: Sendable {
 
     static let shared = BedrockService()
 
-    private let credentialManager = CognitoCredentialManager()
+    private let credentialManager = CognitoCredentialManager.shared
 
     private init() {}
 
@@ -365,7 +365,9 @@ enum BedrockError: LocalizedError {
 
 // MARK: - Cognito Credential Manager
 
-private actor CognitoCredentialManager {
+actor CognitoCredentialManager {
+
+    static let shared = CognitoCredentialManager()
 
     private var cachedCredentials: AWSSignatureV4.AWSCredentials?
     private var refreshTask: Task<AWSSignatureV4.AWSCredentials, any Error>?

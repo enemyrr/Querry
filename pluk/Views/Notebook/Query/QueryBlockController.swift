@@ -24,9 +24,10 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
     private var errorStateHostingView: NSView?
     private var outputNameField: NSTextField!
     private var outputFieldWrapper: NSView!
-    private var splitterView: NSView!
+    private var splitterView: QuerySplitterView!
     private var editorHeightConstraint: NSLayoutConstraint!
     private var toolbarBottomConstraint: NSLayoutConstraint!
+    private var splitterHeightConstraint: NSLayoutConstraint!
 
     private var queryText: String = ""
     private var saveDebounceTask: Task<Void, Never>?
@@ -212,6 +213,7 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
             expandedBlockHeight = blockHeightConstraint.constant
 
             splitterView.isHidden = true
+            splitterHeightConstraint.constant = 0
             resultsContainerView?.isHidden = true
             emptyStateHostingView?.isHidden = true
             errorStateHostingView?.isHidden = true
@@ -232,6 +234,7 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
             viewModel.block.blockHeight = blockHeightConstraint.constant
             dataController.updateBlock(viewModel.block)
 
+            splitterHeightConstraint.constant = 6
             splitterView.isHidden = false
             updateResultsVisibility()
         }
@@ -445,7 +448,6 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
             splitterView.topAnchor.constraint(equalTo: toolbarHosting.bottomAnchor),
             splitterView.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
             splitterView.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
-            splitterView.heightAnchor.constraint(equalToConstant: 6),
 
             // Results — fills to block bottom
             tableContainer.topAnchor.constraint(equalTo: splitterView.bottomAnchor),
@@ -463,6 +465,9 @@ final class QueryBlockController: NSViewController, NSTextFieldDelegate {
             errorState.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
             errorState.bottomAnchor.constraint(equalTo: blockContainer.bottomAnchor),
         ])
+
+        splitterHeightConstraint = splitterView.heightAnchor.constraint(equalToConstant: 6)
+        splitterHeightConstraint.isActive = true
 
         updateResultsVisibility()
     }
@@ -806,6 +811,8 @@ private final class QuerySplitterView: NSView {
     private let onDrag: (CGFloat) -> Void
     private var lastY: CGFloat = 0
     private let line = NSView()
+    private var isDragging = false
+    nonisolated(unsafe) private var eventMonitor: Any?
 
     init(onDrag: @escaping (CGFloat) -> Void) {
         self.onDrag = onDrag
@@ -830,18 +837,75 @@ private final class QuerySplitterView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    deinit {
+        removeEventMonitor()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil, isDragging {
+            cancelDrag()
+        }
+    }
+
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .resizeUpDown)
     }
 
     override func mouseDown(with event: NSEvent) {
         lastY = event.locationInWindow.y
+        isDragging = true
+        installEventMonitor()
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard isDragging else { return }
         let currentY = event.locationInWindow.y
         let delta = currentY - lastY
         lastY = currentY
         onDrag(delta)
     }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isDragging else { return }
+        finishDrag()
+    }
+
+    private func installEventMonitor() {
+        removeEventMonitor()
+        eventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseUp, .scrollWheel, .gesture, .swipe, .magnify, .rotate]
+        ) { [weak self] event in
+            guard let self, self.isDragging else { return event }
+
+            switch event.type {
+            case .leftMouseUp:
+                self.finishDrag()
+            case .scrollWheel, .gesture, .swipe, .magnify, .rotate:
+                self.cancelDrag()
+            default:
+                break
+            }
+
+            return event
+        }
+    }
+
+    private func removeEventMonitor() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+    }
+
+    private func finishDrag() {
+        isDragging = false
+        removeEventMonitor()
+    }
+
+    private func cancelDrag() {
+        isDragging = false
+        removeEventMonitor()
+    }
+
 }

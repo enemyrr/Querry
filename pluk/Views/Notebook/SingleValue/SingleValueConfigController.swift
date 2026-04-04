@@ -443,6 +443,8 @@ final class SingleValueConfigPopoverController: NSViewController {
 final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
 
     private let viewModel: SingleValueBlockViewModel
+    private let isLabelEditable: Bool
+    private var fallbackLabel: String?
 
     private let stackView = NSStackView()
     private let spinner = NSProgressIndicator()
@@ -450,8 +452,10 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
     private let valueLabel = NSTextField(labelWithString: "")
     private let labelField = NSTextField(string: "")
 
-    init(viewModel: SingleValueBlockViewModel) {
+    init(viewModel: SingleValueBlockViewModel, fallbackLabel: String? = nil, isLabelEditable: Bool = true) {
         self.viewModel = viewModel
+        self.fallbackLabel = fallbackLabel
+        self.isLabelEditable = isLabelEditable
         super.init(frame: .zero)
         setupView()
         observeViewModel()
@@ -495,14 +499,17 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         labelField.isBordered = false
         labelField.drawsBackground = false
         labelField.focusRingType = .none
-        labelField.isEditable = true
+        labelField.isEditable = isLabelEditable
+        labelField.isSelectable = isLabelEditable
         labelField.delegate = self
         labelField.translatesAutoresizingMaskIntoConstraints = false
         stackView.addArrangedSubview(labelField)
 
         NSLayoutConstraint.activate([
             stackView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stackView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            stackView.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 16),
+            stackView.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -16),
             stackView.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16),
             stackView.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
             labelField.widthAnchor.constraint(equalToConstant: 200),
@@ -552,7 +559,7 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
             valueLabel.isHidden = false
 
             labelField.isHidden = false
-            syncLabelFromConfig()
+            syncLabelFromConfigOrFallback()
             return
         }
 
@@ -560,8 +567,13 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         labelField.isHidden = true
     }
 
-    private func syncLabelFromConfig() {
-        let incoming = viewModel.config?.label ?? ""
+    func updateFallbackLabel(_ label: String?) {
+        fallbackLabel = label
+        syncLabelFromConfigOrFallback()
+    }
+
+    private func syncLabelFromConfigOrFallback() {
+        let incoming = (viewModel.config?.label).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackLabel ?? ""
         if incoming != labelField.stringValue {
             labelField.stringValue = incoming
         }

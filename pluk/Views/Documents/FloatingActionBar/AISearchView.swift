@@ -211,23 +211,22 @@ struct AISearchView: View {
     
     private func performAIQuery(databaseService: DatabaseService, search: String) async throws -> String {
         guard let selectedTab = instance.selectedTab?.name else {
-            throw BedrockError.invalidResponse
+            throw BedrockGLMError.invalidResponse
         }
 
         let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab, databaseSchema: instance.selectedTab?.databaseSchema)
 
-        let response = try await BedrockService.shared.messageRequest(
-            messages: [AnthropicMessage(role: .user, content: .text(search))],
-            system: [SystemContentBlock(text: prompt)],
+        let response = try await BedrockGLMService.shared.chatCompletion(
+            messages: [BedrockGLMChatMessage(role: .user, content: search)],
+            systemPrompt: prompt,
             tools: [],
             maxTokens: 4096,
-            modelId: BedrockConfig.haikuModelId
+            model: BedrockConfig.glm47ModelId,
+            temperature: 0.2,
+            thinkingMode: .disabled
         )
 
-        return response.content.compactMap { block -> String? in
-            guard case .text(let text) = block else { return nil }
-            return text
-        }.joined()
+        return response.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
     
     @MainActor
@@ -254,8 +253,9 @@ struct AISearchView: View {
     
     @MainActor
     private func handleQueryError(_ error: Error) async {
-        if let bedrockError = error as? BedrockError {
-            debugLog("Error: \(bedrockError.localizedDescription)")
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription {
+            debugLog("Error: \(description)")
         } else {
             debugLog("Error: Could not create Message: \(error.localizedDescription)")
         }

@@ -26,21 +26,30 @@ final class BlockDragController {
         block: NotebookBlock,
         event: NSEvent,
         snapshotContainer: NSView,
-        dimContainer: NSView
+        dimContainer: NSView,
+        previewFrame: NSRect? = nil
     ) {
         isDragging = true
         dragSourceIndex = sourceIndex
 
         let iconName = NotebookDragVisuals.dragIconName(for: block.blockType, filled: true)
         let title = block.title.isEmpty ? block.blockType.displayName : block.title
-        let card = NotebookDragVisuals.dragCard(title: title, iconName: iconName)
+        let card = NotebookDragVisuals.dragCard(title: title, iconName: iconName, size: previewFrame?.size)
 
         let location = snapshotContainer.convert(event.locationInWindow, from: nil)
-        card.frame.origin = NSPoint(
-            x: location.x + 4,
-            y: location.y - card.frame.height / 2
-        )
-        dragOffset = NSPoint(x: -4, y: card.frame.height / 2)
+        if let previewFrame {
+            card.frame.origin = previewFrame.origin
+            dragOffset = NSPoint(
+                x: location.x - previewFrame.minX,
+                y: location.y - previewFrame.minY
+            )
+        } else {
+            card.frame.origin = NSPoint(
+                x: location.x + 4,
+                y: location.y - card.frame.height / 2
+            )
+            dragOffset = NSPoint(x: -4, y: card.frame.height / 2)
+        }
 
         snapshotContainer.layer?.addSublayer(card)
         dragSnapshotLayer = card

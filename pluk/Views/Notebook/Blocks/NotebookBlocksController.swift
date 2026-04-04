@@ -248,21 +248,11 @@ final class NotebookBlocksController: NSViewController {
         let collectionOriginY = collectionView.frame.origin.y
         for i in 0..<neededCount {
             let indicator = insertionIndicators[i]
-
-            let gapTop: CGFloat
-            let gapBottom: CGFloat
-
-            if i == 0 {
-                gapTop = collectionOriginY
-                gapBottom = rows[0].frame.minY + collectionOriginY
-            } else {
-                gapTop = rows[i - 1].frame.maxY + collectionOriginY
-                gapBottom = rows[i].frame.minY + collectionOriginY
+            guard let gapFrame = insertionGapFrame(at: i, rows: rows, collectionOriginY: collectionOriginY) else {
+                indicator.isHidden = true
+                continue
             }
-
-            let height = gapBottom - gapTop
-            let fullWidth = collectionView.bounds.width
-            indicator.frame = NSRect(x: 0, y: gapTop, width: fullWidth, height: height)
+            indicator.frame = gapFrame
 
             indicator.isHidden = (expandedGapIndex == i)
 
@@ -303,11 +293,12 @@ final class NotebookBlocksController: NSViewController {
 
         positionInlineActionBar()
 
-        clickAwayMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+        clickAwayMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             guard let self, let bar = self.inlineActionBar else { return event }
-            let pointInBar = bar.convert(event.locationInWindow, from: nil)
-            if !bar.bounds.contains(pointInBar) {
+            if !bar.containsInteractiveArea(windowPoint: event.locationInWindow) {
+                let shouldConsume = self.clickIsInsideExpandedGap(event)
                 self.collapseInsertionGap(animated: true)
+                return shouldConsume ? nil : event
             }
             return event
         }
@@ -346,12 +337,26 @@ final class NotebookBlocksController: NSViewController {
               let bar = inlineActionBar else { return }
 
         let collectionOriginY = collectionView.frame.origin.y
+        let fittingHeight = max(1, bar.fittingSize.height)
+        let barHeight = min(barFrame.height, fittingHeight)
         bar.frame = NSRect(
             x: barFrame.origin.x,
-            y: barFrame.origin.y + collectionOriginY,
+            y: barFrame.midY + collectionOriginY - (barHeight / 2),
             width: barFrame.width,
-            height: barFrame.height
+            height: barHeight
         )
+    }
+
+    private func clickIsInsideExpandedGap(_ event: NSEvent) -> Bool {
+        guard let layout = collectionView.collectionViewLayout as? NotebookGridLayout,
+              let gapFrame = layout.insertBarFrame,
+              let documentView = scrollView.documentView else {
+            return false
+        }
+
+        let pointInDocument = documentView.convert(event.locationInWindow, from: nil)
+        let frameInDocument = gapFrame.offsetBy(dx: 0, dy: collectionView.frame.origin.y)
+        return frameInDocument.contains(pointInDocument)
     }
 
     // MARK: - Resize
@@ -448,13 +453,22 @@ final class NotebookBlocksController: NSViewController {
 
     // MARK: - Item Wiring
 
-    private func wireItemCallbacks(on item: NotebookBaseItem, at index: Int) {
+    private func wireItemCallbacks(on item: NotebookBaseItem) {
         item.onResize = { [weak self] block, newHeight in
             self?.handleBlockResize(block: block, newHeight: newHeight)
         }
-        item.onDragBegan = { [weak self] event in self?.beginDrag(blockIndex: index, event: event) }
+        item.onDragBegan = { [weak self, weak item] event in
+            guard let self, let item, let index = self.currentBlockIndex(for: item) else { return }
+            self.beginDrag(blockIndex: index, event: event)
+        }
         item.onDragMoved = { [weak self] event in self?.updateDrag(event: event) }
         item.onDragEnded = { [weak self] event in self?.endDrag(event: event) }
+        item.onDragCancelled = { [weak self] in self?.cleanupDrag() }
+    }
+
+    private func currentBlockIndex(for item: NotebookBaseItem) -> Int? {
+        guard let blockID = item.currentBlock?.id else { return nil }
+        return dataController.blocks.firstIndex { $0.id == blockID }
     }
 
     private func wireRunCallback(on item: NotebookBaseItem, action: @escaping () async -> Void) {
@@ -695,6 +709,49 @@ final class NotebookBlocksController: NSViewController {
 
     private static let titleOffset: CGFloat = 29
     private static let resizeHandleHeight: CGFloat = 12
+    private static let singleValueRowTopInset: CGFloat = 16
+
+    private func rowBottomInset(for row: NotebookRowInfo) -> CGFloat {
+        guard row.startIndex >= 0, row.endIndex < dataController.blocks.count else {
+            return Self.resizeHandleHeight
+        }
+
+        let rowBlocks = dataController.blocks[row.startIndex...row.endIndex]
+        return rowBlocks.allSatisfy { $0.blockType == .singleValue } ? 0 : Self.resizeHandleHeight
+    }
+
+    private func rowTopInset(for row: NotebookRowInfo) -> CGFloat {
+        guard row.startIndex >= 0, row.endIndex < dataController.blocks.count else {
+            return Self.titleOffset
+        }
+
+        let rowBlocks = dataController.blocks[row.startIndex...row.endIndex]
+        guard !rowBlocks.isEmpty else { return 0 }
+        return rowBlocks.allSatisfy { $0.blockType == .singleValue } ? Self.singleValueRowTopInset : Self.titleOffset
+    }
+
+    private func insertionGapFrame(
+        at indicatorIndex: Int,
+        rows: [NotebookRowInfo],
+        collectionOriginY: CGFloat
+    ) -> NSRect? {
+        guard indicatorIndex >= 0, indicatorIndex < rows.count else { return nil }
+
+        let gapTop: CGFloat
+        let gapBottom: CGFloat
+
+        if indicatorIndex == 0 {
+            gapTop = collectionOriginY
+            gapBottom = rows[0].frame.minY + collectionOriginY
+        } else {
+            let previousRow = rows[indicatorIndex - 1]
+            gapTop = previousRow.frame.maxY + collectionOriginY - rowBottomInset(for: previousRow)
+            gapBottom = rows[indicatorIndex].frame.minY + collectionOriginY + rowTopInset(for: rows[indicatorIndex])
+        }
+
+        guard gapBottom >= gapTop else { return nil }
+        return NSRect(x: 0, y: gapTop, width: collectionView.bounds.width, height: gapBottom - gapTop)
+    }
 
     private func contentRect(from frame: NSRect) -> NSRect {
         NSRect(
@@ -703,6 +760,29 @@ final class NotebookBlocksController: NSViewController {
             width: frame.width,
             height: frame.height - Self.titleOffset - Self.resizeHandleHeight
         )
+    }
+
+    private func contentRect(forItemAt itemIndex: Int, layout: NotebookGridLayout) -> NSRect? {
+        if let item = collectionView.item(at: IndexPath(item: itemIndex, section: 0)) as? NotebookBaseItem {
+            return item.blockContainer.convert(item.blockContainer.bounds, to: collectionView)
+        }
+
+        guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: itemIndex, section: 0)) else {
+            return nil
+        }
+
+        return contentRect(from: attrs.frame)
+    }
+
+    private func contentRect(for row: NotebookRowInfo, layout: NotebookGridLayout) -> NSRect {
+        var rowRect: NSRect?
+
+        for itemIndex in row.startIndex...row.endIndex {
+            guard let itemRect = contentRect(forItemAt: itemIndex, layout: layout) else { continue }
+            rowRect = rowRect?.union(itemRect) ?? itemRect
+        }
+
+        return rowRect ?? contentRect(from: row.frame)
     }
 
     private func beginDrag(blockIndex: Int, event: NSEvent) {
@@ -817,27 +897,19 @@ final class NotebookBlocksController: NSViewController {
                 let insertBefore = locationInCollection.x < (hoveredAttrs?.frame.midX ?? 0)
                 let targetIndex = insertBefore ? hoveredItemIndex : min(hoveredItemIndex + 1, row.endIndex + 1)
 
-                sourceBlock.notebookInline = true
-                dataController.moveBlock(from: sourceIndex, to: targetIndex)
-
-                let updatedBlocks = dataController.blocks
-                if let newIdx = updatedBlocks.firstIndex(where: { $0.id == sourceBlock.id }) {
-                    var rowStart = newIdx
-                    while rowStart > 0, updatedBlocks[rowStart].notebookInline {
-                        rowStart -= 1
-                    }
-                    var rowEnd = rowStart
-                    while rowEnd + 1 < updatedBlocks.count, updatedBlocks[rowEnd + 1].notebookInline {
-                        rowEnd += 1
-                    }
-                    for i in rowStart...rowEnd {
-                        updatedBlocks[i].notebookInline = (i != rowStart)
-                    }
+                if targetIndex == row.startIndex {
+                    sourceBlock.notebookInline = false
+                    blocks[row.startIndex].notebookInline = true
+                } else {
+                    sourceBlock.notebookInline = true
                 }
+                dataController.moveBlock(from: sourceIndex, to: targetIndex)
             }
         }
 
         let newIds = dataController.blocks.map(\.id)
+
+        cleanupDrag()
 
         collectionView.performBatchUpdates {
             var working = oldIds
@@ -855,10 +927,11 @@ final class NotebookBlocksController: NSViewController {
         } completionHandler: { [weak self] _ in
             guard let self else { return }
             self.previousBlockIds = newIds
-            self.invalidateLayoutAndHeight()
+            self.collectionView.collectionViewLayout?.invalidateLayout()
+            self.collectionView.layoutSubtreeIfNeeded()
+            self.updateCollectionHeight()
+            self.loadVisibleBlockData()
         }
-
-        cleanupDrag()
     }
 
     private func promoteNextInlineBlock(after sourceIndex: Int, in blocks: [NotebookBlock]) {
@@ -871,9 +944,20 @@ final class NotebookBlocksController: NSViewController {
     }
 
     private func cleanupDrag() {
+        var needsLayoutReset = false
         if let layout = collectionView.collectionViewLayout as? NotebookGridLayout {
-            layout.insertRowGapBeforeIndex = nil
+            if layout.insertRowGapBeforeIndex != nil {
+                layout.insertRowGapBeforeIndex = nil
+                needsLayoutReset = true
+            }
+            if layout.insertBarBeforeRowIndex != nil {
+                layout.insertBarBeforeRowIndex = nil
+                needsLayoutReset = true
+            }
         }
+        expandedGapIndex = nil
+        inlineActionBar?.removeFromSuperview()
+        inlineActionBar = nil
 
         if let sourceIndex = dragController.dragSourceIndex,
            let item = collectionView.item(at: IndexPath(item: sourceIndex, section: 0)) {
@@ -892,6 +976,12 @@ final class NotebookBlocksController: NSViewController {
 
         actionBarContainer.isHidden = false
         insertionIndicators.forEach { $0.isHidden = false }
+
+        if needsLayoutReset {
+            collectionView.collectionViewLayout?.invalidateLayout()
+            collectionView.layoutSubtreeIfNeeded()
+            updateCollectionHeight()
+        }
     }
 
     // MARK: - Drop Intent
@@ -960,7 +1050,6 @@ final class NotebookBlocksController: NSViewController {
         var closest = row.endIndex
         var closestDist = CGFloat.greatestFiniteMagnitude
         for i in row.startIndex...row.endIndex {
-            guard i != dragController.dragSourceIndex else { continue }
             guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
             if x >= attrs.frame.minX, x <= attrs.frame.maxX {
                 return i
@@ -1040,18 +1129,18 @@ final class NotebookBlocksController: NSViewController {
             let sourceRowIndex = self.rowIndex(containing: sourceIndex, in: rows)
             let isSameRow = sourceRowIndex == rowIndex
 
-            dimOverlayLayer?.frame = contentRect(from: row.frame)
+            dimOverlayLayer?.frame = contentRect(for: row, layout: layout)
             dimOverlayLayer?.isHidden = false
 
             if isSameRow {
                 addItemHighlights(row: row, layout: layout)
 
-                guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else {
+                guard let hoveredRect = contentRect(forItemAt: hoveredItemIndex, layout: layout) else {
                     indicator.isHidden = true
                     break
                 }
 
-                let rect = contentRect(from: attrs.frame).insetBy(dx: -0.5, dy: -0.5)
+                let rect = hoveredRect.insetBy(dx: -0.5, dy: -0.5)
                 BlockDragController.applyDashedStyle(to: indicator, rect: rect, fillAlpha: 0.06, strokeAlpha: 0.35)
                 indicator.isHidden = false
             } else {
@@ -1066,10 +1155,13 @@ final class NotebookBlocksController: NSViewController {
     private func addItemHighlights(row: NotebookRowInfo, layout: NotebookGridLayout) {
         for i in row.startIndex...row.endIndex {
             guard i != dragController.dragSourceIndex else { continue }
-            guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
+            guard let rect = contentRect(forItemAt: i, layout: layout) else { continue }
 
-            let rect = contentRect(from: attrs.frame).insetBy(dx: -0.5, dy: -0.5)
-            let shape = BlockDragController.makeDashedShape(rect: rect, fillAlpha: nil, strokeAlpha: 0.25)
+            let shape = BlockDragController.makeDashedShape(
+                rect: rect.insetBy(dx: -0.5, dy: -0.5),
+                fillAlpha: nil,
+                strokeAlpha: 0.25
+            )
             collectionView.layer?.addSublayer(shape)
             itemHighlightLayers.append(shape)
         }
@@ -1096,11 +1188,12 @@ final class NotebookBlocksController: NSViewController {
         }
 
         let insets = layout.sectionInsets
+        let rowContentRect = contentRect(for: row, layout: layout)
         let containerRect = NSRect(
             x: insets.left,
-            y: row.frame.minY + Self.titleOffset,
+            y: rowContentRect.minY,
             width: collectionView.bounds.width - insets.left - insets.right,
-            height: row.frame.height - Self.titleOffset - Self.resizeHandleHeight
+            height: rowContentRect.height
         )
 
         let shapes = BlockDragController.divisionPreviewShapes(columns: columns, containerRect: containerRect)
@@ -1146,16 +1239,16 @@ extension NotebookBlocksController: NSCollectionViewDataSource {
             let item = collectionView.makeItem(withIdentifier: NotebookChartItem.identifier, for: indexPath) as! NotebookChartItem
             let controller = blockController(for: block) as! ChartBlockController
             item.configure(block: block, controller: controller)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item)
             wireMenuCallback(on: item, block: block)
-            wireRunCallback(on: item) { await controller.viewModel.fetchChartData() }
+            wireRunCallback(on: item) { await controller.viewModel.runChart() }
             return item
 
         case .text:
             let item = collectionView.makeItem(withIdentifier: NotebookTextItem.identifier, for: indexPath) as! NotebookTextItem
             let controller = blockController(for: block) as! TextBlockController
             item.configure(block: block, controller: controller)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item)
             wireMenuCallback(on: item, block: block)
             return item
 
@@ -1163,7 +1256,7 @@ extension NotebookBlocksController: NSCollectionViewDataSource {
             let item = collectionView.makeItem(withIdentifier: NotebookSingleValueItem.identifier, for: indexPath) as! NotebookSingleValueItem
             let controller = blockController(for: block) as! SingleValueBlockController
             item.configure(block: block, controller: controller)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item)
             wireMenuCallback(on: item, block: block)
             wireRunCallback(on: item) { await controller.viewModel.fetchSingleValue() }
             item.onConfigTapped = { [weak self, weak item] sender in
@@ -1189,7 +1282,7 @@ extension NotebookBlocksController: NSCollectionViewDataSource {
             let item = collectionView.makeItem(withIdentifier: NotebookQueryItem.identifier, for: indexPath) as! NotebookQueryItem
             let controller = blockController(for: block) as! QueryBlockController
             item.configure(block: block, controller: controller)
-            wireItemCallbacks(on: item, at: indexPath.item)
+            wireItemCallbacks(on: item)
             wireMenuCallback(on: item, block: block)
             wireRunCallback(on: item) { await controller.viewModel.executeQuery() }
             return item

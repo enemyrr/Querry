@@ -87,7 +87,7 @@ final class DashboardGridController: NSViewController {
         let layout = DashboardGridLayout()
         layout.dataController = dataController
 
-        collectionView = NSCollectionView()
+        collectionView = NonRecyclingCollectionView()
         collectionView.collectionViewLayout = layout
         collectionView.dataSource = self
         collectionView.backgroundColors = [.clear]
@@ -287,31 +287,48 @@ final class DashboardGridController: NSViewController {
         case insertInRow(rowIndex: Int, hoveredItemIndex: Int)
     }
 
-    private func wireItemCallbacks(on item: DashboardBaseItem, at index: Int, block: NotebookBlock) {
+    private func wireItemCallbacks(on item: DashboardBaseItem, block: NotebookBlock) {
         item.onResize = { [weak self] block, newHeight in
             self?.handleBlockResize(block: block, newHeight: newHeight)
         }
         item.onWidthResize = { [weak self] block, delta in
             self?.handleBlockWidthResize(block: block, delta: delta)
         }
-        item.onDragBegan = { [weak self] event in self?.beginDrag(itemIndex: index, event: event) }
+        item.onDragBegan = { [weak self, weak item] event in
+            guard let self, let item, let index = self.currentItemIndex(for: item) else { return }
+            self.beginDrag(itemIndex: index, event: event)
+        }
         item.onDragMoved = { [weak self] event in self?.updateDrag(event: event) }
         item.onDragEnded = { [weak self] event in self?.endDrag(event: event) }
+        item.onDragCancelled = { [weak self] in self?.cleanupDrag() }
         item.onToggleDashboardVisibility = { [weak self] in
             self?.dataController.toggleBlockDashboardVisibility(block)
         }
+    }
+
+    private func currentItemIndex(for item: DashboardBaseItem) -> Int? {
+        guard let blockID = item.currentBlock?.id else { return nil }
+        return dataController.cachedDashboardBlocks.firstIndex { $0.id == blockID }
     }
 
     private func beginDrag(itemIndex: Int, event: NSEvent) {
         guard !dataController.isDashboardPublished, !dataController.isPublishPreviewing else { return }
 
         let block = dataController.cachedDashboardBlocks[itemIndex]
+        let previewFrame: NSRect?
+        if block.blockType == .singleValue,
+           let layout = collectionView.collectionViewLayout as? DashboardGridLayout {
+            previewFrame = contentRect(forItemAt: itemIndex, layout: layout)
+        } else {
+            previewFrame = nil
+        }
         dragController.beginDrag(
             sourceIndex: itemIndex,
             block: block,
             event: event,
             snapshotContainer: collectionView,
-            dimContainer: collectionView
+            dimContainer: collectionView,
+            previewFrame: previewFrame
         )
 
         if let item = collectionView.item(at: itemIndex) {
@@ -351,6 +368,33 @@ final class DashboardGridController: NSViewController {
         )
     }
 
+    private func contentRect(forItemAt itemIndex: Int, layout: DashboardGridLayout) -> NSRect? {
+        if let item = collectionView.item(at: itemIndex) as? DashboardBaseItem {
+            return item.blockContainer.convert(item.blockContainer.bounds, to: collectionView)
+        }
+
+        guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: itemIndex, section: 0)) else {
+            return nil
+        }
+
+        return contentRect(from: attrs.frame)
+    }
+
+    private func contentRect(for row: DashboardRowInfo, layout: DashboardGridLayout) -> NSRect {
+        var rowRect: NSRect?
+
+        for itemIndex in row.startIndex...row.endIndex {
+            guard let itemRect = contentRect(forItemAt: itemIndex, layout: layout) else { continue }
+            rowRect = rowRect?.union(itemRect) ?? itemRect
+        }
+
+        if let rowRect {
+            return rowRect
+        }
+
+        return contentRect(from: row.frame)
+    }
+
     private func applyDashedStyle(
         to shape: CAShapeLayer,
         rect: NSRect,
@@ -376,10 +420,9 @@ final class DashboardGridController: NSViewController {
         for i in 0..<dataController.cachedDashboardBlocks.count {
             guard i != dragController.dragSourceIndex else { continue }
             if let only = onlyRange, !only.contains(i) { continue }
-            guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: i, section: 0)) else { continue }
+            guard let rect = contentRect(forItemAt: i, layout: layout) else { continue }
 
-            let rect = contentRect(from: attrs.frame).insetBy(dx: -0.5, dy: -0.5)
-            let shape = makeDashedShape(rect: rect, fillAlpha: nil, strokeAlpha: 0.25)
+            let shape = makeDashedShape(rect: rect.insetBy(dx: -0.5, dy: -0.5), fillAlpha: nil, strokeAlpha: 0.25)
             collectionView.layer?.addSublayer(shape)
             itemHighlightLayers.append(shape)
         }
@@ -674,19 +717,23 @@ final class DashboardGridController: NSViewController {
             let sourceRowIndex = self.rowIndex(containing: sourceIndex, in: rows)
             let isSameRow = sourceRowIndex == rowIndex
 
-            dimOverlayLayer?.frame = contentRect(from: row.frame)
+            dimOverlayLayer?.frame = contentRect(for: row, layout: layout)
             dimOverlayLayer?.isHidden = false
 
             if isSameRow {
                 addItemHighlights(onlyRange: row.startIndex...row.endIndex)
 
-                guard let attrs = layout.layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else {
+                guard let hoveredRect = contentRect(forItemAt: hoveredItemIndex, layout: layout) else {
                     indicator.isHidden = true
                     break
                 }
 
-                let rect = contentRect(from: attrs.frame).insetBy(dx: -0.5, dy: -0.5)
-                applyDashedStyle(to: indicator, rect: rect, fillAlpha: 0.06, strokeAlpha: 0.35)
+                applyDashedStyle(
+                    to: indicator,
+                    rect: hoveredRect.insetBy(dx: -0.5, dy: -0.5),
+                    fillAlpha: 0.06,
+                    strokeAlpha: 0.35
+                )
                 indicator.isHidden = false
             } else {
                 indicator.isHidden = true
@@ -698,8 +745,10 @@ final class DashboardGridController: NSViewController {
     }
 
     private func showDivisionPreview(row: DashboardRowInfo, hoveredItemIndex: Int, insets: NSEdgeInsets) {
-        guard let hoveredAttrs = (collectionView.collectionViewLayout as? DashboardGridLayout)?
-            .layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else { return }
+        guard let layout = collectionView.collectionViewLayout as? DashboardGridLayout,
+              let hoveredAttrs = layout.layoutAttributesForItem(at: IndexPath(item: hoveredItemIndex, section: 0)) else {
+            return
+        }
 
         let insertBefore = dragController.lastDragPoint.x < hoveredAttrs.frame.midX
         let insertionCol = insertBefore
@@ -717,11 +766,12 @@ final class DashboardGridController: NSViewController {
             columns.append(.init(fraction: fraction, isInsertionTarget: col == insertionCol))
         }
 
+        let rowContentRect = contentRect(for: row, layout: layout)
         let containerRect = NSRect(
             x: insets.left,
-            y: row.frame.minY + Self.titleOffset,
+            y: rowContentRect.minY,
             width: collectionView.bounds.width - insets.left - insets.right,
-            height: row.frame.height - Self.titleOffset - Self.resizeOffset
+            height: rowContentRect.height
         )
 
         let shapes = BlockDragController.divisionPreviewShapes(columns: columns, containerRect: containerRect)
@@ -751,20 +801,20 @@ extension DashboardGridController: NSCollectionViewDataSource {
             let vm = dataController.chartViewModel(for: block)
             vm.loadDataIfNeeded()
             item.configure(block: block, viewModel: vm, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item, block: block)
-            item.onRun = { Task { await vm.fetchChartData() } }
+            wireItemCallbacks(on: item, block: block)
+            item.onRun = { Task { await vm.runChart() } }
             return item
         case .text:
             let item = collectionView.makeItem(withIdentifier: DashboardTextItem.identifier, for: indexPath) as! DashboardTextItem
             item.configure(block: block, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item, block: block)
+            wireItemCallbacks(on: item, block: block)
             return item
         case .singleValue:
             let item = collectionView.makeItem(withIdentifier: DashboardSingleValueItem.identifier, for: indexPath) as! DashboardSingleValueItem
             let vm = dataController.singleValueViewModel(for: block)
             vm.loadDataIfNeeded()
             item.configure(block: block, viewModel: vm, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item, block: block)
+            wireItemCallbacks(on: item, block: block)
             item.onRun = { Task { await vm.fetchSingleValue() } }
             return item
         case .query:
@@ -772,7 +822,7 @@ extension DashboardGridController: NSCollectionViewDataSource {
             let vm = dataController.queryViewModel(for: block)
             vm.loadDataIfNeeded()
             item.configure(block: block, viewModel: vm, isPublished: published)
-            wireItemCallbacks(on: item, at: indexPath.item, block: block)
+            wireItemCallbacks(on: item, block: block)
             item.onRun = { Task { await vm.executeQuery() } }
             return item
         }

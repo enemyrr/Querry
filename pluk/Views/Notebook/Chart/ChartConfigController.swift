@@ -76,6 +76,13 @@ final class ChartConfigController: NSViewController {
         if viewModel.config == nil {
             splitView.isHidden = true
             setupConnectionPicker()
+        } else {
+            if viewModel.schemaResult == nil
+                || (viewModel.config?.sourceQueryBlockId == nil && viewModel.availableCollections.isEmpty) {
+                viewModel.reloadConfig()
+            }
+            updateConnectionState()
+            refreshConfigUI()
         }
 
         observeConfig()
@@ -214,9 +221,20 @@ final class ChartConfigController: NSViewController {
                     self.dismissConnectionPicker()
                 }
                 self.updateConnectionState()
+                self.refreshConfigUI()
                 self.observeConfig()
             }
         }
+    }
+
+    private func refreshConfigUI() {
+        chartTypeButton?.updateSelection(viewModel.config?.chartType ?? .groupedColumn)
+        rebuildTableDropdown()
+        updateSchemaVisibility()
+        updateEnvironmentVisibility()
+        rebuildFieldsList()
+        rebuildAxisFields()
+        rebuildFilterPills()
     }
 
     // MARK: - Split View
@@ -1024,7 +1042,8 @@ final class ChartConfigController: NSViewController {
 
     private func observeCollections() {
         withObservationTracking {
-            _ = self.viewModel.availableCollections.count
+            _ = self.viewModel.availableCollections.map(\.name)
+            _ = self.viewModel.config?.tableName
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -1036,7 +1055,8 @@ final class ChartConfigController: NSViewController {
 
     private func observeSchemas() {
         withObservationTracking {
-            _ = self.viewModel.availableSchemas.count
+            _ = self.viewModel.availableSchemas.map(\.name)
+            _ = self.viewModel.selectedPickerSchema
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -1048,7 +1068,7 @@ final class ChartConfigController: NSViewController {
 
     private func observeEnvironments() {
         withObservationTracking {
-            _ = self.viewModel.availableEnvironments.count
+            _ = self.viewModel.availableEnvironments
             _ = self.viewModel.selectedEnvironment
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in

@@ -63,6 +63,12 @@ NotebookViewController (root)
 - Do NOT create NotebookBlock without setting `sortOrder` — blocks will overlap
 - Do NOT directly mutate `configJSON` — use the view model's `persistConfig()` method
 - Do NOT forget to call `cleanupSession()` on chart removal — leaks database connections
+- Do NOT infer the head of an inline single-value row after a cross-row move. When inserting at the start of an existing row, explicitly make the dragged block the row head and flip the old head to inline, or drag/drop will appear to snap into the wrong row.
+- Do NOT align block insertion UI against raw collection row frames. Notebook rows include non-content chrome (title area and, for most block types, resize-handle space), so `Add new` indicators and inline insertion bars must be centered against the visible block surfaces/gaps or they will look vertically off.
+- Do NOT size notebook same-row drag outlines or row division previews from raw `NotebookGridLayout` frames when the item is live. Use `NotebookBaseItem.blockContainer` for the visible card surface; the layout frame still includes notebook chrome and makes the dashed target read slightly short.
+- Do NOT size dashboard drag previews or same-row drop outlines from raw `NSCollectionViewLayoutAttributes.frame` when the item is live. Use `DashboardBaseItem.blockContainer` for the visible card frame; the collection item frame includes title/handle chrome and makes the dashed target look shorter than the card.
+- Do NOT capture `indexPath.item` into collection-item drag callbacks and assume it stays correct after `moveItem`. Resolve the source block/index from the item's current block ID at drag start, or reordered drags can move the wrong block.
+- Do NOT leave notebook drag cleanup with `insertRowGapBeforeIndex` or `insertBarBeforeRowIndex` still set. Those transient layout flags can shift the first row down and leave a fake blank gap with an `Add new` indicator after the drop. Clear the flags, invalidate layout, and only fall back to a full reload if the hosting path is already known-safe.
 
 ## Downlinks
 

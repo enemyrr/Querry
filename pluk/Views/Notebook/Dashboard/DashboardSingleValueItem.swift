@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 final class DashboardSingleValueItem: DashboardBaseItem {
 
@@ -7,26 +6,45 @@ final class DashboardSingleValueItem: DashboardBaseItem {
 
     override var minimumContentHeight: CGFloat { 120 }
 
-    private var hostingView: NSHostingView<AnyView>?
+    private var displayView: SingleValueDisplayView?
+    private var currentBlockId: UUID?
 
     func configure(block: NotebookBlock, viewModel: SingleValueBlockViewModel, isPublished: Bool = false) {
         configureBase(block: block, isPublished: isPublished)
 
-        let content = SingleValueContentView(viewModel: viewModel, title: titleLabel.stringValue)
-        if let existing = hostingView {
-            existing.rootView = AnyView(content)
+        let blockChanged = currentBlockId != block.id
+        currentBlockId = block.id
+
+        if blockChanged {
+            displayView?.removeFromSuperview()
+            displayView = nil
+        }
+
+        if let existing = displayView {
+            existing.updateFallbackLabel(titleLabel.stringValue)
         } else {
-            let hosting = NSHostingView(rootView: AnyView(content))
-            hosting.translatesAutoresizingMaskIntoConstraints = false
-            blockContainer.addSubview(hosting)
-            hostingView = hosting
+            let display = SingleValueDisplayView(
+                viewModel: viewModel,
+                fallbackLabel: titleLabel.stringValue,
+                isLabelEditable: false
+            )
+            display.translatesAutoresizingMaskIntoConstraints = false
+            blockContainer.addSubview(display)
+            displayView = display
 
             NSLayoutConstraint.activate([
-                hosting.topAnchor.constraint(equalTo: blockContainer.topAnchor),
-                hosting.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
-                hosting.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
-                hosting.bottomAnchor.constraint(equalTo: blockContainer.bottomAnchor),
+                display.topAnchor.constraint(equalTo: blockContainer.topAnchor),
+                display.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
+                display.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
+                display.bottomAnchor.constraint(equalTo: blockContainer.bottomAnchor),
             ])
         }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        displayView?.removeFromSuperview()
+        displayView = nil
+        currentBlockId = nil
     }
 }

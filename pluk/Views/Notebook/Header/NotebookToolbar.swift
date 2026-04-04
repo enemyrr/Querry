@@ -1,5 +1,11 @@
 import AppKit
 
+private enum NotebookToolbarMetrics {
+    static let legacySegmentCornerRadius: CGFloat = 10
+    static let legacySegmentHighlightCornerRadius: CGFloat = 7
+    static let legacySegmentButtonMinHeight: CGFloat = 28
+}
+
 final class NotebookToolbarController: NSViewController {
 
     private let dataController: NotebookDataController
@@ -141,7 +147,7 @@ final class NotebookToolbarController: NSViewController {
     private func setupCustomSegment() {
         let container = NSView()
         container.wantsLayer = true
-        container.layer?.cornerRadius = 6
+        container.layer?.cornerRadius = NotebookToolbarMetrics.legacySegmentCornerRadius
         container.translatesAutoresizingMaskIntoConstraints = false
         normalToolbar.addSubview(container)
         segmentContainer = container
@@ -150,7 +156,7 @@ final class NotebookToolbarController: NSViewController {
 
         let highlight = NSView()
         highlight.wantsLayer = true
-        highlight.layer?.cornerRadius = 4
+        highlight.layer?.cornerRadius = NotebookToolbarMetrics.legacySegmentHighlightCornerRadius
         highlight.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(highlight)
         segmentHighlight = highlight
@@ -195,7 +201,7 @@ final class NotebookToolbarController: NSViewController {
         (button.cell as? NSButtonCell)?.highlightsBy = []
         button.contentTintColor = .secondaryLabelColor
         button.widthAnchor.constraint(greaterThanOrEqualToConstant: 80).isActive = true
-        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 24).isActive = true
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: NotebookToolbarMetrics.legacySegmentButtonMinHeight).isActive = true
         return button
     }
 

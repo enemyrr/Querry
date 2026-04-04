@@ -33,7 +33,7 @@ struct FloatingActionBar: View {
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     
-    @State private var containerWidth: CGFloat = 379
+    @State private var containerWidth: CGFloat = 416
     @State var showQueryEditor: Bool = false
     @State var showCreateDocumentSheet: Bool = false
     @State var filter: String = ""
@@ -357,6 +357,9 @@ struct FloatingActionBar: View {
             withAnimation(.spring(response: 0.3)) {
                 action = .main
             }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
         }
         .onAppear {
             setupEventMonitor()
@@ -684,4 +687,3 @@ enum ActionBar: String, CaseIterable, Codable {
     case create = "create"
     case commandPalette = "commandPalette"
 }
-

@@ -8,10 +8,14 @@ struct NotebookRowInfo {
 
 final class NotebookGridLayout: NSCollectionViewLayout {
 
+    private static let standardRowTopInset: CGFloat = 29
+    private static let singleValueRowTopInset: CGFloat = 16
+    private static let firstInsertBarGapHeight: CGFloat = 60
+
     weak var dataController: NotebookDataController?
 
-    var sectionInsets = NSEdgeInsets(top: 16, left: 20, bottom: 32, right: 20)
-    var lineSpacing: CGFloat = 16
+    var sectionInsets = NSEdgeInsets(top: 32, left: 20, bottom: 32, right: 20)
+    var lineSpacing: CGFloat = 48
 
     var insertRowGapBeforeIndex: Int?
     var insertRowGapHeight: CGFloat = 60
@@ -24,6 +28,17 @@ final class NotebookGridLayout: NSCollectionViewLayout {
     private(set) var cachedRows: [NotebookRowInfo] = []
     private(set) var insertGapFrame: NSRect?
     private(set) var insertBarFrame: NSRect?
+
+    private func rowBottomInset(for row: [NotebookBlock]) -> CGFloat {
+        row.allSatisfy { $0.blockType == .singleValue } ? 0 : 12
+    }
+
+    private func rowTopInset(for row: [NotebookBlock]) -> CGFloat {
+        guard !row.isEmpty else { return 0 }
+        return row.allSatisfy { $0.blockType == .singleValue }
+            ? Self.singleValueRowTopInset
+            : Self.standardRowTopInset
+    }
 
     override func prepare() {
         super.prepare()
@@ -58,8 +73,29 @@ final class NotebookGridLayout: NSCollectionViewLayout {
             }
 
             if rowIndex == insertBarBeforeRowIndex {
-                insertBarFrame = NSRect(x: sectionInsets.left, y: yOffset, width: availableWidth, height: insertBarHeight)
-                yOffset += insertBarHeight
+                let existingGapHeight: CGFloat
+                let gapTop: CGFloat
+
+                if rowIndex == 0 {
+                    existingGapHeight = sectionInsets.top
+                    gapTop = 0
+                } else {
+                    let previousRow = rows[rowIndex - 1]
+                    let previousBottomInset = rowBottomInset(for: previousRow)
+                    let currentTopInset = rowTopInset(for: row)
+                    existingGapHeight = lineSpacing + previousBottomInset + currentTopInset
+                    gapTop = yOffset - lineSpacing - previousBottomInset
+                }
+
+                let desiredGapHeight: CGFloat
+                if rowIndex == 0 {
+                    desiredGapHeight = max(Self.firstInsertBarGapHeight, insertBarHeight)
+                } else {
+                    desiredGapHeight = max(existingGapHeight, insertBarHeight)
+                }
+                let additionalGapHeight = desiredGapHeight - existingGapHeight
+                insertBarFrame = NSRect(x: sectionInsets.left, y: gapTop, width: availableWidth, height: desiredGapHeight)
+                yOffset += additionalGapHeight
             }
 
             let rowStartIndex = globalIndex

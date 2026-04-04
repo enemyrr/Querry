@@ -10,6 +10,18 @@ import CodeEditorView
 import LanguageSupport
 import PostHog
 
+private enum ResultsPillTabBarMetrics {
+    static let outerCornerRadius = ToolbarIslandMetrics.cornerRadius
+    static let innerCornerRadius = ToolbarIslandMetrics.innerCornerRadius
+    static let legacyOuterHeight: CGFloat = 32
+    static let legacyButtonHeight: CGFloat = 28
+    static let containerPadding: CGFloat = 2
+    static let horizontalPadding: CGFloat = 14
+    static let labelSpacing: CGFloat = 4
+    static let selectionAnimation = Animation.timingCurve(0.2, 0.8, 0.2, 1.0, duration: 0.3)
+    static let hoverAnimation = Animation.easeOut(duration: 0.15)
+}
+
 struct SQLEditorView: View {
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) var colorScheme
@@ -427,12 +439,29 @@ struct SQLEditorView: View {
 }
 
 struct ResultsPillTabBar: View {
+    @Environment(\.colorScheme) private var colorScheme
     let results: [QueryResult]
     @Binding var selectedIndex: Int
     @Namespace private var animation
 
     var body: some View {
-        HStack(spacing: 2) {
+        Group {
+            if #available(macOS 26, *) {
+                tabContainer
+                    .glassEffect(
+                        .regular.tint(Color(.controlColor).opacity(0.15)),
+                        in: .rect(cornerRadius: ResultsPillTabBarMetrics.outerCornerRadius)
+                    )
+            } else {
+                tabContainer
+                    .background(legacyContainerFill)
+            }
+        }
+        .clipShape(.rect(cornerRadius: ResultsPillTabBarMetrics.outerCornerRadius))
+    }
+
+    private var tabContainer: some View {
+        HStack(spacing: 0) {
             ForEach(results.indices, id: \.self) { index in
                 ResultPillTab(
                     index: index,
@@ -440,25 +469,27 @@ struct ResultsPillTabBar: View {
                     isSelected: selectedIndex == index,
                     animation: animation,
                     onSelect: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0)) {
+                        withAnimation(ResultsPillTabBarMetrics.selectionAnimation) {
                             selectedIndex = index
                         }
                     }
                 )
             }
         }
-        .padding(3)
-        .background(Color(.separatorColor).opacity(0.3))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator, lineWidth: 0.5)
-        )
-        .clipShape(.rect(cornerRadius: 8))
+        .padding(ResultsPillTabBarMetrics.containerPadding)
+        .frame(minHeight: ResultsPillTabBarMetrics.legacyOuterHeight)
+    }
+
+    private var legacyContainerFill: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.2)
+            : Color.black.opacity(0.04)
     }
 }
 
 struct ResultPillTab: View {
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
     let index: Int
     let rowCount: Int
     let isSelected: Bool
@@ -467,9 +498,9 @@ struct ResultPillTab: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 4) {
+            HStack(spacing: ResultsPillTabBarMetrics.labelSpacing) {
                 Text("Result \(index + 1)")
-                    .font(.system(size: 11, weight: isSelected ? .medium : .regular))
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
 
                 Text("(\(rowCount))")
@@ -477,20 +508,57 @@ struct ResultPillTab: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
+            .padding(.horizontal, ResultsPillTabBarMetrics.horizontalPadding)
             .foregroundStyle(isSelected ? .primary : .secondary)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(.controlColor).opacity(colorScheme == .dark ? 0.8 : 1))
-                        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                        .matchedGeometryEffect(id: "pill", in: animation)
-                }
-            }
-            .contentShape(.rect(cornerRadius: 6))
+            .frame(minHeight: ResultsPillTabBarMetrics.legacyButtonHeight)
+            .background(selectionBackground)
+            .contentShape(.rect(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius))
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(ResultsPillTabBarMetrics.hoverAnimation) {
+                isHovering = hovering
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var selectionBackground: some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius, style: .continuous)
+                .fill(selectedFill)
+                .shadow(color: selectedShadowColor, radius: 1, x: 0, y: 0)
+                .matchedGeometryEffect(id: "pill", in: animation)
+        } else if #available(macOS 26, *), isHovering {
+            RoundedRectangle(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius, style: .continuous)
+                .fill(hoverFill)
+        }
+    }
+
+    private var selectedFill: Color {
+        if #available(macOS 26, *) {
+            return colorScheme == .dark
+                ? Color(white: 0.22)
+                : Color(white: 0.898)
+        }
+
+        return colorScheme == .dark
+            ? Color(.controlColor).opacity(0.3)
+            : .white
+    }
+
+    private var hoverFill: Color {
+        colorScheme == .dark
+            ? Color(white: 0.17)
+            : Color(white: 0.949)
+    }
+
+    private var selectedShadowColor: Color {
+        if #available(macOS 26, *) {
+            return .clear
+        }
+
+        return .black.opacity(0.10)
     }
 }
 

@@ -11,7 +11,7 @@ final class DashboardGridLayout: NSCollectionViewLayout {
     weak var dataController: NotebookDataController?
 
     var sectionInsets = NSEdgeInsets(top: 8, left: 20, bottom: 32, right: 20)
-    var lineSpacing: CGFloat = 16
+    var lineSpacing: CGFloat = 48
     var interitemSpacing: CGFloat = 12
     var handleWidth: CGFloat = 12
 

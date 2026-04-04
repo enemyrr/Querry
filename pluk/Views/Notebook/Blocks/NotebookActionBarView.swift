@@ -115,6 +115,11 @@ final class NotebookActionBarView: NSView {
         }
         onDidInsert?()
     }
+
+    func containsInteractiveArea(windowPoint: NSPoint) -> Bool {
+        let pointInChrome = chromeView.convert(windowPoint, from: nil)
+        return chromeView.bounds.contains(pointInChrome)
+    }
 }
 
 private final class NotebookActionBarChromeView: NSView {
@@ -356,16 +361,16 @@ final class BlockInsertionIndicatorView: NSView {
         NSLayoutConstraint.activate([
             leftLine.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
             leftLine.trailingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: -6),
-            leftLine.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            leftLine.centerYAnchor.constraint(equalTo: centerYAnchor),
             leftLine.heightAnchor.constraint(equalToConstant: 1),
 
             rightLine.leadingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: 6),
             rightLine.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-            rightLine.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            rightLine.centerYAnchor.constraint(equalTo: centerYAnchor),
             rightLine.heightAnchor.constraint(equalToConstant: 1),
 
             chrome.centerXAnchor.constraint(equalTo: centerXAnchor),
-            chrome.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 4),
+            chrome.centerYAnchor.constraint(equalTo: centerYAnchor),
             chrome.heightAnchor.constraint(equalToConstant: 26),
 
             contentStack.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 5),

@@ -20,6 +20,13 @@ final class AgentChatController {
     let engine = NotebookAgentEngine()
     private var streamingTask: Task<Void, Never>?
     private var reasoningStartTime: Date?
+    private var conversationSummary: String?
+    private var summarizedMessageCount = 0
+    private var cachedTotalCharacters = 0
+
+    private let summaryTriggerMessageCount = 18
+    private let recentMessageWindow = 10
+    private let summaryCharacterThreshold = 12_000
 
     init(notebookId: UUID, modelContainer: ModelContainer, notebookDataController: NotebookDataController) {
         self.notebookId = notebookId
@@ -57,6 +64,7 @@ final class AgentChatController {
         streamingTask = nil
         streamingParts = []
         isStreaming = false
+        resetConversationSummary()
         notebookDataController?.isAgentStreaming = false
 
         if let latest = chats.first {
@@ -120,6 +128,7 @@ final class AgentChatController {
         modelContainer.mainContext.insert(userMessage)
         save()
         messages.append(userMessage)
+        trackMessageCharacters(userMessage)
 
         isStreaming = true
         notebookDataController?.isAgentStreaming = true
@@ -135,6 +144,7 @@ final class AgentChatController {
             modelContainer.mainContext.insert(msg)
             save()
             messages.append(msg)
+            trackMessageCharacters(msg)
         }
         streamingParts = []
         isStreaming = false
@@ -151,6 +161,7 @@ final class AgentChatController {
             modelContainer.mainContext.delete(msg)
         }
         messages.removeSubrange(index...)
+        resetConversationSummary()
         save()
 
         isStreaming = true
@@ -174,10 +185,11 @@ final class AgentChatController {
         // Pre-fetch Convex deployments so the agent knows available environments
         await engine.prefetchConvexDeployments(connections: selectedConnections)
 
-        var anthropicMessages = buildAnthropicMessages()
         var accumulatedAssistantText = ""
 
         do {
+            try await refreshConversationSummaryIfNeeded()
+            var glmMessages = buildBedrockGLMMessages()
             var roundNumber = 0
 
             for _ in 0..<100 {
@@ -186,9 +198,10 @@ final class AgentChatController {
 
                 let currentBlocks = notebookDataController?.blocks ?? []
                 let round = try await engine.performRound(
-                    messages: anthropicMessages,
+                    messages: glmMessages,
                     connections: selectedConnections,
                     blocks: currentBlocks,
+                    conversationSummary: conversationSummary,
                     onToken: { [weak self] token in
                         self?.appendOrUpdateText(token)
                     },
@@ -208,60 +221,62 @@ final class AgentChatController {
                 accumulatedAssistantText += thinkingSerialized
                 accumulatedAssistantText += round.text
 
-                // Append assistant response to conversation for context
-                let assistantBlocks: [ContentBlock] = round.responseContent.compactMap { content in
-                    switch content {
-                    case .thinking(let text, let signature):
-                        return .thinking(text, signature: signature)
-                    case .text(let text):
-                        return .text(text)
-                    case .toolUse(let id, let name, let input):
-                        return .toolUse(
-                            id: id,
-                            name: name,
-                            input: NotebookAgentEngine.anyToJSONValues(input)
-                        )
-                    }
-                }
-                anthropicMessages.append(AnthropicMessage(role: .assistant, content: .blocks(assistantBlocks)))
+                glmMessages.append(round.assistantMessage)
 
-                // Execute tools and collect results
-                var toolResults: [ContentBlock] = []
-
+                // Show all tool calls as active in the UI and serialize inputs for display
+                var toolCallMeta: [(id: String, name: String, argumentsJSON: String)] = []
                 for toolCall in round.toolCalls {
-                    guard !Task.isCancelled else { break }
-
                     let argumentsJSON = serializeToolInput(toolCall.input)
                     let activeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: argumentsJSON)
                     appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeInfo.text, iconName: activeInfo.icon, round: roundNumber)
-                    try? await Task.sleep(for: .milliseconds(50))
+                    toolCallMeta.append((id: toolCall.id, name: toolCall.name, argumentsJSON: argumentsJSON))
+                }
 
-                    let result = await engine.executeToolCall(toolCall, connections: selectedConnections, blocks: currentBlocks)
+                // Execute all tool calls concurrently (Tasks inherit @MainActor)
+                let tasks = round.toolCalls.enumerated().map { (i, toolCall) in
+                    let blocks = currentBlocks
+                    let conns = selectedConnections
+                    return (index: i, task: Task {
+                        await engine.executeToolCall(toolCall, connections: conns, blocks: blocks)
+                    })
+                }
+                var toolResults: [(index: Int, result: String)] = []
+                for entry in tasks {
+                    let result = await entry.task.value
+                    toolResults.append((index: entry.index, result: result))
+                }
 
-                    for creation in engine.pendingBlockCreations {
-                        handleBlockCreation(creation)
-                    }
-                    if let infoUpdate = engine.pendingNotebookInfoUpdate {
-                        handleNotebookInfoUpdate(infoUpdate)
-                    }
-                    if let arrangement = engine.pendingDashboardArrangement {
-                        handleDashboardArrangement(arrangement)
-                    }
-                    engine.clearPendingCreations()
+                // Process side effects after all tools complete
+                for creation in engine.pendingBlockCreations {
+                    handleBlockCreation(creation)
+                }
+                if let infoUpdate = engine.pendingNotebookInfoUpdate {
+                    handleNotebookInfoUpdate(infoUpdate)
+                }
+                if let arrangement = engine.pendingDashboardArrangement {
+                    handleDashboardArrangement(arrangement)
+                }
+                engine.clearPendingCreations()
 
-                    let completeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: argumentsJSON)
-                    markToolCallComplete(id: toolCall.id, displayText: completeInfo.text)
+                // Build messages in original tool call order
+                for toolResult in toolResults {
+                    guard !Task.isCancelled else { break }
+
+                    let meta = toolCallMeta[toolResult.index]
+                    let completeInfo = ToolMetadata.displayInfo(for: meta.name, arguments: meta.argumentsJSON)
+                    markToolCallComplete(id: meta.id, displayText: completeInfo.text)
                     if !accumulatedAssistantText.isEmpty && !accumulatedAssistantText.hasSuffix("\n") {
                         accumulatedAssistantText += "\n"
                     }
-                    accumulatedAssistantText += "<tool_call name=\"\(toolCall.name)\">\(completeInfo.text)</tool_call>\n"
-                    try? await Task.sleep(for: .milliseconds(50))
+                    accumulatedAssistantText += "<tool_call name=\"\(meta.name)\">\(completeInfo.text)</tool_call>\n"
 
-                    toolResults.append(.toolResult(toolUseId: toolCall.id, content: result))
+                    glmMessages.append(BedrockGLMChatMessage(
+                        role: .tool,
+                        content: toolResult.result,
+                        toolCallId: meta.id,
+                        name: meta.name
+                    ))
                 }
-
-                // Append tool results as user message
-                anthropicMessages.append(AnthropicMessage(role: .user, content: .blocks(toolResults)))
             }
         } catch {
             if !Task.isCancelled {
@@ -281,6 +296,7 @@ final class AgentChatController {
             modelContainer.mainContext.insert(assistantMessage)
             save()
             messages.append(assistantMessage)
+            trackMessageCharacters(assistantMessage)
         }
 
         streamingParts = []
@@ -511,17 +527,24 @@ final class AgentChatController {
         }
     }
 
-    // MARK: - Message Building (Anthropic)
+    // MARK: - Message Building
 
-    private func buildAnthropicMessages() -> [AnthropicMessage] {
-        messages.compactMap { msg in
+    private func buildBedrockGLMMessages() -> [BedrockGLMChatMessage] {
+        let visibleMessages: ArraySlice<AgentMessage>
+        if conversationSummary != nil && summarizedMessageCount > 0 {
+            visibleMessages = messages.dropFirst(summarizedMessageCount)
+        } else {
+            visibleMessages = messages[...]
+        }
+
+        return visibleMessages.compactMap { msg in
             switch msg.role {
             case .user:
-                return AnthropicMessage(role: .user, content: .text(msg.content))
+                return BedrockGLMChatMessage(role: .user, content: msg.content)
             case .assistant:
                 let strippedContent = stripSerializedTags(from: msg.content)
                 guard !strippedContent.isEmpty else { return nil }
-                return AnthropicMessage(role: .assistant, content: .text(strippedContent))
+                return BedrockGLMChatMessage(role: .assistant, content: strippedContent)
             }
         }
     }
@@ -552,6 +575,99 @@ final class AgentChatController {
             .replacing(Self.thinkingTagRegex, with: "")
     }
 
+    private func refreshConversationSummaryIfNeeded() async throws {
+        guard shouldSummarizeConversation else { return }
+
+        let targetCount = max(0, messages.count - recentMessageWindow)
+        guard targetCount > summarizedMessageCount else { return }
+
+        let sourceMessages = Array(messages[summarizedMessageCount..<targetCount])
+        let transcript = buildTranscript(from: sourceMessages)
+        guard !transcript.isEmpty else {
+            summarizedMessageCount = targetCount
+            return
+        }
+
+        let systemPrompt = """
+        You maintain compact memory for Pluk AI notebook conversations.
+
+        Return plain text only under these headings:
+        Goals:
+        Database facts:
+        Notebook progress:
+        Open questions:
+        Constraints:
+
+        Rules:
+        1. Keep only durable facts that matter for future turns.
+        2. Preserve exact table names, column names, block titles, tool names, and connection names when they appear.
+        3. Preserve unresolved user requests and decisions already made.
+        4. Exclude chain-of-thought, temporary speculation, and conversational filler.
+        5. If a previous summary exists, merge it with the new transcript into one refreshed summary.
+        6. Keep the result concise and factual.
+        7. Use short bullet-style lines under each heading, not paragraphs.
+        8. If a name or value is uncertain, omit it rather than paraphrasing it.
+        """
+
+        let userPrompt = """
+        <previous_summary>
+        \(conversationSummary ?? "None")
+        </previous_summary>
+
+        <new_transcript>
+        \(transcript)
+        </new_transcript>
+        """
+
+        let summary = try await BedrockGLMService.shared.chatCompletion(
+            messages: [BedrockGLMChatMessage(role: .user, content: userPrompt)],
+            systemPrompt: systemPrompt,
+            maxTokens: 1200,
+            temperature: 0.1,
+            thinkingMode: .disabled
+        )
+
+        let normalizedSummary = summary.assistantMessage.content?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let normalizedSummary, !normalizedSummary.isEmpty {
+            conversationSummary = normalizedSummary
+            summarizedMessageCount = targetCount
+        }
+    }
+
+    private var shouldSummarizeConversation: Bool {
+        messages.count > summaryTriggerMessageCount || cachedTotalCharacters > summaryCharacterThreshold
+    }
+
+    private func trackMessageCharacters(_ message: AgentMessage) {
+        cachedTotalCharacters += normalizedMessageContent(for: message).count
+    }
+
+    private func buildTranscript(from messages: [AgentMessage]) -> String {
+        messages.compactMap { message in
+            let normalized = normalizedMessageContent(for: message)
+            guard !normalized.isEmpty else { return nil }
+            return "\(message.role == .user ? "User" : "Assistant"): \(normalized)"
+        }
+        .joined(separator: "\n")
+    }
+
+    private func normalizedMessageContent(for message: AgentMessage) -> String {
+        switch message.role {
+        case .user:
+            message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .assistant:
+            stripSerializedTags(from: message.content).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    private func resetConversationSummary() {
+        conversationSummary = nil
+        summarizedMessageCount = 0
+        cachedTotalCharacters = 0
+    }
+
     // MARK: - Persistence
 
     private func loadMessages(for chat: AgentChat) {
@@ -561,6 +677,8 @@ final class AgentChatController {
             sortBy: [SortDescriptor(\.createdAt)]
         )
         messages = (try? modelContainer.mainContext.fetch(descriptor)) ?? []
+        resetConversationSummary()
+        for msg in messages { trackMessageCharacters(msg) }
     }
 
     private func save() {

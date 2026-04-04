@@ -85,6 +85,8 @@ During config changes, live chart updates are paused:
 - `ChartBlockViewModel.persistConfig()` must be called to save changes to `block.configJSON`
 - Column classification: numeric types → measures, everything else → dimensions
 - Data capped at 160 points — `reduceChartData()` downsamples uniformly
+- `QueryRowInfo.value` is a `DatabaseValue`, not a raw `Double`/`String`; chart transforms must unwrap `DatabaseValue.doubleValue` / `description` or they will silently produce empty charts
+- Running a query-backed chart must rerun the upstream query block before remapping chart points; `fetchChartData()` alone only consumes the current cached query result
 
 ## Anti-Patterns
 
@@ -92,3 +94,4 @@ During config changes, live chart updates are paused:
 - Do NOT modify `block.configJSON` directly — use `ChartBlockViewModel.persistConfig()`
 - Do NOT skip the freeze mechanism during rapid config changes — causes UI jitter
 - Do NOT assume all columns are available — chart types have specific field requirements defined in `ChartType`
+- Do NOT refresh an existing chart block by only swapping `config` and rerunning `fetchChartData()`. The edit UI depends on reloading schema, table collections, and selected-field state as well; use the chart view model reload path so saved columns appear when reopening/editing a chart.

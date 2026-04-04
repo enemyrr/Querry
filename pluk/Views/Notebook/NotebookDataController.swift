@@ -277,7 +277,31 @@ final class NotebookDataController {
     }
 
     func queryResult(for blockId: UUID) -> QueryResult? {
-        queryViewModels[blockId]?.queryResult
+        if let liveResult = queryViewModels[blockId]?.queryResult {
+            return liveResult
+        }
+
+        guard let block = blocks.first(where: { $0.id == blockId && $0.blockType == .query }),
+              let cachedResult = block.cachedQueryData() else {
+            return nil
+        }
+
+        return cachedResult.toQueryResult()
+    }
+
+    func rerunQueryBlock(blockId: UUID) async -> QueryBlockViewModel? {
+        guard let block = blocks.first(where: { $0.id == blockId && $0.blockType == .query }) else {
+            return nil
+        }
+
+        let vm = queryViewModel(for: block)
+        guard let cfg = vm.config, !cfg.connectionKeychainId.isEmpty else {
+            await vm.executeQuery()
+            return vm
+        }
+
+        await vm.reconnectAndRefresh()
+        return vm
     }
 
     func queryBlockDidUpdate(blockId: UUID) {
@@ -377,10 +401,9 @@ final class NotebookDataController {
         save()
     }
 
-    func refreshChartViewModel(for blockId: UUID, config: ChartBlockConfig) {
+    func refreshChartViewModel(for blockId: UUID, config _: ChartBlockConfig) {
         guard let vm = chartViewModels[blockId] else { return }
-        vm.config = config
-        Task { await vm.fetchChartData() }
+        vm.reloadConfig()
     }
 
     func refreshSingleValueViewModel(for blockId: UUID) {

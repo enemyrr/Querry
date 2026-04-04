@@ -15,6 +15,7 @@ class NotebookBaseItem: NSCollectionViewItem {
     var onDragBegan: ((NSEvent) -> Void)?
     var onDragMoved: ((NSEvent) -> Void)?
     var onDragEnded: ((NSEvent) -> Void)?
+    var onDragCancelled: (() -> Void)?
     var onRun: (() -> Void)?
     var onMenuTapped: ((NSButton) -> Void)?
     var onConfigTapped: ((NSView) -> Void)?
@@ -25,6 +26,7 @@ class NotebookBaseItem: NSCollectionViewItem {
     private(set) var titleLabel: NSTextField!
     private(set) var blockContainer: NSView!
     private(set) var resizeHandle: BlockResizeHandle!
+    private var resizeHandleHeightConstraint: NSLayoutConstraint!
 
     private var actionBar: BlockActionBar!
 
@@ -91,6 +93,7 @@ class NotebookBaseItem: NSCollectionViewItem {
         actionBar.setConfigButtonHidden(!isSingleValue)
         actionBar.setDashboardHidden(block.isHiddenInDashboard)
         resizeHandle.isHidden = isSingleValue
+        resizeHandleHeightConstraint.constant = isSingleValue ? 0 : 12
 
         blockContainer.layer?.borderColor = borderColorForAppearance()
     }
@@ -105,6 +108,7 @@ class NotebookBaseItem: NSCollectionViewItem {
         dragHandle.onDragBegan = { [weak self] event in self?.onDragBegan?(event) }
         dragHandle.onDragMoved = { [weak self] event in self?.onDragMoved?(event) }
         dragHandle.onDragEnded = { [weak self] event in self?.onDragEnded?(event) }
+        dragHandle.onDragCancelled = { [weak self] in self?.onDragCancelled?() }
         view.addSubview(dragHandle)
     }
 
@@ -164,6 +168,8 @@ class NotebookBaseItem: NSCollectionViewItem {
     }
 
     private func setupBaseConstraints() {
+        resizeHandleHeightConstraint = resizeHandle.heightAnchor.constraint(equalToConstant: 12)
+
         NSLayoutConstraint.activate([
             dragHandle.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             dragHandle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 2),
@@ -184,7 +190,7 @@ class NotebookBaseItem: NSCollectionViewItem {
             resizeHandle.topAnchor.constraint(equalTo: blockContainer.bottomAnchor),
             resizeHandle.leadingAnchor.constraint(equalTo: blockContainer.leadingAnchor),
             resizeHandle.trailingAnchor.constraint(equalTo: blockContainer.trailingAnchor),
-            resizeHandle.heightAnchor.constraint(equalToConstant: 12),
+            resizeHandleHeightConstraint,
             resizeHandle.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }

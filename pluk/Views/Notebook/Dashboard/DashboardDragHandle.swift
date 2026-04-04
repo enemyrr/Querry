@@ -5,9 +5,11 @@ final class DashboardDragHandle: NSView {
     var onDragBegan: ((NSEvent) -> Void)?
     var onDragMoved: ((NSEvent) -> Void)?
     var onDragEnded: ((NSEvent) -> Void)?
+    var onDragCancelled: (() -> Void)?
 
     private let imageView: NSImageView
     private var isDragging = false
+    nonisolated(unsafe) private var eventMonitor: Any?
 
     override init(frame frameRect: NSRect) {
         let image = NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: "Drag to reorder")
@@ -30,25 +32,77 @@ final class DashboardDragHandle: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    deinit {
+        removeEventMonitor()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil, isDragging {
+            cancelDrag()
+        }
+    }
+
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .openHand)
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard !isDragging else { return }
         isDragging = true
+        installEventMonitor()
         NSCursor.closedHand.push()
         onDragBegan?(event)
     }
 
-    override func mouseDragged(with event: NSEvent) {
-        onDragMoved?(event)
+    override func mouseUp(with event: NSEvent) {
+        guard isDragging else { return }
+        finishDrag(with: event)
     }
 
-    override func mouseUp(with event: NSEvent) {
+    private func installEventMonitor() {
+        removeEventMonitor()
+        eventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDragged, .leftMouseUp, .rightMouseDown, .otherMouseDown, .scrollWheel, .gesture, .swipe, .magnify, .rotate]
+        ) { [weak self] event in
+            guard let self, self.isDragging else { return event }
+
+            switch event.type {
+            case .leftMouseDragged:
+                self.onDragMoved?(event)
+            case .leftMouseUp:
+                self.finishDrag(with: event)
+            case .scrollWheel, .gesture, .swipe, .magnify, .rotate, .rightMouseDown, .otherMouseDown:
+                self.cancelDrag()
+            default:
+                break
+            }
+
+            return event
+        }
+    }
+
+    private func removeEventMonitor() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+    }
+
+    private func finishDrag(with event: NSEvent) {
         isDragging = false
+        removeEventMonitor()
         NSCursor.pop()
         onDragEnded?(event)
     }
+
+    private func cancelDrag() {
+        isDragging = false
+        removeEventMonitor()
+        NSCursor.pop()
+        onDragCancelled?()
+    }
+
 }
 
 enum NotebookDragVisuals {
@@ -67,10 +121,10 @@ enum NotebookDragVisuals {
     }
 
     @MainActor
-    static func dragCard(title: String, iconName: String, zPosition: CGFloat = 1000) -> CALayer {
+    static func dragCard(title: String, iconName: String, size: NSSize? = nil, zPosition: CGFloat = 1000) -> CALayer {
         let card = CALayer()
-        let cardWidth: CGFloat = 180
-        let cardHeight: CGFloat = 36
+        let cardWidth = size?.width ?? 180
+        let cardHeight = size?.height ?? 36
         card.frame = NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight)
         card.cornerRadius = 8
         card.masksToBounds = false

@@ -16,6 +16,7 @@ class DashboardBaseItem: NSCollectionViewItem {
     var onDragBegan: ((NSEvent) -> Void)?
     var onDragMoved: ((NSEvent) -> Void)?
     var onDragEnded: ((NSEvent) -> Void)?
+    var onDragCancelled: (() -> Void)?
     var onRun: (() -> Void)?
     var onToggleDashboardVisibility: (() -> Void)?
 
@@ -107,6 +108,7 @@ class DashboardBaseItem: NSCollectionViewItem {
         dragHandle.onDragBegan = { [weak self] event in self?.onDragBegan?(event) }
         dragHandle.onDragMoved = { [weak self] event in self?.onDragMoved?(event) }
         dragHandle.onDragEnded = { [weak self] event in self?.onDragEnded?(event) }
+        dragHandle.onDragCancelled = { [weak self] in self?.onDragCancelled?() }
         view.addSubview(dragHandle)
     }
 

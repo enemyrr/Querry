@@ -36,21 +36,21 @@ struct AreaChartView: View {
                         stacking: stackingMethod
                     )
                     .foregroundStyle(by: .value("Series", point.series))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
                 } else {
                     AreaMark(
                         x: .value("X", point.x),
                         y: .value("Y", point.y)
                     )
                     .foregroundStyle(Color.accentColor.opacity(0.3))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
 
                     LineMark(
                         x: .value("X", point.x),
                         y: .value("Y", point.y)
                     )
                     .foregroundStyle(Color.accentColor)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
                 }
             }
             .chartForegroundStyleScale(domain: series, range: colors)

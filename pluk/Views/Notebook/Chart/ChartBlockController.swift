@@ -129,7 +129,7 @@ final class ChartBlockController: NSViewController, NSTextFieldDelegate {
     }
 
     @objc private func handleRunTapped() {
-        Task { await viewModel.fetchChartData() }
+        Task { await viewModel.runChart() }
     }
 
     private func setupMenuButton() {

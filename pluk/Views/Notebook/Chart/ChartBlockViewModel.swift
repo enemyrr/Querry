@@ -93,6 +93,7 @@ struct ChartDataPoint: Identifiable {
 @Observable
 @MainActor
 final class ChartBlockViewModel {
+
     let block: NotebookBlock
     private weak var dataController: NotebookDataController?
     let session = ChartDriverSession()
@@ -185,7 +186,7 @@ final class ChartBlockViewModel {
             totalCount: result.columns.count
         )
 
-        if cfg.xAxisColumn != nil && cfg.yAxisColumn != nil {
+        if shouldFetchChart(for: cfg) {
             Task { await fetchChartData() }
         }
     }
@@ -220,7 +221,7 @@ final class ChartBlockViewModel {
             try await loadSchemasAndCollections(databaseType: dbType, preferredSchema: cfg.schemaName)
 
             schemaResult = try await session.getSchema(tableName: cfg.tableName, schema: cfg.schemaName)
-            if cfg.xAxisColumn != nil && cfg.yAxisColumn != nil {
+            if shouldFetchChart(for: cfg) {
                 await fetchChartData()
             }
         } catch {
@@ -528,8 +529,21 @@ final class ChartBlockViewModel {
     }
 
     private func triggerFetchIfReady() {
-        guard config?.xAxisColumn != nil, config?.yAxisColumn != nil else { return }
+        guard shouldFetchChart(for: config) else { return }
         Task { await fetchChartData() }
+    }
+
+    private func shouldFetchChart(for config: ChartBlockConfig?) -> Bool {
+        guard let cfg = config else { return false }
+
+        switch cfg.chartType {
+        case .histogram:
+            return cfg.xAxisColumn != nil
+        case .pivotTable:
+            return false
+        default:
+            return cfg.xAxisColumn != nil && cfg.yAxisColumn != nil
+        }
     }
 
     // MARK: - Filters
@@ -561,53 +575,75 @@ final class ChartBlockViewModel {
 
     // MARK: - Data Fetching
 
-    func fetchChartData() async {
-        guard let cfg = config,
-              let xCol = cfg.xAxisColumn,
-              let yCol = cfg.yAxisColumn else {
-            chartError = ChartBlockError.noAxesConfigured.localizedDescription
-            return
-        }
-
-        // If sourced from a query block, use its in-memory result
-        if let queryBlockIdStr = cfg.sourceQueryBlockId,
+    func runChart() async {
+        if let queryBlockIdStr = config?.sourceQueryBlockId,
            let queryBlockId = UUID(uuidString: queryBlockIdStr) {
-            isLoadingChart = true
-            chartError = nil
-            defer { isLoadingChart = false }
-
-            guard let result = dataController?.queryResult(for: queryBlockId) else {
+            guard let queryViewModel = await dataController?.rerunQueryBlock(blockId: queryBlockId) else {
                 chartError = "Run the source query block first"
                 return
             }
 
-            let allYCols = cfg.fields["yAxis"] ?? [yCol]
-            var points: [ChartDataPoint] = []
-            let multiSeries = allYCols.count > 1
-            for row in result.rows {
-                guard let xRaw = row[xCol]?.value else { continue }
-                let xStr = String(describing: xRaw)
-                for col in allYCols {
-                    guard let yRaw = row[col]?.value,
-                          let yNum = toDouble(yRaw) else { continue }
-                    points.append(ChartDataPoint(
-                        x: xStr,
-                        y: yNum,
-                        series: multiSeries ? col : ""
-                    ))
-                }
+            if let queryError = queryViewModel.queryError {
+                chartError = queryError
+                return
             }
-            chartData = reduceChartData(points, maxPoints: 160)
-            saveChartCache()
+        }
+
+        await fetchChartData()
+    }
+
+    func fetchChartData() async {
+        guard let cfg = config else {
+            chartError = ChartBlockError.noAxesConfigured.localizedDescription
+            return
+        }
+
+        guard let xCol = cfg.xAxisColumn else {
+            chartError = "Select an X-axis to render chart"
+            return
+        }
+
+        guard cfg.chartType == .histogram || cfg.yAxisColumn != nil else {
+            chartError = ChartBlockError.noAxesConfigured.localizedDescription
             return
         }
 
         isLoadingChart = true
         chartError = nil
         defer { isLoadingChart = false }
+
+        if let queryBlockIdStr = cfg.sourceQueryBlockId,
+           let queryBlockId = UUID(uuidString: queryBlockIdStr) {
+            guard let result = dataController?.queryResult(for: queryBlockId) else {
+                chartError = "Run the source query block first"
+                return
+            }
+
+            let points = chartPoints(from: result, config: cfg, xColumn: xCol)
+            applyChartPoints(points)
+            return
+        }
+
         do {
             let effectiveLimit = min(cfg.rowLimit, 200)
             let validFilters = cfg.filters.filter { $0.isComplete && isFilterFieldValid($0) }
+
+            if cfg.chartType == .histogram {
+                let result = try await session.fetchTableData(
+                    tableName: cfg.tableName,
+                    schema: cfg.schemaName,
+                    limit: effectiveLimit,
+                    filters: validFilters
+                )
+                let points = chartPoints(from: result, config: cfg, xColumn: xCol)
+                applyChartPoints(points)
+                return
+            }
+
+            guard let yCol = cfg.yAxisColumn else {
+                chartError = ChartBlockError.noAxesConfigured.localizedDescription
+                return
+            }
 
             let definitions = cfg.chartType.fieldDefinitions
             let dimensions = definitions
@@ -636,7 +672,7 @@ final class ChartBlockViewModel {
                 let multiSeries = measures.count > 1
                 for row in result.rows {
                     guard let xRaw = row[xCol]?.value else { continue }
-                    let xStr = String(describing: xRaw)
+                    let xStr = chartLabel(for: xRaw)
                     for measure in measures {
                         let aliasCol = "\(measure.column)\(measure.aggregation.sqlAliasSuffix)"
                         let yInfo = row[aliasCol] ?? row[measure.column]
@@ -649,8 +685,7 @@ final class ChartBlockViewModel {
                         ))
                     }
                 }
-                chartData = reduceChartData(points, maxPoints: 160)
-                saveChartCache()
+                applyChartPoints(points)
             } else {
                 let allYCols = cfg.fields["yAxis"] ?? [yCol]
                 let result = try await session.fetchTableData(
@@ -663,7 +698,7 @@ final class ChartBlockViewModel {
                 let multiSeries = allYCols.count > 1
                 for row in result.rows {
                     guard let xRaw = row[xCol]?.value else { continue }
-                    let xStr = String(describing: xRaw)
+                    let xStr = chartLabel(for: xRaw)
                     for col in allYCols {
                         guard let yRaw = row[col]?.value,
                               let yNum = toDouble(yRaw) else { continue }
@@ -674,8 +709,7 @@ final class ChartBlockViewModel {
                         ))
                     }
                 }
-                chartData = reduceChartData(points, maxPoints: 160)
-                saveChartCache()
+                applyChartPoints(points)
             }
         } catch {
             chartError = error.localizedDescription
@@ -685,6 +719,39 @@ final class ChartBlockViewModel {
     private func saveChartCache() {
         block.saveCachedResult(CachedChartData(from: chartData))
         dataController?.saveContext()
+    }
+
+    func reloadConfig() {
+        config = block.chartConfig()
+        hasStartedLoading = false
+        availableCollections = []
+        availableSchemas = []
+        selectedPickerSchema = nil
+        previewResult = nil
+        availableEnvironments = []
+        selectedEnvironment = nil
+        schemaResult = nil
+        chartError = nil
+
+        guard let cfg = config else {
+            chartData = []
+            return
+        }
+
+        if let queryBlockIdStr = cfg.sourceQueryBlockId,
+           let queryBlockId = UUID(uuidString: queryBlockIdStr) {
+            hasStartedLoading = true
+            loadFromQuerySource(blockId: queryBlockId, cfg: cfg)
+            return
+        }
+
+        guard !cfg.tableName.isEmpty else {
+            chartData = []
+            return
+        }
+
+        hasStartedLoading = true
+        Task { await reconnectAndLoad(cfg) }
     }
 
     // MARK: - Persistence
@@ -707,16 +774,92 @@ final class ChartBlockViewModel {
         AggregationFunction.isNumericDataType(type)
     }
 
+    private func chartPoints(from result: QueryResult, config: ChartBlockConfig, xColumn: String) -> [ChartDataPoint] {
+        if config.chartType == .histogram {
+            return histogramPoints(from: result, xColumn: xColumn)
+        }
+
+        let allYCols = config.fields["yAxis"] ?? config.yAxisColumn.map { [$0] } ?? []
+        var points: [ChartDataPoint] = []
+        let multiSeries = allYCols.count > 1
+
+        for row in result.rows {
+            guard let xRaw = row[xColumn]?.value else { continue }
+            let xLabel = chartLabel(for: xRaw)
+
+            for column in allYCols {
+                guard let yRaw = row[column]?.value,
+                      let yValue = toDouble(yRaw) else { continue }
+                points.append(
+                    ChartDataPoint(
+                        x: xLabel,
+                        y: yValue,
+                        series: multiSeries ? column : ""
+                    )
+                )
+            }
+        }
+
+        return points
+    }
+
+    private func histogramPoints(from result: QueryResult, xColumn: String) -> [ChartDataPoint] {
+        var orderedLabels: [String] = []
+        var counts: [String: Double] = [:]
+
+        for row in result.rows {
+            guard let xRaw = row[xColumn]?.value else { continue }
+            let label = chartLabel(for: xRaw)
+            if counts[label] == nil {
+                orderedLabels.append(label)
+            }
+            counts[label, default: 0] += 1
+        }
+
+        return orderedLabels.map { label in
+            ChartDataPoint(x: label, y: counts[label] ?? 0)
+        }
+    }
+
+    private func applyChartPoints(_ points: [ChartDataPoint]) {
+        chartData = reduceChartData(points, maxPoints: 160)
+        saveChartCache()
+    }
+
+    private func chartLabel(for value: Any) -> String {
+        switch value {
+        case let dbValue as DatabaseValue:
+            dbValue.description
+        default:
+            String(describing: value)
+        }
+    }
+
     private func toDouble(_ value: Any) -> Double? {
         switch value {
-        case let d as Double: d
-        case let i as Int: Double(i)
-        case let i as Int64: Double(i)
-        case let i as Int32: Double(i)
-        case let f as Float: Double(f)
-        case let s as String: Double(s)
-        case let d as Decimal: NSDecimalNumber(decimal: d).doubleValue
-        default: nil
+        case let dbValue as DatabaseValue:
+            return dbValue.doubleValue
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return nil
+            }
+            return number.doubleValue
+        case let d as Double:
+            return d
+        case let i as Int:
+            return Double(i)
+        case let i as Int64:
+            return Double(i)
+        case let i as Int32:
+            return Double(i)
+        case let f as Float:
+            return Double(f)
+        case let s as String:
+            return Double(s)
+        case let d as Decimal:
+            return NSDecimalNumber(decimal: d).doubleValue
+        default:
+            return nil
         }
     }
 

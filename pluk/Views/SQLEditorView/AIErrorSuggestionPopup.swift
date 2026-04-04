@@ -39,7 +39,7 @@ struct AIErrorSuggestionPopup: View {
                 VStack(alignment: .leading, spacing: 12) {
                     // Action buttons
                     HStack(spacing: 8) {
-                        Text("Possible \(fixLabel) fix")
+                        Text("Possible fix")
                             .foregroundStyle(.secondary)
                         Spacer()
                         
