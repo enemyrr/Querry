@@ -2,6 +2,29 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.31] – 2026-04-05
+
+This release makes Convex in Pluk feel dramatically faster. Querying is smoother, tables load much quicker, and a bunch of connection and filtering edge cases have been cleaned up along the way.
+
+Here’s what’s new:
+
+- **Convex query editor support.** You can now use the query editor with Convex databases. ([#78](https://github.com/pluk-inc/Pluk/issues/78))
+- **Convex AI query support.** Added Convex AI query support across the notebook agent and editor, with a floating action bar to keep things within reach. ([#82](https://github.com/pluk-inc/Pluk/issues/82))
+- **Swift 6 upgrade.** Pluk is now upgraded from Swift 5 to Swift 6, setting us up for better concurrency correctness and newer platform improvements. ([#81](https://github.com/pluk-inc/Pluk/issues/81))
+
+We’ve also shipped some small but mighty updates:
+
+- **Convex loading is dramatically faster.** We cut time to first data from around 900ms to about 85ms, making table loads feel much more instant in everyday use. ([#74](https://github.com/pluk-inc/Pluk/issues/74))
+- **Improvements to AI agents.** Better reliability and output quality across agent flows. ([#83](https://github.com/pluk-inc/Pluk/issues/83))
+- **Notebook drag and drop is more reliable.** Fixes that make drag and drop feel less fragile. ([#84](https://github.com/pluk-inc/Pluk/issues/84))
+- **Filters behave properly.**
+  - Fixed table filter not clearing when clicking X or "Clear filters". ([#77](https://github.com/pluk-inc/Pluk/issues/77))
+  - Fixed Convex table filter not working when schema is unavailable. ([#86](https://github.com/pluk-inc/Pluk/issues/86))
+- **Connection lifecycle fixes.**
+  - Closed connection windows no longer retain connection state in memory. ([#80](https://github.com/pluk-inc/Pluk/issues/80))
+  - Closing a connection while it is still connecting no longer continues in the background and crashes on teardown. ([#79](https://github.com/pluk-inc/Pluk/issues/79))
+  - Notebook connection list now refreshes correctly after creating the first connection. ([#76](https://github.com/pluk-inc/Pluk/issues/76))
+
 ## [0.0.1-beta.30] – 2026-03-11
 
 Pluk v0.0.1-beta.30 continues to improve stability and polish across the board.
