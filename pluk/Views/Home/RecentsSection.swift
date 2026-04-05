@@ -163,12 +163,7 @@ struct RecentCard: View {
         if isHovering {
             return isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
         }
-        
-        if #available(macOS 26, *) {
-            return isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
-        } else {
-            return isDark ? Color.white.opacity(0.04) : Color.white
-        }
+        return isDark ? Color.white.opacity(0.04) : .white
     }
 
     private var cardBorder: some View {
