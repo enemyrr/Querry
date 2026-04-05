@@ -447,20 +447,38 @@ struct ResultsPillTabBar: View {
     var body: some View {
         Group {
             if #available(macOS 26, *) {
-                tabContainer
-                    .glassEffect(
-                        .regular.tint(Color(.controlColor).opacity(0.15)),
-                        in: .rect(cornerRadius: ResultsPillTabBarMetrics.outerCornerRadius)
-                    )
+                glassTabContainer
+                    .glassEffect(.regular.tint(Color(.controlColor).opacity(0.15)), in: .capsule)
             } else {
-                tabContainer
+                legacyTabContainer
                     .background(legacyContainerFill)
+                    .clipShape(.rect(cornerRadius: ResultsPillTabBarMetrics.outerCornerRadius))
             }
         }
-        .clipShape(.rect(cornerRadius: ResultsPillTabBarMetrics.outerCornerRadius))
     }
 
-    private var tabContainer: some View {
+    @available(macOS 26, *)
+    private var glassTabContainer: some View {
+        HStack(spacing: 3) {
+            ForEach(results.indices, id: \.self) { index in
+                ResultPillTab(
+                    index: index,
+                    rowCount: results[index].totalCount,
+                    isSelected: selectedIndex == index,
+                    animation: animation,
+                    useCapsuleStyle: true,
+                    onSelect: {
+                        withAnimation(.spring(duration: 0.35, bounce: 0.15)) {
+                            selectedIndex = index
+                        }
+                    }
+                )
+            }
+        }
+        .padding(4)
+    }
+
+    private var legacyTabContainer: some View {
         HStack(spacing: 0) {
             ForEach(results.indices, id: \.self) { index in
                 ResultPillTab(
@@ -468,6 +486,7 @@ struct ResultsPillTabBar: View {
                     rowCount: results[index].totalCount,
                     isSelected: selectedIndex == index,
                     animation: animation,
+                    useCapsuleStyle: false,
                     onSelect: {
                         withAnimation(ResultsPillTabBarMetrics.selectionAnimation) {
                             selectedIndex = index
@@ -494,25 +513,27 @@ struct ResultPillTab: View {
     let rowCount: Int
     let isSelected: Bool
     let animation: Namespace.ID
+    var useCapsuleStyle = false
     let onSelect: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: ResultsPillTabBarMetrics.labelSpacing) {
                 Text("Result \(index + 1)")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: useCapsuleStyle ? 13 : 11, weight: useCapsuleStyle ? .regular : .medium))
                     .lineLimit(1)
 
-                Text("(\(rowCount))")
-                    .font(.system(size: 10))
+                Text("(\(rowCount.formatted()))")
+                    .font(.system(size: useCapsuleStyle ? 12 : 10))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, ResultsPillTabBarMetrics.horizontalPadding)
+            .padding(.horizontal, useCapsuleStyle ? 12 : ResultsPillTabBarMetrics.horizontalPadding)
+            .padding(.vertical, useCapsuleStyle ? 6 : 0)
             .foregroundStyle(isSelected ? .primary : .secondary)
-            .frame(minHeight: ResultsPillTabBarMetrics.legacyButtonHeight)
+            .frame(minHeight: useCapsuleStyle ? nil : ResultsPillTabBarMetrics.legacyButtonHeight)
             .background(selectionBackground)
-            .contentShape(.rect(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius))
+            .contentShape(useCapsuleStyle ? AnyShape(.capsule) : AnyShape(.rect(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius)))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -524,41 +545,41 @@ struct ResultPillTab: View {
 
     @ViewBuilder
     private var selectionBackground: some View {
-        if isSelected {
-            RoundedRectangle(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius, style: .continuous)
-                .fill(selectedFill)
-                .shadow(color: selectedShadowColor, radius: 1, x: 0, y: 0)
-                .matchedGeometryEffect(id: "pill", in: animation)
-        } else if #available(macOS 26, *), isHovering {
-            RoundedRectangle(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius, style: .continuous)
-                .fill(hoverFill)
+        if useCapsuleStyle {
+            if isSelected {
+                Capsule()
+                    .fill(capsuleSelectedFill)
+                    .matchedGeometryEffect(id: "pill", in: animation)
+            } else if isHovering {
+                Capsule()
+                    .fill(capsuleHoverFill)
+            }
+        } else {
+            if isSelected {
+                RoundedRectangle(cornerRadius: ResultsPillTabBarMetrics.innerCornerRadius, style: .continuous)
+                    .fill(legacySelectedFill)
+                    .shadow(color: .black.opacity(0.10), radius: 1, x: 0, y: 0)
+                    .matchedGeometryEffect(id: "pill", in: animation)
+            }
         }
     }
 
-    private var selectedFill: Color {
-        if #available(macOS 26, *) {
-            return colorScheme == .dark
-                ? Color(white: 0.22)
-                : Color(white: 0.898)
-        }
-
-        return colorScheme == .dark
-            ? Color(.controlColor).opacity(0.3)
-            : .white
+    private var capsuleSelectedFill: Color {
+        colorScheme == .dark
+            ? Color(white: 0.22)
+            : Color(white: 0.898)
     }
 
-    private var hoverFill: Color {
+    private var capsuleHoverFill: Color {
         colorScheme == .dark
             ? Color(white: 0.17)
             : Color(white: 0.949)
     }
 
-    private var selectedShadowColor: Color {
-        if #available(macOS 26, *) {
-            return .clear
-        }
-
-        return .black.opacity(0.10)
+    private var legacySelectedFill: Color {
+        colorScheme == .dark
+            ? Color(.controlColor).opacity(0.3)
+            : .white
     }
 }
 
