@@ -6,6 +6,44 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 31</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.31.dmg</link>
+            <sparkle:version>290</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.31</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 31</h2><div>This release makes Convex in Pluk feel dramatically faster. Querying is smoother, tables load much quicker, and a bunch of connection and filtering edge cases have been cleaned up along the way.
+Here’s what’s new:
+<ul>
+<li><strong>Convex query editor support.</strong> You can now use the query editor with Convex databases. (<a href="https://github.com/pluk-inc/Pluk/issues/78">#78</a>)</li>
+<li><strong>Convex AI query support.</strong> Added Convex AI query support across the notebook agent and editor, with a floating action bar to keep things within reach. (<a href="https://github.com/pluk-inc/Pluk/issues/82">#82</a>)</li>
+<li><strong>Swift 6 upgrade.</strong> Pluk is now upgraded from Swift 5 to Swift 6, setting us up for better concurrency correctness and newer platform improvements. (<a href="https://github.com/pluk-inc/Pluk/issues/81">#81</a>)</li>
+</ul>
+We’ve also shipped some small but mighty updates:
+<ul>
+<li><strong>Convex loading is dramatically faster.</strong> We cut time to first data from around 900ms to about 85ms, making table loads feel much more instant in everyday use. (<a href="https://github.com/pluk-inc/Pluk/issues/74">#74</a>)</li>
+<li><strong>Improvements to AI agents.</strong> Better reliability and output quality across agent flows. (<a href="https://github.com/pluk-inc/Pluk/issues/83">#83</a>)</li>
+<li><strong>Notebook drag and drop is more reliable.</strong> Fixes that make drag and drop feel less fragile. (<a href="https://github.com/pluk-inc/Pluk/issues/84">#84</a>)</li>
+<li><strong>Filters behave properly.</strong></li>
+</ul>
+  - Fixed table filter not clearing when clicking X or "Clear filters". (<a href="https://github.com/pluk-inc/Pluk/issues/77">#77</a>)
+  - Fixed Convex table filter not working when schema is unavailable. (<a href="https://github.com/pluk-inc/Pluk/issues/86">#86</a>)
+<ul>
+<li><strong>Connection lifecycle fixes.</strong></li>
+</ul>
+  - Closed connection windows no longer retain connection state in memory. (<a href="https://github.com/pluk-inc/Pluk/issues/80">#80</a>)
+  - Closing a connection while it is still connecting no longer continues in the background and crashes on teardown. (<a href="https://github.com/pluk-inc/Pluk/issues/79">#79</a>)
+  - Notebook connection list now refreshes correctly after creating the first connection. (<a href="https://github.com/pluk-inc/Pluk/issues/76">#76</a>)</div>
+            ]]></description>
+            <pubDate>Sun, 05 Apr 2026 07:30:31 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.31.dmg"
+                length="24297810"
+                type="application/octet-stream"
+                sparkle:edSignature="yb79C+B5norFaeR7I64jpfZFWpTM+Fcb70Hx1fbgAgV1my7qWiSJxTaNWVwfEgwjP6lsA6q4cOl/tU+K+P9SCw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 30</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.30.dmg</link>
             <sparkle:version>289</sparkle:version>
