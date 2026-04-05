@@ -197,7 +197,7 @@ private struct NotebookBetaInviteDetails: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Ask Notebook Agent anything about your data and let it do the heavy lifting. It can write the SQL, surface the insight, and turn raw tables into charts and clear takeaways in minutes.")
+                Text("Ask Notebook Agent anything about your data and let it do the heavy lifting. It can write the SQL, surface the insight, and turn raw tables into charts in minutes")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

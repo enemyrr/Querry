@@ -139,12 +139,7 @@ struct ToolbarIslandModifier: ViewModifier {
     }
 
     private var toolbarIslandFillColor: Color {
-        let isDark = colorScheme == .dark
-        if #available(macOS 26, *) {
-            return isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02)
-        } else {
-            return isDark ? Color.white.opacity(0.04) : Color.white
-        }
+        colorScheme == .dark ? Color.white.opacity(0.04) : .white
     }
 
     private var toolbarIslandBorderColor: Color {
