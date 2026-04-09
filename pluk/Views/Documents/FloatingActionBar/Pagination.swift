@@ -23,6 +23,8 @@ struct Pagination: View {
     @State private var isNextHovering = false
     @State private var previousClickCooldown = false
     @State private var nextClickCooldown = false
+    @State private var isShowingPageNumber = false
+    @State private var pageIndicatorTask: Task<Void, Never>?
     
     // Unsaved changes confirmation
     @State private var showUnsavedChangesDialog = false
@@ -67,8 +69,14 @@ struct Pagination: View {
             Button(action: {
                 // Open Modal
             }) {
-                Text(isAnyButtonHovering ? "Page \(currentPage)" : "^[\(totalCount) row](inflect: true)")
-                    .foregroundColor(.gray)
+                Group {
+                    if isShowingPageNumber || isAnyButtonHovering {
+                        Text("Page \(currentPage)")
+                    } else {
+                        Text("^[\(totalCount) row](inflect: true)")
+                    }
+                }
+                    .foregroundStyle(.gray)
                     .frame(width: 60)
             }
             
@@ -106,9 +114,9 @@ struct Pagination: View {
             titleVisibility: .visible
         ) {
             Button("Save") {
-                onCommitModifications()
-                // Execute the pending page action after saving
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                Task { @MainActor in
+                    onCommitModifications()
+                    try? await Task.sleep(for: .milliseconds(100))
                     pendingPageAction?()
                     pendingPageAction = nil
                 }
@@ -126,6 +134,13 @@ struct Pagination: View {
             }
         } message: {
             Text("This page contains unsaved changes. Your changes will be lost if you don't save them.")
+        }
+        .onChange(of: currentPage) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            showPageNumberBriefly()
+        }
+        .onDisappear {
+            pageIndicatorTask?.cancel()
         }
     }
     
@@ -157,5 +172,24 @@ struct Pagination: View {
         guard currentPage > 1 else { return }
         self.currentPage -= 1
         onRefresh()
+    }
+
+    @MainActor
+    private func showPageNumberBriefly() {
+        pageIndicatorTask?.cancel()
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isShowingPageNumber = true
+        }
+
+        pageIndicatorTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.1))
+
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isShowingPageNumber = false
+            }
+        }
     }
 }
