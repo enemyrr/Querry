@@ -821,13 +821,14 @@ actor MySQLDriver: DatabaseDriver {
         2. For query modifications, return only the modified query. Preserve the original formatting style.
         3. For query fixes, return only the corrected query.
         4. Use table names from the available tables list. If a name seems misspelled, use the closest match.
-        5. Default to SELECT * unless the user specifies columns.
-        6. Use LIKE for case-insensitive string matching.
-        7. Use MySQL date/time functions (CURDATE(), DATE_SUB(), INTERVAL, etc.).
-        8. Capitalize SQL keywords (SELECT, FROM, WHERE, ORDER BY, etc.).
-        9. Use single quotes for string literals and terminate with a semicolon.
-        10. Break multi-line queries at logical clauses for readability.
-        11. If you need column-level detail for a table, call the get_table_schema tool.
+        5. Always wrap table and column identifiers in backticks (e.g., FROM `users`, `users`.`created_at`). This is required for reserved words and special characters in MySQL.
+        6. Default to SELECT * unless the user specifies columns.
+        7. Use LIKE for case-insensitive string matching.
+        8. Use MySQL date/time functions (CURDATE(), DATE_SUB(), INTERVAL, etc.).
+        9. Capitalize SQL keywords (SELECT, FROM, WHERE, ORDER BY, etc.).
+        10. Use single quotes for string literals and terminate with a semicolon.
+        11. Break multi-line queries at logical clauses for readability.
+        12. If you need column-level detail for a table, call the get_table_schema tool.
         </instructions>
 
         <examples>
@@ -836,26 +837,26 @@ actor MySQLDriver: DatabaseDriver {
         <output>
         -- Retrieve all active users created in the last 30 days
         SELECT *
-        FROM users
-        WHERE status = 'active'
-          AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
+        FROM `users`
+        WHERE `status` = 'active'
+          AND `created_at` >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
         </output>
         </example>
 
         <example>
-        <input>Add ordering by name to this query: SELECT * FROM products WHERE price > 100;</input>
+        <input>Add ordering by name to this query: SELECT * FROM `products` WHERE `price` > 100;</input>
         <output>
         SELECT *
-        FROM products
-        WHERE price > 100
-        ORDER BY name ASC;
+        FROM `products`
+        WHERE `price` > 100
+        ORDER BY `name` ASC;
         </output>
         </example>
 
         <example>
         <input>Fix this query: SELECT * FROM user WHERE age > 30 AND</input>
         <output>
-        SELECT * FROM users WHERE age > 30;
+        SELECT * FROM `users` WHERE `age` > 30;
         </output>
         </example>
         </examples>
