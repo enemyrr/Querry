@@ -10,7 +10,8 @@ final class QuickLookViewController: NSViewController {
     private static let resizeHandleSize: CGFloat = 20
     private static let resizeHandleGutterWidth: CGFloat = 28
 
-    private let initialContent: String
+    private let rawContent: String
+    private let displayedInitialContent: String
     private let onResizeStart: () -> Void
     private let onResize: (NSSize) -> Void
     private let onResizeEnd: () -> Void
@@ -37,7 +38,8 @@ final class QuickLookViewController: NSViewController {
         onSave: @escaping (String) -> Void,
         onDismiss: @escaping () -> Void
     ) {
-        self.initialContent = content
+        self.rawContent = content
+        self.displayedInitialContent = Self.prettyJSON(content)
         self.onResizeStart = onResizeStart
         self.onResize = onResize
         self.onResizeEnd = onResizeEnd
@@ -77,7 +79,7 @@ final class QuickLookViewController: NSViewController {
         textView.textContainerInset = NSSize(width: 4, height: 4)
         textView.drawsBackground = false
         textView.font = .systemFont(ofSize: NSFont.systemFontSize)
-        textView.string = initialContent
+        textView.string = displayedInitialContent
         textView.delegate = self
         textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
@@ -318,6 +320,17 @@ final class QuickLookViewController: NSViewController {
                (trimmed.hasPrefix("[") && trimmed.hasSuffix("]"))
     }
 
+    static func prettyJSON(_ string: String) -> String {
+        guard looksLikeJSON(string),
+              let data = string.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: data),
+              let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
+              let result = String(data: prettyData, encoding: .utf8) else {
+            return string
+        }
+        return result
+    }
+
     static func compactJSON(_ string: String) -> String {
         guard looksLikeJSON(string),
               let data = string.data(using: .utf8),
@@ -532,7 +545,7 @@ private final class QuickLookHoverTrackingView: NSView {
 extension QuickLookViewController: NSTextViewDelegate {
     nonisolated func textDidChange(_ notification: Notification) {
         MainActor.assumeIsolated {
-            buttonState.isSaveEnabled = textView.string != initialContent
+            buttonState.isSaveEnabled = textView.string != displayedInitialContent
         }
     }
 }
