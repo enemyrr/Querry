@@ -43,11 +43,19 @@ final class RecentTablesService {
         }
     }
 
-    func fetchRecent(limit: Int = 50) -> [RecentTableEntry] {
+    func fetchRecent(limit: Int = 50, databaseName: String? = nil) -> [RecentTableEntry] {
         let keychainId = connectionKeychainId
 
-        let predicate = #Predicate<RecentTableEntry> { entry in
-            entry.connectionKeychainId == keychainId
+        let predicate: Predicate<RecentTableEntry>
+        if let dbName = databaseName {
+            predicate = #Predicate<RecentTableEntry> { entry in
+                entry.connectionKeychainId == keychainId &&
+                entry.databaseName == dbName
+            }
+        } else {
+            predicate = #Predicate<RecentTableEntry> { entry in
+                entry.connectionKeychainId == keychainId
+            }
         }
 
         var descriptor = FetchDescriptor<RecentTableEntry>(

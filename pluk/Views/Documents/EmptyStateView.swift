@@ -288,7 +288,8 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             dropdownContainer.isHidden = true
             noResultsLabel.isHidden = true
 
-            let recentTables = instance.recentTablesService?.fetchRecent(limit: 6) ?? []
+            let currentDB = instance.connectedDatabase?.name
+            let recentTables = instance.recentTablesService?.fetchRecent(limit: 6, databaseName: currentDB) ?? []
             let hasRecent = !recentTables.isEmpty
 
             recentHeaderStack.isHidden = !hasRecent
