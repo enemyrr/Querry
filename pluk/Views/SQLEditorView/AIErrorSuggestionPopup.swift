@@ -65,7 +65,6 @@ struct AIErrorSuggestionPopup: View {
                             .frame(minHeight: Self.actionButtonHeight)
                         }
                         .foregroundStyle(.secondary)
-                        .font(.callout)
                         .buttonStyle(AICommandPromptSecondaryButtonStyle())
                         .keyboardShortcut(.escape, modifiers: [])
                     }

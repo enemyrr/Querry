@@ -1050,20 +1050,18 @@ struct ToolbarIconButton: View {
 }
 
 struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
-    static let buttonColor = Color.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.callout)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
             .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isEnabled ? Self.buttonColor : Color(.disabledControlTextColor).opacity(0.1))
-                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isEnabled ? Color.primaryButton : Color.primaryButton.opacity(0.5))
                     .opacity(isHovering ? 0.8 : 1.0)
             )
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
@@ -1077,22 +1075,19 @@ struct AICommandPromptPrimaryButtonStyle: ButtonStyle {
 }
 
 struct AICommandPromptSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
-    
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(.horizontal, 8)
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 8)
                     .fill(
-                        isHovering && !configuration.isPressed
-                        ? Color(NSColor.controlBackgroundColor)
-                        : Color.clear
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(.separator, lineWidth: isHovering && !configuration.isPressed ? 0.5 : 0)
+                        (colorScheme == .dark ? Color.white : Color.black)
+                            .opacity(isHovering ? 0.15 : 0.08)
                     )
             )
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
@@ -1100,12 +1095,6 @@ struct AICommandPromptSecondaryButtonStyle: ButtonStyle {
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.15)) {
                     isHovering = hovering
-                }
-                
-                if hovering {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.pop()
                 }
             }
     }

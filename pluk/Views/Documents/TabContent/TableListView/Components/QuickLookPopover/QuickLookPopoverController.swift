@@ -24,6 +24,15 @@ final class QuickLookPopoverController {
 
         let viewController = QuickLookViewController(
             content: content,
+            onResizeStart: { [weak popover] in
+                popover?.animates = false
+            },
+            onResize: { [weak popover] newSize in
+                popover?.contentSize = newSize
+            },
+            onResizeEnd: { [weak popover] in
+                popover?.animates = true
+            },
             onSave: onSave,
             onDismiss: { [weak self] in
                 self?.closePopover()
@@ -31,8 +40,10 @@ final class QuickLookPopoverController {
         )
 
         popover.contentViewController = viewController
+        popover.contentSize = viewController.preferredContentSize
 
         popover.show(relativeTo: positioningRect, of: positioningView, preferredEdge: .maxY)
+        viewController.configureResizeBehavior(relativeTo: positioningRect, of: positioningView)
 
         self.popover = popover
     }

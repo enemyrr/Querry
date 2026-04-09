@@ -3,19 +3,44 @@ import SwiftUI
 
 @MainActor
 final class QuickLookViewController: NSViewController {
+    private static let defaultContentSize = NSSize(width: 450, height: 150)
+    private static var lastUsedContentSize: NSSize?
+    private static let minimumContentSize = NSSize(width: 360, height: 140)
+    private static let resizeHandleEdgeInset: CGFloat = 2
+    private static let resizeHandleSize: CGFloat = 20
+    private static let resizeHandleGutterWidth: CGFloat = 28
+
     private let initialContent: String
+    private let onResizeStart: () -> Void
+    private let onResize: (NSSize) -> Void
+    private let onResizeEnd: () -> Void
     private let onSave: (String) -> Void
     private let onDismiss: () -> Void
 
+    private weak var positioningView: NSView?
+    private var positioningRect: NSRect = .zero
+    private var isPopoverHovered = false
     private var textView: NSTextView!
+    private var widthConstraint: NSLayoutConstraint!
+    private var heightConstraint: NSLayoutConstraint!
+    private var resizeHandleTopConstraint: NSLayoutConstraint!
+    private var resizeHandleBottomConstraint: NSLayoutConstraint!
+    private var resizeHandle: QuickLookResizeHandleView!
+    private var lockedResizeHandlePlacement: ResizeHandlePlacement?
     private let buttonState = QuickLookButtonState()
 
     init(
         content: String,
+        onResizeStart: @escaping () -> Void,
+        onResize: @escaping (NSSize) -> Void,
+        onResizeEnd: @escaping () -> Void,
         onSave: @escaping (String) -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.initialContent = content
+        self.onResizeStart = onResizeStart
+        self.onResize = onResize
+        self.onResizeEnd = onResizeEnd
         self.onSave = onSave
         self.onDismiss = onDismiss
         super.init(nibName: nil, bundle: nil)
@@ -27,7 +52,13 @@ final class QuickLookViewController: NSViewController {
     }
 
     override func loadView() {
-        let container = NSView()
+        let container = QuickLookHoverTrackingView()
+        container.onHoverChange = { [weak self] isHovered in
+            self?.isPopoverHovered = isHovered
+            self?.updateResizeHandleVisibility()
+        }
+        let footerContainer = NSView()
+        footerContainer.translatesAutoresizingMaskIntoConstraints = false
 
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -62,29 +93,76 @@ final class QuickLookViewController: NSViewController {
         let buttonHostingView = NSHostingView(rootView: buttonBar)
         buttonHostingView.translatesAutoresizingMaskIntoConstraints = false
 
+        let resizeHandle = QuickLookResizeHandleView()
+        resizeHandle.translatesAutoresizingMaskIntoConstraints = false
+        resizeHandle.currentSize = { [weak self] in
+            self?.currentContentSize ?? Self.defaultContentSize
+        }
+        resizeHandle.onResizeStart = { [weak self] in
+            self?.onResizeStart()
+        }
+        resizeHandle.onResize = { [weak self] proposedSize in
+            self?.updateContentSize(to: proposedSize)
+        }
+        resizeHandle.onResizeEnd = { [weak self] in
+            self?.onResizeEnd()
+        }
+        resizeHandle.onDragStateChange = { [weak self] _ in
+            self?.updateResizeHandleVisibility()
+        }
+        self.resizeHandle = resizeHandle
+
         container.addSubview(scrollView)
-        container.addSubview(buttonHostingView)
+        container.addSubview(footerContainer)
+        container.addSubview(resizeHandle)
+        footerContainer.addSubview(buttonHostingView)
+
+        let initialSize = Self.lastUsedContentSize ?? Self.defaultContentSize
+        widthConstraint = container.widthAnchor.constraint(equalToConstant: initialSize.width)
+        heightConstraint = container.heightAnchor.constraint(equalToConstant: initialSize.height)
+        resizeHandleTopConstraint = resizeHandle.topAnchor.constraint(equalTo: container.topAnchor, constant: Self.resizeHandleEdgeInset)
+        resizeHandleBottomConstraint = resizeHandle.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.resizeHandleEdgeInset)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            scrollView.heightAnchor.constraint(equalToConstant: 80),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Self.resizeHandleGutterWidth),
+            scrollView.bottomAnchor.constraint(equalTo: footerContainer.topAnchor, constant: -8),
 
-            buttonHostingView.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 6),
-            buttonHostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
-            buttonHostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -14),
+            footerContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            footerContainer.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            footerContainer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
+            footerContainer.heightAnchor.constraint(equalToConstant: 28),
 
-            container.widthAnchor.constraint(equalToConstant: 450),
+            buttonHostingView.leadingAnchor.constraint(equalTo: footerContainer.leadingAnchor),
+            buttonHostingView.centerYAnchor.constraint(equalTo: footerContainer.centerYAnchor),
+
+            resizeHandle.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Self.resizeHandleEdgeInset),
+            resizeHandle.widthAnchor.constraint(equalToConstant: Self.resizeHandleSize),
+            resizeHandle.heightAnchor.constraint(equalToConstant: Self.resizeHandleSize),
+
+            widthConstraint,
+            heightConstraint,
         ])
 
+        resizeHandleBottomConstraint.isActive = true
+        preferredContentSize = initialSize
         self.view = container
+        updateResizeHandleVisibility()
     }
 
     override func viewDidAppear() {
         super.viewDidAppear()
+        updateContentSize(to: currentContentSize)
+        resolveInitialResizeBehaviorIfNeeded()
+        (view as? QuickLookHoverTrackingView)?.refreshHoverState()
         view.window?.makeFirstResponder(textView)
         textView.setSelectedRange(NSRange(location: textView.string.count, length: 0))
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        resolveInitialResizeBehaviorIfNeeded()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -112,6 +190,126 @@ final class QuickLookViewController: NSViewController {
         onDismiss()
     }
 
+    private var currentContentSize: NSSize {
+        NSSize(width: widthConstraint.constant, height: heightConstraint.constant)
+    }
+
+    private func updateContentSize(to proposedSize: NSSize) {
+        resolveInitialResizeBehaviorIfNeeded()
+        let clampedSize = clampedContentSize(for: proposedSize)
+        guard clampedSize != currentContentSize else {
+            return
+        }
+
+        widthConstraint.constant = clampedSize.width
+        heightConstraint.constant = clampedSize.height
+        preferredContentSize = clampedSize
+        Self.lastUsedContentSize = clampedSize
+        onResize(clampedSize)
+    }
+
+    private func clampedContentSize(for proposedSize: NSSize) -> NSSize {
+        let visibleFrame = view.window?.screen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1200, height: 900)
+
+        let maximumWidth = max(Self.minimumContentSize.width, min(visibleFrame.width * 0.75, 1000))
+        let generalMaximumHeight = max(Self.minimumContentSize.height, min(visibleFrame.height * 0.7, 720))
+        let maximumHeight = min(generalMaximumHeight, maximumContentHeight(for: visibleFrame))
+        let minimumHeight = min(Self.minimumContentSize.height, maximumHeight)
+
+        return NSSize(
+            width: min(max(proposedSize.width, Self.minimumContentSize.width), maximumWidth),
+            height: min(max(proposedSize.height, minimumHeight), maximumHeight)
+        )
+    }
+
+    func configureResizeBehavior(relativeTo positioningRect: NSRect, of positioningView: NSView) {
+        self.positioningRect = positioningRect
+        self.positioningView = positioningView
+        resolveInitialResizeBehaviorIfNeeded()
+    }
+
+    private func resolveInitialResizeBehaviorIfNeeded() {
+        guard lockedResizeHandlePlacement == nil else {
+            return
+        }
+
+        guard let popoverWindow = view.window,
+              let positioningView,
+              let anchorWindow = positioningView.window else {
+            return
+        }
+
+        let resolvedPositioningRect = positioningRect.isEmpty ? positioningView.bounds : positioningRect
+        let anchorRectInWindow = positioningView.convert(resolvedPositioningRect, to: nil)
+        let anchorRectOnScreen = anchorWindow.convertToScreen(anchorRectInWindow)
+
+        let placement: ResizeHandlePlacement
+        if popoverWindow.frame.minY >= anchorRectOnScreen.maxY {
+            placement = .topTrailing
+        } else if popoverWindow.frame.maxY <= anchorRectOnScreen.minY {
+            placement = .bottomTrailing
+        } else {
+            placement = popoverWindow.frame.midY >= anchorRectOnScreen.midY
+                ? .topTrailing
+                : .bottomTrailing
+        }
+
+        lockedResizeHandlePlacement = placement
+        updateResizeHandlePlacement(to: placement)
+    }
+
+    private func updateResizeHandlePlacement(to placement: ResizeHandlePlacement) {
+        resizeHandle.verticalResizeDirection = placement.verticalResizeDirection
+        resizeHandle.drawsFromTop = placement == .topTrailing
+        resizeHandleTopConstraint.isActive = placement == .topTrailing
+        resizeHandleBottomConstraint.isActive = placement == .bottomTrailing
+        resizeHandle.window?.invalidateCursorRects(for: resizeHandle)
+        resizeHandle.needsDisplay = true
+        view.layoutSubtreeIfNeeded()
+    }
+
+    private func updateResizeHandleVisibility() {
+        let isVisible = isPopoverHovered || resizeHandle.isDragging
+        resizeHandle.isHidden = !isVisible
+        if isVisible {
+            resizeHandle.window?.invalidateCursorRects(for: resizeHandle)
+        }
+    }
+
+    private func maximumContentHeight(for visibleFrame: NSRect) -> CGFloat {
+        guard let lockedResizeHandlePlacement,
+              let anchorRectOnScreen = anchorRectOnScreen() else {
+            return max(Self.minimumContentSize.height, min(visibleFrame.height * 0.7, 720))
+        }
+
+        let currentWindowHeight = view.window?.frame.height ?? currentContentSize.height
+        let chromeHeight = max(0, currentWindowHeight - currentContentSize.height)
+        let verticalPadding: CGFloat = 8
+
+        let availableWindowHeight: CGFloat
+        switch lockedResizeHandlePlacement {
+        case .topTrailing:
+            availableWindowHeight = visibleFrame.maxY - anchorRectOnScreen.maxY - verticalPadding
+        case .bottomTrailing:
+            availableWindowHeight = anchorRectOnScreen.minY - visibleFrame.minY - verticalPadding
+        }
+
+        return max(Self.minimumContentSize.height, availableWindowHeight - chromeHeight)
+    }
+
+    private func anchorRectOnScreen() -> NSRect? {
+        guard let positioningView,
+              let anchorWindow = positioningView.window else {
+            return nil
+        }
+
+        let resolvedPositioningRect = positioningRect.isEmpty ? positioningView.bounds : positioningRect
+        let anchorRectInWindow = positioningView.convert(resolvedPositioningRect, to: nil)
+        return anchorWindow.convertToScreen(anchorRectInWindow)
+    }
+
     // MARK: - JSON Helpers
 
     private static func looksLikeJSON(_ content: String) -> Bool {
@@ -129,6 +327,205 @@ final class QuickLookViewController: NSViewController {
             return string
         }
         return result
+    }
+}
+
+private enum ResizeHandlePlacement {
+    case topTrailing
+    case bottomTrailing
+
+    var verticalResizeDirection: CGFloat {
+        switch self {
+        case .topTrailing:
+            return 1
+        case .bottomTrailing:
+            return -1
+        }
+    }
+}
+
+private final class QuickLookResizeHandleView: NSView {
+    var currentSize: (() -> NSSize)?
+    var onResizeStart: (() -> Void)?
+    var onResize: ((NSSize) -> Void)?
+    var onResizeEnd: (() -> Void)?
+    var onDragStateChange: ((Bool) -> Void)?
+    var verticalResizeDirection: CGFloat = -1
+    var drawsFromTop = false
+
+    private var dragStartLocation: NSPoint?
+    private var dragStartSize: NSSize = .zero
+    private(set) var isDragging = false
+
+    override var isOpaque: Bool {
+        false
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: resizeCursor())
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartLocation = screenLocation(for: event)
+        dragStartSize = currentSize?() ?? .zero
+        isDragging = true
+        onDragStateChange?(true)
+        onResizeStart?()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let dragStartLocation,
+              let currentLocation = screenLocation(for: event) else {
+            return
+        }
+
+        let proposedSize = NSSize(
+            width: dragStartSize.width + (currentLocation.x - dragStartLocation.x),
+            height: dragStartSize.height + (verticalResizeDirection * (currentLocation.y - dragStartLocation.y))
+        )
+
+        onResize?(proposedSize)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        dragStartLocation = nil
+        isDragging = false
+        onDragStateChange?(false)
+        onResizeEnd?()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let path = NSBezierPath()
+        let style = resizeHandleStyle
+        path.lineWidth = style.strokeWidth
+        path.lineCapStyle = .round
+
+        let radius = max(3, style.cornerRadius - style.curveInset)
+        if drawsFromTop {
+            path.appendArc(
+                withCenter: NSPoint(x: bounds.maxX - style.cornerRadius, y: bounds.maxY - style.cornerRadius),
+                radius: radius,
+                startAngle: style.startAngle,
+                endAngle: style.endAngle,
+                clockwise: style.clockwise
+            )
+        } else {
+            path.appendArc(
+                withCenter: NSPoint(x: bounds.maxX - style.cornerRadius, y: bounds.minY + style.cornerRadius),
+                radius: radius,
+                startAngle: -style.startAngle,
+                endAngle: -style.endAngle,
+                clockwise: !style.clockwise
+            )
+        }
+
+        NSColor.secondaryLabelColor.withAlphaComponent(style.alpha).setStroke()
+        path.stroke()
+    }
+
+    private func screenLocation(for event: NSEvent) -> NSPoint? {
+        guard let window else {
+            return nil
+        }
+
+        return window.convertPoint(toScreen: event.locationInWindow)
+    }
+
+    private func resizeCursor() -> NSCursor {
+        let position: NSCursor.FrameResizePosition = drawsFromTop
+            ? .topTrailing(relativeTo: userInterfaceLayoutDirection)
+            : .bottomTrailing(relativeTo: userInterfaceLayoutDirection)
+        return .frameResize(position: position, directions: .all)
+    }
+
+    private var resizeHandleStyle: ResizeHandleStyle {
+        if #available(macOS 26, *) {
+            return ResizeHandleStyle(
+                strokeWidth: 4,
+                alpha: 0.88,
+                cornerRadius: 14,
+                curveInset: 2.5,
+                startAngle: 0,
+                endAngle: 90,
+                clockwise: false
+            )
+        } else {
+            return ResizeHandleStyle(
+                strokeWidth: 2.75,
+                alpha: 0.76,
+                cornerRadius: 10,
+                curveInset: 2,
+                startAngle: 12,
+                endAngle: 72,
+                clockwise: false
+            )
+        }
+    }
+}
+
+private struct ResizeHandleStyle {
+    let strokeWidth: CGFloat
+    let alpha: CGFloat
+    let cornerRadius: CGFloat
+    let curveInset: CGFloat
+    let startAngle: CGFloat
+    let endAngle: CGFloat
+    let clockwise: Bool
+}
+
+private final class QuickLookHoverTrackingView: NSView {
+    var onHoverChange: ((Bool) -> Void)?
+
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        self.trackingArea = trackingArea
+        refreshHoverState()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        setHovered(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setHovered(false)
+    }
+
+    func refreshHoverState() {
+        guard let window else {
+            setHovered(false)
+            return
+        }
+
+        let mouseLocationInView = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        setHovered(bounds.contains(mouseLocationInView))
+    }
+
+    private func setHovered(_ hovered: Bool) {
+        guard isHovered != hovered else {
+            return
+        }
+
+        isHovered = hovered
+        onHoverChange?(hovered)
     }
 }
 
@@ -154,7 +551,7 @@ private struct QuickLookButtonBar: View {
     let onCancel: () -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Button(action: onSave) {
                 Text("Save ⏎")
             }
@@ -168,8 +565,8 @@ private struct QuickLookButtonBar: View {
                         .opacity(0.6)
                 }
             }
-            .font(.callout)
             .buttonStyle(AICommandPromptSecondaryButtonStyle())
         }
     }
 }
+

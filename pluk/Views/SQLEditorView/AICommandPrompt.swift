@@ -21,7 +21,7 @@ struct AICommandPrompt: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             TextField(selectedText.isEmpty ? "What do you want to generate?" : "What do you want to do with the selected query?", text: $userPrompt)
                 .padding(.leading, 4)
                 .textFieldStyle(.plain)
@@ -55,7 +55,6 @@ struct AICommandPrompt: View {
                             .opacity(0.6)
                     }
                 }
-                .font(.callout)
                 .buttonStyle(AICommandPromptSecondaryButtonStyle())
                 .keyboardShortcut(.escape, modifiers: [])
                 
@@ -80,15 +79,15 @@ struct AICommandPrompt: View {
                 }
             }
         }
-        .padding(8)
-        .foregroundColor(.secondary)
+        .padding(10)
+        .foregroundColor(.primary)
         .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
+        .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(.separator, lineWidth: 0.5)
         )
-        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
+        .shadow(color: .black.opacity(0.10), radius: 1, x: 0, y: 0)
         .frame(width: 450)
         .offset(y: CGFloat(cursorLineNumber * 16)) // Position based on line number
         .onAppear {

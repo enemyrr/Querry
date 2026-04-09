@@ -201,6 +201,14 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         
         // Handle arrow keys during active editing
         switch commandSelector {
+        case #selector(NSResponder.moveLeft(_:)):
+            debugLog("⬅️ Left arrow pressed during editing")
+            return handleHorizontalKeyDuringEditing(direction: .previous)
+
+        case #selector(NSResponder.moveRight(_:)):
+            debugLog("➡️ Right arrow pressed during editing")
+            return handleHorizontalKeyDuringEditing(direction: .next)
+
         case #selector(NSResponder.moveUp(_:)):
             debugLog("⬆️ Up arrow pressed during editing")
             handleUpKeyDuringEditing()
@@ -736,6 +744,36 @@ extension TextCellView {
         // If cursor is at the end or this is single-line, navigate to next row
         if selectedRange.location == textLength || textField.usesSingleLineMode {
             navigateToCell(direction: .down)
+        }
+    }
+
+    private func handleHorizontalKeyDuringEditing(direction: NavigationDirection) -> Bool {
+        guard shouldNavigateHorizontally(direction: direction) else {
+            return false
+        }
+
+        saveCurrentChanges()
+        navigateToCell(direction: direction)
+        return true
+    }
+
+    private func shouldNavigateHorizontally(direction: NavigationDirection) -> Bool {
+        guard let textView = textField.currentEditor() as? NSTextView else {
+            return false
+        }
+
+        let selectedRange = textView.selectedRange()
+        let textLength = textField.stringValue.utf16.count
+
+        switch direction {
+        case .previous:
+            return selectedRange.location == 0
+
+        case .next:
+            return NSMaxRange(selectedRange) == textLength
+
+        case .down, .up:
+            return false
         }
     }
     
