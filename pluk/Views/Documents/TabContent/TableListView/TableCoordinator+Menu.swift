@@ -87,7 +87,7 @@ extension TableCoordinator {
         let columnInfo = queryResult.column(named: columnName)
         let dataType = columnInfo?.dataType ?? "unknown"
 
-        let originalValue = formatValueForQuickLook(queryRowInfo.value)
+        let quickLookState = quickLookState(for: queryRowInfo.value, row: row, columnName: columnName)
 
         guard let cellView = tableView.view(atColumn: column, row: row, makeIfNecessary: false) else {
             return
@@ -97,7 +97,7 @@ extension TableCoordinator {
 
         Task { @MainActor in
             QuickLookPopoverController.shared.showQuickLook(
-                for: originalValue,
+                for: quickLookState.currentValue,
                 fieldName: columnName,
                 dataType: dataType,
                 relativeTo: cellRect,
@@ -107,7 +107,8 @@ extension TableCoordinator {
                         row: row,
                         columnName: columnName,
                         dataType: dataType,
-                        originalValue: originalValue,
+                        currentValue: quickLookState.currentValue,
+                        originalValue: quickLookState.originalValue,
                         newValue: newValue
                     )
                 }
@@ -115,16 +116,29 @@ extension TableCoordinator {
         }
     }
 
-    private func handleQuickLookSave(row: Int, columnName: String, dataType: String, originalValue: String, newValue: String) {
+    private func handleQuickLookSave(
+        row: Int,
+        columnName: String,
+        dataType: String,
+        currentValue: String,
+        originalValue: String,
+        newValue: String
+    ) {
         guard let tracker = modificationTracker else { return }
 
-        tracker.updateCell(
-            rowIndex: row,
-            columnName: columnName,
-            newValue: newValue,
-            originalValue: originalValue,
-            dataType: dataType
-        )
+        guard newValue != currentValue else { return }
+
+        if newValue == originalValue {
+            tracker.resetCell(rowIndex: row, columnName: columnName)
+        } else {
+            tracker.updateCell(
+                rowIndex: row,
+                columnName: columnName,
+                newValue: newValue,
+                originalValue: originalValue,
+                dataType: dataType
+            )
+        }
 
         tableView.reloadData(
             forRowIndexes: IndexSet(integer: row),
@@ -132,43 +146,59 @@ extension TableCoordinator {
         )
     }
 
-    private func formatValueForQuickLook(_ value: Any?) -> String {
+    private func quickLookState(for value: DatabaseValue?, row: Int, columnName: String) -> (currentValue: String, originalValue: String) {
+        if let cellModification = modificationTracker?.getCellModification(rowIndex: row, columnName: columnName) {
+            return (cellModification.newValue, cellModification.originalValue)
+        }
+
+        let rawValue = rawValueForQuickLook(value)
+        return (rawValue, rawValue)
+    }
+
+    private func rawValueForQuickLook(_ value: DatabaseValue?) -> String {
         guard let value else { return "NULL" }
 
         switch value {
-        case let string as String:
-            return string.isEmpty ? "" : prettyPrintJSON(string)
-        case let dict as [String: Any]:
-            return prettyPrintJSON(dict)
-        case let array as [Any]:
-            return prettyPrintJSON(array)
+        case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
+            return stringValue
+        case .array, .object:
+            guard let jsonObject = jsonObject(for: value),
+                  JSONSerialization.isValidJSONObject(jsonObject),
+                  let data = try? JSONSerialization.data(withJSONObject: jsonObject),
+                  let result = String(data: data, encoding: .utf8) else {
+                return value.description
+            }
+            return result
         default:
-            return String(describing: value)
+            return value.description
         }
     }
 
-    private func prettyPrintJSON(_ value: Any) -> String {
-        if let string = value as? String {
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            let looksLikeJSON = (trimmed.hasPrefix("{") && trimmed.hasSuffix("}")) ||
-                                (trimmed.hasPrefix("[") && trimmed.hasSuffix("]"))
-            guard looksLikeJSON, let data = string.data(using: .utf8) else {
-                return string
-            }
-            guard let jsonObject = try? JSONSerialization.jsonObject(with: data),
-                  let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
-                  let result = String(data: prettyData, encoding: .utf8) else {
-                return string
-            }
-            return result
+    private func jsonObject(for value: DatabaseValue) -> Any? {
+        switch value {
+        case .null:
+            return NSNull()
+        case .bool(let boolValue):
+            return boolValue
+        case .int(let intValue):
+            return intValue
+        case .int64(let int64Value):
+            return int64Value
+        case .double(let doubleValue):
+            return doubleValue
+        case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
+            return stringValue
+        case .date(let dateValue):
+            return dateValue.ISO8601Format()
+        case .data(let dataValue):
+            return dataValue.base64EncodedString()
+        case .uuid(let uuidValue):
+            return uuidValue.uuidString
+        case .array(let arrayValue):
+            return arrayValue.map { jsonObject(for: $0) ?? NSNull() }
+        case .object(let objectValue):
+            return objectValue.mapValues { jsonObject(for: $0) ?? NSNull() }
         }
-
-        guard JSONSerialization.isValidJSONObject(value),
-              let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]),
-              let result = String(data: data, encoding: .utf8) else {
-            return String(describing: value)
-        }
-        return result
     }
 
     // MARK: - Copy Rows As Actions

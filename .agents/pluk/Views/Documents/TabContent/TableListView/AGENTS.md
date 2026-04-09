@@ -113,6 +113,7 @@ enum TableListViewState {
 - Do NOT use the SwiftUI path for new SQL database features — use the AppKit `TableContentViewController` path
 - Do NOT modify `TableCoordinator` during sidebar animation — check `isSidebarAnimating`
 - Do NOT bypass `TableDataController` for data operations in the AppKit path
+- Quick Look JSON formatting is display-only; when saving from the popover, preserve the tracker’s true original/current cell values and never treat the prettified string as the canonical value
 
 ## Downlinks
 

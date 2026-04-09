@@ -10,8 +10,8 @@ final class QuickLookViewController: NSViewController {
     private static let resizeHandleSize: CGFloat = 20
     private static let resizeHandleGutterWidth: CGFloat = 28
 
-    private let rawContent: String
     private let displayedInitialContent: String
+    private let allowsSaveWithoutTextChanges: Bool
     private let onResizeStart: () -> Void
     private let onResize: (NSSize) -> Void
     private let onResizeEnd: () -> Void
@@ -38,14 +38,15 @@ final class QuickLookViewController: NSViewController {
         onSave: @escaping (String) -> Void,
         onDismiss: @escaping () -> Void
     ) {
-        self.rawContent = content
         self.displayedInitialContent = Self.prettyJSON(content)
+        self.allowsSaveWithoutTextChanges = self.displayedInitialContent != content
         self.onResizeStart = onResizeStart
         self.onResize = onResize
         self.onResizeEnd = onResizeEnd
         self.onSave = onSave
         self.onDismiss = onDismiss
         super.init(nibName: nil, bundle: nil)
+        buttonState.isSaveEnabled = allowsSaveWithoutTextChanges
     }
 
     @available(*, unavailable)
@@ -545,7 +546,7 @@ private final class QuickLookHoverTrackingView: NSView {
 extension QuickLookViewController: NSTextViewDelegate {
     nonisolated func textDidChange(_ notification: Notification) {
         MainActor.assumeIsolated {
-            buttonState.isSaveEnabled = textView.string != displayedInitialContent
+            buttonState.isSaveEnabled = allowsSaveWithoutTextChanges || textView.string != displayedInitialContent
         }
     }
 }
@@ -582,4 +583,3 @@ private struct QuickLookButtonBar: View {
         }
     }
 }
-
