@@ -43,7 +43,7 @@ public final class SparkleUpdaterManager: NSObject, SPUUpdaterDelegate {
             logger.info("Sparkle updater initialized in DEBUG mode - auto check: \(autoCheckForUpdates)")
         #else
             updater.automaticallyDownloadsUpdates = autoCheckForUpdates
-            updater.updateCheckInterval = 86_400
+            updater.updateCheckInterval = 21_600
             logger.info("Sparkle updater initialized - auto check: \(autoCheckForUpdates)")
         #endif
 
@@ -114,44 +114,5 @@ extension SparkleUpdaterManager {
         // Use UpdateChannel.current which ensures everyone gets beta for now
         let channel = UpdateChannel.current
         return channel.appcastURL.absoluteString
-    }
-}
-
-// MARK: - SparkleViewModel
-
-@MainActor
-@Observable
-public final class SparkleViewModel {
-    public var canCheckForUpdates = false
-    public var isCheckingForUpdates = false
-    public var automaticallyChecksForUpdates = true
-    public var automaticallyDownloadsUpdates = true
-    public var updateCheckInterval: TimeInterval = 86_400
-    public var lastUpdateCheckDate: Date?
-    public var updateChannel: UpdateChannel = .prerelease // Default to prerelease for now
-
-    private let updaterManager = SparkleUpdaterManager.shared
-
-    public init() {
-        // Sync with actual Sparkle settings
-        if let updater = updaterManager.updaterController?.updater {
-            automaticallyChecksForUpdates = updater.automaticallyChecksForUpdates
-            automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
-            updateCheckInterval = updater.updateCheckInterval
-            lastUpdateCheckDate = updater.lastUpdateCheckDate
-            canCheckForUpdates = updater.canCheckForUpdates
-        }
-
-        // Always use current channel (which is prerelease for now)
-        updateChannel = UpdateChannel.current
-    }
-
-    public func checkForUpdates() {
-        updaterManager.checkForUpdates()
-    }
-
-    public func setUpdateChannel(_ channel: UpdateChannel) {
-        updateChannel = channel
-        updaterManager.setUpdateChannel(channel)
     }
 }
