@@ -390,35 +390,8 @@ actor PostgreSQLDriver: DatabaseDriver {
     
     func listCollections(schema: String? = "public") async throws -> [PostgreSQLCollectionWrapper] {
         do {
-            let rows = try await poolQuery("""
-                           SELECT
-                               p.oid::bigint AS oid,
-                               p.relname AS table_name,
-                               n.nspname AS table_schema,
-                               CASE p.relkind
-                                   WHEN 'r' THEN 'table'
-                                   WHEN 'v' THEN 'view'
-                                   ELSE 'other'
-                               END AS type
-                           FROM
-                               pg_class AS p
-                               JOIN pg_namespace AS n ON p.relnamespace = n.oid
-                           WHERE
-                               (p.relkind = 'r' OR p.relkind = 'v' OR p.relkind = 'p')
-                               AND n.nspname = '\(unescaped: schema ?? "public")'
-                           """
-            )
-
-            var collections: [PostgreSQLCollectionWrapper] = []
-            for try await (oid, tableName, _, type) in rows.decode((Int64, String, String, String).self) {
-                collections.append(PostgreSQLCollectionWrapper(
-                    id: ObjectIdentifier(NSString(string: tableName)),
-                    name: tableName,
-                    oid: oid.description,
-                    type: type,
-                    schema: schema
-                ))
-            }
+            let effectiveSchema = schema ?? "public"
+            var collections = try await loadTableCollections(in: effectiveSchema)
 
             let funcRows = try await poolQuery("""
                 SELECT
@@ -431,7 +404,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                     END AS type
                 FROM pg_proc p
                 JOIN pg_namespace n ON p.pronamespace = n.oid
-                WHERE n.nspname = '\(unescaped: schema ?? "public")'
+                WHERE n.nspname = '\(unescaped: effectiveSchema)'
                     AND p.prokind IN ('f', 'p')
                 ORDER BY p.proname
                 """
@@ -443,7 +416,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                     name: funcName,
                     oid: oid.description,
                     type: type,
-                    schema: schema
+                    schema: effectiveSchema
                 ))
             }
 
@@ -453,6 +426,74 @@ actor PostgreSQLDriver: DatabaseDriver {
         } catch {
             throw DatabaseError.operationFailed("Failed to list tables: \(error.localizedDescription)")
         }
+    }
+
+    private func loadTableCollections(in schema: String) async throws -> [PostgreSQLCollectionWrapper] {
+        let rows = try await poolQuery("""
+            SELECT
+                c.oid::bigint AS oid,
+                t.table_name,
+                t.table_schema,
+                CASE
+                    WHEN c.relkind IN ('v', 'm') THEN 'view'
+                    ELSE 'table'
+                END AS type
+            FROM information_schema.tables t
+            JOIN pg_catalog.pg_namespace n
+                ON n.nspname = t.table_schema
+            JOIN pg_catalog.pg_class c
+                ON c.relnamespace = n.oid
+                AND c.relname = t.table_name
+            WHERE t.table_schema = '\(unescaped: schema)'
+                AND t.table_type IN ('BASE TABLE', 'VIEW')
+                AND c.relkind IN ('r', 'p', 'v', 'm')
+            ORDER BY t.table_name
+            """
+        )
+
+        var collections: [PostgreSQLCollectionWrapper] = []
+        for try await (oid, tableName, _, type) in rows.decode((Int64, String, String, String).self) {
+            collections.append(PostgreSQLCollectionWrapper(
+                id: ObjectIdentifier(NSString(string: tableName)),
+                name: tableName,
+                oid: oid.description,
+                type: type,
+                schema: schema
+            ))
+        }
+
+        if !collections.isEmpty {
+            return collections
+        }
+
+        let fallbackRows = try await poolQuery("""
+            SELECT
+                c.oid::bigint AS oid,
+                c.relname AS table_name,
+                n.nspname AS table_schema,
+                CASE
+                    WHEN c.relkind IN ('v', 'm') THEN 'view'
+                    ELSE 'table'
+                END AS type
+            FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+            WHERE n.nspname = '\(unescaped: schema)'
+                AND c.relkind IN ('r', 'p', 'v', 'm')
+            ORDER BY c.relname
+            """
+        )
+
+        for try await (oid, tableName, _, type) in fallbackRows.decode((Int64, String, String, String).self) {
+            collections.append(PostgreSQLCollectionWrapper(
+                id: ObjectIdentifier(NSString(string: tableName)),
+                name: tableName,
+                oid: oid.description,
+                type: type,
+                schema: schema
+            ))
+        }
+
+        return collections
     }
 
     func getFunctionDefinition(oid: String) async throws -> String {

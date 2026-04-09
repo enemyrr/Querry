@@ -153,9 +153,16 @@ class CustomTableView: NSTableView {
     }
     
     // MARK: - Keyboard Navigation
-    override func keyDown(with event: NSEvent) {
-        // Check for Cmd+C (copy)
-        if event.modifierFlags.contains(.command) && event.keyCode == 8 {
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard window?.firstResponder === self || isDescendant(of: window?.firstResponder as? NSView ?? self) else {
+            return super.performKeyEquivalent(with: event)
+        }
+
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        // Cmd+C (copy)
+        if flags == .command && event.charactersIgnoringModifiers == "c" {
             if !selectedRowIndexes.isEmpty {
                 NotificationCenter.default.post(
                     name: .didRequestCopy,
@@ -163,26 +170,30 @@ class CustomTableView: NSTableView {
                     userInfo: ["tableView": self]
                 )
             }
-            return
+            return true
         }
 
-        // Check for Cmd+V (paste)
-        if event.modifierFlags.contains(.command) && event.keyCode == 9 {
+        // Cmd+V (paste)
+        if flags == .command && event.charactersIgnoringModifiers == "v" {
             NotificationCenter.default.post(
                 name: .didRequestPaste,
                 object: self,
                 userInfo: ["tableView": self]
             )
-            return
+            return true
         }
 
-        // Check for Cmd+Z (undo)
-        if event.modifierFlags.contains(.command) && event.keyCode == 6 {
+        // Cmd+Z (undo)
+        if flags == .command && event.charactersIgnoringModifiers == "z" {
             if let undoHandler = undoHandler, undoHandler() {
-                return
+                return true
             }
         }
 
+        return super.performKeyEquivalent(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
         // Handle navigation keys
         if handleKeyboardNavigation(with: event) {
             return
@@ -192,12 +203,18 @@ class CustomTableView: NSTableView {
         super.keyDown(with: event)
     }
     
+    /// The effective column for keyboard navigation, defaulting to 0 when no column has been clicked.
+    private var effectiveColumn: Int {
+        storedClickedColumn >= 0 ? storedClickedColumn : 0
+    }
+
     private func handleKeyboardNavigation(with event: NSEvent) -> Bool {
         let keyCode = event.keyCode
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let currentRow = selectedRow
 
         // Handle Cmd+Enter for Quick Look
-        if event.modifierFlags.contains(.command) && keyCode == 36 {
+        if flags == .command && keyCode == 36 {
             if let cellLocation = currentCellLocation, cellLocation.column >= 0 {
                 NotificationCenter.default.post(
                     name: .cellQuickLookRequested,
@@ -208,9 +225,18 @@ class CustomTableView: NSTableView {
             }
         }
 
+        // Let super handle arrow keys with modifiers (Shift for extend selection, etc.)
+        let isArrowKey = keyCode == 126 || keyCode == 125 || keyCode == 123 || keyCode == 124
+        if isArrowKey && !flags.isEmpty {
+            return false
+        }
+
         // Initialize selection if none exists and user presses navigation key
-        if currentRow < 0 && (keyCode == 126 || keyCode == 125 || keyCode == 123 || keyCode == 124) {
+        if currentRow < 0 && isArrowKey {
             selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            if storedClickedColumn < 0 {
+                setClickedColumn(0)
+            }
             scrollRowToVisible(0)
             return true
         }
@@ -222,34 +248,34 @@ class CustomTableView: NSTableView {
         case 126: // Up arrow
             newRow = max(0, currentRow - 1)
             handled = true
-            
+
         case 125: // Down arrow
             newRow = min(numberOfRows - 1, currentRow + 1)
             handled = true
-            
+
         case 123: // Left arrow - move to previous column
-            let newColumn = max(0, (storedClickedColumn >= 0 ? storedClickedColumn : 0) - 1)
+            let newColumn = max(0, effectiveColumn - 1)
             setClickedColumn(newColumn)
             refreshSelectedRowByReselection()
             handled = true
-            
+
         case 124: // Right arrow - move to next column
-            let currentColumn = storedClickedColumn >= 0 ? storedClickedColumn : 0
-            let newColumn = min(numberOfColumns - 1, currentColumn + 1)
+            let newColumn = min(numberOfColumns - 1, effectiveColumn + 1)
             setClickedColumn(newColumn)
             refreshSelectedRowByReselection()
             handled = true
-            
+
         case 48, 36: // Tab/Enter - enter edit mode
-            if let cellLocation = currentCellLocation {
-                enterEditModeForCell(row: cellLocation.row, column: cellLocation.column)
+            if currentRow >= 0 {
+                let column = effectiveColumn
+                enterEditModeForCell(row: currentRow, column: column)
                 handled = true
             }
-            
+
         case 53: // Escape - clear selection
             selectRowIndexes(IndexSet(), byExtendingSelection: false)
             handled = true
-            
+
         case 51, 117: // Delete/Backspace
             let selectedRows = selectedRowIndexes
             NotificationCenter.default.post(
@@ -258,16 +284,16 @@ class CustomTableView: NSTableView {
                 userInfo: ["rows": selectedRows, "tableView": self]
             )
             handled = true
-            
+
         default:
             return false
         }
-        
+
         if handled && newRow != currentRow && keyCode != 53 {
             selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
             scrollRowToVisible(newRow)
         }
-        
+
         return handled
     }
     

@@ -557,7 +557,11 @@ import SwiftUI
         }
 
         let startTime = ContinuousClock.now
-        let documentDescription = "UPDATE \(collectionName) SET \(data.keys.joined(separator: ", ")) WHERE \(id.columnName) = \(id.value)"
+        let setDescription = data.map { key, value in
+            let escaped = "\(value)".replacing("'", with: "''")
+            return "\"\(key)\" = \(value is NSNull ? "NULL" : "'\(escaped)'")"
+        }.joined(separator: ", ")
+        let documentDescription = "UPDATE \"\(collectionName)\" SET \(setDescription) WHERE \"\(id.columnName)\" = '\(id.value)'"
 
         do {
             let driverDocument = try makeDriverDocument(from: data)

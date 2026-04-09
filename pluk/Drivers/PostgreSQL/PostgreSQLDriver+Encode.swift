@@ -37,7 +37,7 @@ extension PostgreSQLDriver {
             if columnType.isUserDefined {
                 // For enums and other user-defined types, we need to cast to the specific type
                 if let enumTypeName = enumTypeName {
-                    return "\"\(columnName)\" = $\(parameterIndex)::\(enumTypeName)"
+                    return "\"\(columnName)\" = $\(parameterIndex)::\"\(enumTypeName)\""
                 } else {
                     // Fallback if enum type name is not provided
                     return "\"\(columnName)\" = $\(parameterIndex)"

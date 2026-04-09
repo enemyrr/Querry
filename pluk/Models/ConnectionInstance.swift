@@ -11,11 +11,15 @@ import MongoCore
 import SwiftUI
 import SwiftData
 
-struct CachedCollectionWrapper: CollectionWrapper {
+struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
     var id: String { name }
     let name: String
-    let type: String = "table"
+    let type: String
     let schema: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, type, schema
+    }
 }
 
 @Observable @MainActor class ConnectionInstance: Identifiable {
@@ -267,12 +271,11 @@ struct CachedCollectionWrapper: CollectionWrapper {
 
         let databaseName = database.name
 
-        // Restore cached table names instantly so sidebar appears immediately
+        // Restore cached collections instantly so the sidebar appears immediately.
         if collections[databaseName] == nil || collections[databaseName]?.isEmpty == true {
-            let cached = loadCachedCollectionNames(databaseName: databaseName, schema: schema)
+            let cached = loadCachedCollections(databaseName: databaseName, schema: schema)
             if !cached.isEmpty {
-                let placeholders = cached.map { makePlaceholderCollection(name: $0, schema: schema) }
-                collections[databaseName] = placeholders
+                collections[databaseName] = cached
             }
         }
 
@@ -280,7 +283,13 @@ struct CachedCollectionWrapper: CollectionWrapper {
         do {
             let freshCollections = try await databaseService.listCollections(schema: schema)
             collections[databaseName] = freshCollections
-            saveCachedCollectionNames(freshCollections.map(\.name), databaseName: databaseName, schema: schema)
+            saveCachedCollections(
+                freshCollections.map {
+                    CachedCollectionWrapper(name: $0.name, type: $0.type, schema: $0.schema ?? schema)
+                },
+                databaseName: databaseName,
+                schema: schema
+            )
         } catch {
             if collections[databaseName]?.isEmpty != false {
                 collections[databaseName] = []
@@ -297,18 +306,27 @@ struct CachedCollectionWrapper: CollectionWrapper {
         "\(collectionCacheKey)_\(databaseName)_\(schema ?? "_default")"
     }
 
-    private func loadCachedCollectionNames(databaseName: String, schema: String?) -> [String] {
-        UserDefaults.standard.stringArray(forKey: collectionCacheKeyFor(databaseName: databaseName, schema: schema)) ?? []
+    private func loadCachedCollections(databaseName: String, schema: String?) -> [CachedCollectionWrapper] {
+        let cacheKey = collectionCacheKeyFor(databaseName: databaseName, schema: schema)
+
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let cachedCollections = try? Foundation.JSONDecoder().decode([CachedCollectionWrapper].self, from: data) {
+            return cachedCollections
+        }
+
+        let legacyNames = UserDefaults.standard.stringArray(forKey: cacheKey) ?? []
+        return legacyNames.map {
+            CachedCollectionWrapper(name: $0, type: "table", schema: schema)
+        }
     }
 
-    private func saveCachedCollectionNames(_ names: [String], databaseName: String, schema: String?) {
-        UserDefaults.standard.set(names, forKey: collectionCacheKeyFor(databaseName: databaseName, schema: schema))
+    private func saveCachedCollections(_ collections: [CachedCollectionWrapper], databaseName: String, schema: String?) {
+        let cacheKey = collectionCacheKeyFor(databaseName: databaseName, schema: schema)
+        if let encodedCollections = try? Foundation.JSONEncoder().encode(collections) {
+            UserDefaults.standard.set(encodedCollections, forKey: cacheKey)
+        }
     }
 
-    private func makePlaceholderCollection(name: String, schema: String?) -> any CollectionWrapper {
-        CachedCollectionWrapper(name: name, schema: schema)
-    }
-    
     // Legacy MongoDB methods - these will be gradually refactored
     func findQueryBuilder(from collectionName: String) throws -> FindQueryBuilder {
         guard connection.databaseType == .mongodb,
