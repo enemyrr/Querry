@@ -202,7 +202,7 @@ class CustomTableView: NSTableView {
         // Let the superclass handle other key events
         super.keyDown(with: event)
     }
-    
+
     /// The effective column for keyboard navigation, defaulting to 0 when no column has been clicked.
     private var effectiveColumn: Int {
         storedClickedColumn >= 0 ? storedClickedColumn : 0
