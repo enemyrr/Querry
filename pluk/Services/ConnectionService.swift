@@ -48,11 +48,17 @@ class ConnectionService {
         guard let instanceToDisconnect = getInstance(instanceId) else { return }
         instanceToDisconnect.prepareForDisconnect()
 
+        let disconnectedIndex = connectionInstances.firstIndex(where: { $0.id == instanceToDisconnect.id })
         connectionInstances.removeAll(where: { $0.id == instanceToDisconnect.id })
         SidebarItemRegistry.shared.removeConnection(instanceId)
 
         if activeConnectionInstanceId == instanceId || activeConnectionInstanceId == nil {
-            activeConnectionInstanceId = connectionInstances.first?.id
+            if let disconnectedIndex, !connectionInstances.isEmpty {
+                let nextIndex = min(disconnectedIndex, connectionInstances.count - 1)
+                activeConnectionInstanceId = connectionInstances[nextIndex].id
+            } else {
+                activeConnectionInstanceId = nil
+            }
         }
 
         if closeWindow {
