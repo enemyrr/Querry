@@ -12,6 +12,10 @@ import AppKit
 class EditableTextField: NSTextField {
     weak var cellView: TextCellView?
 
+    override var acceptsFirstResponder: Bool {
+        isEditable
+    }
+
     // Size is fully determined by parent cell constraints — skip expensive CoreText measurement
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
@@ -34,7 +38,7 @@ class EditableTextField: NSTextField {
         
         return super.performKeyEquivalent(with: event)
     }
-    
+
     // Override cancdelOperation which is called when Escape is pressed during editing
     override func cancelOperation(_ sender: Any?) {
         debugLog("🚫 cancelOperation triggered")
@@ -124,6 +128,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
             }
         }
     }
+    private var isExitingEditMode = false
     private var rowIndex: Int = -1
     var columnName: String = ""
     private var dataType: String = ""
@@ -179,6 +184,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     private func setupTextField() {
         textField = EditableTextField(frame: .zero)
         textField.configureForTableCell()
+        textField.isSelectable = false
         textField.delegate = self
         textField.cellView = self  // Connect the text field to this cell view
         
@@ -201,13 +207,20 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         
         // Handle arrow keys during active editing
         switch commandSelector {
-        case #selector(NSResponder.moveLeft(_:)):
-            debugLog("⬅️ Left arrow pressed during editing")
-            return handleHorizontalKeyDuringEditing(direction: .previous)
+        case #selector(NSResponder.insertTab(_:)):
+            debugLog("Tab key pressed - moving to next cell")
+            handleTabKeyInEditMode()
+            return true
 
-        case #selector(NSResponder.moveRight(_:)):
-            debugLog("➡️ Right arrow pressed during editing")
-            return handleHorizontalKeyDuringEditing(direction: .next)
+        case #selector(NSResponder.insertBacktab(_:)):
+            debugLog("Shift+Tab key pressed - moving to previous cell")
+            handleShiftTabKeyInEditMode()
+            return true
+
+        case #selector(NSResponder.insertNewline(_:)):
+            debugLog("Return key pressed - exiting edit mode")
+            handleEnterKeyInEditMode()
+            return true
 
         case #selector(NSResponder.moveUp(_:)):
             debugLog("⬆️ Up arrow pressed during editing")
@@ -240,6 +253,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         
         enableEditMode()
         window?.makeFirstResponder(textField)
+        normalizeFieldEditorSelection()
         
         debugLog("✅ Edit mode entered for cell at row: \(rowIndex), column: \(columnName)")
     }
@@ -272,6 +286,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         
         // Enable editing UI
         textField.isEditable = true
+        textField.isSelectable = true
         isEditing = true
     }
     
@@ -282,15 +297,24 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
             debugLog("⚠️ Cell is not in edit mode, nothing to exit")
             return
         }
+        
+        guard !isExitingEditMode else {
+            debugLog("⚠️ Cell is already exiting edit mode")
+            return
+        }
+        
+        isExitingEditMode = true
+        defer { isExitingEditMode = false }
+
+        clearFieldEditorSelection()
         // Simply disable edit mode for this cell
         disableEditMode()
         
-        // Remove first responder status
-        if window?.firstResponder == textField {
-            debugLog("🔄 Removing first responder status from text field")
+        // Remove first responder status from the shared field editor if this cell owns it.
+        if let fieldEditor = textField.currentEditor(), window?.firstResponder === fieldEditor {
+            debugLog("🔄 Removing first responder status from field editor")
             window?.makeFirstResponder(window) // Give focus back to window
         }
-        
         
         // Notify that editing has ended
         handleEditingCompleted()
@@ -325,6 +349,7 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         
         // Disable editing
         textField.isEditable = false
+        textField.isSelectable = false
         
         // Update visual state
         isEditing = false
@@ -332,17 +357,12 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     
     private func updateEditingAppearance() {
         debugLog("updateEditingAppearance - isEditing: \(isEditing)")
-        if isEditing {
-            textField.backgroundColor = NSColor.clear
-            textField.drawsBackground = true
-        } else {
-            // When exiting edit mode, ensure the modification background is still visible
-            textField.backgroundColor = NSColor.clear
-            textField.drawsBackground = false
-        }
+        textField.backgroundColor = NSColor.clear
+        textField.drawsBackground = false
         
         // Ensure modification appearance is updated after editing changes
         updateModificationAppearance()
+        invalidateActiveCellHighlight()
     }
     
     private func updateModificationAppearance() {
@@ -451,31 +471,13 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         // Only exit edit mode if we're actually editing and the reason is appropriate
         guard isEditing else { return }
         
-        // Check the movement reason to determine what key was pressed
-        if let movementNumber = obj.userInfo?["NSTextMovement"] as? Int,
-           let movement = NSTextMovement(rawValue: movementNumber) {
-            debugLog("moment: \(movement)")
-            
-            switch movement {
-            case .tab:
-                debugLog("Tab key pressed - moving to next cell")
-                return handleTabKeyInEditMode()
-                
-            case .backtab:
-                debugLog("Shift+Tab key pressed - moving to previous cell")
-                return handleShiftTabKeyInEditMode()
-                
-            case .return:
-                debugLog("Return key pressed - moving down")
-                return handleEnterKeyInEditMode()
-                
-            default:
-                debugLog("Other movement: \(movement)")
-                break
-            }
+        if isExitingEditMode {
+            debugLog("Skipping controlTextDidEndEditing during programmatic exit")
+            return
         }
-        
-        // All other actions other then keyboard handling: like mouse click
+
+        // Tab/Shift-Tab/Enter are handled in control(_:textView:doCommandBy:)
+        // This is called for other ways editing can end (e.g., clicking outside)
         let finalValue = textField.stringValue
         if let tracker = modificationTracker, rowIndex >= 0 {
             if finalValue != originalValue {
@@ -494,6 +496,8 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
                 debugLog("🔄 Cell reverted to original: Row \(rowIndex), Column \(columnName)")
             }
         }
+
+        exitEditMode()
     }
     
     func controlTextDidBeginEditing(_ obj: Notification) {
@@ -648,6 +652,19 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
             bottomBorderView!.heightAnchor.constraint(equalToConstant: 1.0)
         ])
     }
+
+    private func invalidateActiveCellHighlight() {
+        guard let tableView = findTableView() else {
+            return
+        }
+
+        let row = tableView.row(for: self)
+        if row >= 0, let rowView = tableView.rowView(atRow: row, makeIfNecessary: false) {
+            rowView.needsDisplay = true
+        }
+
+        tableView.needsDisplay = true
+    }
     
     override func viewWillDraw() {
         let currentPlaceholder = self.textField.placeholderString
@@ -747,36 +764,6 @@ extension TextCellView {
         }
     }
 
-    private func handleHorizontalKeyDuringEditing(direction: NavigationDirection) -> Bool {
-        guard shouldNavigateHorizontally(direction: direction) else {
-            return false
-        }
-
-        saveCurrentChanges()
-        navigateToCell(direction: direction)
-        return true
-    }
-
-    private func shouldNavigateHorizontally(direction: NavigationDirection) -> Bool {
-        guard let textView = textField.currentEditor() as? NSTextView else {
-            return false
-        }
-
-        let selectedRange = textView.selectedRange()
-        let textLength = textField.stringValue.utf16.count
-
-        switch direction {
-        case .previous:
-            return selectedRange.location == 0
-
-        case .next:
-            return NSMaxRange(selectedRange) == textLength
-
-        case .down, .up:
-            return false
-        }
-    }
-    
     private func saveCurrentChanges() {
         // Save current changes to modification tracker
         if let tracker = modificationTracker, rowIndex >= 0 {
@@ -827,12 +814,51 @@ extension TextCellView {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.window?.makeFirstResponder(self.textField)
-            if !self.isFieldEditable, let editor = self.window?.fieldEditor(true, for: self.textField) as? NSTextView {
-                editor.delegate = self
-            }
-            self.textField.selectText(nil)
+            self.normalizeFieldEditorSelection()
             debugLog("🔧 Forced edit mode complete")
         }
+    }
+
+    private func normalizeFieldEditorSelection() {
+        guard let editor = window?.fieldEditor(true, for: textField) as? NSTextView else {
+            return
+        }
+
+        if !isFieldEditable {
+            editor.delegate = self
+        }
+
+        editor.backgroundColor = .clear
+        editor.drawsBackground = false
+        editor.isHorizontallyResizable = true
+        editor.isVerticallyResizable = false
+        editor.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: textField.bounds.height)
+        editor.textContainerInset = .zero
+
+        if let scrollView = editor.enclosingScrollView {
+            scrollView.drawsBackground = false
+            scrollView.backgroundColor = .clear
+            scrollView.borderType = .noBorder
+        }
+
+        if let textContainer = editor.textContainer {
+            textContainer.widthTracksTextView = false
+            textContainer.heightTracksTextView = true
+            textContainer.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: textField.bounds.height)
+            textContainer.lineFragmentPadding = 0
+        }
+
+        let insertionLocation = textField.stringValue.utf16.count
+        editor.setSelectedRange(NSRange(location: insertionLocation, length: 0))
+        editor.scrollRangeToVisible(editor.selectedRange())
+    }
+
+    private func clearFieldEditorSelection() {
+        guard let editor = textField.currentEditor() as? NSTextView else {
+            return
+        }
+
+        editor.setSelectedRange(NSRange(location: 0, length: 0))
     }
     
     private func navigateToCell(direction: NavigationDirection) {

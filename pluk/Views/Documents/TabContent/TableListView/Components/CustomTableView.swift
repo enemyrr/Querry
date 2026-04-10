@@ -208,13 +208,86 @@ class CustomTableView: NSTableView {
         storedClickedColumn >= 0 ? storedClickedColumn : 0
     }
 
+    @discardableResult
+    private func moveSelectionHorizontally(offset: Int) -> Bool {
+        guard numberOfColumns > 0, numberOfRows > 0 else { return false }
+
+        if selectedRow < 0 {
+            selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            updateActiveColumn(0)
+            scrollRowToVisible(0)
+            return true
+        }
+
+        let newColumn = min(max(effectiveColumn + offset, 0), numberOfColumns - 1)
+        guard newColumn != effectiveColumn else { return true }
+
+        updateActiveColumn(newColumn)
+        return true
+    }
+
+    @discardableResult
+    private func moveSelectionVertically(offset: Int) -> Bool {
+        guard numberOfRows > 0 else { return false }
+
+        if selectedRow < 0 {
+            selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            if storedClickedColumn < 0 {
+                updateActiveColumn(0)
+            } else {
+                refreshActiveCellDisplay()
+            }
+            scrollRowToVisible(0)
+            return true
+        }
+
+        let newRow = min(max(selectedRow + offset, 0), numberOfRows - 1)
+        guard newRow != selectedRow else { return true }
+
+        selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+        scrollRowToVisible(newRow)
+        refreshActiveCellDisplay()
+        return true
+    }
+
+    @discardableResult
+    private func activateSelectedCell() -> Bool {
+        guard selectedRow >= 0 else { return false }
+
+        enterEditModeForCell(row: selectedRow, column: effectiveColumn)
+        return true
+    }
+
+    private func updateActiveColumn(_ column: Int) {
+        guard column >= 0 && column < numberOfColumns else { return }
+
+        setClickedColumn(column)
+        scrollColumnToVisible(column)
+        refreshActiveCellDisplay()
+    }
+
+    private func refreshActiveCellDisplay() {
+        guard selectedRow >= 0 else { return }
+
+        if let rowView = rowView(atRow: selectedRow, makeIfNecessary: false) {
+            rowView.needsDisplay = true
+        }
+
+        needsDisplay = true
+
+        if storedClickedColumn >= 0 {
+            cellSelectionDelegate?.tableView(self, didSelectCellAt: selectedRow, column: storedClickedColumn)
+        }
+    }
+
     private func handleKeyboardNavigation(with event: NSEvent) -> Bool {
         let keyCode = event.keyCode
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let navigationModifiers = flags.subtracting([.numericPad, .function])
         let currentRow = selectedRow
 
         // Handle Cmd+Enter for Quick Look
-        if flags == .command && keyCode == 36 {
+        if navigationModifiers == .command && keyCode == 36 {
             if let cellLocation = currentCellLocation, cellLocation.column >= 0 {
                 NotificationCenter.default.post(
                     name: .cellQuickLookRequested,
@@ -227,7 +300,7 @@ class CustomTableView: NSTableView {
 
         // Let super handle arrow keys with modifiers (Shift for extend selection, etc.)
         let isArrowKey = keyCode == 126 || keyCode == 125 || keyCode == 123 || keyCode == 124
-        if isArrowKey && !flags.isEmpty {
+        if isArrowKey && !navigationModifiers.isEmpty {
             return false
         }
 
@@ -237,6 +310,7 @@ class CustomTableView: NSTableView {
             if storedClickedColumn < 0 {
                 setClickedColumn(0)
             }
+            refreshActiveCellDisplay()
             scrollRowToVisible(0)
             return true
         }
@@ -254,23 +328,13 @@ class CustomTableView: NSTableView {
             handled = true
 
         case 123: // Left arrow - move to previous column
-            let newColumn = max(0, effectiveColumn - 1)
-            setClickedColumn(newColumn)
-            refreshSelectedRowByReselection()
-            handled = true
+            return moveSelectionHorizontally(offset: -1)
 
         case 124: // Right arrow - move to next column
-            let newColumn = min(numberOfColumns - 1, effectiveColumn + 1)
-            setClickedColumn(newColumn)
-            refreshSelectedRowByReselection()
-            handled = true
+            return moveSelectionHorizontally(offset: 1)
 
         case 48, 36: // Tab/Enter - enter edit mode
-            if currentRow >= 0 {
-                let column = effectiveColumn
-                enterEditModeForCell(row: currentRow, column: column)
-                handled = true
-            }
+            return activateSelectedCell()
 
         case 53: // Escape - clear selection
             selectRowIndexes(IndexSet(), byExtendingSelection: false)
@@ -313,6 +377,8 @@ class CustomTableView: NSTableView {
         if currentColumn >= 0 {
             storedClickedColumn = currentColumn
         }
+
+        refreshActiveCellDisplay()
     }
     
     // MARK: - Mouse Event Handling
@@ -354,6 +420,10 @@ class CustomTableView: NSTableView {
         }
         
         super.mouseDown(with: event)
+
+        if acceptsFirstResponder, event.clickCount == 1, !(window?.firstResponder is NSTextView) {
+            window?.makeFirstResponder(self)
+        }
     }
     
     private func handleForeignKeyClick(cellView: TextCellView, row: Int, column: Int) {
@@ -503,13 +573,16 @@ class CustomTableView: NSTableView {
         
         // Store column for later retrieval
         storedClickedColumn = column
-        
-        // Notify delegate
-        cellSelectionDelegate?.tableView(self, didSelectCellAt: row, column: column)
-        
+
         // Scroll to make visible
         scrollRowToVisible(row)
         scrollColumnToVisible(column)
+
+        refreshActiveCellDisplay()
+
+        if acceptsFirstResponder {
+            window?.makeFirstResponder(self)
+        }
     }
     
     /// Clears all selection
@@ -534,4 +607,3 @@ class CustomTableView: NSTableView {
 protocol TableViewCellSelectionDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, didSelectCellAt row: Int, column: Int)
 }
-

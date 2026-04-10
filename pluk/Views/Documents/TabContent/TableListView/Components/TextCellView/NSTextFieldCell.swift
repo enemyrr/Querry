@@ -23,9 +23,20 @@ class PaddedTextFieldCell: NSTextFieldCell {
     }
     
     private func setupCell() {
+        applyDisplayMode()
+    }
+
+    private func applyDisplayMode() {
         lineBreakMode = .byTruncatingTail
         wraps = false
         isScrollable = false
+        usesSingleLineMode = true
+    }
+
+    private func applyEditingMode() {
+        lineBreakMode = .byClipping
+        wraps = false
+        isScrollable = true
         usesSingleLineMode = true
     }
     
@@ -40,6 +51,8 @@ class PaddedTextFieldCell: NSTextFieldCell {
     }
     
     override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        applyEditingMode()
+
         var paddedRect = rect
         paddedRect.origin.x += textPadding.left - 2
         paddedRect.origin.y += textPadding.top
@@ -50,6 +63,8 @@ class PaddedTextFieldCell: NSTextFieldCell {
     }
 
     override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        applyEditingMode()
+
         var paddedRect = rect
         paddedRect.origin.x += textPadding.left - 2
         paddedRect.origin.y += textPadding.top
@@ -60,6 +75,7 @@ class PaddedTextFieldCell: NSTextFieldCell {
     }
     
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        applyDisplayMode()
         let paddedRect = titleRect(forBounds: cellFrame)
         super.drawInterior(withFrame: paddedRect, in: controlView)
     }
@@ -78,7 +94,7 @@ public extension NSTextField {
         isSelectable = true
         isBordered = false
         backgroundColor = .clear
-        drawsBackground = true  // Don't draw background for better
+        drawsBackground = false
         
         // Optimize text rendering
         allowsEditingTextAttributes = false
