@@ -1165,7 +1165,8 @@ struct UpdateActionButton: View {
                 }
             }
             .foregroundColor(.white)
-            .padding(.horizontal, 10)
+            .padding(.leading, 12)
+            .padding(.trailing, 8)
             .padding(.vertical, 7)
             .contentShape(Rectangle())
         }

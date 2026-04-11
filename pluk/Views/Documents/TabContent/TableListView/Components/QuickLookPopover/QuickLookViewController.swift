@@ -9,6 +9,8 @@ final class QuickLookViewController: NSViewController {
     private static let resizeHandleEdgeInset: CGFloat = 2
     private static let resizeHandleSize: CGFloat = 20
     private static let resizeHandleGutterWidth: CGFloat = 28
+    private static let contentWidthDefaultsKey = "quickLookPopover.contentWidth"
+    private static let contentHeightDefaultsKey = "quickLookPopover.contentHeight"
 
     private let displayedInitialContent: String
     private let allowsSaveWithoutTextChanges: Bool
@@ -120,7 +122,7 @@ final class QuickLookViewController: NSViewController {
         container.addSubview(resizeHandle)
         footerContainer.addSubview(buttonHostingView)
 
-        let initialSize = Self.lastUsedContentSize ?? Self.defaultContentSize
+        let initialSize = Self.lastUsedContentSize ?? Self.restoredContentSize ?? Self.defaultContentSize
         widthConstraint = container.widthAnchor.constraint(equalToConstant: initialSize.width)
         heightConstraint = container.heightAnchor.constraint(equalToConstant: initialSize.height)
         resizeHandleTopConstraint = resizeHandle.topAnchor.constraint(equalTo: container.topAnchor, constant: Self.resizeHandleEdgeInset)
@@ -208,6 +210,7 @@ final class QuickLookViewController: NSViewController {
         heightConstraint.constant = clampedSize.height
         preferredContentSize = clampedSize
         Self.lastUsedContentSize = clampedSize
+        Self.persistContentSize(clampedSize)
         onResize(clampedSize)
     }
 
@@ -341,6 +344,22 @@ final class QuickLookViewController: NSViewController {
             return string
         }
         return result
+    }
+
+    private static var restoredContentSize: NSSize? {
+        guard let storedWidth = UserDefaults.standard.object(forKey: contentWidthDefaultsKey) as? Double,
+              let storedHeight = UserDefaults.standard.object(forKey: contentHeightDefaultsKey) as? Double,
+              storedWidth >= Double(minimumContentSize.width),
+              storedHeight >= Double(minimumContentSize.height) else {
+            return nil
+        }
+
+        return NSSize(width: CGFloat(storedWidth), height: CGFloat(storedHeight))
+    }
+
+    private static func persistContentSize(_ size: NSSize) {
+        UserDefaults.standard.set(Double(size.width), forKey: contentWidthDefaultsKey)
+        UserDefaults.standard.set(Double(size.height), forKey: contentHeightDefaultsKey)
     }
 }
 
