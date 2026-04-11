@@ -38,18 +38,10 @@ final class QuickLookViewController: NSViewController {
     fileprivate static let footerHeight: CGFloat = 28
     fileprivate static let editorLineHeight: CGFloat = 17
     fileprivate static var editorBackgroundColor: NSColor {
-        if #available(macOS 26, *) {
-            .controlBackgroundColor.withAlphaComponent(0.92)
-        } else {
-            .textBackgroundColor
-        }
-    }
-    fileprivate static var editorBorderColor: NSColor {
-        if #available(macOS 26, *) {
-            .separatorColor.withAlphaComponent(0.7)
-        } else {
-            .separatorColor.withAlphaComponent(0.85)
-        }
+        let isDark = NSAppearance.currentDrawing().isDarkMode
+        return isDark
+            ? NSColor.black.withAlphaComponent(0.25)
+            : NSColor.controlBackgroundColor.withAlphaComponent(0.86)
     }
     private static let contentWidthDefaultsKey = "quickLookPopover.contentWidth"
     private static let contentHeightDefaultsKey = "quickLookPopover.contentHeight"
@@ -711,10 +703,12 @@ private final class QuickLookEditorContainerView: QuickLookHoverTrackingView {
         }
 
         layer.cornerRadius = QuickLookViewController.editorCornerRadius
-        layer.masksToBounds = true
+        layer.masksToBounds = false
         layer.backgroundColor = QuickLookViewController.editorBackgroundColor.cgColor
-        layer.borderWidth = 1
-        layer.borderColor = QuickLookViewController.editorBorderColor.cgColor
+        layer.shadowColor = NSColor.black.withAlphaComponent(0.10).cgColor
+        layer.shadowOpacity = 1.0
+        layer.shadowRadius = 1
+        layer.shadowOffset = .zero
     }
 }
 
