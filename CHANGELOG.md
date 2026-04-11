@@ -2,6 +2,17 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.32] – 2026-04-11
+
+This release is focused on making everyday table work feel smoother and more reliable. We tightened up editing, improved QuickLook for JSON-heavy fields, fixed a bunch of database-specific edge cases, and cleaned up a few rough spots when switching between connections and databases.
+
+- **Smoother table editing and navigation.** Copy, paste, undo, arrow-key navigation, tabbing between cells, enum updates, and foreign key links are now much more reliable when working directly inside tables. ([#93](https://github.com/pluk-inc/Pluk/issues/93))
+- **A much better QuickLook experience.** JSON fields now open in a readable format by default, with syntax highlighting, a redesigned popover, improved resizing, and more polished button styles. ([#96](https://github.com/pluk-inc/Pluk/issues/96))
+- **Better handling for real-world database schemas.** Pluk now preserves mixed-case table names correctly, and AI-generated queries properly quote table and column identifiers across PostgreSQL, MySQL, and SQLite. ([#89](https://github.com/pluk-inc/Pluk/issues/89))
+- **Cleaner behavior when switching databases and connections.** Recent tables are now scoped to the active database, and disconnecting a connection no longer throws you back to the first item in the list. ([#91](https://github.com/pluk-inc/Pluk/issues/91))
+- **More reliable loading and streaming behind the scenes.** Table loading and agent streaming now use safer cancellation patterns, which helps avoid stale state and race conditions during rapid actions. ([#100](https://github.com/pluk-inc/Pluk/issues/100))
+- **PostgreSQL sidebar and metadata fixes.** We fixed cases where sidebar tables could disappear after a fresh fetch, improved how cached sidebar items are typed, and resolved a few PostgreSQL-specific issues around enums and query history logging. ([#94](https://github.com/pluk-inc/Pluk/issues/94))
+
 ## [0.0.1-beta.31] – 2026-04-05
 
 This release makes Convex in Pluk feel dramatically faster. Querying is smoother, tables load much quicker, and a bunch of connection and filtering edge cases have been cleaned up along the way.
