@@ -123,9 +123,7 @@ final class TableContentViewController: NSViewController {
         super.viewDidAppear()
         dataController.updateFilterConditions()
         scheduleFilterBarLayout(afterAnimation: true)
-        Task {
-            await dataController.loadDocumentsIfNeeded()
-        }
+        dataController.scheduleLoadDocumentsIfNeeded()
     }
 
     override func viewWillDisappear() {
@@ -277,11 +275,13 @@ final class TableContentViewController: NSViewController {
                         AnalyticsService.shared.trackSortApplied(databaseType: databaseType)
                     }
                 }
-                self.dataController.loadingTask?.cancel()
-                self.dataController.loadingTask = Task {
-                    self.dataController.skipNextRealtimeEvent = true
-                    await self.dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: self.dataController.currentActiveFilter)
-                }
+                self.dataController.scheduleLoadOrSubscribe(
+                    forceFetch: true,
+                    fetchSchema: false,
+                    page: 1,
+                    limit: 300,
+                    filter: self.dataController.currentActiveFilter
+                )
             },
             modificationTracker: dataController.modificationTracker,
             onDeleteNewRow: { [weak self] index in
@@ -526,10 +526,13 @@ private struct FilterBarContainer: View {
                         AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
                     }
                 }
-                Task {
-                    dataController.skipNextRealtimeEvent = true
-                    await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: effectiveFilter)
-                }
+                dataController.scheduleLoadOrSubscribe(
+                    forceFetch: true,
+                    fetchSchema: false,
+                    page: 1,
+                    limit: 300,
+                    filter: effectiveFilter
+                )
             },
             conditions: $dataController.filterConditions,
             onLayoutInvalidated: onLayoutInvalidated,
@@ -550,22 +553,22 @@ private struct FloatingBarContainer: View {
             modificationTracker: dataController.modificationTracker,
             isProcessingUpdates: dataController.isProcessingUpdates,
             onRefresh: { currentPage, itemsPerPage, fetchSchema in
-                Task {
-                    dataController.skipNextRealtimeEvent = true
-                    await dataController.loadOrSubscribe(
-                        forceFetch: true,
-                        fetchSchema: fetchSchema,
-                        page: currentPage,
-                        limit: itemsPerPage,
-                        filter: dataController.currentActiveFilter
-                    )
-                }
+                dataController.scheduleLoadOrSubscribe(
+                    forceFetch: true,
+                    fetchSchema: fetchSchema,
+                    page: currentPage,
+                    limit: itemsPerPage,
+                    filter: dataController.currentActiveFilter
+                )
             },
             onLoadDocuments: { filter in
-                Task {
-                    dataController.skipNextRealtimeEvent = true
-                    await dataController.loadOrSubscribe(forceFetch: true, fetchSchema: false, page: 1, limit: 300, filter: filter)
-                }
+                dataController.scheduleLoadOrSubscribe(
+                    forceFetch: true,
+                    fetchSchema: false,
+                    page: 1,
+                    limit: 300,
+                    filter: filter
+                )
             },
             onCommitModifications: {
                 Task {

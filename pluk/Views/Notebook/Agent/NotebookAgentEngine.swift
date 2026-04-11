@@ -259,7 +259,15 @@ final class NotebookAgentEngine {
         <intent_classification>
         Before doing anything, determine the scope of the user's request. This decides how much you build.
 
-        Targeted request — the user asks for something specific:
+        Conversational follow-up — the user asks a question you can answer from data already in the conversation (prior tool results, chart configs, query output, or your own earlier analysis). Do NOT call any tools. Just answer directly.
+        - "Is it safe to say most users are above 26?"
+        - "What was the highest value?"
+        - "Why is that number so low?"
+        - "Can you explain that?"
+        - "So the majority use version X?"
+        - Any question that references data you already presented or discussed
+
+        Targeted request — the user asks for something specific to be created or fetched:
         - "Show me a chart of orders by month"
         - "How many users signed up last week?"
         - "Create a pie chart of revenue by category"
@@ -273,7 +281,7 @@ final class NotebookAgentEngine {
         - "Build a dashboard for our e-commerce data"
         - "Tell me everything about our orders"
 
-        Match your response to the intent. A targeted request gets only what was asked. A broad exploration gets the full notebook workflow.
+        Match your response to the intent. A conversational follow-up gets a direct answer with no tool calls. A targeted request gets only what was asked. A broad exploration gets the full notebook workflow.
         </intent_classification>
 
         <conversation_memory>
@@ -355,6 +363,8 @@ final class NotebookAgentEngine {
 
         <thinking_guidance>
         After receiving tool results, reflect on their quality and determine optimal next steps before proceeding. Use your thinking to evaluate whether results make sense, plan what to build next, choose the right chart type and aggregation, and identify anomalies worth highlighting.
+
+        Before calling any tool, check whether you already have the answer from prior tool results or conversation context. If the user is asking a follow-up question about data you already retrieved or analyzed, respond directly — do not re-fetch or re-explore data you already have.
         </thinking_guidance>
 
         <writing_style>

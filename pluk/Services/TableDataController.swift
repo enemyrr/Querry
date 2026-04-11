@@ -17,6 +17,7 @@ class TableDataController {
     var cachedTabName: String?
 
     var loadingTask: Task<Void, Never>?
+    private var loadingTaskID = UUID()
 
     var modificationTracker = TableModificationTracker()
     var schemaModificationTracker = SchemaModificationTracker()
@@ -53,8 +54,60 @@ class TableDataController {
     }
 
     func cancel() {
-        loadingTask?.cancel()
+        cancelLoadingTask()
         cancelRealTimeSubscription()
+    }
+
+    func cancelLoadingTask() {
+        loadingTaskID = UUID()
+        loadingTask?.cancel()
+        loadingTask = nil
+    }
+
+    func scheduleLoadDocumentsIfNeeded() {
+        scheduleLoadingTask { controller in
+            await controller.loadDocumentsIfNeeded()
+        }
+    }
+
+    func scheduleLoadOrSubscribe(
+        forceFetch: Bool = false,
+        fetchSchema: Bool = true,
+        page: Int = 1,
+        limit: Int = 300,
+        filter: String? = nil,
+        skipNextRealtimeEvent: Bool = true
+    ) {
+        scheduleLoadingTask { controller in
+            if skipNextRealtimeEvent {
+                controller.skipNextRealtimeEvent = true
+            }
+            await controller.loadOrSubscribe(
+                forceFetch: forceFetch,
+                fetchSchema: fetchSchema,
+                page: page,
+                limit: limit,
+                filter: filter
+            )
+        }
+    }
+
+    private func scheduleLoadingTask(
+        _ operation: @escaping @MainActor @Sendable (TableDataController) async -> Void
+    ) {
+        cancelLoadingTask()
+
+        let taskID = UUID()
+        loadingTaskID = taskID
+        loadingTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if self.loadingTaskID == taskID {
+                    self.loadingTask = nil
+                }
+            }
+            await operation(self)
+        }
     }
 
     // MARK: - Computed Properties
@@ -273,7 +326,7 @@ class TableDataController {
     }
 
     func clearCache() {
-        loadingTask?.cancel()
+        cancelLoadingTask()
         cancelRealTimeSubscription()
         cachedSchema = nil
         cachedDocuments = nil

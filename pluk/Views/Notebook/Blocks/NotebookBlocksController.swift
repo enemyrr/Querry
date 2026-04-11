@@ -19,7 +19,7 @@ final class NotebookBlocksController: NSViewController {
     private var scrollView: NSScrollView!
     private var collectionView: NSCollectionView!
     private var collectionHeightConstraint: NSLayoutConstraint?
-    nonisolated(unsafe) private var scrollBoundsObserver: Any?
+    nonisolated(unsafe) private var scrollBoundsObserver: NSObjectProtocol?
 
     private var blockControllers: [UUID: NSViewController] = [:]
     private var actionBarView: NotebookActionBarView?

@@ -12,7 +12,7 @@ final class DashboardGridController: NSViewController {
     private var collectionView: NSCollectionView!
     private var scrollView: NSScrollView!
     private var collectionHeightConstraint: NSLayoutConstraint?
-    private var scrollBoundsObserver: Any?
+    nonisolated(unsafe) private var scrollBoundsObserver: NSObjectProtocol?
 
     private let dragController = BlockDragController()
     private var currentDropIntent: DashboardDropIntent?
@@ -58,6 +58,9 @@ final class DashboardGridController: NSViewController {
     }
 
     deinit {
+        if let scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(scrollBoundsObserver)
+        }
         NotificationCenter.default.removeObserver(self)
     }
 

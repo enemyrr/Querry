@@ -19,6 +19,7 @@ final class AgentChatController {
     private weak var notebookDataController: NotebookDataController?
     let engine = NotebookAgentEngine()
     private var streamingTask: Task<Void, Never>?
+    private var streamingTaskID = UUID()
     private var reasoningStartTime: Date?
     private var conversationSummary: String?
     private var summarizedMessageCount = 0
@@ -32,6 +33,12 @@ final class AgentChatController {
         self.notebookId = notebookId
         self.modelContainer = modelContainer
         self.notebookDataController = notebookDataController
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            streamingTask?.cancel()
+        }
     }
 
     func load() {
@@ -60,8 +67,7 @@ final class AgentChatController {
     }
 
     func createNewChat() {
-        streamingTask?.cancel()
-        streamingTask = nil
+        cancelStreamingTask()
         streamingParts = []
         isStreaming = false
         resetConversationSummary()
@@ -132,12 +138,11 @@ final class AgentChatController {
 
         isStreaming = true
         notebookDataController?.isAgentStreaming = true
-        streamingTask = Task { await performAgentLoop(chat: chat) }
+        startStreamingTask(for: chat)
     }
 
     func cancelStreaming() {
-        streamingTask?.cancel()
-        streamingTask = nil
+        cancelStreamingTask()
         let finalContent = buildFinalContent()
         if !finalContent.isEmpty, let chat = currentChat {
             let msg = AgentMessage(chatId: chat.id, role: .assistant, content: finalContent)
@@ -166,7 +171,7 @@ final class AgentChatController {
 
         isStreaming = true
         notebookDataController?.isAgentStreaming = true
-        streamingTask = Task { await performAgentLoop(chat: chat) }
+        startStreamingTask(for: chat)
     }
 
     func setFeedback(_ feedback: AgentMessageFeedback?, for messageId: UUID) {
@@ -176,6 +181,28 @@ final class AgentChatController {
     }
 
     // MARK: - Agent Loop
+
+    private func cancelStreamingTask() {
+        streamingTaskID = UUID()
+        streamingTask?.cancel()
+        streamingTask = nil
+    }
+
+    private func startStreamingTask(for chat: AgentChat) {
+        cancelStreamingTask()
+
+        let taskID = UUID()
+        streamingTaskID = taskID
+        streamingTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if self.streamingTaskID == taskID {
+                    self.streamingTask = nil
+                }
+            }
+            await self.performAgentLoop(chat: chat)
+        }
+    }
 
     private func performAgentLoop(chat: AgentChat) async {
         streamingParts = []
