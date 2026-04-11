@@ -6,6 +6,31 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 32</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.32.dmg</link>
+            <sparkle:version>291</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.32</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 32</h2><div>This release is focused on making everyday table work feel smoother and more reliable. We tightened up editing, improved QuickLook for JSON-heavy fields, fixed a bunch of database-specific edge cases, and cleaned up a few rough spots when switching between connections and databases.
+<ul>
+<li><strong>Smoother table editing and navigation.</strong> Copy, paste, undo, arrow-key navigation, tabbing between cells, enum updates, and foreign key links are now much more reliable when working directly inside tables. (<a href="https://github.com/pluk-inc/Pluk/issues/93">#93</a>)</li>
+<li><strong>A much better QuickLook experience.</strong> JSON fields now open in a readable format by default, with syntax highlighting, a redesigned popover, added resizing, and more polished button styles. (<a href="https://github.com/pluk-inc/Pluk/issues/96">#96</a>)</li>
+<li><strong>Better handling for real-world database schemas.</strong> Pluk now preserves mixed-case table names correctly, and AI-generated queries properly quote table and column identifiers across PostgreSQL, MySQL, and SQLite. (<a href="https://github.com/pluk-inc/Pluk/issues/89">#89</a>)</li>
+<li><strong>Cleaner behavior when switching databases and connections.</strong> Recent tables are now scoped to the active database, and disconnecting a connection no longer throws you back to the first item in the list. (<a href="https://github.com/pluk-inc/Pluk/issues/91">#91</a>)</li>
+<li><strong>More reliable loading and streaming behind the scenes.</strong> Table loading and agent streaming now use safer cancellation patterns, which helps avoid stale state and race conditions during rapid actions. (<a href="https://github.com/pluk-inc/Pluk/issues/100">#100</a>)</li>
+<li><strong>PostgreSQL sidebar and metadata fixes.</strong> We fixed cases where sidebar tables could disappear after a fresh fetch, improved how cached sidebar items are typed, and resolved a few PostgreSQL-specific issues around enums and query history logging. (<a href="https://github.com/pluk-inc/Pluk/issues/94">#94</a>)</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sat, 11 Apr 2026 07:38:03 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.32.dmg"
+                length="24285786"
+                type="application/octet-stream"
+                sparkle:edSignature="Y9ODcX1THtwwnXET45y4kx+jP9LiVeAzb7RYoIle1glxw9Rgj6cEJ9hkZJq/0zu1nHIh3YH8I2eBUgExgmFEDA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 31</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.31.dmg</link>
             <sparkle:version>290</sparkle:version>
