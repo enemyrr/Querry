@@ -12,13 +12,16 @@ import MongoKitten
 struct DatabaseHeader: View {
     @Environment(ConnectionInstance.self) private var instance
     var viewModel: SidebarViewModel
+    var isSidebarHovered: Bool
+    var isLoadingCollections: Bool
+    let collectionLoader: SidebarCollectionLoadCoordinator
     @State private var isSchemaHovering = false
     @State private var availableSchemas: [String] = []
     @State private var selectedSchema: String = ""
     @State private var selectedDatabase: String = ""
     @State private var showCreateSchemaPopover = false
     @State private var showCreateDatabaseSheet = false
-    @Binding var isLoadingCollections: Bool
+    @State private var refreshError: Error?
 
     var body: some View {
         VStack {
@@ -49,11 +52,25 @@ struct DatabaseHeader: View {
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    if isLoadingCollections {
-                        ProgressView()
-                            .controlSize(.mini)
+                HStack(spacing: 2) {
+                    let shouldShowRefreshButton = isSidebarHovered || isLoadingCollections
+
+                    Button {
+                        if isLoadingCollections {
+                            collectionLoader.cancel()
+                        } else {
+                            refreshSidebarItems()
+                        }
+                    } label: {
+                        SidebarRefreshIcon(isLoading: isLoadingCollections)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(SidebarHeaderIconButtonStyle(isActive: isLoadingCollections))
+                    .customHelp(isLoadingCollections ? "Stop Refresh" : "Refresh Tables")
+                    .disabled(!isLoadingCollections && instance.connectionStatus != .connected)
+                    .opacity(shouldShowRefreshButton ? 1 : 0)
+                    .allowsHitTesting(shouldShowRefreshButton)
+                    .animation(.easeOut(duration: 0.12), value: shouldShowRefreshButton)
 
                     Button {
                         instance.createCanvasTab()
@@ -64,7 +81,7 @@ struct DatabaseHeader: View {
                             .frame(width: 24, height: 20)
                             .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SidebarHeaderIconButtonStyle())
                     .customHelp("Schema Visualizer")
                 }
             }
@@ -82,37 +99,98 @@ struct DatabaseHeader: View {
             loadAvailableSchemas()
         }
         .onChange(of: instance.databaseService.currentSchema) { oldSchema, newSchema in
-            Task {
-                isLoadingCollections = true
-
-                // Immediately clear collections when schema changes
-                await MainActor.run {
-                    if let databaseName = instance.connectedDatabase?.name {
-                        instance.collections[databaseName] = []
+            collectionLoader.start {
+                await loadCollectionsForSchemaChange(newSchema)
+            }
+        }
+        .alert(
+            "Refresh Error",
+            isPresented: Binding(
+                get: { refreshError != nil },
+                set: { newValue in
+                    if !newValue {
+                        refreshError = nil
                     }
                 }
-
-                try await instance.loadCollectionsForCurrentDatabase(schema: newSchema)
-                isLoadingCollections = false
-            }
+            ),
+            presenting: refreshError
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
         }
     }
     
     private func loadAvailableSchemas() {
         Task {
             do {
-                let schemas = try await fetchSchemas()
-                availableSchemas = schemas
-                if selectedSchema.isEmpty || !schemas.contains(selectedSchema) {
-                    if instance.databaseType == .convex {
-                        selectedSchema = schemas.contains("app") ? "app" : (schemas.first ?? "")
-                    } else {
-                        selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
-                    }
-                }
+                try await reloadAvailableSchemas()
             } catch {
                 debugLog("Failed to load schemas: \(error)")
             }
+        }
+    }
+
+    @MainActor
+    private func reloadAvailableSchemas() async throws {
+        let schemas = try await fetchSchemas()
+        availableSchemas = schemas
+        if selectedSchema.isEmpty || !schemas.contains(selectedSchema) {
+            if instance.databaseType == .convex {
+                selectedSchema = schemas.contains("app") ? "app" : (schemas.first ?? "")
+            } else {
+                selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
+            }
+        }
+    }
+
+    private func refreshSidebarItems() {
+        collectionLoader.start {
+            await performSidebarRefresh()
+        }
+    }
+
+    @MainActor
+    private func performSidebarRefresh() async {
+        guard instance.connectionStatus == .connected else { return }
+
+        refreshError = nil
+
+        do {
+            await instance.loadDatabases()
+            try Task.checkCancellation()
+            try await reloadAvailableSchemas()
+            try Task.checkCancellation()
+            try await instance.loadCollectionsForCurrentDatabase(
+                schema: instance.databaseService.currentSchema
+            )
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            refreshError = error
+            debugLog("Failed to refresh sidebar items: \(error)")
+        }
+    }
+
+    @MainActor
+    private func loadCollectionsForSchemaChange(_ schema: String?) async {
+        refreshError = nil
+
+        if let databaseName = instance.connectedDatabase?.name {
+            instance.collections[databaseName] = []
+        }
+
+        do {
+            try await instance.loadCollectionsForCurrentDatabase(schema: schema)
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            refreshError = error
+            debugLog("Failed to load collections for schema change: \(error)")
         }
     }
     
@@ -162,6 +240,38 @@ struct DatabaseHeader: View {
         loadAvailableSchemas()
         selectedSchema = schemaName
         instance.databaseService.setCurrentSchema(schemaName)
+    }
+}
+
+private struct SidebarRefreshIcon: View {
+    let isLoading: Bool
+
+    var body: some View {
+        Image(systemName: isLoading ? "xmark" : "arrow.clockwise")
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .frame(width: 24, height: 20)
+    }
+}
+
+struct SidebarHeaderIconButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    var isActive: Bool = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.separatorColor).opacity((isHovering || isActive) ? 0.5 : 0))
+            )
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.05)) {
+                    isHovering = hovering
+                }
+            }
     }
 }
 

@@ -17,6 +17,7 @@ import OSLog
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var systemAppearanceObservation: NSKeyValueObservation?
+    private var menuBarController: MenuBarController?
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -101,6 +102,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NotificationCenter.default.post(name: .appAppearanceDidChange, object: nil)
             }
         }
+
+        menuBarController = MenuBarController(modelContainer: sharedModelContainer)
 
         // Create the main window using WindowController (which loads TerminalTabsTitlebarVentura.xib)
         let windowController = WindowController(tabType: .home)

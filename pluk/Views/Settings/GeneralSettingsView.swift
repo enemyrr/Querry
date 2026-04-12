@@ -9,6 +9,7 @@ import Sentry
 
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance = 0
+    @AppStorage("showInMenuBar") private var showInMenuBar = true
     @AppStorage("autoCheckForUpdates") private var autoCheckForUpdates = true
     @AppStorage("reportCrashes") private var reportCrashes = true
     @AppStorage("sendAnalytics") private var sendAnalytics = true
@@ -142,6 +143,7 @@ struct GeneralSettingsView: View {
 
     private var applicationSection: some View {
         Section("Application") {
+            Toggle("Show in menu bar", isOn: $showInMenuBar)
             Toggle("Automatically check for updates", isOn: $autoCheckForUpdates)
             Toggle("Report crashes", isOn: $reportCrashes)
             Toggle("Send anonymous usage analytics", isOn: $sendAnalytics)

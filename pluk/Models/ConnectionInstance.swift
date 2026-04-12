@@ -282,6 +282,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         // Fetch fresh list in background and reconcile
         do {
             let freshCollections = try await databaseService.listCollections(schema: schema)
+            try Task.checkCancellation()
             collections[databaseName] = freshCollections
             saveCachedCollections(
                 freshCollections.map {
@@ -290,6 +291,8 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
                 databaseName: databaseName,
                 schema: schema
             )
+        } catch is CancellationError {
+            return
         } catch {
             if collections[databaseName]?.isEmpty != false {
                 collections[databaseName] = []

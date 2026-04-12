@@ -66,7 +66,7 @@ struct ConnectionNameHeader: View {
                     shortcut: KeyboardShortcut(modifiers: [.command, .shift], key: "N")
                 )
                 .popover(isPresented: $showCreateCollectionPopover) {
-                    CreateTableForm()
+                    CreateTableForm(onCreated: handleCollectionCreated)
                 }
             }
         }
@@ -133,6 +133,19 @@ struct ConnectionNameHeader: View {
             Text("Are you sure you want to edit this active connection?")
         }
         .padding(.bottom, 8)
+    }
+
+    private func handleCollectionCreated(_ createdName: String) {
+        Task { @MainActor in
+            let currentSchema = connectionInstance.databaseService.currentSchema
+            connectionInstance.createNewTab(name: createdName, databaseSchema: currentSchema)
+
+            do {
+                try await connectionInstance.loadCollectionsForCurrentDatabase(schema: currentSchema)
+            } catch {
+                debugLog("Failed to refresh collections after create: \(error)")
+            }
+        }
     }
 }
 

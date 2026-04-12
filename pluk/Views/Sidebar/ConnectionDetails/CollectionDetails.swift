@@ -20,30 +20,71 @@ enum SidebarViewMode {
     case history
 }
 
+@MainActor
+@Observable
+final class SidebarCollectionLoadCoordinator {
+    @ObservationIgnored
+    private var loadTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var loadTaskID = UUID()
+
+    var isLoading = false
+
+    func start(_ operation: @escaping @MainActor @Sendable () async -> Void) {
+        cancel()
+
+        let taskID = UUID()
+        loadTaskID = taskID
+        isLoading = true
+
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            await operation()
+
+            guard self.loadTaskID == taskID else { return }
+            self.loadTask = nil
+            self.isLoading = false
+        }
+    }
+
+    func cancel() {
+        loadTaskID = UUID()
+        loadTask?.cancel()
+        loadTask = nil
+        isLoading = false
+    }
+}
+
 // MARK: - ConnectionDetailsSidebar
 struct ConnectionDetailsSidebar: View {
     @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     @Environment(ConnectionInstance.self) var connectionInstance: ConnectionInstance
     @Environment(\.colorScheme) private var colorScheme
+    @State private var collectionLoader = SidebarCollectionLoadCoordinator()
     @State private var isScrolled = false
+    @State private var isSidebarHovered = false
     @State private var scrollOffset: CGFloat = 0
-    @State private var isLoadingCollections: Bool = false
     @State private var sidebarViewMode: SidebarViewMode = .tables
     @State private var showAdvancedHistory = false
 
     var body: some View {
+        let isLoadingCollections = collectionLoader.isLoading
+
         VStack(spacing: 0) {
             ConnectionNameHeader()
 
             VStack(spacing: 2) {
                 HStack {
-                    DatabaseHeader(viewModel: viewModel, isLoadingCollections: $isLoadingCollections)
-                        .padding(.leading, 4)
+                    DatabaseHeader(
+                        viewModel: viewModel,
+                        isSidebarHovered: isSidebarHovered,
+                        isLoadingCollections: isLoadingCollections,
+                        collectionLoader: collectionLoader
+                    )
 
                     Spacer()
 
                     SidebarViewModeToggle(viewMode: $sidebarViewMode, showAdvancedHistory: $showAdvancedHistory)
-                        .padding(.trailing, 8)
                 }
                 .padding(.bottom, 4)
 
@@ -62,7 +103,7 @@ struct ConnectionDetailsSidebar: View {
             ScrollView {
                 LazyVStack(spacing: 0, pinnedViews: []) {
                     if sidebarViewMode == .tables {
-                        DatabaseList(viewModel: viewModel, isLoadingCollections: $isLoadingCollections)
+                        DatabaseList(viewModel: viewModel, collectionLoader: collectionLoader)
                             .padding(.trailing, 16)
                             .background(
                                 GeometryReader { geometry in
@@ -94,9 +135,13 @@ struct ConnectionDetailsSidebar: View {
         .padding(.bottom, 10)
         .padding(.leading, 4)
         .cornerRadius(16)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isSidebarHovered = hovering
+            }
+        }
         .task {
             do {
-                isLoadingCollections = true
                 try await viewModel.activeConnection?.connect()
             } catch {
 

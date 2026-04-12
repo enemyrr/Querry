@@ -357,7 +357,7 @@ final class Connection {
             return sanitizeURLForDisplay(url)
         }
         
-        return "No URL available"
+        return nil
     }
     
     private func constructDisplayURLFromFields() -> String {

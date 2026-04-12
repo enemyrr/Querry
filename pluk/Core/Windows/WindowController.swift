@@ -78,7 +78,21 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     ) -> WindowController {
         let controller = WindowController(tabType: tabType, connectionInstance: connectionInstance)
         controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
         return controller
+    }
+
+    @discardableResult
+    static func showHome() -> WindowController {
+        for window in NSApp.windows {
+            guard let windowController = getController(for: window),
+                  case .home = windowController.tabType else { continue }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return windowController
+        }
+
+        return newWindow(tabType: .home)
     }
 
     static func switchToTab(_ tabType: TabType) {
@@ -98,15 +112,14 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
             if matches {
                 window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
                 return
             }
         }
 
         switch tabType {
         case .home:
-            NSApp.windows
-                .first(where: { !($0.windowController is WindowController) })?
-                .makeKeyAndOrderFront(nil)
+            _ = showHome()
         case .connection(let instanceId):
             if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
                 newTab(tabType: tabType, connectionInstance: connectionInstance)
