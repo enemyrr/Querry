@@ -602,18 +602,10 @@ private final class EmptyDocumentStateView: NSView {
 
         let preferredWidth = contentView.widthAnchor.constraint(equalToConstant: 500)
         preferredWidth.priority = .defaultHigh
-
-        let proportionalTop = NSLayoutConstraint(
-            item: contentView, attribute: .top,
-            relatedBy: .equal,
-            toItem: self, attribute: .bottom,
-            multiplier: 0.15, constant: 0
-        )
-        proportionalTop.priority = .defaultLow
+        let contentTopInset: CGFloat = if #available(macOS 26, *) { 84 } else { 79 }
 
         NSLayoutConstraint.activate([
-            contentView.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 10),
-            proportionalTop,
+            contentView.topAnchor.constraint(equalTo: topAnchor, constant: contentTopInset),
             contentView.centerXAnchor.constraint(equalTo: centerXAnchor),
             preferredWidth,
             contentView.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, constant: -40),

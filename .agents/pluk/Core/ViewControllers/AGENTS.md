@@ -126,6 +126,7 @@ contentArea.addSubview(scrollView)
 - Do NOT add MongoDB to the `TableContentViewController` path — it uses a different data model
 - Do NOT rely on native connection-window close alone for teardown; closing a `.connection` window must also remove its `ConnectionInstance` from `ConnectionService` so in-flight connect/disconnect work and driver cleanup do not outlive the UI
 - Do NOT filter native-tab window lookups by `window.isVisible`; hidden AppKit tabs still need switch/close/unregister logic, and visible-only lookups can strand `WindowController` teardown
+- Do NOT position `EmptyDocumentStateView` content with a proportional top-to-bottom constraint; height changes during window restore/foreground can make the quick-open/recent-files block drift downward. Use a fixed top inset instead
 
 ## Downlinks
 
