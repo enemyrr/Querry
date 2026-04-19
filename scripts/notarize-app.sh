@@ -25,6 +25,41 @@ success() {
     echo "[$(date "+%Y-%m-%d %H:%M:%S")] ✅ $1"
 }
 
+resolve_team_id() {
+    local app_bundle="$1"
+    local sign_identity="$2"
+    local team_id=""
+
+    team_id=$(codesign -dvv "$app_bundle" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')
+
+    if [ -z "$team_id" ] && [ -n "${DEVELOPMENT_TEAM:-}" ]; then
+        team_id="$DEVELOPMENT_TEAM"
+    fi
+
+    if [ -z "$team_id" ] && [ -f "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj" ]; then
+        team_id=$(awk -F' = ' '/DEVELOPMENT_TEAM = / { gsub(/;/, "", $2); print $2; exit }' "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj")
+    fi
+
+    if [ -z "$team_id" ]; then
+        team_id=$(printf '%s\n' "$sign_identity" | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p' | head -n 1)
+    fi
+
+    printf '%s' "$team_id"
+}
+
+render_entitlements_template() {
+    local source_file="$1"
+    local output_file="$2"
+    local bundle_id="$3"
+    local app_identifier_prefix="$4"
+
+    BUNDLE_ID="$bundle_id" APP_IDENTIFIER_PREFIX="$app_identifier_prefix" /usr/bin/perl -0pe '
+        s/\$\(PRODUCT_BUNDLE_IDENTIFIER\)/$ENV{BUNDLE_ID}/g;
+        s/\$\(AppIdentifierPrefix\)/$ENV{APP_IDENTIFIER_PREFIX}/g;
+        s/\$\(TeamIdentifierPrefix\)/$ENV{APP_IDENTIFIER_PREFIX}/g;
+    ' "$source_file" > "$output_file"
+}
+
 APP_BUNDLE="${1:-build/Build/Products/Release/Pluk.app}"
 SIGN_IDENTITY="Developer ID Application: Mohamed Fauzaan (5P3TSMNV42)"
 TIMEOUT_MINUTES=30
@@ -98,12 +133,20 @@ EOF
 # Create entitlements files
 MAIN_ENTITLEMENTS="/tmp/main_entitlements.plist"
 XPC_ENTITLEMENTS="/tmp/xpc_entitlements.plist"
+BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "doc.pluk")
+TEAM_ID=$(resolve_team_id "$APP_BUNDLE" "$SIGN_IDENTITY")
+if [ -z "$TEAM_ID" ]; then
+    error "Unable to resolve DEVELOPMENT_TEAM / AppIdentifierPrefix for entitlement expansion"
+fi
+APP_IDENTIFIER_PREFIX="${TEAM_ID}."
+log "Bundle identifier: $BUNDLE_ID"
+log "App identifier prefix: $APP_IDENTIFIER_PREFIX"
 
 # Use actual Pluk entitlements for the main app
 if [ -f "pluk/Resources/pluk.entitlements" ]; then
-    cp "pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS"
+    render_entitlements_template "pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS" "$BUNDLE_ID" "$APP_IDENTIFIER_PREFIX"
 elif [ -f "$PROJECT_ROOT/pluk/Resources/pluk.entitlements" ]; then
-    cp "$PROJECT_ROOT/pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS"
+    render_entitlements_template "$PROJECT_ROOT/pluk/Resources/pluk.entitlements" "$MAIN_ENTITLEMENTS" "$BUNDLE_ID" "$APP_IDENTIFIER_PREFIX"
 else
     log "Warning: Pluk.entitlements not found, using default entitlements"
     create_entitlements "$MAIN_ENTITLEMENTS" "false"

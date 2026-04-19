@@ -54,10 +54,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Migrate legacy file-based keychain items into the Data Protection keychain.
-        // Must run before any code reads or writes credentials.
-        KeychainHelper.shared.migrateFromLegacyKeychainIfNeeded()
-
         // Apply user's appearance preference per-window (not globally) so the
         // menu bar status item keeps the system-managed menu bar appearance.
         let preferredAppearance = Self.userPreferredAppearance()

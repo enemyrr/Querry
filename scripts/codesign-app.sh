@@ -7,6 +7,46 @@ log() {
     echo "[$(date "+%Y-%m-%d %H:%M:%S")] $1"
 }
 
+error() {
+    log "Error: $1"
+    exit 1
+}
+
+resolve_team_id() {
+    local app_bundle="$1"
+    local sign_identity="$2"
+    local team_id=""
+
+    team_id=$(codesign -dvv "$app_bundle" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')
+
+    if [ -z "$team_id" ] && [ -n "${DEVELOPMENT_TEAM:-}" ]; then
+        team_id="$DEVELOPMENT_TEAM"
+    fi
+
+    if [ -z "$team_id" ] && [ -f "Pluk.xcodeproj/project.pbxproj" ]; then
+        team_id=$(awk -F' = ' '/DEVELOPMENT_TEAM = / { gsub(/;/, "", $2); print $2; exit }' Pluk.xcodeproj/project.pbxproj)
+    fi
+
+    if [ -z "$team_id" ]; then
+        team_id=$(printf '%s\n' "$sign_identity" | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p' | head -n 1)
+    fi
+
+    printf '%s' "$team_id"
+}
+
+render_entitlements_template() {
+    local source_file="$1"
+    local output_file="$2"
+    local bundle_id="$3"
+    local app_identifier_prefix="$4"
+
+    BUNDLE_ID="$bundle_id" APP_IDENTIFIER_PREFIX="$app_identifier_prefix" /usr/bin/perl -0pe '
+        s/\$\(PRODUCT_BUNDLE_IDENTIFIER\)/$ENV{BUNDLE_ID}/g;
+        s/\$\(AppIdentifierPrefix\)/$ENV{APP_IDENTIFIER_PREFIX}/g;
+        s/\$\(TeamIdentifierPrefix\)/$ENV{APP_IDENTIFIER_PREFIX}/g;
+    ' "$source_file" > "$output_file"
+}
+
 # Default parameters
 APP_BUNDLE="${1:-build/Build/Products/Release/Pluk.app}"
 SIGN_IDENTITY="${2:-Developer ID Application}"
@@ -30,9 +70,16 @@ if [ -f "$ENTITLEMENTS_FILE" ]; then
     # Get the bundle identifier from the Info.plist
     BUNDLE_ID=$(defaults read "$APP_BUNDLE/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "doc.pluk")
     log "Bundle identifier: $BUNDLE_ID"
+
+    TEAM_ID=$(resolve_team_id "$APP_BUNDLE" "$SIGN_IDENTITY")
+    if [ -z "$TEAM_ID" ]; then
+        error "Unable to resolve DEVELOPMENT_TEAM / AppIdentifierPrefix for entitlement expansion"
+    fi
+    APP_IDENTIFIER_PREFIX="${TEAM_ID}."
+    log "App identifier prefix: $APP_IDENTIFIER_PREFIX"
     
-    # Copy entitlements and replace variables
-    sed -e "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$BUNDLE_ID/g" "$ENTITLEMENTS_FILE" > "$TMP_ENTITLEMENTS"
+    # Render Xcode build settings used by the entitlements file before manual codesign.
+    render_entitlements_template "$ENTITLEMENTS_FILE" "$TMP_ENTITLEMENTS" "$BUNDLE_ID" "$APP_IDENTIFIER_PREFIX"
     
     # Ensure hardened runtime is enabled
     # if ! grep -q "com.apple.security.hardened-runtime" "$TMP_ENTITLEMENTS"; then
