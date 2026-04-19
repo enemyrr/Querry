@@ -561,7 +561,8 @@ import SwiftUI
             let escaped = "\(value)".replacing("'", with: "''")
             return "\"\(key)\" = \(value is NSNull ? "NULL" : "'\(escaped)'")"
         }.joined(separator: ", ")
-        let documentDescription = "UPDATE \"\(collectionName)\" SET \(setDescription) WHERE \"\(id.columnName)\" = '\(id.value)'"
+        let qualifiedTable = databaseSchema.map { "\"\($0)\".\"\(collectionName)\"" } ?? "\"\(collectionName)\""
+        let documentDescription = "UPDATE \(qualifiedTable) SET \(setDescription) WHERE \"\(id.columnName)\" = '\(id.value)'"
 
         do {
             let driverDocument = try makeDriverDocument(from: data)
@@ -614,7 +615,8 @@ import SwiftUI
         }
 
         let startTime = ContinuousClock.now
-        let documentDescription = "DELETE FROM \(collectionName) WHERE \(id.columnName) = \(id.value)"
+        let qualifiedTable = databaseSchema.map { "\"\($0)\".\"\(collectionName)\"" } ?? "\"\(collectionName)\""
+        let documentDescription = "DELETE FROM \(qualifiedTable) WHERE \"\(id.columnName)\" = '\(id.value)'"
 
         do {
             try await activeDriverBox.deleteDocument(in: collectionName, databaseSchema: databaseSchema, id: id)

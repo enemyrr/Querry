@@ -628,7 +628,7 @@ actor PostgreSQLDriver: DatabaseDriver {
         
         do {
             // Get the schema to determine correct data types
-            let schema = try await getSchema(for: collectionName)
+            let schema = try await getSchema(for: collectionName, in: databaseSchema ?? "public")
             let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
             let columnTypeNames = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
             
@@ -699,18 +699,19 @@ actor PostgreSQLDriver: DatabaseDriver {
         }
         
         do {
-            let (setClause, values) = try await buildParameterizedSetClause(dataToUpdate: data, for: collectionName)
-            let schema = try await getSchema(for: collectionName)
+            let (setClause, values) = try await buildParameterizedSetClause(dataToUpdate: data, for: collectionName, in: databaseSchema ?? "public")
+            let schema = try await getSchema(for: collectionName, in: databaseSchema ?? "public")
             let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
             let idColumnType = PostgresDataType(UInt32(columnTypes[id.columnName] ?? 0))
             let encodedID = try encode(id.value, columnName: id.columnName, columnType: idColumnType)
             let sanitizedIDColumn = try validateAndSanitizeColumnName(id.columnName)
-            
+            let idCast = idColumnType == .uuid ? "::uuid" : ""
+
             // Build the UPDATE query with parameter binding
             let queryString = """
                 UPDATE \(sanitizedCollectionName)
                 SET \(setClause)
-                WHERE \(sanitizedIDColumn) = $\(values.count + 1)
+                WHERE \(sanitizedIDColumn) = $\(values.count + 1)\(idCast)
             """
             
             var bindings = PostgresBindings(capacity: values.count + 1)
@@ -758,15 +759,16 @@ actor PostgreSQLDriver: DatabaseDriver {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
 
         do {
-            let schema = try await getSchema(for: collectionName)
+            let schema = try await getSchema(for: collectionName, in: databaseSchema ?? "public")
             let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
             let idColumnType = PostgresDataType(UInt32(columnTypes[id.columnName] ?? 0))
             let encodedID = try encode(id.value, columnName: id.columnName, columnType: idColumnType)
             let sanitizedIDColumn = try validateAndSanitizeColumnName(id.columnName)
+            let idCast = idColumnType == .uuid ? "::uuid" : ""
             // Build the DELETE query with parameter binding
             let queryString = """
                 DELETE FROM \(sanitizedCollectionName)
-                WHERE \(sanitizedIDColumn) = $1
+                WHERE \(sanitizedIDColumn) = $1\(idCast)
             """
             
             // Create PostgresBindings and append the primary key value

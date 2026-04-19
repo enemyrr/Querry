@@ -427,14 +427,17 @@ struct FloatingActionBar: View {
                 
             case 1: // 's' key
                 if event.modifierFlags.contains(.command) {
+                    // Commit any in-progress cell edit so the modification is recorded
+                    // before we decide whether there's anything to save.
+                    (event.window ?? NSApp.keyWindow)?.makeFirstResponder(nil)
+
                     // Handle save based on current state
                     if tabViewMode == .schema,
                        let tracker = schemaModificationTracker,
                        tracker.hasModifications {
                         onCommitSchemaModifications?()
-                    } else if modificationTracker.hasPendingDeletions {
-                        onCommitModifications()
-                    } else if modificationTracker.hasModifications {
+                    } else if modificationTracker.hasPendingDeletions
+                        || modificationTracker.hasModifications {
                         onCommitModifications()
                     }
                     return nil // Consume the event

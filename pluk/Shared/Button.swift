@@ -1104,10 +1104,10 @@ struct DeleteActionButton: View {
     let deleteCount: Int
     let isProcessingBatch: Bool
     let onDelete: () -> Void
-    
+
     var body: some View {
         Button(action: onDelete) {
-            HStack(spacing: 4) {
+            HStack(alignment: .center, spacing: 4) {
                 if isProcessingBatch {
                     ProgressView()
                         .controlSize(.mini)
@@ -1116,23 +1116,24 @@ struct DeleteActionButton: View {
                 } else {
                     Image(systemName: "trash")
                         .font(.system(size: 12))
-                    
+
                     Text("\(deleteCount)")
                         .font(.system(size: 12, weight: .light))
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
             .foregroundColor(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
-            .cornerRadius(6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isProcessingBatch)
-        .transition(.scale.combined(with: .opacity))
+        .allowsHitTesting(!isProcessingBatch)
+        .background(Color.red.opacity(isProcessingBatch ? 0.7 : 1))
+        .cornerRadius(6)
         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+        .transition(.scale.combined(with: .opacity))
         .customHelp("Delete Documents", position: .top, shortcut: KeyboardShortcut(
             modifiers: [.command],
             key: "S"
@@ -1162,12 +1163,12 @@ struct UpdateActionButton: View {
                     Text("\(updateCount)")
                         .font(.system(size: 12, weight: .light))
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
             .foregroundColor(.white)
-            .padding(.leading, 12)
-            .padding(.trailing, 8)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

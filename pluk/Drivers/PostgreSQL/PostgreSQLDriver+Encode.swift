@@ -183,13 +183,69 @@ extension PostgreSQLDriver {
             } else {
                 return stringValue
             }
-            
+
+        case .int2Array:
+            return try parseNumericArray(stringValue, columnName: columnName) { Int16($0) }
+        case .int4Array:
+            return try parseNumericArray(stringValue, columnName: columnName) { Int32($0) }
+        case .int8Array:
+            return try parseNumericArray(stringValue, columnName: columnName) { Int64($0) }
+        case .float4Array:
+            return try parseNumericArray(stringValue, columnName: columnName) { Float($0) }
+        case .float8Array:
+            return try parseNumericArray(stringValue, columnName: columnName) { Double($0) }
+        case .boolArray:
+            let elements = parseArrayElements(stringValue)
+            return try elements.map { raw -> Bool in
+                switch raw.lowercased() {
+                case "true", "t", "1", "yes", "on": return true
+                case "false", "f", "0", "no", "off": return false
+                default:
+                    throw DatabaseError.operationFailed("Cannot convert '\(raw)' to Bool in array for column \(columnName)")
+                }
+            }
+        case .uuidArray:
+            let elements = parseArrayElements(stringValue)
+            return try elements.map { raw -> UUID in
+                guard let uuid = UUID(uuidString: raw) else {
+                    throw DatabaseError.operationFailed("Cannot convert '\(raw)' to UUID in array for column \(columnName)")
+                }
+                return uuid
+            }
+        case .textArray, .varcharArray, .bpcharArray, .charArray:
+            return parseArrayElements(stringValue)
+
         default:
             if stringValue.isEmpty {
                 return nil
             }
-            
+
             return stringValue
+        }
+    }
+
+    /// Parse a user-facing array string like "[1, 2, 3]" or "{1,2,3}" into element tokens.
+    private func parseArrayElements(_ text: String) -> [String] {
+        var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (s.hasPrefix("[") && s.hasSuffix("]")) || (s.hasPrefix("{") && s.hasSuffix("}")) {
+            s = String(s.dropFirst().dropLast())
+        }
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private func parseNumericArray<T>(
+        _ text: String,
+        columnName: String,
+        convert: (String) -> T?
+    ) throws -> [T] {
+        let elements = parseArrayElements(text)
+        return try elements.map { raw -> T in
+            guard let value = convert(raw) else {
+                throw DatabaseError.operationFailed("Cannot convert '\(raw)' to \(T.self) in array for column \(columnName)")
+            }
+            return value
         }
     }
 
