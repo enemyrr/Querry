@@ -18,6 +18,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var systemAppearanceObservation: NSKeyValueObservation?
     private var menuBarController: MenuBarController?
+    private var windowAppearanceObserver: NSObjectProtocol?
+
+    static func appearance(for value: Int) -> NSAppearance? {
+        switch value {
+        case 1: NSAppearance(named: .aqua)
+        case 2: NSAppearance(named: .darkAqua)
+        default: nil
+        }
+    }
+
+    static func userPreferredAppearance() -> NSAppearance? {
+        let value = UserDefaults.standard.object(forKey: "appearance") as? Int ?? 0
+        return appearance(for: value)
+    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -40,12 +54,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Restore user's appearance preference before creating windows
-        if let appearance = UserDefaults.standard.object(forKey: "appearance") as? Int {
-            NSApp.appearance = switch appearance {
-            case 1: NSAppearance(named: .aqua)
-            case 2: NSAppearance(named: .darkAqua)
-            default: nil
+        // Migrate legacy file-based keychain items into the Data Protection keychain.
+        // Must run before any code reads or writes credentials.
+        KeychainHelper.shared.migrateFromLegacyKeychainIfNeeded()
+
+        // Apply user's appearance preference per-window (not globally) so the
+        // menu bar status item keeps the system-managed menu bar appearance.
+        let preferredAppearance = Self.userPreferredAppearance()
+        for window in NSApp.windows where window.className != "NSStatusBarWindow" {
+            window.appearance = preferredAppearance
+        }
+        windowAppearanceObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                guard let window = NSApp.keyWindow,
+                      window.className != "NSStatusBarWindow",
+                      window.appearance == nil else { return }
+                window.appearance = AppDelegate.userPreferredAppearance()
             }
         }
 

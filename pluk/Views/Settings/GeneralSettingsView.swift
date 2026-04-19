@@ -155,13 +155,8 @@ struct GeneralSettingsView: View {
     }
 
     private func applyAppearance(_ value: Int) {
-        let newAppearance: NSAppearance? = switch value {
-        case 1: NSAppearance(named: .aqua)
-        case 2: NSAppearance(named: .darkAqua)
-        default: nil
-        }
-        NSApp.appearance = newAppearance
-        for window in NSApp.windows {
+        let newAppearance = AppDelegate.appearance(for: value)
+        for window in NSApp.windows where window.className != "NSStatusBarWindow" {
             window.appearance = newAppearance
         }
     }
