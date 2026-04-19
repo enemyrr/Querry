@@ -74,7 +74,7 @@ struct ConnectionDetailsSidebar: View {
             ConnectionNameHeader()
 
             VStack(spacing: 2) {
-                HStack {
+                HStack(spacing: 4) {
                     DatabaseHeader(
                         viewModel: viewModel,
                         isSidebarHovered: isSidebarHovered,
@@ -82,10 +82,9 @@ struct ConnectionDetailsSidebar: View {
                         collectionLoader: collectionLoader
                     )
 
-                    Spacer()
-
                     SidebarViewModeToggle(viewMode: $sidebarViewMode, showAdvancedHistory: $showAdvancedHistory)
                 }
+                .padding(.trailing, 2)
                 .padding(.bottom, 4)
 
                 if viewModel.isSearchVisible && sidebarViewMode == .tables {
@@ -159,29 +158,22 @@ struct ConnectionDetailsSidebar: View {
 struct SidebarViewModeToggle: View {
     @Binding var viewMode: SidebarViewMode
     @Binding var showAdvancedHistory: Bool
-    @Namespace private var animation
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             SegmentIconButton(
                 icon: "tablecells",
-                isSelected: viewMode == .tables,
-                animation: animation
+                isSelected: viewMode == .tables
             ) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0)) {
-                    viewMode = .tables
-                }
+                viewMode = .tables
             }
             .customHelp("Tables")
 
             SegmentIconButton(
                 icon: "clock.arrow.circlepath",
-                isSelected: viewMode == .history,
-                animation: animation
+                isSelected: viewMode == .history
             ) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0)) {
-                    viewMode = .history
-                }
+                viewMode = .history
             }
             .customHelp("Query History")
             .contextMenu {
@@ -192,37 +184,45 @@ struct SidebarViewModeToggle: View {
                 }
             }
         }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.clear)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-        )
+        .fixedSize(horizontal: false, vertical: true)
+        .toolbarIsland()
     }
 }
 
 struct SegmentIconButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
     let icon: String
     let isSelected: Bool
-    let animation: Namespace.ID
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(width: 24, height: 20)
-                .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(.separatorColor).opacity(0.5))
-                            .matchedGeometryEffect(id: "selectedSegment", in: animation)
-                    }
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 6))
+                .frame(width: 14, height: 14)
+                .padding(.horizontal, ToolbarIslandMetrics.controlHorizontalPadding)
+                .padding(.vertical, ToolbarIslandMetrics.controlVerticalPadding)
+                .background(
+                    RoundedRectangle(cornerRadius: ToolbarIslandMetrics.innerCornerRadius)
+                        .fill(backgroundFill)
+                )
         }
         .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+
+    private var backgroundFill: Color {
+        if isSelected {
+            return Color(.separatorColor).opacity(0.5)
+        }
+        if isHovering {
+            return colorScheme == .dark
+                ? Color.white.opacity(0.04)
+                : Color.black.opacity(0.03)
+        }
+        return .clear
     }
 }
 

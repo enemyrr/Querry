@@ -13,7 +13,7 @@ final class DocumentViewController: NSViewController {
 
     private var tabView: NSTabView!
     private var tabBarView: TabBarView?
-    private var rightSidebarHostingView: NSHostingView<AnyView>?
+    private var rightSidebarViewController: RowDetailSidebarViewController?
     private var emptyStateView: EmptyDocumentStateView?
 
     private var contentContainer: NSView!
@@ -197,8 +197,9 @@ final class DocumentViewController: NSViewController {
         contentContainer?.removeFromSuperview()
         contentContainer = nil
         tabViewContainer = nil
-        rightSidebarHostingView?.removeFromSuperview()
-        rightSidebarHostingView = nil
+        rightSidebarViewController?.view.removeFromSuperview()
+        rightSidebarViewController?.removeFromParent()
+        rightSidebarViewController = nil
         tabViewTrailingToContainer = nil
         tabViewTrailingToSidebar = nil
 
@@ -232,51 +233,75 @@ final class DocumentViewController: NSViewController {
 
         if appViewModel.isRightSidebarVisible {
             showRightSidebar()
+            applyRightSidebarWidth()
         } else {
             hideRightSidebar()
         }
     }
 
     private func showRightSidebar(initialWidth: CGFloat? = nil) {
-        guard rightSidebarHostingView == nil,
+        guard rightSidebarViewController == nil,
               let contentContainer,
               let tabViewContainer else { return }
 
-        let sidebarView = injectEnvironments(RowDetailSidebar())
-        let hostingView = NSHostingView(rootView: AnyView(sidebarView))
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        hostingView.shadow = makeShadow()
-        rightSidebarHostingView = hostingView
+        let sidebarViewController = RowDetailSidebarViewController(
+            instance: instance,
+            appViewModel: appViewModel,
+            onWidthChange: { [weak self] _ in
+                self?.applyRightSidebarWidth()
+            }
+        )
+        addChild(sidebarViewController)
 
-        contentContainer.addSubview(hostingView)
+        let sidebarView = sidebarViewController.view
+        sidebarView.translatesAutoresizingMaskIntoConstraints = false
+        sidebarView.shadow = makeShadow()
+        rightSidebarViewController = sidebarViewController
+
+        contentContainer.addSubview(sidebarView)
 
         tabViewTrailingToContainer?.isActive = false
 
-        let trailingToSidebar = tabViewContainer.trailingAnchor.constraint(equalTo: hostingView.leadingAnchor)
-        let widthConstraint = hostingView.widthAnchor.constraint(equalToConstant: initialWidth ?? appViewModel.rightSidebarWidth)
+        let trailingToSidebar = tabViewContainer.trailingAnchor.constraint(equalTo: sidebarView.leadingAnchor)
+        let widthConstraint = sidebarView.widthAnchor.constraint(equalToConstant: initialWidth ?? appViewModel.rightSidebarWidth)
         tabViewTrailingToSidebar = trailingToSidebar
         rightSidebarWidthConstraint = widthConstraint
 
         NSLayoutConstraint.activate([
-            hostingView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            sidebarView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            sidebarView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            sidebarView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
             widthConstraint,
             trailingToSidebar,
         ])
     }
 
     private func hideRightSidebar() {
-        guard rightSidebarHostingView != nil else { return }
+        guard rightSidebarViewController != nil else { return }
 
         tabViewTrailingToSidebar?.isActive = false
         tabViewTrailingToSidebar = nil
         rightSidebarWidthConstraint = nil
 
-        rightSidebarHostingView?.removeFromSuperview()
-        rightSidebarHostingView = nil
+        rightSidebarViewController?.view.removeFromSuperview()
+        rightSidebarViewController?.removeFromParent()
+        rightSidebarViewController = nil
 
         tabViewTrailingToContainer?.isActive = true
+    }
+
+    private func applyRightSidebarWidth() {
+        guard appViewModel.isRightSidebarVisible,
+              let contentContainer,
+              let widthConstraint = rightSidebarWidthConstraint
+        else { return }
+
+        let targetWidth = appViewModel.rightSidebarWidth
+        guard widthConstraint.constant != targetWidth else { return }
+
+        widthConstraint.constant = targetWidth
+        contentContainer.layoutSubtreeIfNeeded()
+        rightSidebarViewController?.view.layoutSubtreeIfNeeded()
     }
 
     // MARK: - Tab Syncing
@@ -444,14 +469,14 @@ final class DocumentViewController: NSViewController {
         showRightSidebar(initialWidth: 0)
         contentContainer?.layoutSubtreeIfNeeded()
 
-        rightSidebarHostingView?.alphaValue = 0
+        rightSidebarViewController?.view.alphaValue = 0
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             self.rightSidebarWidthConstraint?.constant = self.appViewModel.rightSidebarWidth
-            self.rightSidebarHostingView?.animator().alphaValue = 1
+            self.rightSidebarViewController?.view.animator().alphaValue = 1
             self.contentContainer?.layoutSubtreeIfNeeded()
         } completionHandler: { [weak self] in
             Task { @MainActor [weak self] in
@@ -461,7 +486,7 @@ final class DocumentViewController: NSViewController {
     }
 
     private func hideRightSidebarAnimated() {
-        guard rightSidebarHostingView != nil else { return }
+        guard rightSidebarViewController != nil else { return }
         isAnimatingRightSidebar = true
 
         NSAnimationContext.runAnimationGroup { context in
@@ -469,7 +494,7 @@ final class DocumentViewController: NSViewController {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             self.rightSidebarWidthConstraint?.constant = 0
-            self.rightSidebarHostingView?.animator().alphaValue = 0
+            self.rightSidebarViewController?.view.animator().alphaValue = 0
             self.contentContainer?.layoutSubtreeIfNeeded()
         } completionHandler: { [weak self] in
             Task { @MainActor [weak self] in

@@ -33,6 +33,9 @@ struct AboutSettingsView: View {
                 Button("Check for Updates") {
                     SparkleUpdaterManager.shared.checkForUpdates()
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .tint(.primary)
             }
 
             Section {

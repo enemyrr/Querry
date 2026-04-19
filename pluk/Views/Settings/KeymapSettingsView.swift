@@ -8,53 +8,15 @@ import SwiftUI
 struct KeymapSettingsView: View {
     var body: some View {
         Form {
-            queryExecutionSection
-            dataTableSection
-            navigationSection
-            viewSection
-            aiFeaturesSection
+            ForEach(KeymapSettingsContent.sections) { section in
+                Section(section.title) {
+                    ForEach(section.items) { item in
+                        KeyboardShortcutRow(action: item.action, shortcut: item.shortcut)
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
-    }
-
-    private var queryExecutionSection: some View {
-        Section("Query Execution") {
-            KeyboardShortcutRow(action: "Run Query", shortcut: "⌘ Return")
-            KeyboardShortcutRow(action: "Refresh", shortcut: "⌘ R")
-        }
-    }
-
-    private var dataTableSection: some View {
-        Section("Data Table") {
-            KeyboardShortcutRow(action: "Insert Row", shortcut: "⌘ I")
-            KeyboardShortcutRow(action: "Delete Row", shortcut: "⌫")
-            KeyboardShortcutRow(action: "Edit / Quick Look", shortcut: "⌘ Return")
-            KeyboardShortcutRow(action: "Save Changes", shortcut: "⌘ S")
-            KeyboardShortcutRow(action: "Copy", shortcut: "⌘ C")
-        }
-    }
-
-    private var navigationSection: some View {
-        Section("Navigation") {
-            KeyboardShortcutRow(action: "Find Tables", shortcut: "⌘ P")
-            KeyboardShortcutRow(action: "New Connection", shortcut: "⌘ ⇧ N")
-            KeyboardShortcutRow(action: "Previous Page", shortcut: "⌘ ←")
-            KeyboardShortcutRow(action: "Next Page", shortcut: "⌘ →")
-        }
-    }
-
-    private var viewSection: some View {
-        Section("View") {
-            KeyboardShortcutRow(action: "Toggle Sidebar", shortcut: "⌘ [")
-            KeyboardShortcutRow(action: "Toggle Row Details", shortcut: "⌘ ]")
-            KeyboardShortcutRow(action: "Enter Full Screen", shortcut: "⌃ ⌘ F")
-        }
-    }
-
-    private var aiFeaturesSection: some View {
-        Section("AI") {
-            KeyboardShortcutRow(action: "AI Command", shortcut: "⌘ K")
-        }
     }
 }
 

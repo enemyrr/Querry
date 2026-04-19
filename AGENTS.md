@@ -57,6 +57,7 @@ The scheme is **`Collection`**, not `Pluk` — the app was originally named Coll
 - When debugging live app data, the active SwiftData store for Pluk runs from the app container at `~/Library/Containers/doc.pluk/Data/Library/Application Support/default.store`. The similarly named `~/Library/Application Support/default.store` may belong to a different app and can send you down the wrong path.
 - The schema-load error text `No active connection` / `Failed to fetch schemas: No active connection` currently maps to the PostgreSQL driver path (`PostgreSQLDriver.requireClient()`), not the Convex driver. Convex auth or connection failures use Convex-specific messages such as `Not connected to Convex or no mobile client available` or Convex API auth errors.
 - Git tracks source files under lowercase `pluk/...` paths even though `Pluk/...` also resolves on disk on macOS. Use lowercase paths in git commands and patches to avoid confusing `git diff` / `git show` results.
+- `Pluk.xcodeproj` uses `PBXFileSystemSynchronizedRootGroup` for the `pluk/` sources. New `.swift` files added under `pluk/` are automatically picked up by the app target unless explicitly excluded, so most source-file additions do not need a matching `project.pbxproj` edit.
 - `WindowController.switchToTab(.home)` should always resolve against `WindowController`-managed windows or create a new home window. Falling back to non-`WindowController` windows breaks global entry points such as the menubar once only notebook/connection windows are open.
 
 ## GitHub Workflow
@@ -128,6 +129,40 @@ The scheme is **`Collection`**, not `Pluk` — the app was originally named Coll
 - Never use `@Attribute(.unique)`
 - Model properties must always either have default values or be marked as optional
 - All relationships must be marked optional
+
+## Subscription & Entitlements
+
+Stripe billing is brokered through WorkOS. The backend (`api.pluk.sh/api/billing/status`) returns the current subscription state; the client caches it in `UserDefaults` and refreshes on launch, on `NSApplication.didBecomeActiveNotification`, and when the Account pane appears.
+
+**Single source of truth**: `WorkOSAuthService.shared` (`@MainActor @Observable`). It exposes `subscriptionStatus`, `isTrialing`, `isCancelPending`, `memberSerial`, `hasLoadedSubscriptionStatus`, and persists to `UserDefaults` under `workos_billing_cache_v1` so the correct page renders instantly on cold start.
+
+**Never check `subscriptionStatus` directly for feature gating.** Use the entitlements abstraction in `pluk/Models/Entitlements.swift`:
+
+```swift
+let auth = WorkOSAuthService.shared
+
+// Tier check
+if auth.isPro { ... }
+
+// Feature flag
+if auth.entitlements.hasNotebookAgent { ... }
+
+// Quota check
+if !auth.entitlements.canAddConnection(currentCount: connections.count) {
+    Paywall.present()
+    return
+}
+
+// SwiftUI tap gate
+Button("New Connection") { }
+    .requiresPro { createConnection() }
+```
+
+`Entitlements.free` / `Entitlements.pro` are the tier presets — add fields there (never inline new gate checks at call sites) so the Team tier can later be added as `Entitlements.team` in one place.
+
+**Paywall presentation**: call `Paywall.present()` (in `pluk/Views/Paywall/Paywall.swift`). It opens Settings → Account via `SettingsWindowController.shared.show(pane: .account)`, which is the only paywall surface in the app.
+
+**Don't poll** the billing endpoint on a timer. The client follows the RevenueCat/StoreKit pattern: lazy fetch on meaningful events (launch, foreground with cooldown, pre-gated-action), trust the cache in between, trust backend webhooks to keep server state fresh.
 
 ## Performance Guidelines
 

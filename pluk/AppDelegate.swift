@@ -175,25 +175,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            handleOAuthCallback(url)
+            handleURLCallback(url)
         }
     }
-    
-    private func handleOAuthCallback(_ url: URL) {
-        if url.path.contains("/callback") {
-            if let urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false),
-               let queryItems = urlComponents.queryItems {
-                for item in queryItems {
-                    if item.name == "code", let code = item.value {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("ConvexOAuthCallback"),
-                            object: nil,
-                            userInfo: ["code": code]
-                        )
-                        break
-                    }
-                }
-            }
+
+    private func handleURLCallback(_ url: URL) {
+        let host = url.host
+
+        // pluk://checkout/success or pluk://billing/portal
+        if host == "checkout" || host == "billing" {
+            NotificationCenter.default.post(name: .billingCallbackReceived, object: nil)
+            return
+        }
+
+        // OAuth callbacks require a code parameter
+        guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let code = queryItems.first(where: { $0.name == "code" })?.value else {
+            return
+        }
+
+        // pluk://auth/callback
+        if host == "auth" {
+            NotificationCenter.default.post(
+                name: .workOSAuthCallback,
+                object: nil,
+                userInfo: ["code": code]
+            )
+        } else {
+            NotificationCenter.default.post(
+                name: .convexOAuthCallback,
+                object: nil,
+                userInfo: ["code": code]
+            )
         }
     }
 

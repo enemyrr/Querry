@@ -8,56 +8,74 @@ import SwiftUI
 
 // MARK: - Window Controller
 
-final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
+@MainActor
+final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowDelegate {
     static let shared = SettingsWindowController()
+
     private var splitViewController: SettingsSplitViewController?
     private var navigationHistory = SettingsNavigationHistory()
 
+    private static let defaultWindowSize = NSSize(width: 780, height: 570)
+    private static let minimumWindowSize = NSSize(width: 680, height: 536)
+    private static let windowFrameAutosaveName = "SettingsWindowFrame"
+
     private static let backForwardIdentifier = NSToolbarItem.Identifier("backForward")
-    private static let titleIdentifier = NSToolbarItem.Identifier("title")
-    private var titleTextField: NSTextField?
 
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 450),
-            styleMask: [.titled, .closable, .fullSizeContentView, .miniaturizable],
+            contentRect: NSRect(origin: .zero, size: Self.defaultWindowSize),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = ""
-        window.titleVisibility = .hidden
-        window.toolbarStyle = .unified
-        window.setContentSize(NSSize(width: 680, height: 450))
-        window.contentMinSize = NSSize(width: 680, height: 450)
-        window.contentMaxSize = NSSize(width: 680, height: 450)
-        window.center()
+        window.titleVisibility = .visible
+        window.toolbarStyle = .automatic
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .automatic
+        window.contentMinSize = Self.minimumWindowSize
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
+
+        window.delegate = self
 
         let toolbar = NSToolbar(identifier: "SettingsToolbar")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
 
+        restoreWindowFrame(window)
+
         let splitVC = SettingsSplitViewController(
-            navigationHistory: navigationHistory,
             onPaneChange: { [weak self] pane, isUserSelection in
-                self?.titleTextField?.stringValue = pane.rawValue
+                self?.updateTitle(pane.rawValue)
                 if isUserSelection {
                     self?.navigationHistory.push(pane)
                 }
                 self?.updateToolbarButtons()
             }
         )
-        self.splitViewController = splitVC
+        splitViewController = splitVC
         window.contentViewController = splitVC
 
         navigationHistory.push(.general)
+        updateTitle(SettingsPane.general.rawValue)
+        updateToolbarButtons()
+    }
+
+    private func restoreWindowFrame(_ window: NSWindow) {
+        let restoredFrame = window.setFrameUsingName(Self.windowFrameAutosaveName)
+        window.setFrameAutosaveName(Self.windowFrameAutosaveName)
+
+        if !restoredFrame {
+            window.setContentSize(Self.defaultWindowSize)
+            window.center()
+        }
     }
 
     private func updateTitle(_ title: String) {
-        titleTextField?.stringValue = title
+        window?.title = title
     }
 
     @available(*, unavailable)
@@ -70,6 +88,11 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func show(pane: SettingsPane) {
+        splitViewController?.navigateTo(pane)
+        show()
+    }
+
     private func updateToolbarButtons() {
         window?.toolbar?.items.forEach { item in
             if item.itemIdentifier == Self.backForwardIdentifier,
@@ -80,71 +103,85 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
         }
     }
 
-    @objc private func backForwardAction(_ sender: NSSegmentedControl) {
-        if sender.selectedSegment == 0 {
-            if let pane = navigationHistory.goBack() {
-                splitViewController?.navigateTo(pane)
-                titleTextField?.stringValue = pane.rawValue
-            }
-        } else {
-            if let pane = navigationHistory.goForward() {
-                splitViewController?.navigateTo(pane)
-                titleTextField?.stringValue = pane.rawValue
-            }
+    private func navigateHistory(selectedSegment: Int) {
+        if selectedSegment == 0 {
+            guard let pane = navigationHistory.goBack() else { return }
+            splitViewController?.navigateTo(pane)
+            updateTitle(pane.rawValue)
+            updateToolbarButtons()
+            return
         }
+
+        guard let pane = navigationHistory.goForward() else { return }
+        splitViewController?.navigateTo(pane)
+        updateTitle(pane.rawValue)
         updateToolbarButtons()
+    }
+
+    @objc private func backForwardAction(_ sender: NSSegmentedControl) {
+        navigateHistory(selectedSegment: sender.selectedSegment)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        // Drop the Account pane so SwiftUI tears down the SCNView; its
+        // `.onDisappear` then releases the SceneKit/Metal caches via
+        // `PremiumCardView.purge()`. Without this, the card's ~100s of MB
+        // stay resident for the rest of the session because
+        // `isReleasedWhenClosed = false` keeps the hosting controller alive.
+        splitViewController?.navigateTo(.general)
+        navigationHistory = SettingsNavigationHistory()
+        navigationHistory.push(.general)
+        PaywallState.shared.gatedFromFreeLimit = false
     }
 
     // MARK: - NSToolbarDelegate
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.backForwardIdentifier, Self.titleIdentifier, .flexibleSpace]
+        [.sidebarTrackingSeparator, Self.backForwardIdentifier, .flexibleSpace]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.backForwardIdentifier, Self.titleIdentifier, .flexibleSpace]
+        [.sidebarTrackingSeparator, Self.backForwardIdentifier, .flexibleSpace]
     }
 
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        if itemIdentifier == Self.backForwardIdentifier {
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard itemIdentifier == Self.backForwardIdentifier else { return nil }
 
-            let segmented = NSSegmentedControl()
-            segmented.segmentStyle = .separated
-            segmented.trackingMode = .momentary
-            segmented.segmentCount = 2
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.isNavigational = true
 
-            segmented.setImage(NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?.withSymbolConfiguration(.init(pointSize: 11, weight: .medium)), forSegment: 0)
-            segmented.setImage(NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")?.withSymbolConfiguration(.init(pointSize: 11, weight: .medium)), forSegment: 1)
+        let segmented = NSSegmentedControl()
+        segmented.segmentStyle = .automatic
+        segmented.trackingMode = .momentary
+        segmented.segmentCount = 2
+        segmented.controlSize = .small
 
-            segmented.setWidth(24, forSegment: 0)
-            segmented.setWidth(24, forSegment: 1)
-            segmented.controlSize = .small
+        segmented.setImage(
+            NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?
+                .withSymbolConfiguration(.init(pointSize: 11, weight: .medium)),
+            forSegment: 0
+        )
+        segmented.setImage(
+            NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")?
+                .withSymbolConfiguration(.init(pointSize: 11, weight: .medium)),
+            forSegment: 1
+        )
 
-            segmented.setEnabled(false, forSegment: 0)
-            segmented.setEnabled(false, forSegment: 1)
+        segmented.setWidth(24, forSegment: 0)
+        segmented.setWidth(24, forSegment: 1)
+        segmented.setEnabled(false, forSegment: 0)
+        segmented.setEnabled(false, forSegment: 1)
+        segmented.target = self
+        segmented.action = #selector(backForwardAction(_:))
 
-            segmented.target = self
-            segmented.action = #selector(backForwardAction(_:))
-
-            item.view = segmented
-            return item
-        }
-
-        if itemIdentifier == Self.titleIdentifier {
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-
-            let textField = NSTextField(labelWithString: "General")
-            textField.font = .systemFont(ofSize: 15, weight: .semibold)
-            textField.textColor = .labelColor
-            textField.alignment = .left
-
-            self.titleTextField = textField
-            item.view = textField
-            return item
-        }
-
-        return nil
+        item.view = segmented
+        return item
     }
 }
 
@@ -188,10 +225,20 @@ final class SettingsNavigationHistory {
 
 final class SettingsSplitViewController: NSSplitViewController {
     private let sidebarViewModel: SettingsSidebarViewModel
+    private let detailHostingController: NSHostingController<SettingsDetailView>
 
-    init(navigationHistory: SettingsNavigationHistory, onPaneChange: @escaping (SettingsPane, Bool) -> Void) {
-        self.sidebarViewModel = SettingsSidebarViewModel(onPaneChange: onPaneChange)
+    init(onPaneChange: @escaping (SettingsPane, Bool) -> Void) {
+        let sidebarViewModel = SettingsSidebarViewModel()
+        self.sidebarViewModel = sidebarViewModel
+        detailHostingController = NSHostingController(
+            rootView: SettingsDetailView(viewModel: sidebarViewModel)
+        )
         super.init(nibName: nil, bundle: nil)
+        sidebarViewModel.setOnPaneChange { [weak self] pane, isUserSelection in
+            self?.updateDetailSafeArea(for: pane)
+            onPaneChange(pane, isUserSelection)
+        }
+        updateDetailSafeArea(for: sidebarViewModel.selectedPane)
     }
 
     @available(*, unavailable)
@@ -210,15 +257,18 @@ final class SettingsSplitViewController: NSSplitViewController {
         sidebarItem.maximumThickness = 180
         addSplitViewItem(sidebarItem)
 
-        let detailItem = NSSplitViewItem(viewController: NSHostingController(
-            rootView: SettingsDetailView(viewModel: sidebarViewModel)
-        ))
+        let detailItem = NSSplitViewItem(viewController: detailHostingController)
         detailItem.minimumThickness = 400
         addSplitViewItem(detailItem)
     }
 
     func navigateTo(_ pane: SettingsPane) {
         sidebarViewModel.selectPane(pane, isUserSelection: false)
+    }
+
+    private func updateDetailSafeArea(for pane: SettingsPane) {
+        guard #available(macOS 13.3, *) else { return }
+        detailHostingController.safeAreaRegions = pane == .account ? [] : .all
     }
 }
 
@@ -229,16 +279,20 @@ final class SettingsSplitViewController: NSSplitViewController {
 final class SettingsSidebarViewModel {
     var selectedPane: SettingsPane = .general
 
-    private let onPaneChange: ((SettingsPane, Bool) -> Void)?
+    private var onPaneChange: ((SettingsPane, Bool) -> Void)?
     private var isUserSelection = true
 
     init(onPaneChange: ((SettingsPane, Bool) -> Void)? = nil) {
         self.onPaneChange = onPaneChange
     }
 
+    func setOnPaneChange(_ onPaneChange: ((SettingsPane, Bool) -> Void)?) {
+        self.onPaneChange = onPaneChange
+    }
+
     func selectPane(_ pane: SettingsPane, isUserSelection: Bool) {
         self.isUserSelection = isUserSelection
-        self.selectedPane = pane
+        selectedPane = pane
         onPaneChange?(pane, isUserSelection)
         self.isUserSelection = true
     }
@@ -248,6 +302,7 @@ final class SettingsSidebarViewModel {
 
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general = "General"
+    case account = "Account"
     case keymap = "Keymap"
     case about = "About"
 
@@ -264,14 +319,10 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .account: "person.crop.circle"
         case .general: "gear"
         case .keymap: "keyboard"
         case .about: "info.circle"
-        // Future pane icons:
-        // case .tabs: "square.on.square"
-        // case .fontIcons: "textformat"
-        // case .security: "lock.shield"
-        // case .ai: "sparkles"
         }
     }
 }
@@ -304,22 +355,14 @@ struct SettingsDetailView: View {
 
     var body: some View {
         switch viewModel.selectedPane {
+        case .account:
+            AccountSettingsView()
         case .general:
             GeneralSettingsView()
         case .keymap:
             KeymapSettingsView()
         case .about:
             AboutSettingsView()
-
-        // MARK: - Future Settings Views (uncomment when panes are enabled)
-        // case .tabs:
-        //     TabsSettingsView()
-        // case .fontIcons:
-        //     FontIconsSettingsView()
-        // case .security:
-        //     SecuritySettingsView()
-        // case .ai:
-        //     AISettingsView()
         }
     }
 }
