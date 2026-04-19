@@ -158,7 +158,7 @@ struct QueryEditor: View {
             }
             .padding([.top, .horizontal, .bottom], 8)
             
-            CodeEditor(text: $filter, position: $position, messages: $messages, language: editorLanguage)
+            CodeEditor(text: $filter, position: $position, messages: $messages, language: editorLanguage, autoFocus: true)
                 .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
                 .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
                 .overlay(

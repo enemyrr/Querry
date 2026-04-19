@@ -59,6 +59,11 @@ public final class CodeEditorViewController: NSViewController {
   /// Prevents delegate callbacks during programmatic updates to avoid feedback loops.
   var updatingProgrammatically = false
 
+  /// When true, the code view becomes first responder on first `viewDidAppear` (one-shot).
+  public var autoFocusOnAppear = false
+  private var didAutoFocus = false
+  private var autoFocusTask: Task<Void, Never>?
+
   // MARK: Public properties
 
   var text: String {
@@ -267,10 +272,26 @@ public final class CodeEditorViewController: NSViewController {
         self.delegate?.codeEditorDidScroll(self, verticalPosition: self.scrollView.verticalScrollPosition)
       }
     }
+
+    if autoFocusOnAppear && !didAutoFocus {
+      didAutoFocus = true
+      autoFocusTask = Task { @MainActor [weak self] in
+        for _ in 0..<30 {
+          if Task.isCancelled { return }
+          guard let self else { return }
+          if let window = self.view.window, let codeView = self.codeView {
+            if window.makeFirstResponder(codeView) { return }
+          }
+          try? await Task.sleep(for: .milliseconds(16))
+        }
+      }
+    }
   }
 
   override public func viewWillDisappear() {
     super.viewWillDisappear()
+    autoFocusTask?.cancel()
+    autoFocusTask = nil
     if let observer = boundsChangedObserver {
       NotificationCenter.default.removeObserver(observer)
       boundsChangedObserver = nil

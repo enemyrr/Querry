@@ -103,6 +103,7 @@ struct SQLEditorView: View {
         .onAppear {
             loadAvailableDatabases()
             loadInitialQueryFromTab()
+            BedrockService.shared.warmUpCredentials()
         }
     }
     
@@ -316,7 +317,7 @@ struct SQLEditorView: View {
 
     private var sqlEditor: some View {
         ZStack(alignment: .topLeading) {
-            CodeEditor(text: $sqlQuery, position: $position, messages: $messages, language: editorLanguage)
+            CodeEditor(text: $sqlQuery, position: $position, messages: $messages, language: editorLanguage, autoFocus: true)
                 .environment(\.codeEditorTheme, transparentTheme)
                 .environment(\.codeEditorLayoutConfiguration, .init(wrapText: true))
 

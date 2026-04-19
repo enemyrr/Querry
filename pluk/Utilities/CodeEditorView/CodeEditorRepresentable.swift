@@ -36,6 +36,7 @@ public struct CodeEditorRepresentable: NSViewControllerRepresentable {
 
   let language:            LanguageConfiguration
   let breakUndoCoalescing: PassthroughSubject<(), Never>?
+  let autoFocus:           Bool
 
   @Binding private var text:     String
   @Binding private var position: CodeEditorTypes.Position
@@ -51,13 +52,15 @@ public struct CodeEditorRepresentable: NSViewControllerRepresentable {
               position:            Binding<CodeEditorTypes.Position>,
               messages:            Binding<Set<TextLocated<Message>>>,
               language:            LanguageConfiguration = .none,
-              breakUndoCoalescing: PassthroughSubject<(), Never>? = nil)
+              breakUndoCoalescing: PassthroughSubject<(), Never>? = nil,
+              autoFocus:           Bool = false)
   {
     self._text               = text
     self._position           = position
     self._messages           = messages
     self.language            = language
     self.breakUndoCoalescing = breakUndoCoalescing
+    self.autoFocus           = autoFocus
   }
 
   public func makeNSViewController(context: Context) -> CodeEditorViewController {
@@ -86,6 +89,8 @@ public struct CodeEditorRepresentable: NSViewControllerRepresentable {
     context.coordinator.breakUndoCoalescingCancellable = breakUndoCoalescing?.sink { [weak vc] _ in
       vc?.breakUndoCoalescing()
     }
+
+    vc.autoFocusOnAppear = autoFocus
 
     return vc
   }

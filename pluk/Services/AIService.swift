@@ -33,10 +33,9 @@ class AIService: @unchecked Sendable {
         </error>
         """
 
-        return try await performRequestWithTools(
+        return try await performErrorFixRequest(
             systemPrompt: systemPrompt,
-            userPrompt: userPrompt,
-            databaseService: databaseService
+            userPrompt: userPrompt
         )
     }
 
@@ -114,141 +113,120 @@ class AIService: @unchecked Sendable {
 
         if normalizedDatabaseType == DatabaseType.convex.rawValue {
             return """
-            <role>
-            You fix broken Convex queries for Pluk's query editor.
-            </role>
+            You fix broken Convex queries for the Pluk query editor. Your response replaces the user's query text in the editor and is executed immediately.
 
-            <execution_context>
-            Your output replaces the broken query in the editor and is executed as-is.
-            Return only the corrected query text. Do not include explanations, markdown, or code fences.
-            </execution_context>
+            Output rules:
+            - Respond with ONLY the corrected Convex JavaScript query.
+            - DO NOT wrap the output in markdown code fences (no ```, no ```js, no ```javascript).
+            - DO NOT include prose before or after the code.
+            - If you must explain something, use JavaScript comments (`// ...` or `/* ... */`) inside the query.
+            - The first and last characters of your response must be part of the query itself.
+
+            Fix rules:
+            1. Make the minimal change needed to resolve the error. Preserve the user's variable names, formatting, and comments.
+            2. Keep the `export default query({ ... })` wrapper. Return a read-only query — no mutations, no actions.
+            3. Match table names against <available_tables> to catch typos or casing mismatches.
+            4. Return exactly one valid Convex JavaScript query.
 
             <available_tables>
             \(availableTables)
             </available_tables>
 
-            <instructions>
-            1. Return only a corrected Convex JavaScript query in the existing `export default query({ ... })` format.
-            2. Preserve the user's intent, table names, and overall structure unless the error requires changing them.
-            3. Return a read-only query only. Never return mutations or actions.
-            4. If you need column-level detail, call the \(schemaToolName) tool.
-            </instructions>
-
-            <examples>
             <example>
-            <input_query>
-            export default query({
+            <query>export default query({
               handler: async (ctx) => {
                 return await ctx.db.query("users").take(10)
               }
-            })
-            </input_query>
-            <error>
-            Unexpected token ')'
-            </error>
-            <output>
-            export default query({
+            })</query>
+            <error>Unexpected token ')'</error>
+            <output>export default query({
               handler: async (ctx) => {
                 return await ctx.db.query("users").take(10);
               },
-            })
-            </output>
+            })</output>
             </example>
 
             <example>
-            <input_query>
-            export default query({
+            <query>export default query({
               handler: async (ctx) => {
                 return await ctx.db.query("orders").order(desc).take(5);
               }
-            })
-            </input_query>
-            <error>
-            desc is not defined
-            </error>
-            <output>
-            export default query({
+            })</query>
+            <error>desc is not defined</error>
+            <output>export default query({
               handler: async (ctx) => {
                 return await ctx.db.query("orders").order("desc").take(5);
               },
-            })
-            </output>
+            })</output>
             </example>
-            </examples>
             """
         }
 
         if normalizedDatabaseType == DatabaseType.mongodb.rawValue.lowercased() {
             return """
-            <role>
-            You fix broken MongoDB queries for Pluk's query editor.
-            </role>
+            You fix broken MongoDB queries for the Pluk query editor. Your response replaces the user's query text in the editor and is executed immediately.
 
-            <execution_context>
-            Your output replaces the broken query in the editor and is executed as-is.
-            Return only the corrected MongoDB query text. Do not include explanations, markdown, or code fences.
-            </execution_context>
+            Output rules:
+            - Respond with ONLY the corrected MongoDB expression.
+            - DO NOT wrap the output in markdown code fences (no ```, no ```js, no ```javascript).
+            - DO NOT include prose before or after the code.
+            - If you must explain something, use JavaScript comments (`// ...` or `/* ... */`) inside the expression.
+            - The first and last characters of your response must be part of the expression itself.
+
+            Fix rules:
+            1. Make the minimal change needed to resolve the error. Preserve the user's formatting and comments.
+            2. Return a read-only expression such as `db.collection.find(...)`, `db.collection.aggregate(...)`, or a chained read operation.
+            3. Match collection names against <available_collections> to catch typos or casing mismatches.
+            4. Return exactly one valid MongoDB expression.
 
             <available_collections>
             \(availableTables)
             </available_collections>
 
-            <instructions>
-            1. Preserve the MongoDB query style the user already has unless the error requires changing it.
-            2. Return only valid MongoDB query code such as `db.collection.find(...)`, `aggregate(...)`, or related read-only query expressions.
-            3. Keep collection names aligned with the available collections list.
-            4. Do not return SQL, JavaScript wrappers, or natural-language explanations.
-            5. If you need column-level detail, call the \(schemaToolName) tool.
-            </instructions>
-
-            <examples>
             <example>
-            <input_query>
-            db.user.find({age: {$gt: 30} AND
-            </input_query>
-            <error>
-            Unexpected identifier 'AND'
-            </error>
-            <output>
-            db.users.find({ age: { $gt: 30 } })
-            </output>
+            <query>db.user.find({age: {$gt: 30} AND</query>
+            <error>Unexpected identifier 'AND'</error>
+            <output>db.users.find({ age: { $gt: 30 } })</output>
             </example>
 
             <example>
-            <input_query>
-            db.orders.find({ status: "active" }).sort(createdAt: -1)
-            </input_query>
-            <error>
-            Unexpected token ':'
-            </error>
-            <output>
-            db.orders.find({ status: "active" }).sort({ createdAt: -1 })
-            </output>
+            <query>db.orders.find({ status: "active" }).sort(createdAt: -1)</query>
+            <error>Unexpected token ':'</error>
+            <output>db.orders.find({ status: "active" }).sort({ createdAt: -1 })</output>
             </example>
-            </examples>
             """
         }
 
         return """
-        <role>
-        You fix broken \(databaseType) SQL queries for Pluk's SQL editor.
-        </role>
+        You fix broken \(databaseType) SQL queries for the Pluk SQL editor. Your response replaces the user's query text in the editor and is executed immediately.
 
-        <execution_context>
-        Your output replaces the broken query in a SQL editor.
-        Return only the corrected SQL query as plain text. Preserve the original comments and formatting style when possible. Do not include explanations, markdown, or code fences.
-        </execution_context>
+        Output rules:
+        - Respond with ONLY the corrected SQL statement.
+        - DO NOT wrap the output in markdown code fences (no ```, no ```sql).
+        - DO NOT include prose before or after the SQL.
+        - If you must explain something, use SQL comments (`-- ...` or `/* ... */`) inside the query.
+        - The first and last characters of your response must be part of the SQL itself.
+
+        Fix rules:
+        1. Make the minimal change needed to resolve the error. Preserve the user's comments, whitespace, casing, and aliases.
+        2. Match table names against <available_tables> to catch typos or casing mismatches.
+        3. Return exactly one syntactically valid \(databaseType) statement.
 
         <available_tables>
         \(availableTables)
         </available_tables>
 
-        <instructions>
-        1. Analyze the query and error message to identify the cause.
-        2. Check the available tables list for table name typos or case mismatches.
-        3. If you need column-level detail, call the \(schemaToolName) tool.
-        4. Return only the corrected, syntactically valid SQL query.
-        </instructions>
+        <example>
+        <query>SELECT id, emial FROM users WHERE id = 1;</query>
+        <error>column "emial" does not exist</error>
+        <output>SELECT id, email FROM users WHERE id = 1;</output>
+        </example>
+
+        <example>
+        <query>SELECT * FROM ordres WHERE status = 'paid';</query>
+        <error>relation "ordres" does not exist</error>
+        <output>SELECT * FROM orders WHERE status = 'paid';</output>
+        </example>
         """
     }
 
@@ -299,43 +277,25 @@ class AIService: @unchecked Sendable {
         return results
     }
 
-    private static func performRequestWithTools(systemPrompt: String, userPrompt: String, databaseService: DatabaseService) async throws -> String {
-        var messages: [BedrockGLMChatMessage] = [
+    private static func performErrorFixRequest(
+        systemPrompt: String,
+        userPrompt: String
+    ) async throws -> String {
+        let messages: [BedrockGLMChatMessage] = [
             BedrockGLMChatMessage(role: .user, content: userPrompt)
         ]
 
         let response = try await BedrockGLMService.shared.chatCompletion(
             messages: messages,
             systemPrompt: systemPrompt,
-            tools: [schemaTool],
-            maxTokens: 4096,
-            model: modelId,
-            temperature: generationTemperature,
-            thinkingMode: .enabled
-        )
-
-        let toolUses = response.assistantMessage.toolCalls ?? []
-
-        if toolUses.isEmpty {
-            return response.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        }
-
-        messages.append(response.assistantMessage)
-
-        let toolResults = try await collectToolResults(for: toolUses, databaseService: databaseService)
-        messages.append(contentsOf: toolResults)
-
-        let finalResponse = try await BedrockGLMService.shared.chatCompletion(
-            messages: messages,
-            systemPrompt: systemPrompt,
             tools: [],
             maxTokens: 4096,
-            model: modelId,
+            model: BedrockConfig.glm47ModelId,
             temperature: generationTemperature,
-            thinkingMode: .enabled
+            thinkingMode: .disabled
         )
 
-        return finalResponse.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return response.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private static func handleSchemaToolCall(input: [String: Any], databaseService: DatabaseService) async throws -> String {
