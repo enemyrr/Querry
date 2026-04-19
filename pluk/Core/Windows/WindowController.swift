@@ -642,8 +642,6 @@ extension WindowController: NSWindowDelegate {
         guard let window else { return }
         let closingConnectionInstance = connectionInstance
 
-        persistWindowFrame(window)
-
         if case .connection = tabType,
            let tabManager = WindowController.getTabManager(for: window) {
             let tabsToClose = tabManager.tabs.filter { $0.type != .home }
