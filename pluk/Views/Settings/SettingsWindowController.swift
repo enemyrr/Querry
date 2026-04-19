@@ -133,7 +133,6 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
         splitViewController?.navigateTo(.general)
         navigationHistory = SettingsNavigationHistory()
         navigationHistory.push(.general)
-        PaywallState.shared.gatedFromFreeLimit = false
     }
 
     // MARK: - NSToolbarDelegate
@@ -234,11 +233,9 @@ final class SettingsSplitViewController: NSSplitViewController {
             rootView: SettingsDetailView(viewModel: sidebarViewModel)
         )
         super.init(nibName: nil, bundle: nil)
-        sidebarViewModel.setOnPaneChange { [weak self] pane, isUserSelection in
-            self?.updateDetailSafeArea(for: pane)
+        sidebarViewModel.setOnPaneChange { pane, isUserSelection in
             onPaneChange(pane, isUserSelection)
         }
-        updateDetailSafeArea(for: sidebarViewModel.selectedPane)
     }
 
     @available(*, unavailable)
@@ -264,11 +261,6 @@ final class SettingsSplitViewController: NSSplitViewController {
 
     func navigateTo(_ pane: SettingsPane) {
         sidebarViewModel.selectPane(pane, isUserSelection: false)
-    }
-
-    private func updateDetailSafeArea(for pane: SettingsPane) {
-        guard #available(macOS 13.3, *) else { return }
-        detailHostingController.safeAreaRegions = pane == .account ? [] : .all
     }
 }
 

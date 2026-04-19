@@ -74,22 +74,6 @@ private struct AccountSettingsContentView: View {
     private var loggedOutView: some View {
         ScrollView {
             VStack(spacing: 20) {
-                if PaywallState.shared.gatedFromFreeLimit {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Sign in to open more than 4 connections at a time.")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(Color.primaryButton)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.primaryButton.opacity(0.12))
-                    )
-                }
-
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .scaledToFit()
@@ -111,7 +95,6 @@ private struct AccountSettingsContentView: View {
 
                 HStack(spacing: 12) {
                     Button {
-                        PaywallState.shared.gatedFromFreeLimit = false
                         authService.login(signUp: true)
                     } label: {
                         Text("Sign Up")
@@ -121,7 +104,6 @@ private struct AccountSettingsContentView: View {
                     .disabled(authService.isLoading)
 
                     Button("Log In") {
-                        PaywallState.shared.gatedFromFreeLimit = false
                         authService.login()
                     }
                     .controlSize(.large)

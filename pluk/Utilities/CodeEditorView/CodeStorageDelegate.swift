@@ -204,6 +204,7 @@ class CodeStorageDelegate: NSObject, NSTextStorageDelegate, @unchecked Sendable 
   /// This implies stopping any already running language service first. We don't do anything if target language
   /// configuration equals the current one.
   ///
+  @MainActor
   func change(language: LanguageConfiguration, for codeStorage: CodeStorage) async throws {
     let currentLanguage = self.language
     guard language != currentLanguage else { return }

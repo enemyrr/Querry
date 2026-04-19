@@ -6,20 +6,6 @@
 import AppKit
 import SwiftUI
 
-/// Transient UI state for the paywall flow. Observable so views update when
-/// the reason for presentation changes.
-@Observable
-@MainActor
-final class PaywallState {
-    static let shared = PaywallState()
-    private init() {}
-
-    /// Set when the paywall is triggered for an unauthenticated user, so the
-    /// Account pane's sign-in view can surface a contextual banner. Cleared
-    /// once the user acts on it (signs in or closes the Settings window).
-    var gatedFromFreeLimit = false
-}
-
 /// Central entry point for surfacing the paywall from anywhere in the app.
 /// The paywall lives in the Account pane of Settings.
 @MainActor
@@ -43,9 +29,6 @@ enum Paywall {
     }
 
     private static func openAccountPane() {
-        if !WorkOSAuthService.shared.isAuthenticated {
-            PaywallState.shared.gatedFromFreeLimit = true
-        }
         SettingsWindowController.shared.show(pane: .account)
     }
 

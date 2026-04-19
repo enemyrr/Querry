@@ -89,7 +89,6 @@ final class WorkOSAuthService {
         authError = nil
         resetBillingState()
         hasLoadedSubscriptionStatus = false
-        PaywallState.shared.gatedFromFreeLimit = false
 
         // Drop the SceneKit/Metal caches so the next user's engraved card
         // renders fresh instead of flashing the previous user's name/serial.
