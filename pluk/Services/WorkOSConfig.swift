@@ -6,7 +6,13 @@
 import Foundation
 
 enum WorkOSConfig {
-    static let clientId = "client_01KP0A64W3N3BX4AJ4N8GDEMNS"
+    static let clientId: String = {
+        #if DEBUG
+        return "client_01KP0A64W3N3BX4AJ4N8GDEMNS"
+        #else
+        return "client_01KP0A65KR9YG2ENR1YNH96W9V"
+        #endif
+    }()
 
     static let redirectURI = "https://pluk.sh/welcome"
     static let authorizeURL = "https://api.workos.com/user_management/authorize"
