@@ -11,7 +11,16 @@
             <sparkle:version>292</sparkle:version>
             <sparkle:shortVersionString>0.0.1-beta.33</sparkle:shortVersionString>
             <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 33</h2><div><p>⚠️ Release notes not found in CHANGELOG.md for version 0.0.1-beta.33</p><p>Please update CHANGELOG.md with release notes for this version.</p></div>
+                <h2>Pluk 0.0.1 Beta 33</h2><div>v0.0.1-beta.33 makes workspace switching and table editing feel more settled. Open recent connections from the menu bar, jump into notebooks faster, refresh the sidebar with better control, and work through PostgreSQL editing with fewer rough edges.
+Here’s what’s new:
+<ul>
+<li><strong>Menu bar workspace switching.</strong> Reopen recent connections, switch between open workspaces, and start a new notebook faster. (<a href="https://github.com/pluk-inc/Pluk/issues/104">#104</a>)</li>
+<li><strong>Refresh controls for the sidebar.</strong> Tables, schemas, and the database can now be refreshed directly from the sidebar, so you no longer have to reconnect just to reload everything. (<a href="https://github.com/pluk-inc/Pluk/issues/104">#104</a>)</li>
+<li><strong>More reliable PostgreSQL editing.</strong> Updates and deletes now work better for non-public schemas and UUID primary keys. (<a href="https://github.com/pluk-inc/Pluk/issues/105">#105</a>)</li>
+<li><strong>Better save behavior in tables.</strong> Cmd+S now commits the active cell before saving. (<a href="https://github.com/pluk-inc/Pluk/issues/107">#107</a>)</li>
+<li><strong>Clearer bulk actions.</strong> The floating action bar once again shows the correct delete count. (<a href="https://github.com/pluk-inc/Pluk/issues/106">#106</a>)</li>
+<li><strong>More polish throughout the app.</strong> Smaller bug fixes and UI improvements round out the release.</li>
+</ul></div>
             ]]></description>
             <pubDate>Sun, 19 Apr 2026 08:21:43 +0000</pubDate>
             <enclosure 

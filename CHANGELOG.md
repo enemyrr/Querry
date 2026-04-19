@@ -2,6 +2,19 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.33] – 2026-04-19
+
+v0.0.1-beta.33 makes workspace switching and table editing feel more settled. Open recent connections from the menu bar, jump into notebooks faster, refresh the sidebar with better control, and work through PostgreSQL editing with fewer rough edges.
+
+Here’s what’s new:
+
+- **Menu bar workspace switching.** Reopen recent connections, switch between open workspaces, and start a new notebook faster. ([#104](https://github.com/pluk-inc/Pluk/issues/104))
+- **Refresh controls for the sidebar.** Tables, schemas, and the database can now be refreshed directly from the sidebar, so you no longer have to reconnect just to reload everything. ([#104](https://github.com/pluk-inc/Pluk/issues/104))
+- **More reliable PostgreSQL editing.** Updates and deletes now work better for non-public schemas and UUID primary keys. ([#105](https://github.com/pluk-inc/Pluk/issues/105))
+- **Better save behavior in tables.** Cmd+S now commits the active cell before saving. ([#107](https://github.com/pluk-inc/Pluk/issues/107))
+- **Clearer bulk actions.** The floating action bar once again shows the correct delete count. ([#106](https://github.com/pluk-inc/Pluk/issues/106))
+- **More polish throughout the app.** Smaller bug fixes and UI improvements round out the release.
+
 ## [0.0.1-beta.32] – 2026-04-11
 
 This release is focused on making everyday table work feel smoother and more reliable. We tightened up editing, improved QuickLook for JSON-heavy fields, fixed a bunch of database-specific edge cases, and cleaned up a few rough spots when switching between connections and databases.
