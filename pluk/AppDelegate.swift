@@ -18,7 +18,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var systemAppearanceObservation: NSKeyValueObservation?
     private var menuBarController: MenuBarController?
-    private var windowAppearanceObserver: NSObjectProtocol?
 
     static func appearance(for value: Int) -> NSAppearance? {
         switch value {
@@ -54,25 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Apply user's appearance preference per-window (not globally) so the
-        // menu bar status item keeps the system-managed menu bar appearance.
-        let preferredAppearance = Self.userPreferredAppearance()
-        for window in NSApp.windows where window.className != "NSStatusBarWindow" {
-            window.appearance = preferredAppearance
-        }
-        windowAppearanceObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            MainActor.assumeIsolated {
-                guard let window = NSApp.keyWindow,
-                    window.className != "NSStatusBarWindow",
-                    window.appearance == nil
-                else { return }
-                window.appearance = AppDelegate.userPreferredAppearance()
-            }
-        }
+        NSApp.appearance = Self.userPreferredAppearance()
 
         let _ = SparkleUpdaterManager.shared
 

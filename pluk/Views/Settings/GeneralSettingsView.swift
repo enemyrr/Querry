@@ -155,10 +155,7 @@ struct GeneralSettingsView: View {
     }
 
     private func applyAppearance(_ value: Int) {
-        let newAppearance = AppDelegate.appearance(for: value)
-        for window in NSApp.windows where window.className != "NSStatusBarWindow" {
-            window.appearance = newAppearance
-        }
+        NSApp.appearance = AppDelegate.appearance(for: value)
     }
 
     // MARK: - Future Settings Sections (DO NOT REMOVE - preserved for future use)
