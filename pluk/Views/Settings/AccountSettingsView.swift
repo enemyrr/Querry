@@ -40,7 +40,9 @@ struct AccountSettingsView: View {
         .onDisappear {
             PremiumCardView.purge()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
             guard authService.isAuthenticated else { return }
             Task { await refreshSubscriptionIfStale() }
         }
@@ -48,7 +50,8 @@ struct AccountSettingsView: View {
 
     private func refreshSubscriptionIfStale() async {
         if let last = lastSubscriptionFetch,
-           Date.now.timeIntervalSince(last) < Self.subscriptionRefetchCooldown {
+            Date.now.timeIntervalSince(last) < Self.subscriptionRefetchCooldown
+        {
             return
         }
         await authService.fetchSubscriptionStatus()
@@ -85,12 +88,14 @@ private struct AccountSettingsContentView: View {
                         .font(.system(size: 22, weight: .semibold))
                         .multilineTextAlignment(.center)
 
-                    Text("Log in or create an account to upgrade to Pluk Pro and unlock the full experience.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 360)
+                    Text(
+                        "Log in or create an account to upgrade to Pluk Pro and unlock the full experience."
+                    )
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 360)
                 }
 
                 HStack(spacing: 12) {
@@ -381,9 +386,10 @@ private struct TintedGlassButtonStyle: ButtonStyle {
             .padding(.vertical, 9)
             .background(
                 Capsule()
-                    .fill(Color.primaryButton.opacity(
-                        configuration.isPressed ? 0.22 : (isHovering ? 0.2 : 0.16)
-                    ))
+                    .fill(
+                        Color.primaryButton.opacity(
+                            configuration.isPressed ? 0.22 : (isHovering ? 0.2 : 0.16)
+                        ))
             )
             .overlay(
                 Capsule()

@@ -47,6 +47,10 @@ struct DatabaseList: View {
         allCollections?.filter { ["function", "procedure"].contains($0.type) } ?? []
     }
 
+    private var emptyTablesMessage: String {
+        instance.connection.databaseType == .mongodb ? "No collections" : "No tables"
+    }
+
     var body: some View {
         connectionContent
     }
@@ -86,6 +90,18 @@ struct DatabaseList: View {
                         }
                         .padding(.top, 20)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if viewModel.searchText.isEmpty
+                        && filteredTables.isEmpty
+                        && filteredFunctions.isEmpty
+                    {
+                        HStack {
+                            Text(emptyTablesMessage)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.tertiary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
                     }
                 }
             }

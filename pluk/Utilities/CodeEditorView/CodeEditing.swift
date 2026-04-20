@@ -37,13 +37,80 @@ extension CodeView {
   override public func keyDown(with event: NSEvent) {
 
     let noModifiers = event.modifierFlags.intersection([.shift, .control, .option, .command]) == []
+    if completionPanel.isVisible, noModifiers {
+      switch event.keyCode {
+      case keyCodeDownArrow:
+        completionPanel.moveSelection(by: 1)
+        return
+      case keyCodeUpArrow:
+        completionPanel.moveSelection(by: -1)
+        return
+      case keyCodeReturn, keyCodeTab:
+        completionPanel.commitSelection()
+        return
+      case keyCodeESC:
+        completionPanel.cancelSelection()
+        return
+      default:
+        break
+      }
+    }
+
     if event.keyCode == keyCodeTab && noModifiers {
       insertTab()
     } else if event.keyCode == keyCodeReturn && noModifiers {
       insertReturn()
+    } else if event.keyCode == keyCodeDelete
+                && event.modifierFlags.contains(.option)
+                && !event.modifierFlags.contains(.command)
+                && !event.modifierFlags.contains(.control) {
+      performWordBackwardDelete()
     } else {
       super.keyDown(with: event)
     }
+  }
+
+  /// Deletes back to the previous identifier boundary the way VS Code, Xcode, and
+  /// Zed do: consumes any trailing whitespace/punctuation, then consumes the
+  /// preceding identifier run (letters, digits, `_`, `$`) as a single unit.
+  @MainActor
+  private func performWordBackwardDelete() {
+    let nsString = string as NSString
+    let selection = selectedRange()
+
+    guard selection.length == 0 else {
+      insertText("", replacementRange: selection)
+      return
+    }
+
+    let cursor = max(0, min(selection.location, nsString.length))
+    guard cursor > 0 else { return }
+
+    var index = cursor
+
+    while index > 0 {
+      let scalar = nsString.character(at: index - 1)
+      guard let unicode = UnicodeScalar(UInt32(scalar)) else { break }
+      let isIdentifier = scalar == 95 || scalar == 36 || CharacterSet.alphanumerics.contains(unicode)
+      let isNewline = CharacterSet.newlines.contains(unicode)
+      if isIdentifier || isNewline { break }
+      index -= 1
+    }
+
+    while index > 0 {
+      let scalar = nsString.character(at: index - 1)
+      guard let unicode = UnicodeScalar(UInt32(scalar)) else { break }
+      let isIdentifier = scalar == 95 || scalar == 36 || CharacterSet.alphanumerics.contains(unicode)
+      if !isIdentifier { break }
+      index -= 1
+    }
+
+    let deletionRange = NSRange(location: index, length: cursor - index)
+    guard deletionRange.length > 0 else {
+      insertText("", replacementRange: NSRange(location: cursor - 1, length: 1))
+      return
+    }
+    insertText("", replacementRange: deletionRange)
   }
 }
 

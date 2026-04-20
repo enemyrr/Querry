@@ -70,6 +70,10 @@ struct Theme: Identifiable {
 - Theme is `Identifiable` — changing any property invalidates the UUID, triggering re-render
 - `CodeView` supports minimap via a secondary `CodeView` instance
 - Font defaults to SF Mono with configurable weights from theme
+- The editor already has a completion popup and async completion flow wired through `LanguageService` (`CodeActions.swift`, `CodeEditorViewController.swift`, `CodeView.swift`). If SQL autocomplete appears missing in a feature, the likely gap is the language-service/provider hookup, not the picker UI.
+- `LanguageService.completionTriggerCharacters` exists for auto-trigger characters such as `.` and space, but this path was not previously honored in `CodeActions.swift`. If trigger-character completions stop working, inspect `CodeView.considerCompletionFor(...)` before changing popup UI code.
+- `LanguageSupport` is not concurrency-audited enough to safely make a custom `LanguageService` implementation `@MainActor`. For editor integrations that depend on `@MainActor` app state such as `ConnectionInstance`, keep the service itself nonisolated, use `@preconcurrency import LanguageSupport`, and hop to `@MainActor` only for the data fetches.
+- `CompletionPanel` is an `NSPanel`, so its root `contentView` should behave like a window root, not an Auto Layout child. Setting the root container’s `translatesAutoresizingMaskIntoConstraints = false` can collapse the popup until only overlay scrollers are visible.
 
 ## Anti-Patterns
 

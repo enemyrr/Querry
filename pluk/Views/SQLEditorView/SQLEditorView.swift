@@ -42,6 +42,7 @@ struct SQLEditorView: View {
     @State private var originalFullEditorContent: String = ""
     @State private var executedQueryPosition: CodeEditor.Position = CodeEditor.Position()
     @State private var showingInlineDiff: Bool = false
+    @State private var sqlLanguageService: SQLAutocompleteLanguageService?
     
     @State private var splitRatio: CGFloat = 0.4
     private var isLoading : Bool { viewState == .loading }
@@ -90,17 +91,20 @@ struct SQLEditorView: View {
             }
         )
         .background(
-            // Hidden button for Cmd+K shortcut
-            Button(action: {
-                initialCursorLineNumber = cursorLineNumber + 1
-                showAICommandPrompt = true
-            }) {
-                EmptyView()
-            }
+            Group {
+                Button(action: {
+                    initialCursorLineNumber = cursorLineNumber + 1
+                    showAICommandPrompt = true
+                }) {
+                    EmptyView()
+                }
                 .keyboardShortcut("k", modifiers: [.command])
                 .hidden()
+
+            }
         )
         .onAppear {
+            configureSQLLanguageServiceIfNeeded()
             loadAvailableDatabases()
             loadInitialQueryFromTab()
             BedrockService.shared.warmUpCredentials()
@@ -311,7 +315,7 @@ struct SQLEditorView: View {
         case .mongodb:
             return .mongodb()
         default:
-            return .sqlite()
+            return .sqlite(sqlLanguageService)
         }
     }
 
@@ -1128,6 +1132,18 @@ extension SQLEditorView {
                     self.selectedDatabase = ""
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func configureSQLLanguageServiceIfNeeded() {
+        guard instance.connection.databaseType != .convex, instance.connection.databaseType != .mongodb else {
+            sqlLanguageService = nil
+            return
+        }
+
+        if sqlLanguageService == nil {
+            sqlLanguageService = SQLAutocompleteLanguageService(connection: instance)
         }
     }
 

@@ -5,12 +5,12 @@
 //  Created by Fauzaan on 1/3/25.
 //
 import Cocoa
-import SwiftUI
-import SwiftData
-import Sparkle
+import OSLog
 import PostHog
 import Sentry
-import OSLog
+import Sparkle
+import SwiftData
+import SwiftUI
 
 @main
 @MainActor
@@ -52,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
-    
+
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Apply user's appearance preference per-window (not globally) so the
         // menu bar status item keeps the system-managed menu bar appearance.
@@ -67,8 +67,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ) { _ in
             MainActor.assumeIsolated {
                 guard let window = NSApp.keyWindow,
-                      window.className != "NSStatusBarWindow",
-                      window.appearance == nil else { return }
+                    window.className != "NSStatusBarWindow",
+                    window.appearance == nil
+                else { return }
                 window.appearance = AppDelegate.userPreferredAppearance()
             }
         }
@@ -82,9 +83,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let config = PostHogConfig(apiKey: POSTHOG_API_KEY, host: POSTHOG_HOST)
 
         #if DEBUG
-        config.optOut = true
+            config.optOut = true
         #else
-        config.optOut = !sendAnalytics
+            config.optOut = !sendAnalytics
         #endif
 
         PostHogSDK.shared.setup(config)
@@ -97,26 +98,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let reportCrashes = UserDefaults.standard.object(forKey: "reportCrashes") as? Bool ?? true
         if reportCrashes {
             SentrySDK.start { options in
-                options.dsn = "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
+                options.dsn =
+                    "https://40e927154f63ee358ef2919ad04308a0@o4509530813890560.ingest.us.sentry.io/4509530897252352"
                 options.sendDefaultPii = false
                 options.enableUncaughtNSExceptionReporting = true
                 options.debug = false
             }
         }
-        
+
         // Ensure the app has a basic main menu and is frontmost
         if NSApp.mainMenu == nil {
             let mainMenu = NSMenu()
             let appMenuItem = NSMenuItem()
             mainMenu.addItem(appMenuItem)
             let appMenu = NSMenu()
-            appMenu.addItem(withTitle: "Quit Pluk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            appMenu.addItem(
+                withTitle: "Quit Pluk", action: #selector(NSApplication.terminate(_:)),
+                keyEquivalent: "q")
             appMenuItem.submenu = appMenu
             NSApp.mainMenu = mainMenu
         }
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        
+
         if #available(macOS 26, *) {
             configureMenuItemImages()
         }
@@ -132,7 +136,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create the main window using WindowController (which loads TerminalTabsTitlebarVentura.xib)
         let windowController = WindowController(tabType: .home)
         windowController.showWindow(nil)
-        
+
         // Let the WindowController handle sizing through its configureWindow method
         // It already has logic for saved frames and constraints
         if let window = windowController.window {
@@ -149,11 +153,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         return true
     }
-    
+
     // Handle the toggleSidebar: action from menu
     @objc func toggleSidebar(_ sender: Any?) {
         if let window = NSApp.keyWindow,
-           let windowController = WindowController.getController(for: window) {
+            let windowController = WindowController.getController(for: window)
+        {
             windowController.toggleSidebarNatively(sender)
         }
     }
@@ -178,7 +183,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @IBAction func showSettings(_ sender: Any?) {
         SettingsWindowController.shared.show()
     }
-    
+
     @IBAction func checkForUpdates(_ sender: Any?) {
         Task { @MainActor in
             SparkleUpdaterManager.shared.checkForUpdates()
@@ -192,11 +197,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
-    
+
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return false
     }
-    
+
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             handleURLCallback(url)
@@ -214,7 +219,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // OAuth callbacks require a code parameter
         guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
-              let code = queryItems.first(where: { $0.name == "code" })?.value else {
+            let code = queryItems.first(where: { $0.name == "code" })?.value
+        else {
             return
         }
 
@@ -241,7 +247,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let symbolsByTitle: [String: String] = [
             "Check for Updates…": "arrow.triangle.2.circlepath",
             "Settings…": "gearshape.fill",
-            "Toggle Row Details": "sidebar.right"
+            "Toggle Row Details": "sidebar.right",
         ]
 
         applyMenuItemImages(to: mainMenu, using: symbolsByTitle)
@@ -251,7 +257,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyMenuItemImages(to menu: NSMenu, using symbolsByTitle: [String: String]) {
         for item in menu.items {
             if let symbolName = symbolsByTitle[item.title] {
-                item.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: item.title)
+                item.image = NSImage(
+                    systemSymbolName: symbolName, accessibilityDescription: item.title)
             }
             if let submenu = item.submenu {
                 applyMenuItemImages(to: submenu, using: symbolsByTitle)
