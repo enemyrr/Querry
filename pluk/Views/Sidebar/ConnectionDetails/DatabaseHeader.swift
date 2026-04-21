@@ -5,6 +5,7 @@
 //  Created by Fauzaan on 3/23/25.
 //
 
+import AppKit
 import SwiftUI
 import MongoKitten
 
@@ -22,6 +23,18 @@ struct DatabaseHeader: View {
     @State private var showCreateSchemaPopover = false
     @State private var showCreateDatabaseSheet = false
     @State private var refreshError: Error?
+    @State private var shortcutMenuAnchor: NSView?
+    @State private var shortcutMenuActionHandler: DatabaseShortcutMenuActionHandler?
+
+    private var supportsCreateDatabase: Bool {
+        guard let databaseType = instance.databaseType else { return false }
+        switch databaseType {
+        case .postgres, .mysql, .mongodb, .supabase:
+            return true
+        case .sqlite, .convex:
+            return false
+        }
+    }
 
     var body: some View {
         VStack {
@@ -86,6 +99,11 @@ struct DatabaseHeader: View {
                 }
             }
         }
+        .background(DatabaseShortcutAnchor { anchor in
+            if shortcutMenuAnchor !== anchor {
+                shortcutMenuAnchor = anchor
+            }
+        })
         .onAppear {
             selectedDatabase = instance.connectedDatabase?.name ?? ""
             loadAvailableSchemas()
@@ -102,6 +120,12 @@ struct DatabaseHeader: View {
             collectionLoader.start {
                 await loadCollectionsForSchemaChange(newSchema)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .switchDatabaseShortcut)) { notification in
+            guard let sourceWindow = notification.object as? NSWindow,
+                  let shortcutMenuAnchor,
+                  sourceWindow === shortcutMenuAnchor.window else { return }
+            showShortcutDatabaseMenu(anchor: shortcutMenuAnchor)
         }
         .alert(
             "Refresh Error",
@@ -243,6 +267,95 @@ struct DatabaseHeader: View {
         loadAvailableSchemas()
         selectedSchema = schemaName
         instance.databaseService.setCurrentSchema(schemaName)
+    }
+
+    private func showShortcutDatabaseMenu(anchor: NSView) {
+        let menu = NSMenu(title: "Switch Database")
+        menu.autoenablesItems = false
+
+        let actionHandler = DatabaseShortcutMenuActionHandler(
+            onSelect: handleDatabaseSelection,
+            onCreateDatabase: {
+                showCreateDatabaseSheet = true
+            }
+        )
+        shortcutMenuActionHandler = actionHandler
+
+        if instance.databases.isEmpty {
+            let emptyItem = NSMenuItem(title: "No databases available", action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+        } else {
+            for database in instance.databases.sorted(by: {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }) {
+                let item = NSMenuItem(
+                    title: database.name,
+                    action: #selector(DatabaseShortcutMenuActionHandler.selectDatabase(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = actionHandler
+                item.representedObject = database.name
+                item.state = database.name == instance.connectedDatabase?.name ? .on : .off
+                menu.addItem(item)
+            }
+        }
+
+        if supportsCreateDatabase {
+            menu.addItem(.separator())
+            let createItem = NSMenuItem(
+                title: "New Database...",
+                action: #selector(DatabaseShortcutMenuActionHandler.createDatabase(_:)),
+                keyEquivalent: ""
+            )
+            createItem.target = actionHandler
+            menu.addItem(createItem)
+        }
+
+        menu.popUp(positioning: nil, at: .zero, in: anchor)
+    }
+}
+
+@MainActor
+private final class DatabaseShortcutMenuActionHandler: NSObject {
+    private let onSelect: (String) -> Void
+    private let onCreateDatabase: () -> Void
+
+    init(onSelect: @escaping (String) -> Void, onCreateDatabase: @escaping () -> Void) {
+        self.onSelect = onSelect
+        self.onCreateDatabase = onCreateDatabase
+    }
+
+    @objc func selectDatabase(_ sender: NSMenuItem) {
+        guard let databaseName = sender.representedObject as? String else { return }
+        onSelect(databaseName)
+    }
+
+    @objc func createDatabase(_ sender: NSMenuItem) {
+        onCreateDatabase()
+    }
+}
+
+private struct DatabaseShortcutAnchor: NSViewRepresentable {
+    let onResolve: (NSView?) -> Void
+
+    func makeNSView(context: Context) -> ReportingView {
+        let view = ReportingView()
+        view.onResolve = onResolve
+        return view
+    }
+
+    func updateNSView(_ nsView: ReportingView, context: Context) {
+        nsView.onResolve = onResolve
+    }
+
+    final class ReportingView: NSView {
+        var onResolve: ((NSView?) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            onResolve?(self)
+        }
     }
 }
 

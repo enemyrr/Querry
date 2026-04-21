@@ -18,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var systemAppearanceObservation: NSKeyValueObservation?
     private var menuBarController: MenuBarController?
+    private var windowShortcutMonitor: Any?
 
     static func appearance(for value: Int) -> NSAppearance? {
         switch value {
@@ -101,6 +102,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        windowShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            self.handleWindowShortcut(event) ? nil : event
+        }
 
         if #available(macOS 26, *) {
             configureMenuItemImages()
@@ -172,7 +176,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
-        // No-op
+        if let windowShortcutMonitor {
+            NSEvent.removeMonitor(windowShortcutMonitor)
+            self.windowShortcutMonitor = nil
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -245,5 +252,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 applyMenuItemImages(to: submenu, using: symbolsByTitle)
             }
         }
+    }
+
+    private func handleWindowShortcut(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        guard flags == [.command, .option],
+              let key = event.charactersIgnoringModifiers,
+              let digit = Int(key),
+              (1...9).contains(digit) else {
+            return false
+        }
+
+        return WindowController.activateWindow(at: digit - 1)
     }
 }

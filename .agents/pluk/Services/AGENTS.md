@@ -77,6 +77,7 @@ Posts `.tableReloadData` notification (with tableName in userInfo).
 - `DatabaseService` is NOT annotated `@MainActor` but is `@Observable` — access it on main thread
 - `QueryHistoryService` encrypts all stored queries with per-connection AES-GCM keys
 - Never access `BookmarkManager` from a non-main context without `withSecurityScopedAccess()`
+- `BedrockService.shared.warmUpCredentials()` warms the shared `CognitoCredentialManager` cache used by both `BedrockService` and `BedrockGLMService`; UI entry points that hit the GLM path can still call this helper before first request
 
 ## Anti-Patterns
 

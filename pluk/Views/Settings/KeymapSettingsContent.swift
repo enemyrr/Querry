@@ -36,8 +36,14 @@ enum KeymapSettingsContent {
         KeymapShortcutSection(
             title: "Navigation",
             items: [
+                KeymapShortcutItem(action: "Switch Connection", shortcut: "⌘ ⇧ K"),
+                KeymapShortcutItem(action: "Switch Database", shortcut: "⌘ K"),
+                KeymapShortcutItem(action: "Window 1-9", shortcut: "⌘ ⌥ 1-9"),
+                KeymapShortcutItem(action: "Next Window", shortcut: "⌘ `"),
+                KeymapShortcutItem(action: "Previous Window", shortcut: "⌘ ⇧ `"),
                 KeymapShortcutItem(action: "Find Tables", shortcut: "⌘ P"),
                 KeymapShortcutItem(action: "New Connection", shortcut: "⌘ ⇧ N"),
+                KeymapShortcutItem(action: "Close Tab or Connection", shortcut: "⌘ W"),
                 KeymapShortcutItem(action: "Previous Page", shortcut: "⌘ ←"),
                 KeymapShortcutItem(action: "Next Page", shortcut: "⌘ →"),
             ]
@@ -53,7 +59,7 @@ enum KeymapSettingsContent {
         KeymapShortcutSection(
             title: "AI",
             items: [
-                KeymapShortcutItem(action: "AI Command", shortcut: "⌘ K"),
+                KeymapShortcutItem(action: "AI Command in Query Editor", shortcut: "⌘ L"),
             ]
         ),
     ]

@@ -65,9 +65,13 @@ struct DatabaseList: View {
                 )
             } else {
                 if allCollections != nil {
-                    CollectionsSection(
-                        collections: filteredTables
-                    )
+                    if viewModel.searchText.isEmpty && filteredTables.isEmpty {
+                        emptyTablesView
+                    } else {
+                        CollectionsSection(
+                            collections: filteredTables
+                        )
+                    }
 
                     if !filteredFunctions.isEmpty {
                         FunctionsSection(
@@ -90,18 +94,6 @@ struct DatabaseList: View {
                         }
                         .padding(.top, 20)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if viewModel.searchText.isEmpty
-                        && filteredTables.isEmpty
-                        && filteredFunctions.isEmpty
-                    {
-                        HStack {
-                            Text(emptyTablesMessage)
-                                .font(.system(size: 13))
-                                .foregroundStyle(.tertiary)
-                            Spacer()
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 10)
                     }
                 }
             }
@@ -165,6 +157,17 @@ struct DatabaseList: View {
             Text(error.localizedDescription)
         }
         
+    }
+
+    private var emptyTablesView: some View {
+        HStack {
+            Text(emptyTablesMessage)
+                .font(.system(size: 13))
+                .foregroundStyle(.tertiary)
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
     }
 
     // MARK: - Private Methods

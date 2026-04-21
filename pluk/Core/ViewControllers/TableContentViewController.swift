@@ -30,8 +30,6 @@ final class TableContentViewController: NSViewController {
 
     nonisolated(unsafe) private var markRowObserver: Any?
     nonisolated(unsafe) private var pasteObserver: Any?
-    nonisolated(unsafe) private var toggleFilterBuilderObserver: Any?
-    nonisolated(unsafe) private var filterBuilderDidCloseObserver: Any?
 
     // MARK: - Init
 
@@ -62,7 +60,7 @@ final class TableContentViewController: NSViewController {
             dataController.cancel()
         }
         filterLayoutTask?.cancel()
-        for observer in [markRowObserver, pasteObserver, toggleFilterBuilderObserver, filterBuilderDidCloseObserver].compactMap({ $0 }) {
+        for observer in [markRowObserver, pasteObserver].compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
         }
         NotificationCenter.default.removeObserver(self)
@@ -236,35 +234,35 @@ final class TableContentViewController: NSViewController {
             }
         }
 
-        toggleFilterBuilderObserver = NotificationCenter.default.addObserver(
-            forName: .toggleFilterBuilder,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self,
-                  let sourceWindow = notification.object as? NSWindow,
-                  let currentWindow = self.view.window,
-                  sourceWindow === currentWindow,
-                  notification.userInfo?["tabID"] as? UUID == self.tab.id else { return }
-            Task { @MainActor [weak self] in
-                self?.scheduleFilterBarLayout(afterAnimation: true)
-            }
-        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleToggleFilterBuilder(_:)),
+            name: .toggleFilterBuilder,
+            object: nil
+        )
 
-        filterBuilderDidCloseObserver = NotificationCenter.default.addObserver(
-            forName: .filterBuilderDidClose,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self,
-                  let sourceWindow = notification.object as? NSWindow,
-                  let currentWindow = self.view.window,
-                  sourceWindow === currentWindow,
-                  notification.userInfo?["tabID"] as? UUID == self.tab.id else { return }
-            Task { @MainActor [weak self] in
-                self?.scheduleFilterBarLayout(afterAnimation: true)
-            }
-        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFilterBuilderDidClose(_:)),
+            name: .filterBuilderDidClose,
+            object: nil
+        )
+    }
+
+    @objc private func handleToggleFilterBuilder(_ notification: Notification) {
+        scheduleFilterBarLayoutIfNeeded(for: notification)
+    }
+
+    @objc private func handleFilterBuilderDidClose(_ notification: Notification) {
+        scheduleFilterBarLayoutIfNeeded(for: notification)
+    }
+
+    private func scheduleFilterBarLayoutIfNeeded(for notification: Notification) {
+        guard let sourceWindow = notification.object as? NSWindow,
+              let currentWindow = view.window,
+              sourceWindow === currentWindow,
+              notification.userInfo?["tabID"] as? UUID == tab.id else { return }
+        scheduleFilterBarLayout(afterAnimation: true)
     }
 
     // MARK: - Content Mode Switching

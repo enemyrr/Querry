@@ -36,12 +36,21 @@ final class NotebookViewController: NSViewController {
         installWindowActivationObserver()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self,
-                  self.view.window == event.window else { return event }
+                  let window = self.view.window,
+                  window == event.window else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if flags == .command && event.charactersIgnoringModifiers == "e" {
-                guard !self.dataController.isDashboardPublished, !self.dataController.isPublishPreviewing else { return event }
-                self.dataController.isRightSidebarVisible.toggle()
-                return nil
+            if flags == .command {
+                switch event.charactersIgnoringModifiers {
+                case "w":
+                    window.performClose(nil)
+                    return nil
+                case "e":
+                    guard !self.dataController.isDashboardPublished, !self.dataController.isPublishPreviewing else { return event }
+                    self.dataController.isRightSidebarVisible.toggle()
+                    return nil
+                default:
+                    break
+                }
             }
             return event
         }

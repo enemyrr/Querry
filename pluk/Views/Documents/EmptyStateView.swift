@@ -518,6 +518,10 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self, self.view.window?.isKeyWindow == true else { return event }
 
+            if self.handleSwitchDatabaseShortcut(event) {
+                return nil
+            }
+
             switch event.keyCode {
             case 17 where event.modifierFlags.contains(.command):
                 self.instance.createSQLEditorTab()
@@ -555,13 +559,28 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         }
     }
 
+    private func handleSwitchDatabaseShortcut(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        guard flags == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "k",
+              let window = view.window
+        else {
+            return false
+        }
+
+        NotificationCenter.default.post(name: .switchDatabaseShortcut, object: window)
+        return true
+    }
+
     private func setupConnectedDatabaseObservation() {
         connectedDatabaseObserver = NotificationCenter.default.addObserver(
             forName: .connectedDatabaseChanged,
             object: instance,
             queue: .main
         ) { [weak self] _ in
-            self?.reloadContent()
+            Task { @MainActor [weak self] in
+                self?.reloadContent()
+            }
         }
     }
 

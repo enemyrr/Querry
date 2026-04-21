@@ -223,6 +223,10 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
+        case .keyDown:
+            if shouldCloseConnectionForCommandW(event) {
+                return
+            }
         case .leftMouseDown:
             tabBarMouseTarget = nil
             if let target = tabBarHitTarget(for: event) {
@@ -245,6 +249,17 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             break
         }
         super.sendEvent(event)
+    }
+
+    private func shouldCloseConnectionForCommandW(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags == .command,
+              event.charactersIgnoringModifiers == "w",
+              let controller = WindowController.getController(for: self) else {
+            return false
+        }
+
+        return controller.closeConnectionIfDocumentTabsEmpty()
     }
 
     private func tabBarHitTarget(for event: NSEvent) -> NSView? {

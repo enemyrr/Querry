@@ -58,6 +58,10 @@ NotebookViewController (root)
 - The agent can only execute **read-only SELECT queries** — write operations are blocked
 - Agent messages embed `<thinking>` and `<tool_call>` XML tags for display — these are stripped before feeding back to the LLM
 
+## Debugging Surprises
+
+- `cmd+w` for notebook windows is not provided by the app's main menu. `MainMenu.xib` omits the standard Window → Close item, so notebook-specific controllers must handle the shortcut explicitly or the window will ignore it while document tabs still respond via their own local monitor.
+
 ## Anti-Patterns
 
 - Do NOT create NotebookBlock without setting `sortOrder` — blocks will overlap

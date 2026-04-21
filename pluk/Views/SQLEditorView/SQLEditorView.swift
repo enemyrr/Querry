@@ -5,6 +5,7 @@
 //  Created by Claude on 8/31/25.
 //
 
+import AppKit
 import SwiftUI
 import CodeEditorView
 import LanguageSupport
@@ -43,6 +44,7 @@ struct SQLEditorView: View {
     @State private var executedQueryPosition: CodeEditor.Position = CodeEditor.Position()
     @State private var showingInlineDiff: Bool = false
     @State private var sqlLanguageService: SQLAutocompleteLanguageService?
+    @State private var editorWindow: NSWindow?
     
     @State private var splitRatio: CGFloat = 0.4
     private var isLoading : Bool { viewState == .loading }
@@ -90,15 +92,23 @@ struct SQLEditorView: View {
                 }
             }
         )
+        .background(WindowReader { window in
+            editorWindow = window
+        })
         .background(
             Group {
-                Button(action: {
-                    initialCursorLineNumber = cursorLineNumber + 1
-                    showAICommandPrompt = true
-                }) {
+                Button(action: postSwitchDatabaseShortcut) {
                     EmptyView()
                 }
                 .keyboardShortcut("k", modifiers: [.command])
+                .hidden()
+
+                Button(action: {
+                    openAICommandPrompt()
+                }) {
+                    EmptyView()
+                }
+                .keyboardShortcut("l", modifiers: [.command])
                 .hidden()
 
             }
@@ -246,6 +256,16 @@ struct SQLEditorView: View {
     
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = Set()
+
+    private func openAICommandPrompt() {
+        initialCursorLineNumber = cursorLineNumber + 1
+        showAICommandPrompt = true
+    }
+
+    private func postSwitchDatabaseShortcut() {
+        guard let window = editorWindow ?? NSApp.keyWindow else { return }
+        NotificationCenter.default.post(name: .switchDatabaseShortcut, object: window)
+    }
     
     private var cursorLineNumber: Int {
         guard !position.selections.isEmpty else { return 0 }
@@ -332,7 +352,7 @@ struct SQLEditorView: View {
                         .foregroundColor(.secondary.opacity(0.6))
                         .font(.system(.body, design: .monospaced))
 
-                    Text("⌘K")
+                    Text("⌘L")
                         .font(.callout)
                         .foregroundColor(.primary)
                         .padding(.horizontal, 4)

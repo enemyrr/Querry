@@ -38,6 +38,42 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     private static func getTabManager(for window: NSWindow) -> TabManager? {
         windowTabManagers[window]
     }
+
+    @MainActor
+    @discardableResult
+    static func activateWindow(at index: Int) -> Bool {
+        let windows = orderedManagedWindows()
+        guard windows.indices.contains(index) else { return false }
+        focus(windows[index])
+        return true
+    }
+
+    @MainActor
+    private static func orderedManagedWindows() -> [NSWindow] {
+        let managedWindows = Array(windowControllers.keys)
+        let orderedWindows = NSApp.orderedWindows.filter { windowControllers[$0] != nil }
+        let remainingWindows = managedWindows
+            .filter { candidate in
+                !orderedWindows.contains(where: { $0 == candidate })
+            }
+            .sorted { lhs, rhs in
+                if lhs.windowNumber == rhs.windowNumber {
+                    return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+                }
+                return lhs.windowNumber < rhs.windowNumber
+            }
+
+        return orderedWindows + remainingWindows
+    }
+    @MainActor
+    private static func focus(_ window: NSWindow) {
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
     
     static func getCurrentActiveTabType() -> TabType? {
         guard let keyWindow = NSApp.keyWindow else { return nil }
@@ -147,6 +183,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     var shouldTeardownConnectionOnClose = true
     private var environmentToolbarItem: NSToolbarItem?
     private var isRefreshingDeployments = false
+    private var switchDatabaseShortcutMonitor: Any?
 
     // MARK: - Initialization
 
@@ -208,6 +245,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
         WindowController.register(self, for: window)
         setupConnectionObservation()
+        setupSwitchDatabaseShortcutMonitor(for: window)
 
         hideTabBarViews(in: window)
         Task { [weak self, weak window] in
@@ -357,6 +395,74 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
     func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         true
+    }
+
+    // MARK: - Navigation Shortcuts
+
+    private func setupSwitchDatabaseShortcutMonitor(for window: NSWindow) {
+        if let switchDatabaseShortcutMonitor {
+            NSEvent.removeMonitor(switchDatabaseShortcutMonitor)
+        }
+
+        switchDatabaseShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak window] event in
+            guard let self,
+                  let window,
+                  event.window === window,
+                  window.isKeyWindow,
+                  self.handleSwitchDatabaseShortcut(event)
+            else {
+                return event
+            }
+
+            return nil
+        }
+    }
+
+    private func handleSwitchDatabaseShortcut(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        guard event.charactersIgnoringModifiers?.lowercased() == "k" else {
+            return false
+        }
+
+        if flags == [.command, .shift] {
+            WindowController.switchToTab(.home)
+            return true
+        }
+
+        guard flags == .command,
+              case .connection = tabType,
+              connectionInstance?.selectedTab?.type != .sqlEditor,
+              !isTextInputFirstResponder,
+              let window
+        else {
+            return false
+        }
+
+        NotificationCenter.default.post(name: .switchDatabaseShortcut, object: window)
+        return true
+    }
+
+    private var isTextInputFirstResponder: Bool {
+        guard let firstResponder = window?.firstResponder else { return false }
+        if firstResponder is NSTextView || firstResponder is NSTextField {
+            return true
+        }
+
+        let className = NSStringFromClass(type(of: firstResponder))
+        return className.contains("TextView") || className.contains("TextField")
+    }
+
+    @discardableResult
+    func closeConnectionIfDocumentTabsEmpty() -> Bool {
+        guard case .connection(let instanceId) = tabType,
+              connectionInstance?.tabs.isEmpty == true else {
+            return false
+        }
+
+        Task { @MainActor in
+            await ConnectionService.shared.removeConnectionInstance(instanceId)
+        }
+        return true
     }
 
     // MARK: - Native Sidebar Toggle
@@ -682,6 +788,11 @@ extension WindowController: NSWindowDelegate {
         if let instance = closingConnectionInstance {
             NotificationCenter.default.removeObserver(self, name: .databasesUpdated, object: instance)
             NotificationCenter.default.removeObserver(self, name: .connectedDatabaseChanged, object: instance)
+        }
+
+        if let switchDatabaseShortcutMonitor {
+            NSEvent.removeMonitor(switchDatabaseShortcutMonitor)
+            self.switchDatabaseShortcutMonitor = nil
         }
 
         activateNextTab(closing: window)
