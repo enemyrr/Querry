@@ -5,10 +5,12 @@
 //  Created by Fauzaan on 2/26/25.
 //
 
+import AppKit
 import SwiftUI
 import MongoKitten
 
 struct FloatingActionBar: View {
+    let tabID: UUID
     var viewState: TableListViewState
     let tableName: String
     @Binding var tabViewMode: DatabaseTab.ViewMode
@@ -41,6 +43,7 @@ struct FloatingActionBar: View {
     
     @State var action: ActionBar = ActionBar.main
     @State var showFilterEditor: Bool = false
+    @State private var searchFocusRequest = 0
     
     @State private var loadingTask: Task<Void, Never>?
     @State private var errorTask: Task<Void, Never>?
@@ -49,6 +52,7 @@ struct FloatingActionBar: View {
     @State private var showQueryUpdateAnimation = false
     @State private var previousFilter: String = ""
     @State private var isSubmitAnimating: Bool = false
+    @State private var hostingWindow: NSWindow?
     
     // MARK: - Processing State
     @State private var processingStage: ProcessingStage = .idle
@@ -116,6 +120,7 @@ struct FloatingActionBar: View {
             
             if action == .commandPalette {
                 CommandPalette.CollectionsList(
+                    tabID: tabID,
                     searchText: $commandFilter,
                     onBack: {
                         withAnimation(.spring(response: 0.3)) {
@@ -162,11 +167,8 @@ struct FloatingActionBar: View {
                                     onNewRecord()
                                 }
                             },
-                            onOpenAISearch: {
-                                withAnimation(.spring(response: 0.3)) {
-                                    action = ActionBar.search
-                                }
-                            },
+                            onOpenAISearch: openAISearch,
+                            onToggleFilterBuilder: toggleFilterBuilder,
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
                             },
@@ -201,6 +203,7 @@ struct FloatingActionBar: View {
                 case .search:
                     AISearchView(
                         filter: $filter,
+                        focusRequest: searchFocusRequest,
                         showQueryEditor: showQueryEditor,
                         tableName: tableName,
                         isSubmitAnimating: $isSubmitAnimating,
@@ -256,6 +259,7 @@ struct FloatingActionBar: View {
                                     action = ActionBar.search
                                 }
                             },
+                            onToggleFilterBuilder: toggleFilterBuilder,
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
                             },
@@ -380,6 +384,9 @@ struct FloatingActionBar: View {
                 action = .main
             }
         }
+        .background(WindowReader { window in
+            hostingWindow = window
+        })
         .contentShape(Rectangle())
         .onTapGesture {
         }
@@ -395,9 +402,13 @@ struct FloatingActionBar: View {
     
     private func setupEventMonitor() {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            guard isKeyboardEventForHostingWindow(event) else { return event }
+
+            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+
             switch event.keyCode {
             case 15: // 'r' key
-                if event.modifierFlags.contains(.command) {
+                if flags == .command {
                     // Cancel any existing loading operations before starting new one
                     loadingTask?.cancel()
                     debounceTask?.cancel()
@@ -407,7 +418,7 @@ struct FloatingActionBar: View {
                 return event
                 
             case 34: // 'i' key
-                if event.modifierFlags.contains(.command) {
+                if flags == .command {
                     if databaseType == .mongodb {
                         withAnimation(.spring(response: 0.3)) {
                             showCreateDocumentSheet = true
@@ -420,7 +431,7 @@ struct FloatingActionBar: View {
                 return event
 
             case 45: // 'n' key
-                if event.modifierFlags.contains([.command, .shift]) {
+                if flags == [.command, .shift] {
                     // Add new column in schema mode
                     if tabViewMode == .schema {
                         onNewField?()
@@ -430,16 +441,14 @@ struct FloatingActionBar: View {
                 return event
 
             case 37: // 'l' key
-                if event.modifierFlags.contains(.command) {
-                    withAnimation(.spring(response: 0.3)) {
-                        action = ActionBar.search
-                    }
+                if flags == .command {
+                    openAISearch()
                     return nil // Consume the event
                 }
                 return event
                 
             case 35: // 'p' key
-                if event.modifierFlags.contains(.command) {
+                if flags == .command {
                     withAnimation(.spring(response: 0.3)) {
                         action = .commandPalette
                     }
@@ -448,7 +457,7 @@ struct FloatingActionBar: View {
                 return event
                 
             case 1: // 's' key
-                if event.modifierFlags.contains(.command) {
+                if flags == .command {
                     // Commit any in-progress cell edit so the modification is recorded
                     // before we decide whether there's anything to save.
                     (event.window ?? NSApp.keyWindow)?.makeFirstResponder(nil)
@@ -467,14 +476,14 @@ struct FloatingActionBar: View {
                 return event
                 
             case 3: // 'f' key
-                if event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
-                    NotificationCenter.default.post(name: .toggleFilterBuilder, object: nil)
+                if flags == .command {
+                    toggleFilterBuilder()
                     return nil // Consume the event
                 }
                 return event
 
             case 51: // Delete key with Cmd+Shift
-                if event.modifierFlags.contains([.command, .shift]) && !filter.isEmpty {
+                if flags == [.command, .shift] && !filter.isEmpty {
                     filter = ""
                     onLoadDocuments(filter)
                     return nil // Consume the event
@@ -490,6 +499,34 @@ struct FloatingActionBar: View {
             default:
                 return event // Let other keys pass through
             }
+        }
+    }
+
+    private func isKeyboardEventForHostingWindow(_ event: NSEvent) -> Bool {
+        guard let hostingWindow,
+              let eventWindow = event.window,
+              eventWindow === hostingWindow,
+              hostingWindow.isKeyWindow,
+              instance.selectedTab?.id == tabID else {
+            return false
+        }
+
+        return true
+    }
+
+    private func toggleFilterBuilder() {
+        guard let hostingWindow else { return }
+        NotificationCenter.default.post(
+            name: .toggleFilterBuilder,
+            object: hostingWindow,
+            userInfo: ["tabID": tabID]
+        )
+    }
+
+    private func openAISearch() {
+        searchFocusRequest += 1
+        withAnimation(.spring(response: 0.3)) {
+            action = .search
         }
     }
     
@@ -614,8 +651,7 @@ struct FloatingActionBar: View {
     private var FilterIcon: some View {
         HStack(spacing: 4) {
             Button(action: {
-                showFilterEditor = true
-                //                searchQueryViewModel.showQueryEditor = true
+                toggleFilterBuilder()
             }) {
                 BadgedFilterIcon()
             }
@@ -644,7 +680,12 @@ struct FloatingActionBar: View {
                 .stroke(.separator)
         )
         .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
-        .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { notification in
+            guard let sourceWindow = notification.object as? NSWindow,
+                  let hostingWindow,
+                  sourceWindow === hostingWindow,
+                  notification.userInfo?["tabID"] as? UUID == tabID else { return }
+
             showFilterEditor.toggle()
         }
         //        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.actionBarUpdateTrigger)

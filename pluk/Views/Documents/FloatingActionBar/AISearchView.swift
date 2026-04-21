@@ -11,6 +11,7 @@ import PostHog
 
 struct AISearchView: View {
     @Binding var filter: String
+    let focusRequest: Int
     let showQueryEditor: Bool
     let tableName: String
     @Binding var isSubmitAnimating: Bool
@@ -44,6 +45,12 @@ struct AISearchView: View {
             .frame(width: 0, height: 0)
         )
         .frame(maxWidth: 500)
+        .task(id: focusRequest) {
+            await focusSearchField()
+        }
+        .task(id: showQueryEditor) {
+            await focusSearchField()
+        }
     }
     
     // MARK: - View Components
@@ -161,14 +168,20 @@ struct AISearchView: View {
                     await processNaturalLanguageQuery(search: search)
                 }
             }
-            .task {
-                isSearchFocused = true
-            }
-            .onChange(of: showQueryEditor, {
-                isSearchFocused = true
-            })
             .disabled(processingStage != .idle)
             .padding(.bottom, processingStage != .idle ? 2 : 0)
+    }
+
+    @MainActor
+    private func focusSearchField() async {
+        isSearchFocused = false
+        await Task.yield()
+
+        for _ in 0..<8 {
+            guard !Task.isCancelled, processingStage == .idle else { return }
+            isSearchFocused = true
+            try? await Task.sleep(for: .milliseconds(16))
+        }
     }
     
     // MARK: - Processing Logic

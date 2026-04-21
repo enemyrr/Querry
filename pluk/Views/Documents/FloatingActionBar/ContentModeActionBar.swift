@@ -23,6 +23,7 @@ struct ContentModeActionBar: View {
     let onCommitModifications: () -> Void
     let onNewRecord: () -> Void
     let onOpenAISearch: () -> Void
+    let onToggleFilterBuilder: () -> Void
     let onDebounceLoadingChange: (Bool) -> Void
     let onDiscardChanges: () -> Void
     let databaseType: DatabaseType?
@@ -106,7 +107,7 @@ struct ContentModeActionBar: View {
             ), spacing: 10)
 
             Button(action: {
-                NotificationCenter.default.post(name: .toggleFilterBuilder, object: nil)
+                onToggleFilterBuilder()
             }) {
                 Image(systemName: "line.3.horizontal.decrease")
                     .font(.system(size: 16))

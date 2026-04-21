@@ -83,6 +83,7 @@ private struct ArrayDropdownListView<T: Hashable>: View {
     let onDismiss: () -> Void
     
     @State private var keyboardMonitor: Any?
+    @State private var hostingWindow: NSWindow?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -114,6 +115,9 @@ private struct ArrayDropdownListView<T: Hashable>: View {
             }
         }
         .padding(6)
+        .background(WindowReader { window in
+            hostingWindow = window
+        })
         .onAppear {
             setupKeyboardMonitor()
         }
@@ -124,6 +128,8 @@ private struct ArrayDropdownListView<T: Hashable>: View {
     
     private func setupKeyboardMonitor() {
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            guard isKeyboardEventForHostingWindow(event) else { return event }
+
             switch event.keyCode {
             case 125: // Down arrow
                 activeIndex = min(activeIndex + 1, items.count - 1)
@@ -143,6 +149,17 @@ private struct ArrayDropdownListView<T: Hashable>: View {
                 return event
             }
         }
+    }
+
+    private func isKeyboardEventForHostingWindow(_ event: NSEvent) -> Bool {
+        guard let hostingWindow,
+              let eventWindow = event.window,
+              eventWindow === hostingWindow,
+              hostingWindow.isKeyWindow else {
+            return false
+        }
+
+        return true
     }
     
     private func removeKeyboardMonitor() {

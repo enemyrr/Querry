@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct FilterBuilderView: View {
@@ -9,6 +10,7 @@ struct FilterBuilderView: View {
 
     var columns: [DatabaseSchemaInfo]
     var fallbackColumns: [QueryColumnInfo] = []
+    let tabID: UUID
     var tableName: String
     var databaseSchema: String?
     var onApplyFilter: (String) -> Void
@@ -18,6 +20,7 @@ struct FilterBuilderView: View {
     
     @Environment(ConnectionInstance.self) private var instance
     @State private var showFilterBuilder: Bool = false
+    @State private var hostingWindow: NSWindow?
     @FocusState private var focusedField: Int?
     
     private var hasValidCondition: Bool {
@@ -100,7 +103,11 @@ struct FilterBuilderView: View {
                                                 withAnimation(.easeInOut(duration: 0.2)) {
                                                     showFilterBuilder = false
                                                 }
-                                                NotificationCenter.default.post(name: .filterBuilderDidClose, object: nil)
+                                                NotificationCenter.default.post(
+                                                    name: .filterBuilderDidClose,
+                                                    object: hostingWindow,
+                                                    userInfo: ["tabID": tabID]
+                                                )
                                             }
                                         },
                                         focusedField: $focusedField,
@@ -204,7 +211,15 @@ struct FilterBuilderView: View {
         .onChange(of: conditions.count) { _, _ in
             onHeightChanged?(estimatedVisibleHeight)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { _ in
+        .background(WindowReader { window in
+            hostingWindow = window
+        })
+        .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { notification in
+            guard let sourceWindow = notification.object as? NSWindow,
+                  let hostingWindow,
+                  sourceWindow === hostingWindow,
+                  notification.userInfo?["tabID"] as? UUID == tabID else { return }
+
             withAnimation(.easeInOut(duration: 0.2)) {
                 showFilterBuilder.toggle()
 

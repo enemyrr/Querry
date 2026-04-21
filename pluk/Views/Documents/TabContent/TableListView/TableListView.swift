@@ -66,6 +66,7 @@ struct TableListView: View {
                 FilterBuilderView(
                     columns: cachedSchema?.columns ?? [],
                     fallbackColumns: instance.connection.databaseType == .convex && cachedSchema == nil ? (currentQueryResult?.columns ?? []) : [],
+                    tabID: selectedTab.id,
                     tableName: selectedTab.name,
                     databaseSchema: selectedTab.databaseSchema,
                     onApplyFilter: { filter in
@@ -140,6 +141,7 @@ struct TableListView: View {
             VStack {
                 Spacer()
                 FloatingActionBar(
+                    tabID: selectedTab.id,
                     viewState: viewState,
                     tableName: selectedTab.name,
                     tabViewMode: $selectedTab.viewMode,

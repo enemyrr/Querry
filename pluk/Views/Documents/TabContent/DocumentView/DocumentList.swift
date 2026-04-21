@@ -42,6 +42,7 @@ struct DocumentList: View {
             VStack {
                 Spacer()
                 FloatingActionBar(
+                    tabID: selectedTab.id,
                     viewState: viewState,
                     tableName: selectedTab.name,
                     tabViewMode: $selectedTab.viewMode,

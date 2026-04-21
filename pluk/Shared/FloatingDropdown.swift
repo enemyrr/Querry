@@ -89,6 +89,7 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
     let onDismiss: () -> Void
     
     @State private var keyboardMonitor: Any?
+    @State private var hostingWindow: NSWindow?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -127,6 +128,15 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
             }
         }
         .padding(6)
+        .background(WindowReader { window in
+            hostingWindow = window
+        })
+        .onAppear {
+            setupKeyboardMonitor()
+        }
+        .onDisappear {
+            removeKeyboardMonitor()
+        }
     }
     
     private func setupKeyboardMonitor() {
@@ -134,6 +144,8 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
         removeKeyboardMonitor()
 
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            guard isKeyboardEventForHostingWindow(event) else { return event }
+
             switch event.keyCode {
             case 125: // Down arrow
                 activeIndex = min(activeIndex + 1, items.count - 1)
@@ -153,6 +165,17 @@ private struct DropdownListView<T: Hashable>: View where T: RawRepresentable, T.
                 return event
             }
         }
+    }
+
+    private func isKeyboardEventForHostingWindow(_ event: NSEvent) -> Bool {
+        guard let hostingWindow,
+              let eventWindow = event.window,
+              eventWindow === hostingWindow,
+              hostingWindow.isKeyWindow else {
+            return false
+        }
+
+        return true
     }
     
     private func removeKeyboardMonitor() {

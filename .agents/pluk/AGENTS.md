@@ -61,6 +61,10 @@ Core/Database       Core/Database/                          BSON/JSON conversion
 5. **Core/Database/** (utilities: BSON, JSON, formatting) vs **Drivers/** (protocol implementations)
 6. **JSONDecoder()** — Custom function in project; always qualify with `Foundation.JSONDecoder()`
 
+## Debugging Surprises
+
+- The top-level workspace instructions reference `.agents/pluk/Core/Windows/AGENTS.md`, but that file is not currently present. Use this root architecture overview and `.agents/pluk/Core/ViewControllers/AGENTS.md` for nearby window/view-controller context until the Windows-specific file exists.
+
 ## Downlinks
 
 - [Protocols](Protocols/AGENTS.md) — DatabaseDriver contract

@@ -240,7 +240,12 @@ final class TableContentViewController: NSViewController {
             forName: .toggleFilterBuilder,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            guard let self,
+                  let sourceWindow = notification.object as? NSWindow,
+                  let currentWindow = self.view.window,
+                  sourceWindow === currentWindow,
+                  notification.userInfo?["tabID"] as? UUID == self.tab.id else { return }
             Task { @MainActor [weak self] in
                 self?.scheduleFilterBarLayout(afterAnimation: true)
             }
@@ -250,7 +255,12 @@ final class TableContentViewController: NSViewController {
             forName: .filterBuilderDidClose,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            guard let self,
+                  let sourceWindow = notification.object as? NSWindow,
+                  let currentWindow = self.view.window,
+                  sourceWindow === currentWindow,
+                  notification.userInfo?["tabID"] as? UUID == self.tab.id else { return }
             Task { @MainActor [weak self] in
                 self?.scheduleFilterBarLayout(afterAnimation: true)
             }
@@ -516,6 +526,7 @@ private struct FilterBarContainer: View {
         FilterBuilderView(
             columns: dataController.cachedSchema?.columns ?? [],
             fallbackColumns: dataController.instance.connection.databaseType == .convex && dataController.cachedSchema == nil ? (dataController.currentQueryResult?.columns ?? []) : [],
+            tabID: dataController.tab.id,
             tableName: dataController.tab.name,
             databaseSchema: dataController.tab.databaseSchema,
             onApplyFilter: { filter in
@@ -547,6 +558,7 @@ private struct FloatingBarContainer: View {
 
     var body: some View {
         FloatingActionBar(
+            tabID: tab.id,
             viewState: dataController.viewState,
             tableName: tab.name,
             tabViewMode: $tab.viewMode,

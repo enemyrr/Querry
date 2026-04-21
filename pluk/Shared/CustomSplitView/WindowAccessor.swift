@@ -24,3 +24,33 @@ struct WindowAccessor: NSViewRepresentable {
         }
     }
 }
+
+struct WindowReader: NSViewRepresentable {
+    let onChange: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> ReportingView {
+        let view = ReportingView()
+        view.onChange = onChange
+        return view
+    }
+
+    func updateNSView(_ nsView: ReportingView, context: Context) {
+        nsView.onChange = onChange
+    }
+
+    final class ReportingView: NSView {
+        var onChange: ((NSWindow?) -> Void)?
+        private weak var lastWindow: NSWindow?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            reportIfNeeded()
+        }
+
+        func reportIfNeeded() {
+            guard lastWindow !== window else { return }
+            lastWindow = window
+            onChange?(window)
+        }
+    }
+}

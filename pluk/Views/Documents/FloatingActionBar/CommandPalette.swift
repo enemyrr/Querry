@@ -5,6 +5,7 @@
 //  Created by Fauzaan on 6/27/25.
 //
 
+import AppKit
 import SwiftUI
 
 struct CommandPalette: View {
@@ -65,6 +66,7 @@ struct CommandPalette: View {
     // MARK: - Separate Collection List View
     struct CollectionsList: View {
         @Environment(ConnectionInstance.self) private var instance
+        let tabID: UUID
         @Binding var searchText: String
         let onBack: () -> Void
         
@@ -72,6 +74,7 @@ struct CommandPalette: View {
         @State private var scrollPosition = ScrollPosition(idType: Int.self)
         
         @State private var eventMonitor: Any?
+        @State private var hostingWindow: NSWindow?
         @State private var hoveredIndex: Int? = nil
         
         private var filteredCollections: [any CollectionWrapper] {
@@ -162,6 +165,9 @@ struct CommandPalette: View {
                 }
                 .padding([.horizontal, .top], 8)
                 .padding(.bottom, 4)
+                .background(WindowReader { window in
+                    hostingWindow = window
+                })
                 .modifier(GlassBackgroundStyle(cornerRadius: 16))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
@@ -192,6 +198,7 @@ struct CommandPalette: View {
         
         private func setupEventMonitor() {
             eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+                guard isKeyboardEventForHostingWindow(event) else { return event }
                 // Only handle navigation keys for the list
                 guard !filteredCollections.isEmpty else { return event }
                 
@@ -209,6 +216,18 @@ struct CommandPalette: View {
                     return event // Let other keys pass through
                 }
             }
+        }
+
+        private func isKeyboardEventForHostingWindow(_ event: NSEvent) -> Bool {
+            guard let hostingWindow,
+                  let eventWindow = event.window,
+                  eventWindow === hostingWindow,
+                  hostingWindow.isKeyWindow,
+                  instance.selectedTab?.id == tabID else {
+                return false
+            }
+
+            return true
         }
         
         private func removeEventMonitor() {
