@@ -2,6 +2,17 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.35] – 2026-04-21
+
+Pluk v35 introduces SQL editor autocomplete, adds more keyboard shortcuts, and makes shortcut handling more reliable across windows and databases. The rest of the release focuses on bug fixes and polish across the app.
+
+Here’s what’s new:
+
+- **SQL editor autocomplete.** The SQL editor now includes autocomplete to help you write queries faster.
+- **More keyboard shortcuts.** Added more shortcuts to make it easier to move through Pluk.
+- **More reliable shortcuts.** Fixed cases where shortcuts could be picked up by the wrong window or tab, with better routing across windows and databases.
+- **Bug fixes and polish.** Also includes fixes and refinements across the menu bar, keychain flow, Open Quickly, recent tables, and sidebar.
+
 ## [0.0.1-beta.34] – 2026-04-19
 
 v0.0.1-beta.34 makes workspace switching and table editing feel more settled. Open recent connections from the menu bar, jump into notebooks faster, refresh the sidebar with better control, and work through PostgreSQL editing with fewer rough edges.
