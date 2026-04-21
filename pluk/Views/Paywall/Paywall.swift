@@ -22,14 +22,14 @@ enum Paywall {
     static func present(reason: Reason = .userRequestedUpgrade) {
         switch reason {
         case .userRequestedUpgrade:
-            openAccountPane()
+            openAccountPane(source: "upgrade_cta")
         case .openLimitReached:
             showLimitAlert()
         }
     }
 
-    private static func openAccountPane() {
-        SettingsWindowController.shared.show(pane: .account)
+    private static func openAccountPane(source: String) {
+        SettingsWindowController.shared.show(pane: .account, source: source)
     }
 
     private static func showLimitAlert() {
@@ -41,7 +41,7 @@ enum Paywall {
         alert.addButton(withTitle: "Cancel")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            openAccountPane()
+            openAccountPane(source: "connection_limit_alert")
         }
     }
 }

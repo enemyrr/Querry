@@ -120,6 +120,29 @@ final class AnalyticsService {
         ])
     }
 
+    func trackQueryEditorOpened(databaseType: DatabaseType, source: String) {
+        PostHogSDK.shared.capture("query_editor_opened", properties: [
+            "database_type": databaseType.rawValue,
+            "source": source
+        ])
+    }
+
+    func trackAccountSettingsViewed(
+        source: String,
+        isAuthenticated: Bool,
+        subscriptionStatus: String,
+        isPro: Bool,
+        hasLoadedSubscriptionStatus: Bool
+    ) {
+        PostHogSDK.shared.capture("account_settings_viewed", properties: [
+            "source": source,
+            "is_authenticated": isAuthenticated,
+            "subscription_status": subscriptionStatus,
+            "is_pro": isPro,
+            "has_loaded_subscription_status": hasLoadedSubscriptionStatus
+        ])
+    }
+
     // MARK: - Document/Table Events
 
     func trackTableViewed(databaseType: DatabaseType) {

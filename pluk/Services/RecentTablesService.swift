@@ -31,7 +31,7 @@ final class RecentTablesService {
         }
 
         // Clean up duplicates and enforce limit in a separate pass
-        cleanupDuplicates(tableName: tableName, databaseName: databaseName)
+        cleanupDuplicates(tableName: tableName, databaseName: databaseName, schemaName: schemaName)
         enforceLimit()
 
         do {
@@ -72,15 +72,25 @@ final class RecentTablesService {
         }
     }
 
-    private func cleanupDuplicates(tableName: String, databaseName: String) {
+    private func cleanupDuplicates(tableName: String, databaseName: String, schemaName: String?) {
         let keychainId = connectionKeychainId
         let name = tableName
         let dbName = databaseName
-
-        let predicate = #Predicate<RecentTableEntry> { entry in
-            entry.connectionKeychainId == keychainId &&
-            entry.tableName == name &&
-            entry.databaseName == dbName
+        let predicate: Predicate<RecentTableEntry>
+        if let schema = schemaName {
+            predicate = #Predicate<RecentTableEntry> { entry in
+                entry.connectionKeychainId == keychainId &&
+                entry.tableName == name &&
+                entry.databaseName == dbName &&
+                entry.schemaName == schema
+            }
+        } else {
+            predicate = #Predicate<RecentTableEntry> { entry in
+                entry.connectionKeychainId == keychainId &&
+                entry.tableName == name &&
+                entry.databaseName == dbName &&
+                entry.schemaName == nil
+            }
         }
 
         var descriptor = FetchDescriptor<RecentTableEntry>(

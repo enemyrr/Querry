@@ -14,6 +14,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
 
     private var splitViewController: SettingsSplitViewController?
     private var navigationHistory = SettingsNavigationHistory()
+    private var pendingAccountPaneSource: String?
 
     private static let defaultWindowSize = NSSize(width: 780, height: 570)
     private static let minimumWindowSize = NSSize(width: 680, height: 536)
@@ -50,6 +51,9 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
         let splitVC = SettingsSplitViewController(
             onPaneChange: { [weak self] pane, isUserSelection in
                 self?.updateTitle(pane.rawValue)
+                if pane == .account {
+                    self?.trackAccountPaneViewed(isUserSelection: isUserSelection)
+                }
                 if isUserSelection {
                     self?.navigationHistory.push(pane)
                 }
@@ -89,8 +93,29 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
     }
 
     func show(pane: SettingsPane) {
+        show(pane: pane, source: "programmatic")
+    }
+
+    func show(pane: SettingsPane, source: String) {
+        if pane == .account {
+            pendingAccountPaneSource = source
+        }
         splitViewController?.navigateTo(pane)
         show()
+    }
+
+    private func trackAccountPaneViewed(isUserSelection: Bool) {
+        let authService = WorkOSAuthService.shared
+        let source = isUserSelection ? "settings_sidebar" : (pendingAccountPaneSource ?? "programmatic")
+        pendingAccountPaneSource = nil
+
+        AnalyticsService.shared.trackAccountSettingsViewed(
+            source: source,
+            isAuthenticated: authService.isAuthenticated,
+            subscriptionStatus: authService.subscriptionStatus.rawValue,
+            isPro: authService.isPro,
+            hasLoadedSubscriptionStatus: authService.hasLoadedSubscriptionStatus
+        )
     }
 
     private func updateToolbarButtons() {

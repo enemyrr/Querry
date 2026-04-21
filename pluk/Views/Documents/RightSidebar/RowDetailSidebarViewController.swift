@@ -63,6 +63,8 @@ final class RowDetailSidebarViewController: NSViewController {
         copiedResetTask?.cancel()
     }
 
+    private var hasLoadedInitialContent = false
+
     override func loadView() {
         let rootView = NSView()
         rootView.wantsLayer = true
@@ -71,9 +73,17 @@ final class RowDetailSidebarViewController: NSViewController {
         view = rootView
 
         setupLayout()
+        headerContainer.isHidden = true
+        scrollView.isHidden = true
+        emptyStateStackView.isHidden = true
         setupObservation()
         setupAppearanceObservation()
         updateBackgroundColor()
+    }
+
+    func loadInitialContent() {
+        guard !hasLoadedInitialContent else { return }
+        hasLoadedInitialContent = true
         reloadContent(preserveScrollOffset: false)
     }
 
@@ -251,11 +261,10 @@ final class RowDetailSidebarViewController: NSViewController {
     }
 
     private func updateBackgroundColor() {
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let isDark = NSAppearance.currentDrawing().isDarkMode
-            self.view.layer?.backgroundColor = isDark
-                ? NSColor.black.withAlphaComponent(0.25).cgColor
-                : NSColor.white.cgColor
+        view.effectiveAppearance.performAsCurrentDrawingAppearance {
+            self.view.layer?.backgroundColor = NSColor.clear.cgColor
+            self.view.layer?.borderColor = NSColor.clear.cgColor
+            self.view.layer?.borderWidth = 0
             self.headerDivider.layer?.backgroundColor = NSColor.separatorColor.cgColor
         }
     }
@@ -750,6 +759,9 @@ final class RowDetailSidebarViewController: NSViewController {
 @MainActor
 private final class RowDetailFieldRowView: NSView {
 
+    private let valueContainer = NSView()
+    private let isEditing: Bool
+
     init(
         columnName: String,
         rowInfo: QueryRowInfo,
@@ -757,6 +769,7 @@ private final class RowDetailFieldRowView: NSView {
         isEditing: Bool,
         onValueChange: @escaping (String) -> Void
     ) {
+        self.isEditing = isEditing
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
@@ -790,17 +803,10 @@ private final class RowDetailFieldRowView: NSView {
         titleRow.addArrangedSubview(spacer)
         titleRow.addArrangedSubview(typeLabel)
 
-        let valueContainer = NSView()
         valueContainer.translatesAutoresizingMaskIntoConstraints = false
         valueContainer.wantsLayer = true
-        valueContainer.layer?.cornerRadius = 6
-        valueContainer.layer?.backgroundColor = (
-            isEditing
-            ? NSColor.textBackgroundColor
-            : NSColor.quaternarySystemFill
-        ).cgColor
-        valueContainer.layer?.borderWidth = isEditing ? 1 : 0
-        valueContainer.layer?.borderColor = isEditing ? NSColor.separatorColor.cgColor : nil
+        valueContainer.layer?.cornerRadius = 10
+        updateAppearance()
 
         let valueTextView = SidebarValueTextView()
         valueTextView.translatesAutoresizingMaskIntoConstraints = false
@@ -833,6 +839,23 @@ private final class RowDetailFieldRowView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
+    }
+
+    private func updateAppearance() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            valueContainer.layer?.backgroundColor = (
+                isEditing
+                ? NSColor.sidebarEditingFieldFill
+                : NSColor.sidebarReadOnlyFieldFill
+            ).cgColor
+            valueContainer.layer?.borderWidth = 0
+            valueContainer.layer?.borderColor = nil
+        }
     }
 }
 
@@ -874,12 +897,10 @@ private final class SidebarValueTextView: NSTextView {
     }
 
     override var intrinsicContentSize: NSSize {
-        guard let layoutManager, let textContainer else {
+        guard let layoutManager, let textContainer, bounds.width > 0 else {
             return NSSize(width: NSView.noIntrinsicMetric, height: 36)
         }
 
-        let availableWidth = max(bounds.width, 1)
-        textContainer.containerSize = NSSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude)
         layoutManager.ensureLayout(for: textContainer)
 
         let usedHeight = layoutManager.usedRect(for: textContainer).height
@@ -989,6 +1010,11 @@ private final class SidebarResizeHandleView: NSView {
 
 private final class SidebarActionButton: NSButton {
 
+    override class var cellClass: AnyClass? {
+        get { SidebarActionButtonCell.self }
+        set {}
+    }
+
     enum Style {
         case normal
         case primary
@@ -1027,7 +1053,7 @@ private final class SidebarActionButton: NSButton {
         self.translatesAutoresizingMaskIntoConstraints = false
         self.setButtonType(.momentaryChange)
         self.wantsLayer = true
-        self.layer?.cornerRadius = 8
+        self.layer?.cornerRadius = 10
         self.layer?.masksToBounds = true
         self.font = .systemFont(ofSize: 13, weight: .regular)
         self.alignment = .left
@@ -1039,6 +1065,11 @@ private final class SidebarActionButton: NSButton {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
     }
 
     override func updateTrackingAreas() {
@@ -1070,15 +1101,17 @@ private final class SidebarActionButton: NSButton {
     }
 
     private func updateAppearance() {
-        layer?.backgroundColor = backgroundColor().cgColor
-        contentTintColor = foregroundColor()
-        attributedTitle = NSAttributedString(
-            string: baseTitle,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-                .foregroundColor: foregroundColor(),
-            ]
-        )
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = backgroundColor().cgColor
+            contentTintColor = foregroundColor()
+            attributedTitle = NSAttributedString(
+                string: baseTitle,
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+                    .foregroundColor: foregroundColor(),
+                ]
+            )
+        }
     }
 
     private func foregroundColor() -> NSColor {
@@ -1097,7 +1130,7 @@ private final class SidebarActionButton: NSButton {
     private func backgroundColor() -> NSColor {
         switch style {
         case .primary:
-            let baseColor = isEnabled ? NSColor.controlAccentColor : NSColor.white.withAlphaComponent(0.1)
+            let baseColor = isEnabled ? NSColor.primaryButton : NSColor.white.withAlphaComponent(0.1)
             return isHovering ? baseColor.withAlphaComponent(0.85) : baseColor
         case .destructivePrimary:
             let baseColor = isEnabled ? NSColor.systemRed : NSColor.white.withAlphaComponent(0.1)
@@ -1110,6 +1143,44 @@ private final class SidebarActionButton: NSButton {
             return isHovering
                 ? NSColor.labelColor.withAlphaComponent(0.08)
                 : NSColor.labelColor.withAlphaComponent(0.04)
+        }
+    }
+}
+
+private final class SidebarActionButtonCell: NSButtonCell {
+    private let leadingInset: CGFloat = 10
+    private let trailingInset: CGFloat = 10
+
+    override func imageRect(forBounds rect: NSRect) -> NSRect {
+        var imageRect = super.imageRect(forBounds: rect)
+        imageRect.origin.x += leadingInset
+        return imageRect
+    }
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        var titleRect = super.titleRect(forBounds: rect)
+        titleRect.origin.x += leadingInset
+        titleRect.size.width = max(0, titleRect.size.width - leadingInset - trailingInset)
+        return titleRect
+    }
+}
+
+private extension NSColor {
+    static var sidebarReadOnlyFieldFill: NSColor {
+        NSColor(name: nil) { appearance in
+            if appearance.isDarkMode {
+                return NSColor.white.withAlphaComponent(0.085)
+            }
+            return .quaternarySystemFill
+        }
+    }
+
+    static var sidebarEditingFieldFill: NSColor {
+        NSColor(name: nil) { appearance in
+            if appearance.isDarkMode {
+                return NSColor.white.withAlphaComponent(0.11)
+            }
+            return .textBackgroundColor
         }
     }
 }

@@ -28,7 +28,7 @@ struct SidebarButtonStyle: ButtonStyle {
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(
                     (isActive || isHovering)
                     ? Color(.separatorColor)
@@ -824,7 +824,7 @@ struct RenameCancelButtonStyle: ButtonStyle {
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(
                     (colorScheme == .dark ? Color.white : Color.black)
                         .opacity(isHovering ? 0.2 : 0.1)

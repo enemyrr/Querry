@@ -142,6 +142,9 @@ struct DatabaseHeader: View {
                 selectedSchema = schemas.contains("public") ? "public" : (schemas.first ?? "")
             }
         }
+        if !selectedSchema.isEmpty {
+            instance.databaseService.setCurrentSchema(selectedSchema)
+        }
     }
 
     private func refreshSidebarItems() {

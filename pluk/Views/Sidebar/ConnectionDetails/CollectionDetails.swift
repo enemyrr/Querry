@@ -103,7 +103,7 @@ struct ConnectionDetailsSidebar: View {
                 LazyVStack(spacing: 0, pinnedViews: []) {
                     if sidebarViewMode == .tables {
                         DatabaseList(viewModel: viewModel, collectionLoader: collectionLoader)
-                            .padding(.trailing, 16)
+                            .padding(.trailing, 10)
                             .background(
                                 GeometryReader { geometry in
                                     Color.clear

@@ -205,6 +205,7 @@ struct DatabaseList: View {
 // MARK: - Updated CollectionsSection with Inline Rename
 struct CollectionsSection: View {
     @Environment(ConnectionInstance.self) private var instance
+    @Environment(\.colorScheme) private var colorScheme
     let collections: [any CollectionWrapper]
 
     @State private var showDeleteConfirmation = false
@@ -236,7 +237,8 @@ struct CollectionsSection: View {
 
     var body: some View {
         ForEach(collections, id: \.name) { collection in
-            let isActive = instance.selectedTab?.name == collection.name
+            let isActive = instance.selectedTab?.name == collection.name &&
+                instance.selectedTab?.databaseSchema == collection.schema
             let isCurrentlyRenaming = renamingCollection == collection.name
 
             if isCurrentlyRenaming {
@@ -393,7 +395,16 @@ struct CollectionsSection: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.controlColor).opacity(0.3))
+                .fill(
+                    colorScheme == .dark
+                        ? Color.white.opacity(0.04)
+                        : .white
+                )
+                .shadow(color: .black.opacity(0.08), radius: 1, y: 0.5)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(.separatorColor), lineWidth: 0.5)
         )
         .onKeyPress(.escape) {
             cancelRename()
@@ -574,7 +585,7 @@ struct CollectionsSection: View {
     ) -> some View {
         Button {
             Task {
-                instance.createNewTab(name: collection.name)
+                instance.createNewTab(name: collection.name, databaseSchema: collection.schema)
             }
         } label: {
             Label("Open in New Tab", systemImage: "arrow.up.forward.square")

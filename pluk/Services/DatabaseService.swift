@@ -135,7 +135,9 @@ import SwiftUI
     }
     
     func setCurrentSchema(_ schema: String) {
+        guard currentSchema != schema else { return }
         self.currentSchema = schema
+        NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
     }
     
     func switchActiveDatabase(to database: any DatabaseWrapper) async throws {

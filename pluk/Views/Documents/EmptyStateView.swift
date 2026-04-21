@@ -21,10 +21,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
     private let dropdownScrollView = NSScrollView()
     private let dropdownStackView = NSStackView()
 
-    private let noResultsLabel = NSTextField(labelWithString: "No results")
-
     private var activeIndex = 0
     nonisolated(unsafe) private var eventMonitor: Any?
+    nonisolated(unsafe) private var connectedDatabaseObserver: NSObjectProtocol?
     private var dropdownHeightConstraint: NSLayoutConstraint?
     private var appearanceObservation: NSKeyValueObservation?
 
@@ -47,13 +46,14 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         setupDropdownArea()
         setupLayout()
         setupEventMonitor()
+        setupConnectedDatabaseObservation()
     }
 
     // MARK: - Search Bar
 
     private func setupSearchBar() {
         searchContainer.wantsLayer = true
-        searchContainer.layer?.cornerRadius = 12
+        searchContainer.layer?.cornerRadius = 14
         searchContainer.layer?.borderWidth = 1
         searchContainer.translatesAutoresizingMaskIntoConstraints = false
         updateContainerAppearance(searchContainer)
@@ -105,11 +105,16 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
     }
 
     private func updateContainerAppearance(_ container: NSView) {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let appearance = container.effectiveAppearance
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        var border: CGColor = NSColor.separatorColor.cgColor
+        appearance.performAsCurrentDrawingAppearance {
+            border = NSColor.separatorColor.cgColor
+        }
         container.layer?.backgroundColor = isDark
             ? NSColor.white.withAlphaComponent(0.06).cgColor
             : NSColor.white.cgColor
-        container.layer?.borderColor = NSColor.separatorColor.cgColor
+        container.layer?.borderColor = border
     }
 
     // MARK: - Recent Files Area (plain, no container styling)
@@ -135,9 +140,8 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
     private func setupDropdownArea() {
         dropdownContainer.wantsLayer = true
-        dropdownContainer.layer?.cornerRadius = 12
+        dropdownContainer.layer?.cornerRadius = 14
         dropdownContainer.layer?.borderWidth = 0.5
-        dropdownContainer.layer?.borderColor = NSColor.separatorColor.cgColor
         dropdownContainer.translatesAutoresizingMaskIntoConstraints = false
         updateContainerAppearance(dropdownContainer)
 
@@ -156,14 +160,8 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         dropdownScrollView.autohidesScrollers = true
         dropdownScrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        noResultsLabel.font = .systemFont(ofSize: 13)
-        noResultsLabel.textColor = .secondaryLabelColor
-        noResultsLabel.alignment = .center
-        noResultsLabel.translatesAutoresizingMaskIntoConstraints = false
-
         dropdownContainer.addSubview(resultsHeaderLabel)
         dropdownContainer.addSubview(dropdownScrollView)
-        dropdownContainer.addSubview(noResultsLabel)
     }
 
 
@@ -209,10 +207,6 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 
             dropdownStackView.widthAnchor.constraint(equalTo: dropdownScrollView.widthAnchor, constant: -6),
 
-            // No results label inside dropdown
-            noResultsLabel.topAnchor.constraint(equalTo: resultsHeaderLabel.bottomAnchor),
-            noResultsLabel.centerXAnchor.constraint(equalTo: dropdownContainer.centerXAnchor),
-            noResultsLabel.bottomAnchor.constraint(equalTo: dropdownContainer.bottomAnchor, constant: -35),
         ])
     }
 
@@ -233,6 +227,39 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         return collections.filter { $0.name.localizedStandardContains(searchQuery) }
     }
 
+    private func normalizedSchemaName(_ schemaName: String?) -> String? {
+        guard let schemaName, !schemaName.isEmpty else {
+            switch instance.connection.databaseType {
+            case .postgres, .supabase:
+                return "public"
+            case .convex:
+                return "app"
+            default:
+                return nil
+            }
+        }
+        return schemaName
+    }
+
+    private var currentRecentSchemaName: String? {
+        switch instance.connection.databaseType {
+        case .postgres, .supabase:
+            return normalizedSchemaName(instance.databaseService.currentSchema)
+        case .convex:
+            return normalizedSchemaName(instance.databaseService.currentSchema)
+        default:
+            return nil
+        }
+    }
+
+    private func recentEntryMatchesCurrentSelection(_ entry: RecentTableEntry) -> Bool {
+        guard entry.databaseName == instance.connectedDatabase?.name else { return false }
+        guard let currentRecentSchemaName else {
+            return true
+        }
+        return normalizedSchemaName(entry.schemaName) == currentRecentSchemaName
+    }
+
     private func clearRows(in stackView: NSStackView) {
         for row in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(row)
@@ -249,12 +276,10 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             let collections = filteredCollections(matching: searchQuery)
             let hasResults = !collections.isEmpty
 
-            // Hide recent, show dropdown container (for results or no-results)
             recentHeaderStack.isHidden = true
             recentStackView.isHidden = true
-            dropdownContainer.isHidden = false
+            dropdownContainer.isHidden = !hasResults
             resultsHeaderLabel.isHidden = !hasResults
-            noResultsLabel.isHidden = hasResults
             dropdownScrollView.isHidden = !hasResults
 
             if activeIndex >= collections.count {
@@ -286,10 +311,18 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         } else {
             // Hide dropdown, show recent
             dropdownContainer.isHidden = true
-            noResultsLabel.isHidden = true
 
             let currentDB = instance.connectedDatabase?.name
-            let recentTables = instance.recentTablesService?.fetchRecent(limit: 6, databaseName: currentDB) ?? []
+            let recentTables: [RecentTableEntry]
+            if let currentDB, !currentDB.isEmpty {
+                recentTables = Array(
+                    (instance.recentTablesService?.fetchRecent(limit: 50, databaseName: currentDB) ?? [])
+                        .filter(recentEntryMatchesCurrentSelection)
+                        .prefix(6)
+                )
+            } else {
+                recentTables = []
+            }
             let hasRecent = !recentTables.isEmpty
 
             recentHeaderStack.isHidden = !hasRecent
@@ -326,13 +359,10 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
     ) -> NSView {
         let row = ClickableRowView(action: action)
         row.wantsLayer = true
-        row.layer?.cornerRadius = 8
+        row.layer?.cornerRadius = 10
         row.translatesAutoresizingMaskIntoConstraints = false
 
         row.isActive = isActive
-        if isActive {
-            row.layer?.backgroundColor = NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
-        }
 
         let icon = NSImageView()
         let symbolName = type == "view" ? "eye.fill" : "tablecells"
@@ -344,19 +374,22 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         let nameLabel = NSTextField(labelWithString: name)
         nameLabel.font = .systemFont(ofSize: 13)
         nameLabel.textColor = .labelColor
-        nameLabel.lineBreakMode = .byTruncatingTail
+        nameLabel.lineBreakMode = .byTruncatingMiddle
         nameLabel.maximumNumberOfLines = 1
         nameLabel.cell?.truncatesLastVisibleLine = true
         nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         nameLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let typeLabel = NSTextField(labelWithString: "")
-        let cell = VerticallyCenteredTextFieldCell(textCell: type.capitalized)
-        cell.font = .systemFont(ofSize: 11)
+        let typeText = type.capitalized
+        let typeFont = NSFont.systemFont(ofSize: 11)
+        let typeBadgeWidth = max(35, ceil(NSAttributedString(string: typeText, attributes: [.font: typeFont]).size().width) + 16)
+        let typeLabel = NSTextField(labelWithString: typeText)
+        let cell = VerticallyCenteredTextFieldCell(textCell: typeText)
+        cell.font = typeFont
         cell.alignment = .center
         typeLabel.cell = cell
-        typeLabel.font = .systemFont(ofSize: 11)
+        typeLabel.font = typeFont
         typeLabel.textColor = .secondaryLabelColor
         typeLabel.alignment = .center
         typeLabel.isBezeled = false
@@ -364,8 +397,12 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         typeLabel.drawsBackground = false
         typeLabel.wantsLayer = true
         typeLabel.layer?.borderWidth = 1
-        typeLabel.layer?.borderColor = NSColor.separatorColor.cgColor
         typeLabel.layer?.cornerRadius = 4
+        var typeBorder: CGColor = NSColor.separatorColor.cgColor
+        (view.effectiveAppearance).performAsCurrentDrawingAppearance {
+            typeBorder = NSColor.separatorColor.cgColor
+        }
+        typeLabel.layer?.borderColor = typeBorder
         typeLabel.translatesAutoresizingMaskIntoConstraints = false
         typeLabel.setContentHuggingPriority(.required, for: .horizontal)
 
@@ -376,7 +413,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         var constraints = [
             row.heightAnchor.constraint(equalToConstant: 38),
 
-            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 15),
+            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 10),
             icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             icon.widthAnchor.constraint(equalToConstant: 20),
             icon.heightAnchor.constraint(equalToConstant: 16),
@@ -384,9 +421,9 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             nameLabel.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
             nameLabel.centerYAnchor.constraint(equalTo: row.centerYAnchor),
 
-            typeLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+            typeLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -12),
             typeLabel.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-            typeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 35),
+            typeLabel.widthAnchor.constraint(equalToConstant: typeBadgeWidth),
             typeLabel.heightAnchor.constraint(equalToConstant: 22),
         ]
 
@@ -436,6 +473,8 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
     }
 
     private func openRecentEntry(_ entry: RecentTableEntry) {
+        guard entry.databaseName == instance.connectedDatabase?.name else { return }
+
         let isFunction = entry.tableType == "function" || entry.tableType == "procedure"
         if isFunction {
             // Look up the collection to get the oid
@@ -516,16 +555,24 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         }
     }
 
+    private func setupConnectedDatabaseObservation() {
+        connectedDatabaseObserver = NotificationCenter.default.addObserver(
+            forName: .connectedDatabaseChanged,
+            object: instance,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadContent()
+        }
+    }
+
     private func updateActiveIndex(from oldIndex: Int, to newIndex: Int) {
         let views = dropdownStackView.arrangedSubviews
         if let oldRow = views[safe: oldIndex] as? ClickableRowView {
             oldRow.isActive = false
-            oldRow.layer?.backgroundColor = nil
         }
         activeIndex = newIndex
         if let newRow = views[safe: newIndex] as? ClickableRowView {
             newRow.isActive = true
-            newRow.layer?.backgroundColor = NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
         }
         scrollToActiveRow()
     }
@@ -544,11 +591,18 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
         }
+        if let connectedDatabaseObserver {
+            NotificationCenter.default.removeObserver(connectedDatabaseObserver)
+            self.connectedDatabaseObserver = nil
+        }
     }
 
     deinit {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        if let connectedDatabaseObserver {
+            NotificationCenter.default.removeObserver(connectedDatabaseObserver)
         }
     }
 
@@ -587,8 +641,12 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
 private final class ClickableRowView: NSView {
     private let action: () -> Void
     private var trackingArea: NSTrackingArea?
-    private var isHovering = false
-    var isActive = false
+    private var isHovering = false {
+        didSet { if oldValue != isHovering { updateBackground() } }
+    }
+    var isActive = false {
+        didSet { if oldValue != isActive { updateBackground() } }
+    }
 
     init(action: @escaping () -> Void) {
         self.action = action
@@ -617,40 +675,43 @@ private final class ClickableRowView: NSView {
 
     private func refreshHoverState() {
         guard let window else {
-            if isHovering {
-                isHovering = false
-                layer?.backgroundColor = nil
-            }
+            isHovering = false
             return
         }
         let mouseLocation = window.mouseLocationOutsideOfEventStream
         let localPoint = convert(mouseLocation, from: nil)
-        let shouldHover = bounds.contains(localPoint)
-        if shouldHover != isHovering {
-            isHovering = shouldHover
-            layer?.backgroundColor = (shouldHover || isActive)
-                ? NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
-                : nil
-        }
+        isHovering = bounds.contains(localPoint)
     }
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        layer?.backgroundColor = NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        layer?.backgroundColor = isActive
-            ? NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
-            : nil
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBackground()
     }
 
     override func updateLayer() {
         super.updateLayer()
-        layer?.backgroundColor = (isHovering || isActive)
-            ? NSColor.separatorColor.cgColor.copy(alpha: NSColor.separatorColor.alphaComponent * 0.5)
-            : nil
+        updateBackground()
+    }
+
+    private func updateBackground() {
+        guard isHovering || isActive else {
+            layer?.backgroundColor = nil
+            return
+        }
+        var resolved: CGColor = NSColor.clear.cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let separator = NSColor.separatorColor
+            resolved = separator.withAlphaComponent(separator.alphaComponent * 0.5).cgColor
+        }
+        layer?.backgroundColor = resolved
     }
 
     override func mouseUp(with event: NSEvent) {

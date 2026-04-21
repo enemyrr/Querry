@@ -21,7 +21,7 @@ struct CommandPalette: View {
                 .focused($isSearchFocused)
                 .font(.system(size: 17))
                 .task {
-                    isSearchFocused = true
+                    await focusSearchField()
                 }
                 .textFieldStyle(PlainTextFieldStyle())
             
@@ -54,6 +54,12 @@ struct CommandPalette: View {
         .padding(.vertical)
         .padding(.trailing, 12)
         .frame(maxWidth: 500)
+    }
+
+    @MainActor
+    private func focusSearchField() async {
+        await Task.yield()
+        isSearchFocused = true
     }
     
     // MARK: - Separate Collection List View
@@ -110,6 +116,8 @@ struct CommandPalette: View {
                                         Text(collection.name)
                                             .font(.body)
                                             .foregroundColor(.primary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
                                         
                                         Spacer()
                                         
@@ -117,8 +125,10 @@ struct CommandPalette: View {
                                             Text(collection.type.capitalized)
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
+                                                .lineLimit(1)
                                         }
-                                        .frame(width: 35)
+                                        .frame(minWidth: 35)
+                                        .fixedSize(horizontal: true, vertical: false)
                                         .padding(.vertical, 4)
                                         .padding(.horizontal, 4)
                                         .overlay(
@@ -126,8 +136,9 @@ struct CommandPalette: View {
                                                 .stroke(.separator, lineWidth: 1)
                                         )
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
+                                    .padding(.leading, 10)
+                                    .padding(.trailing, 12)
+                                    .padding(.vertical, 8)
                                     .contentShape(Rectangle())
                                 }
                                 .id(index)
@@ -136,7 +147,7 @@ struct CommandPalette: View {
                                 }
                                 .buttonStyle(.plain)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 4)
+                                    RoundedRectangle(cornerRadius: 10)
                                         .fill(backgroundColorForItem(at: index))
                                         .contentShape(Rectangle())
                                 )
@@ -146,14 +157,14 @@ struct CommandPalette: View {
                     }
                     .scrollTargetBehavior(.viewAligned)
                     .scrollPosition($scrollPosition)
-                    .frame(maxHeight: min(CGFloat(filteredCollections.count * 41), 320))
+                    .frame(maxHeight: min(CGFloat(filteredCollections.count * 37), 320))
                     .padding(.bottom, 4)
                 }
                 .padding([.horizontal, .top], 8)
                 .padding(.bottom, 4)
-                .modifier(GlassBackgroundStyle(cornerRadius: 12))
+                .modifier(GlassBackgroundStyle(cornerRadius: 16))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 16)
                         .stroke(.separator)
                 )
                 .frame(maxWidth: 500)

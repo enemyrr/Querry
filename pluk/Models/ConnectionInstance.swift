@@ -375,7 +375,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         }
         
         // Check for existing tab with same table name
-        if let existingTab = tabs.first(where: { $0.name == cleanName }) {
+        if let existingTab = tabs.first(where: { $0.name == cleanName && $0.databaseSchema == databaseSchema }) {
             // Check if filter parameters have actually changed
             let hasFilterChanged = existingTab.filterColumn != filterColumn ||
                                    existingTab.filterValue != filterValue
@@ -420,8 +420,10 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
     }
 
     private func recordRecentTable(name: String, schema: String?) {
-        let dbName = connectedDatabase?.name ?? ""
-        let tableType = collections[dbName]?.first(where: { $0.name == name })?.type ?? "table"
+        guard let dbName = connectedDatabase?.name, !dbName.isEmpty else { return }
+        let tableType = collections[dbName]?.first {
+            $0.name == name && $0.schema == schema
+        }?.type ?? collections[dbName]?.first { $0.name == name }?.type ?? "table"
         Task { @MainActor [recentTablesService] in
             recentTablesService?.recordTableOpened(
                 tableName: name,

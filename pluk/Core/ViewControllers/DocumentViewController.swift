@@ -239,7 +239,7 @@ final class DocumentViewController: NSViewController {
         }
     }
 
-    private func showRightSidebar(initialWidth: CGFloat? = nil) {
+    private func showRightSidebar(initialWidth: CGFloat? = nil, loadContentImmediately: Bool = true) {
         guard rightSidebarViewController == nil,
               let contentContainer,
               let tabViewContainer else { return }
@@ -255,7 +255,6 @@ final class DocumentViewController: NSViewController {
 
         let sidebarView = sidebarViewController.view
         sidebarView.translatesAutoresizingMaskIntoConstraints = false
-        sidebarView.shadow = makeShadow()
         rightSidebarViewController = sidebarViewController
 
         contentContainer.addSubview(sidebarView)
@@ -274,6 +273,10 @@ final class DocumentViewController: NSViewController {
             widthConstraint,
             trailingToSidebar,
         ])
+
+        if loadContentImmediately {
+            sidebarViewController.loadInitialContent()
+        }
     }
 
     private func hideRightSidebar() {
@@ -466,7 +469,7 @@ final class DocumentViewController: NSViewController {
 
     private func showRightSidebarAnimated() {
         isAnimatingRightSidebar = true
-        showRightSidebar(initialWidth: 0)
+        showRightSidebar(initialWidth: 0, loadContentImmediately: false)
         contentContainer?.layoutSubtreeIfNeeded()
 
         rightSidebarViewController?.view.alphaValue = 0
@@ -480,7 +483,9 @@ final class DocumentViewController: NSViewController {
             self.contentContainer?.layoutSubtreeIfNeeded()
         } completionHandler: { [weak self] in
             Task { @MainActor [weak self] in
-                self?.isAnimatingRightSidebar = false
+                guard let self else { return }
+                self.rightSidebarViewController?.loadInitialContent()
+                self.isAnimatingRightSidebar = false
             }
         }
     }

@@ -53,6 +53,28 @@ struct FloatingActionBar: View {
     // MARK: - Processing State
     @State private var processingStage: ProcessingStage = .idle
     @State private var animationDots: String = ""
+
+    private var actionBarCornerRadius: CGFloat {
+        switch action {
+        case .search:
+            20
+        case .commandPalette:
+            14
+        case .main, .create:
+            12
+        }
+    }
+
+    private var loaderCornerRadius: CGFloat {
+        switch action {
+        case .main:
+            12
+        case .commandPalette:
+            14
+        case .search, .create:
+            20
+        }
+    }
     @State private var animationTask: Task<Void, Never>?
     
     // MARK: - Pagination
@@ -271,20 +293,20 @@ struct FloatingActionBar: View {
                 TwoPhaseLoader(
                     containerWidth: containerWidth,
                     isLoading: isLoading,
-                    cornerRadius: action == .main ? 12 : 20
+                    cornerRadius: loaderCornerRadius
                 )
             )
-            .modifier(GlassBackgroundStyle(cornerRadius: action == .search ? 20 : 12))
+            .modifier(GlassBackgroundStyle(cornerRadius: actionBarCornerRadius))
             .background(
                 Group {
                     if colorScheme == .dark {
-                        RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
+                        RoundedRectangle(cornerRadius: actionBarCornerRadius)
                             .fill(
                                 Color(.clear)
                             )
                             .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 4)
                     } else {
-                        RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
+                        RoundedRectangle(cornerRadius: actionBarCornerRadius)
                             .fill(
                                 Color(.clear)
                             )
@@ -293,7 +315,7 @@ struct FloatingActionBar: View {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: action == .search ? 20 : 12)
+                RoundedRectangle(cornerRadius: actionBarCornerRadius)
                     .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
             )
 //            .background(alignment: .center) {
@@ -650,8 +672,11 @@ struct FloatingActionBar: View {
     /// Open the full query editor view with animation
     func openQueryEditor() {
         Task { @MainActor in
-            // Only perform animation if the editor is currently open
             if !showQueryEditor {
+                AnalyticsService.shared.trackQueryEditorOpened(
+                    databaseType: databaseType ?? instance.connection.databaseType,
+                    source: "floating_action_bar"
+                )
                 withAnimation(.spring(response: 0.15)) {
                     showQueryEditor = true
                 }
