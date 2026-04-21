@@ -702,7 +702,7 @@
 			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 3.24.2;
+				minimumVersion = 3.55.1;
 			};
 		};
 		9A44A0BC2D2E91F900E04DC8 /* XCRemoteSwiftPackageReference "UInt128" */ = {
@@ -734,8 +734,10 @@
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 8.52.1;
+				minimumVersion = 9.10.0;
 			};
+			traits = (
+			);
 		};
 		9A9B35C12DA543A50052B366 /* XCRemoteSwiftPackageReference "yyjson" */ = {
 			isa = XCRemoteSwiftPackageReference;
