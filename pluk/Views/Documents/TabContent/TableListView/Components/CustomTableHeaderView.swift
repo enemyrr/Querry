@@ -7,22 +7,25 @@
 
 import AppKit
 
+@MainActor
 class CustomTableHeaderView: NSTableHeaderView {
     private var trackingArea: NSTrackingArea?
     private var currentHoveredColumn: Int = -1
 
     override func awakeFromNib() {
         super.awakeFromNib()
-        setupTrackingArea()
     }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        setupTrackingArea()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
         setupTrackingArea()
     }
 

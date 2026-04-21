@@ -70,10 +70,6 @@ final class CodeView: NSTextView {
   var documentVisibleBox:       NSBox?
   var minimapDividerView:       NSBox?
 
-  // Notification observer
-  nonisolated(unsafe) private var frameChangedNotificationObserver: NSObjectProtocol?
-  nonisolated(unsafe) private var didChangeNotificationObserver:    NSObjectProtocol?
-
   /// Contains the line on which the insertion point was located, the last time the selection range got set (if the
   /// selection was an insertion point at all; i.e., it's length was 0).
   ///
@@ -173,9 +169,9 @@ final class CodeView: NSTextView {
   ///
   var completionTask: Task<(), Error>?
 
-  /// KVO observations that need to be retained.
+  /// Observation tokens that need to be retained.
   ///
-  var observations: [NSKeyValueObservation] = []
+  var observations: [NSObject] = []
 
   /// Designated initialiser for code views with a gutter.
   ///
@@ -208,12 +204,14 @@ final class CodeView: NSTextView {
 
     super.init(frame: frame, textContainer: codeContainer)
 
-    textLayoutManager.setSafeRenderingAttributesValidator(with: codeViewDelegate) { (textLayoutManager, layoutFragment) in
-      guard let textContentStorage = textLayoutManager.textContentManager as? NSTextContentStorage else { return }
+    MainActor.assumeIsolated {
+      textLayoutManager.setSafeRenderingAttributesValidator(with: codeViewDelegate) { (textLayoutManager, layoutFragment) in
+        guard let textContentStorage = textLayoutManager.textContentManager as? NSTextContentStorage else { return }
 
-      codeStorage.setHighlightingAttributes(for: textContentStorage.range(for: layoutFragment.rangeInElement),
-                                            in: textLayoutManager)
-    }.flatMap { observations.append($0) }
+        codeStorage.setHighlightingAttributes(for: textContentStorage.range(for: layoutFragment.rangeInElement),
+                                              in: textLayoutManager)
+      }.flatMap { observations.append($0) }
+    }
 
     // We can't do this — see [Note NSTextViewportLayoutControllerDelegate].
     //
@@ -292,25 +290,17 @@ final class CodeView: NSTextView {
     maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
       
     // We need to re-tile the subviews whenever the frame of the text view changes.
-    frameChangedNotificationObserver
-      = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
-                                               object: enclosingScrollView,
-                                               queue: .main){ [weak self] _ in
-
-        // NB: When resizing the window, where the text container doesn't completely fill the text view (i.e., the text
-        //     is short), we need to explicitly redraw the gutter, as line wrapping may have changed, which affects
-        //     line numbering.
-        self?.gutterView?.needsDisplay = true
-      }
+    NotificationCenter.default.addObserver(self,
+                                           selector: #selector(handleEnclosingScrollViewFrameDidChange(_:)),
+                                           name: NSView.frameDidChangeNotification,
+                                           object: enclosingScrollView)
 
     // We need to check whether we need to look up completions or cancel a running completion process after every text
     // change. We also need to remove evicted message views.
-    didChangeNotificationObserver
-      = NotificationCenter.default.addObserver(forName: NSText.didChangeNotification, object: self, queue: .main){ [weak self] _ in
-
-        self?.considerCompletionFor(range: self!.rangeForUserCompletion)
-        self?.invalidateMessageViews(withIDs: self!.codeStorageDelegate.lastInvalidatedMessageIDs)
-      }
+    NotificationCenter.default.addObserver(self,
+                                           selector: #selector(handleTextDidChangeNotification(_:)),
+                                           name: NSText.didChangeNotification,
+                                           object: self)
 
     Task {
       do {
@@ -358,8 +348,8 @@ final class CodeView: NSTextView {
   }
 
   deinit {
-    if let observer = frameChangedNotificationObserver { NotificationCenter.default.removeObserver(observer) }
-    if let observer = didChangeNotificationObserver { NotificationCenter.default.removeObserver(observer) }
+    NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: nil)
+    NotificationCenter.default.removeObserver(self, name: NSText.didChangeNotification, object: self)
   }
 
 
@@ -387,6 +377,16 @@ final class CodeView: NSTextView {
                           newSelection: combinedRanges(ranges: ranges))
 
     }
+  }
+
+  @objc private func handleEnclosingScrollViewFrameDidChange(_ notification: Notification) {
+    // When resizing the window, explicit gutter redraw keeps line numbers in sync with updated wraps.
+    gutterView?.needsDisplay = true
+  }
+
+  @objc private func handleTextDidChangeNotification(_ notification: Notification) {
+    considerCompletionFor(range: rangeForUserCompletion)
+    invalidateMessageViews(withIDs: codeStorageDelegate.lastInvalidatedMessageIDs)
   }
 
   override func layout() {
@@ -512,7 +512,7 @@ extension CodeView {
     minimapGutterView?.invalidateGutter(for: oldRange)
     minimapGutterView?.invalidateGutter(for: newRange)
 
-    DispatchQueue.main.async { [self] in
+    Task { @MainActor in
       collapseMessageViews()
       updateMessageLineHighlights()
     }
@@ -935,37 +935,41 @@ final class CodeContainer: NSTextContainer, @unchecked Sendable {
                                                 writingDirection: baseWritingDirection,
                                                 remaining: remainingRect),
         calculatedRect = CGRect(x: 0, y: superRect.minY, width: size.width, height: superRect.height)
+    let tv = textView
 
-    nonisolated(unsafe) let tv = textView
-    guard let codeView    = tv as? CodeView,
-          let codeStorage = codeView.textStorage as? CodeStorage,
-          let delegate    = codeStorage.delegate as? CodeStorageDelegate,
-          let line        = delegate.lineMap.lineOf(index: characterIndex),
-          let oneLine     = delegate.lineMap.lookup(line: line),
-          characterIndex == oneLine.range.location
-    else { return calculatedRect }
+    return MainActor.assumeIsolated {
+      guard let codeView    = tv as? CodeView,
+            let codeStorage = codeView.textStorage as? CodeStorage,
+            let delegate    = codeStorage.delegate as? CodeStorageDelegate,
+            let line        = delegate.lineMap.lineOf(index: characterIndex),
+            let oneLine     = delegate.lineMap.lookup(line: line),
+            characterIndex == oneLine.range.location
+      else { return calculatedRect }
 
-    if let messageBundleId = delegate.messages(at: line)?.id,
-       calculatedRect.width > 2 * MessageGeometry.minimumInlineWidth
-    {
-
-      codeView.messageViews[messageBundleId]?.characterIndex    = characterIndex
-      codeView.messageViews[messageBundleId]?.lineFragementRect = calculatedRect
-      codeView.messageViews[messageBundleId]?.geometry = nil
-
-      if let lines   = codeView.messageViews[messageBundleId]?.telescope,
-         let oneLine = delegate.lineMap.lookup(line: line + lines)
+      if let messageBundleId = delegate.messages(at: line)?.id,
+         calculatedRect.width > 2 * MessageGeometry.minimumInlineWidth
       {
-        codeView.messageViews[messageBundleId]?.characterIndexTelescope = oneLine.range.max
-      }
 
-      DispatchQueue.main.async { codeView.layoutMessageView(identifiedBy: messageBundleId) }
+        codeView.messageViews[messageBundleId]?.characterIndex    = characterIndex
+        codeView.messageViews[messageBundleId]?.lineFragementRect = calculatedRect
+        codeView.messageViews[messageBundleId]?.geometry = nil
 
-      return CGRect(origin: calculatedRect.origin,
-                    size: CGSize(width: calculatedRect.width - MessageGeometry.minimumInlineWidth,
-                                 height: calculatedRect.height))
+        if let lines   = codeView.messageViews[messageBundleId]?.telescope,
+           let oneLine = delegate.lineMap.lookup(line: line + lines)
+        {
+          codeView.messageViews[messageBundleId]?.characterIndexTelescope = oneLine.range.max
+        }
 
-    } else { return calculatedRect }
+        Task { @MainActor in
+          codeView.layoutMessageView(identifiedBy: messageBundleId)
+        }
+
+        return CGRect(origin: calculatedRect.origin,
+                      size: CGSize(width: calculatedRect.width - MessageGeometry.minimumInlineWidth,
+                                   height: calculatedRect.height))
+
+      } else { return calculatedRect }
+    }
   }
 }
 

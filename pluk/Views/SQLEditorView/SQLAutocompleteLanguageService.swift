@@ -720,24 +720,12 @@ final class SQLAutocompleteLanguageService: LanguageService {
         let candidateCount = candidates.count
         var scores = [Int](repeating: 0, count: candidateCount)
 
-        if candidateCount >= 64 {
-            scores.withUnsafeMutableBufferPointer { buffer in
-                DispatchQueue.concurrentPerform(iterations: candidateCount) { i in
-                    buffer[i] = Self.relevanceScore(
-                        candidate: candidates[i],
-                        pattern: patternData,
-                        preferredKind: preferredKind
-                    )
-                }
-            }
-        } else {
-            for i in 0..<candidateCount {
-                scores[i] = Self.relevanceScore(
-                    candidate: candidates[i],
-                    pattern: patternData,
-                    preferredKind: preferredKind
-                )
-            }
+        for i in 0..<candidateCount {
+            scores[i] = Self.relevanceScore(
+                candidate: candidates[i],
+                pattern: patternData,
+                preferredKind: preferredKind
+            )
         }
 
         let indices = (0..<candidateCount).sorted { lhs, rhs in

@@ -572,10 +572,12 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         updateContainerAppearance(dropdownContainer)
 
         appearanceObservation = view.observe(\.effectiveAppearance) { [weak self] _, _ in
-            guard let self else { return }
-            self.updateContainerAppearance(self.searchContainer)
-            self.updateContainerAppearance(self.dropdownContainer)
-            self.reloadContent()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateContainerAppearance(self.searchContainer)
+                self.updateContainerAppearance(self.dropdownContainer)
+                self.reloadContent()
+            }
         }
     }
 }

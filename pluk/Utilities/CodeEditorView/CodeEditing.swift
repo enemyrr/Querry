@@ -23,7 +23,7 @@ import LanguageSupport
 
 extension CodeView: CodeEditorActions {
 
-  @objc public func duplicate(_ sender: Any?) { duplicate(sender) }
+  @objc public func duplicate(_ sender: Any?) { duplicate() }
   @objc public func reindent(_ sender: Any?) { reindent() }
   @objc public func shiftLeft(_ sender: Any?) { shiftLeftOrRight(doShiftLeft: true) }
   @objc public func shiftRight(_ sender: Any?) { shiftLeftOrRight(doShiftLeft: false) }

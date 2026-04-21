@@ -102,7 +102,9 @@ class DraggableTabNSView: NSView, NSDraggingSource {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.updateStoredFrame()
+                MainActor.assumeIsolated { [weak self] in
+                    self?.updateStoredFrame()
+                }
             }
         } else if window == nil, let observer = frameUpdateObserver {
             NotificationCenter.default.removeObserver(observer)
@@ -143,38 +145,45 @@ class DraggableTabNSView: NSView, NSDraggingSource {
         autoScrollDirection = direction
 
         let timer = Timer(timeInterval: 0.016, repeats: true) { _ in
-            guard let scrollView = scrollView else {
-                return
+            MainActor.assumeIsolated {
+                Self.handleAutoScrollTick()
             }
-            let clipView = scrollView.contentView
-            var newOrigin = clipView.bounds.origin
-            let oldX = newOrigin.x
-            newOrigin.x += autoScrollSpeed * autoScrollDirection
-
-            guard let documentView = scrollView.documentView else { return }
-            let maxScrollX = max(0, documentView.frame.width - clipView.bounds.width)
-            newOrigin.x = max(0, min(newOrigin.x, maxScrollX))
-
-            guard abs(newOrigin.x - oldX) > 0.01 else { return }
-
-            clipView.scroll(to: newOrigin)
-            scrollView.reflectScrolledClipView(clipView)
-
-            documentView.needsLayout = true
-            documentView.layoutSubtreeIfNeeded()
-
-            if let window = scrollView.window {
-                let visibleRect = clipView.bounds
-                let frameInWindow = clipView.convert(visibleRect, to: nil)
-                let screenFrame = window.convertToScreen(frameInWindow)
-                scrollViewMinX = screenFrame.minX
-                scrollViewMaxX = screenFrame.maxX
-            }
-
-            NotificationCenter.default.post(name: .tabFramesNeedUpdate, object: nil)
         }
         RunLoop.main.add(timer, forMode: .common)
         autoScrollTimer = timer
+    }
+
+    @MainActor
+    private static func handleAutoScrollTick() {
+        guard let scrollView else {
+            return
+        }
+        let clipView = scrollView.contentView
+        var newOrigin = clipView.bounds.origin
+        let oldX = newOrigin.x
+        newOrigin.x += autoScrollSpeed * autoScrollDirection
+
+        guard let documentView = scrollView.documentView else { return }
+        let maxScrollX = max(0, documentView.frame.width - clipView.bounds.width)
+        newOrigin.x = max(0, min(newOrigin.x, maxScrollX))
+
+        guard abs(newOrigin.x - oldX) > 0.01 else { return }
+
+        clipView.scroll(to: newOrigin)
+        scrollView.reflectScrolledClipView(clipView)
+
+        documentView.needsLayout = true
+        documentView.layoutSubtreeIfNeeded()
+
+        if let window = scrollView.window {
+            let visibleRect = clipView.bounds
+            let frameInWindow = clipView.convert(visibleRect, to: nil)
+            let screenFrame = window.convertToScreen(frameInWindow)
+            scrollViewMinX = screenFrame.minX
+            scrollViewMaxX = screenFrame.maxX
+        }
+
+        NotificationCenter.default.post(name: .tabFramesNeedUpdate, object: nil)
     }
 
     private static func stopAutoScroll() {

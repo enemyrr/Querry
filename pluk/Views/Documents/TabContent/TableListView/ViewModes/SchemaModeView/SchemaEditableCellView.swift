@@ -368,7 +368,7 @@ class SchemaEditableCellView: NSView, NSTextFieldDelegate {
         case .defaultValue:
             value = column.columnDefault ?? ""
         case .nullable:
-            value = column.isNullable ?? "NO"
+            value = column.isNullable
         }
 
         // Check if this is a new column (not yet saved to DB)
@@ -398,7 +398,7 @@ class SchemaEditableCellView: NSView, NSTextFieldDelegate {
                 textField.stringValue = modifiedColumn.columnDefault ?? ""
                 isModified = modifiedColumn.columnDefault != column.columnDefault
             case .nullable:
-                textField.stringValue = modifiedColumn.isNullable ?? "NO"
+                textField.stringValue = modifiedColumn.isNullable
                 isModified = modifiedColumn.isNullable != column.isNullable
             }
 

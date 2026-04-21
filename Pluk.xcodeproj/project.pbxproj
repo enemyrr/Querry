@@ -694,7 +694,7 @@
 			repositoryURL = "https://github.com/pluk-inc/convex-swift";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.8.2;
+				minimumVersion = 0.8.8;
 			};
 		};
 		9A2923032DBBA5830032F301 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {

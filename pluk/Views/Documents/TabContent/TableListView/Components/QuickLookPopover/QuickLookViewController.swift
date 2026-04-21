@@ -719,7 +719,7 @@ private final class QuickLookGripAwareClipView: NSClipView {
     private var trackingArea: NSTrackingArea?
     private var isGripCursorPushed = false
 
-    deinit {
+    isolated deinit {
         releaseGripCursorIfNeeded()
     }
 
@@ -1073,7 +1073,7 @@ private final class QuickLookResizeHandleView: NSView {
         fatalError()
     }
 
-    deinit {
+    isolated deinit {
         releaseResizeCursorIfNeeded()
     }
 

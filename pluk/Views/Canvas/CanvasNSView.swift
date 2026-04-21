@@ -164,9 +164,11 @@ final class CanvasNSView: NSView {
         if !selectedNodeIds.isEmpty {
             guard animationTimer == nil else { return }
             animationTimer = Timer.scheduledTimer(withTimeInterval: Self.animationFrameInterval, repeats: true) { [weak self] _ in
-                guard let self else { return }
-                self.dashPhase += 0.5
-                self.needsDisplay = true
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.dashPhase += 0.5
+                    self.needsDisplay = true
+                }
             }
         } else {
             animationTimer?.invalidate()
@@ -463,7 +465,7 @@ final class CanvasNSView: NSView {
     // MARK: - Scroll / Zoom
 
     override func scrollWheel(with event: NSEvent) {
-        if event.modifierFlags.contains(.command) || event.phase == .none && event.momentumPhase == .none {
+        if event.modifierFlags.contains(.command) || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
             let location = convert(event.locationInWindow, from: nil)
             let delta = event.scrollingDeltaY * 0.008
             document.viewport.zoom(by: delta, centeredAt: location)

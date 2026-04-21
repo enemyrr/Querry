@@ -59,6 +59,7 @@ The scheme is **`Collection`**, not `Pluk` — the app was originally named Coll
 - Git tracks source files under lowercase `pluk/...` paths even though `Pluk/...` also resolves on disk on macOS. Use lowercase paths in git commands and patches to avoid confusing `git diff` / `git show` results.
 - `Pluk.xcodeproj` uses `PBXFileSystemSynchronizedRootGroup` for the `pluk/` sources. New `.swift` files added under `pluk/` are automatically picked up by the app target unless explicitly excluded, so most source-file additions do not need a matching `project.pbxproj` edit.
 - `WindowController.switchToTab(.home)` should always resolve against `WindowController`-managed windows or create a new home window. Falling back to non-`WindowController` windows breaks global entry points such as the menubar once only notebook/connection windows are open.
+- The `pluk-inc/convex-swift` package can ship a `libconvexmobile-rs.xcframework` whose macOS slice was built with a much newer deployment target than Pluk (`libconvexmobile.a` objects stamped `minos 26.x` while the app links for `MACOSX_DEPLOYMENT_TARGET = 15.0`). If Xcode reports `Object file ... libconvexmobile.a ... was built for newer 'macOS' version`, inspect the packaged archive with `otool -l ... | rg 'minos|sdk|platform'` and fix the upstream `convex-mobile/rust/build-ios.sh` packaging step rather than chasing Pluk target settings.
 
 ## GitHub Workflow
 

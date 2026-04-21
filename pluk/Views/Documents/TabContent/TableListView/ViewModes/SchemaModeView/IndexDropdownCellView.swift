@@ -142,18 +142,26 @@ class IndexDropdownCellView: NSTableCellView {
         inputTextField.action = #selector(manualInputFieldAction(_:))
 
         // Store references for the action handler
-        objc_setAssociatedObject(inputTextField, &AssociatedKeys.popoverKey, popover, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        objc_setAssociatedObject(
+            inputTextField,
+            UnsafeRawPointer(bitPattern: AssociatedKeys.popoverKeyValue)!,
+            popover,
+            .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+        )
     }
 
     private struct AssociatedKeys {
-        nonisolated(unsafe) static var popoverKey = "popoverKey"
+        static let popoverKeyValue = 0x4944_504F
     }
 
     @objc private func manualInputFieldAction(_ sender: NSTextField) {
         let inputValue = sender.stringValue.trimmingCharacters(in: .whitespaces)
 
         // Close popover
-        if let popover = objc_getAssociatedObject(sender, &AssociatedKeys.popoverKey) as? NSPopover {
+        if let popover = objc_getAssociatedObject(
+            sender,
+            UnsafeRawPointer(bitPattern: AssociatedKeys.popoverKeyValue)!
+        ) as? NSPopover {
             popover.close()
         }
 

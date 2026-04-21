@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pluk-inc/convex-swift",
       "state" : {
-        "revision" : "1950865d3fc6f6d9c0444c5da76cd6260b7b4199",
-        "version" : "0.8.7"
+        "revision" : "c5017e756fce40d4fb35c25e2c44ed0cfbd11b19",
+        "version" : "0.8.8"
       }
     },
     {

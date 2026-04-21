@@ -257,9 +257,41 @@ extension NSTextLayoutManager {
 // we wait until the `CodeViewDelegate` receives a `textDidChange` notification to trigger setting the attributes.
 
 extension NSTextLayoutManager {
-
+  
   private final class PendingTextLayoutFragments {
     var fragments: [NSTextLayoutFragment] = []
+  }
+
+  private final class EditingTransactionObserver: NSObject {
+    private weak var textContentManager: NSTextContentManager?
+    private let handler: @MainActor () -> Void
+
+    init(textContentManager: NSTextContentManager, handler: @escaping @MainActor () -> Void) {
+      self.textContentManager = textContentManager
+      self.handler = handler
+      super.init()
+      textContentManager.addObserver(self, forKeyPath: "hasEditingTransaction", options: [], context: nil)
+    }
+
+    deinit {
+      textContentManager?.removeObserver(self, forKeyPath: "hasEditingTransaction")
+    }
+
+    override func observeValue(forKeyPath keyPath: String?,
+                               of object: Any?,
+                               change: [NSKeyValueChangeKey : Any]?,
+                               context: UnsafeMutableRawPointer?)
+    {
+      guard keyPath == "hasEditingTransaction" else {
+        super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+        return
+      }
+
+      let handler = self.handler
+      Task { @MainActor in
+        handler()
+      }
+    }
   }
   
   /// Set the rendering attribute validator in a way that it avoids the timing bug with updating internal layout
@@ -270,10 +302,11 @@ extension NSTextLayoutManager {
   ///   - renderingAttributesValidator: The validator to set.
   /// - Returns: A KVO object that needs to be retained until this validator is no longer needed.
   ///
+  @MainActor
   func setSafeRenderingAttributesValidator(with codeViewDelegate: CodeViewDelegate,
                                            _ renderingAttributesValidator:
                                              @escaping (NSTextLayoutManager, NSTextLayoutFragment) -> Void)
-  -> NSKeyValueObservation?
+  -> NSObject?
   {
     guard let textContentManager else {
 
@@ -312,13 +345,10 @@ extension NSTextLayoutManager {
       processFragements()
     }
 
-    return textContentManager.observe(\.hasEditingTransaction) {
-      [processFragements] textContentManager, change in
-
+    return EditingTransactionObserver(textContentManager: textContentManager) {
       // Process fragments if an editing transaction just ended.
       guard !textContentManager.hasEditingTransaction else { return }
       processFragements()
-
     }
   }
   

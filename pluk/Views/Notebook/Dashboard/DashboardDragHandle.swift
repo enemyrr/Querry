@@ -9,7 +9,7 @@ final class DashboardDragHandle: NSView {
 
     private let imageView: NSImageView
     private var isDragging = false
-    nonisolated(unsafe) private var eventMonitor: Any?
+    private var eventMonitor: Any?
 
     override init(frame frameRect: NSRect) {
         let image = NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: "Drag to reorder")
@@ -32,7 +32,7 @@ final class DashboardDragHandle: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    deinit {
+    isolated deinit {
         removeEventMonitor()
     }
 

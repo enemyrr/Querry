@@ -812,7 +812,7 @@ private final class QuerySplitterView: NSView {
     private var lastY: CGFloat = 0
     private let line = NSView()
     private var isDragging = false
-    nonisolated(unsafe) private var eventMonitor: Any?
+    private var eventMonitor: Any?
 
     init(onDrag: @escaping (CGFloat) -> Void) {
         self.onDrag = onDrag
@@ -837,7 +837,7 @@ private final class QuerySplitterView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    deinit {
+    isolated deinit {
         removeEventMonitor()
     }
 
