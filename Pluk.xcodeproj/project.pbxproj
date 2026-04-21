@@ -736,8 +736,6 @@
 				kind = upToNextMajorVersion;
 				minimumVersion = 9.10.0;
 			};
-			traits = (
-			);
 		};
 		9A9B35C12DA543A50052B366 /* XCRemoteSwiftPackageReference "yyjson" */ = {
 			isa = XCRemoteSwiftPackageReference;
