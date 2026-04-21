@@ -137,7 +137,12 @@ final class CompletionCellView: NSTableCellView {
   private static let selectionCornerRadius: CGFloat = 9
 
   private let badgeView = BadgeView()
-  private let labelField = CompletionCellView.makeTextField(size: 12, weight: .regular, monospaced: true)
+  private let labelField: NSTextField = {
+    let field = CompletionCellView.makeTextField(size: 12, weight: .regular, monospaced: true)
+    field.lineBreakMode = .byTruncatingMiddle
+    field.cell?.lineBreakMode = .byTruncatingMiddle
+    return field
+  }()
   private let detailField = CompletionCellView.makeTextField(size: 10, weight: .regular, monospaced: true)
   private let selectionBackgroundLayer = CALayer()
   private var hostingView: NSHostingView<AnyView>?
@@ -174,11 +179,11 @@ final class CompletionCellView: NSTableCellView {
     addSubview(detailField)
 
     detailField.alignment = .right
-    detailField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    detailField.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+    detailField.setContentCompressionResistancePriority(.required, for: .horizontal)
+    detailField.setContentHuggingPriority(.required, for: .horizontal)
 
     labelField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    labelField.setContentCompressionResistancePriority(.required, for: .horizontal)
+    labelField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
     NSLayoutConstraint.activate([
       badgeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.contentPadding),
@@ -356,15 +361,24 @@ private final class BadgeView: NSView {
 // MARK: Completion documentation view
 
 final class CompletionDocumentationView: NSView {
+  private enum Layout {
+    static let horizontalInset: CGFloat = 10
+    static let topInset: CGFloat = 8
+    static let badgeSize: CGFloat = 14
+    static let badgeSpacing: CGFloat = 6
+    static let detailTopSpacing: CGFloat = 4
+    static let bottomInset: CGFloat = 8
+  }
 
   private let badgeView = BadgeView()
   private let labelField: NSTextField = {
     let field = NSTextField(labelWithString: "")
-    field.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
+    field.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
     field.isEditable = false
     field.isBordered = false
     field.drawsBackground = false
-    field.lineBreakMode = .byTruncatingTail
+    field.lineBreakMode = .byTruncatingMiddle
+    field.cell?.lineBreakMode = .byTruncatingMiddle
     field.translatesAutoresizingMaskIntoConstraints = false
     return field
   }()
@@ -375,7 +389,10 @@ final class CompletionDocumentationView: NSView {
     field.isEditable = false
     field.isBordered = false
     field.drawsBackground = false
-    field.lineBreakMode = .byTruncatingTail
+    field.lineBreakMode = .byWordWrapping
+    field.cell?.lineBreakMode = .byWordWrapping
+    field.cell?.wraps = true
+    field.cell?.usesSingleLineMode = false
     field.translatesAutoresizingMaskIntoConstraints = false
     return field
   }()
@@ -388,18 +405,19 @@ final class CompletionDocumentationView: NSView {
     addSubview(detailField)
 
     NSLayoutConstraint.activate([
-      badgeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-      badgeView.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-      badgeView.widthAnchor.constraint(equalToConstant: 14),
-      badgeView.heightAnchor.constraint(equalToConstant: 14),
+      badgeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.horizontalInset),
+      badgeView.topAnchor.constraint(equalTo: topAnchor, constant: Layout.topInset),
+      badgeView.widthAnchor.constraint(equalToConstant: Layout.badgeSize),
+      badgeView.heightAnchor.constraint(equalToConstant: Layout.badgeSize),
 
-      labelField.leadingAnchor.constraint(equalTo: badgeView.trailingAnchor, constant: 6),
+      labelField.leadingAnchor.constraint(equalTo: badgeView.trailingAnchor, constant: Layout.badgeSpacing),
       labelField.centerYAnchor.constraint(equalTo: badgeView.centerYAnchor),
-      labelField.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+      labelField.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Layout.horizontalInset),
 
-      detailField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-      detailField.topAnchor.constraint(equalTo: badgeView.bottomAnchor, constant: 4),
-      detailField.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+      detailField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.horizontalInset),
+      detailField.topAnchor.constraint(equalTo: badgeView.bottomAnchor, constant: Layout.detailTopSpacing),
+      detailField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.horizontalInset),
+      detailField.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -Layout.bottomInset),
     ])
   }
 
@@ -417,6 +435,30 @@ final class CompletionDocumentationView: NSView {
       detailField.isHidden = true
     }
   }
+
+  func requiredHeight(for info: CompletionDisplayInfo, width: CGFloat) -> CGFloat {
+    let labelHeight = max(labelField.font?.ascender ?? 0, Layout.badgeSize)
+    let detailHeight: CGFloat
+
+    if let detail = info.detail, !detail.isEmpty {
+      let availableWidth = max(width - (Layout.horizontalInset * 2), 1)
+      let rect = (detail as NSString).boundingRect(
+        with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+        options: [.usesLineFragmentOrigin, .usesFontLeading],
+        attributes: [.font: detailField.font as Any]
+      )
+      detailHeight = ceil(rect.height)
+    } else {
+      detailHeight = 0
+    }
+
+    return ceil(
+      Layout.topInset
+      + labelHeight
+      + (detailHeight > 0 ? Layout.detailTopSpacing + detailHeight : 0)
+      + Layout.bottomInset
+    )
+  }
 }
 
 
@@ -425,12 +467,14 @@ final class CompletionDocumentationView: NSView {
 final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource {
   private enum Metrics {
     static let minWidth: CGFloat = 280
-    static let maxWidth: CGFloat = 720
+    static let maxWidth: CGFloat = 300
+    static let widthFractionOfEditor: CGFloat = 0.6
     static let rowHeight: CGFloat = 26
     static let listVerticalInset: CGFloat = 6
     static let minListHeight: CGFloat = 100
     static let maxListHeight: CGFloat = 240
-    static let documentationHeight: CGFloat = 52
+    static let minDocumentationHeight: CGFloat = 52
+    static let maxDocumentationHeight: CGFloat = 110
     static let screenInset: CGFloat = 16
     static let scrollbarAllowance: CGFloat = 18
     static let contentPadding: CGFloat = 32
@@ -455,6 +499,8 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
   private var docHostingView: NSHostingView<AnyView>?
   private let docNativeView = CompletionDocumentationView()
   private var anchorRect: CGRect?
+  private var preferredMaximumWidth: CGFloat = Metrics.maxWidth
+  private var currentDocumentationHeight: CGFloat = Metrics.minDocumentationHeight
 
   nonisolated(unsafe) private var didResignObserver: NSObjectProtocol?
   nonisolated(unsafe) private var outsideClickLocalMonitor: Any?
@@ -580,7 +626,11 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
     container.contentRoot.addSubview(docScrollView)
 
     contentView = container
-    layoutPanelContent(width: Metrics.minWidth, listHeight: Metrics.minListHeight)
+    layoutPanelContent(
+      width: Metrics.minWidth,
+      listHeight: Metrics.minListHeight,
+      documentationHeight: Metrics.minDocumentationHeight
+    )
   }
 
   override var canBecomeKey: Bool { true }
@@ -628,6 +678,13 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
       progressHandler?(.input(event))
 
     }
+  }
+
+  func updatePreferredMaximumWidth(for editorWidth: CGFloat) {
+    preferredMaximumWidth = max(
+      Metrics.minWidth,
+      min(editorWidth * Metrics.widthFractionOfEditor, Metrics.maxWidth)
+    )
   }
 
   // MARK: Set completions
@@ -744,7 +801,7 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
       x: 0,
       y: 0,
       width: max(docScrollView.contentSize.width, container.bounds.width),
-      height: Metrics.documentationHeight
+      height: currentDocumentationHeight
     )
     docScrollView.documentView = docNativeView
   }
@@ -768,7 +825,7 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
         x: 0,
         y: 0,
         width: max(docScrollView.contentSize.width, container.bounds.width),
-        height: Metrics.documentationHeight
+        height: currentDocumentationHeight
       )
       docScrollView.documentView = hosting
       docHostingView = hosting
@@ -783,20 +840,21 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
     let visibleRows = min(rowCount, maxVisibleRows)
     let listHeight = CGFloat(visibleRows) * Metrics.rowHeight + insetsHeight
     let panelWidth = desiredPanelWidth(anchoredAt: screenRect)
-    let panelHeight = listHeight + 1 + Metrics.documentationHeight
+    let documentationHeight = desiredDocumentationHeight(for: panelWidth)
+    currentDocumentationHeight = documentationHeight
+    let panelHeight = listHeight + 1 + documentationHeight
     let panelSize = CGSize(width: panelWidth, height: panelHeight)
 
     setContentSize(panelSize)
     container.frame = NSRect(origin: .zero, size: panelSize)
-    layoutPanelContent(width: panelWidth, listHeight: listHeight)
+    layoutPanelContent(width: panelWidth, listHeight: listHeight, documentationHeight: documentationHeight)
 
     if let screenRect {
       setFrameTopLeftPoint(panelOrigin(for: screenRect, size: panelSize))
     }
   }
 
-  private func layoutPanelContent(width: CGFloat, listHeight: CGFloat) {
-    let documentationHeight = Metrics.documentationHeight
+  private func layoutPanelContent(width: CGFloat, listHeight: CGFloat, documentationHeight: CGFloat) {
     let dividerHeight: CGFloat = 1
     let listOriginY = documentationHeight + dividerHeight
 
@@ -828,12 +886,21 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
     )
     tableView.frame = NSRect(x: 0, y: 0, width: tableWidth, height: totalContentHeight)
 
+    if docScrollView.documentView === docNativeView {
+      docNativeView.frame = NSRect(
+        x: 0,
+        y: 0,
+        width: max(docScrollView.contentSize.width, width),
+        height: documentationHeight
+      )
+    }
+
     if let docHostingView {
       docHostingView.frame = NSRect(
         x: 0,
         y: 0,
         width: max(docScrollView.contentSize.width, width),
-        height: Metrics.documentationHeight
+        height: documentationHeight
       )
     }
   }
@@ -841,9 +908,13 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
   private func desiredPanelWidth(anchoredAt screenRect: CGRect?) -> CGFloat {
     let measuredWidth = max(measuredCompletionWidth(), measuredDocumentationWidth())
     let availableWidth = maximumAllowedWidth(anchoredAt: screenRect)
+    let maximumWidth = max(
+      Metrics.minWidth,
+      min(availableWidth, preferredMaximumWidth)
+    )
     return min(
       max(measuredWidth, Metrics.minWidth),
-      max(Metrics.minWidth, min(availableWidth, Metrics.maxWidth))
+      maximumWidth
     )
   }
 
@@ -878,6 +949,36 @@ final class CompletionPanel: NSPanel, NSTableViewDelegate, NSTableViewDataSource
     )
     hosting.layoutSubtreeIfNeeded()
     return max(hosting.fittingSize.width, Metrics.minWidth)
+  }
+
+  private func desiredDocumentationHeight(for width: CGFloat) -> CGFloat {
+    guard let selectedID = selectedItemID,
+          let item = completions.items.first(where: { $0.id == selectedID })
+    else {
+      return Metrics.minDocumentationHeight
+    }
+
+    let height: CGFloat
+    if let info = displayInfoProvider?(item.id) {
+      height = docNativeView.requiredHeight(for: info, width: width)
+    } else {
+      let hosting = NSHostingView(
+        rootView: AnyView(
+          HStack(alignment: .top) {
+            AnyView(item.documentationView)
+            Spacer(minLength: 0)
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 6)
+          .frame(width: width, alignment: .topLeading)
+        )
+      )
+      hosting.frame = NSRect(x: 0, y: 0, width: width, height: Metrics.minDocumentationHeight)
+      hosting.layoutSubtreeIfNeeded()
+      height = hosting.fittingSize.height
+    }
+
+    return min(max(height, Metrics.minDocumentationHeight), Metrics.maxDocumentationHeight)
   }
 
   private func estimatedTextWidth(for item: Completions.Completion) -> CGFloat {
@@ -952,6 +1053,7 @@ extension CodeView {
 
   @MainActor
   func show(completions: Completions, for range: NSRange) {
+    completionPanel.updatePreferredMaximumWidth(for: bounds.width)
 
     if let sqlService = optLanguageService as? SQLAutocompleteLanguageService {
       completionPanel.displayInfoProvider = { [weak sqlService] id in
