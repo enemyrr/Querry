@@ -15,6 +15,7 @@ Before modifying code in any directory, check for a matching `AGENTS.md` file in
 .agents/pluk/Core/ViewControllers/AGENTS.md          ← AppKit VC hierarchy
 .agents/pluk/Core/Database/AGENTS.md                 ← Database utilities
 .agents/pluk/Views/AGENTS.md                         ← View layer overview
+.agents/pluk/Views/Sidebar/AGENTS.md                 ← Sidebar layout + scroll-content rules
 .agents/pluk/Views/Documents/AGENTS.md               ← Tab management
 .agents/pluk/Views/Documents/TabContent/TableListView/AGENTS.md  ← Table viewer
 .agents/pluk/Views/Notebook/AGENTS.md                ← Notebook system

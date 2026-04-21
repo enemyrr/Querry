@@ -69,9 +69,11 @@ MainContentViewController
 - All SwiftUI views embedded in AppKit must receive environment injection
 - Settings window is a singleton NSWindowController — use `SettingsWindowController.shared`
 - `FloatingActionBar` is a mega-component (14 files) — it manages filtering, pagination, query execution, and schema modifications
+- Sidebar-specific layout rules live in `Views/Sidebar/AGENTS.md`; check that file before changing `pluk/Views/Sidebar/...`
 
 ## Downlinks
 
+- [Sidebar](Sidebar/AGENTS.md) — Connection sidebar layout and scroll-content rules
 - [Documents](Documents/AGENTS.md) — Tab management, table viewer
 - [Notebook](Notebook/AGENTS.md) — Notebook system
 - [Notebook/Agent](Notebook/Agent/AGENTS.md) — AI agent subsystem

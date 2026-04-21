@@ -80,13 +80,13 @@ final class TabBarView: NSView {
         prevButton = makeNavButton(symbolName: "chevron.left")
         prevButton.target = self
         prevButton.action = #selector(prevTabAction)
-        prevButton.installCustomTooltip("Previous Tab", shortcut: .init(modifiers: [.shift, .command], key: "["))
+        prevButton.installCustomTooltip("Previous Tab (also ⌘⇧[)", shortcut: .init(modifiers: [.command, .option], key: "←"))
         addSubview(prevButton)
 
         nextButton = makeNavButton(symbolName: "chevron.right")
         nextButton.target = self
         nextButton.action = #selector(nextTabAction)
-        nextButton.installCustomTooltip("Next Tab", shortcut: .init(modifiers: [.shift, .command], key: "]"))
+        nextButton.installCustomTooltip("Next Tab (also ⌘⇧])", shortcut: .init(modifiers: [.command, .option], key: "→"))
         addSubview(nextButton)
 
         scrollView = NonDraggingScrollView()
@@ -626,7 +626,7 @@ final class TabBarView: NSView {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true else { return event }
 
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
             let key = event.charactersIgnoringModifiers
 
             if flags == .command {
@@ -644,6 +644,19 @@ final class TabBarView: NSView {
                         instance.selectTabByIndex(digit - 1)
                         return nil
                     }
+                }
+            }
+
+            if flags == [.command, .option] {
+                switch event.keyCode {
+                case 123:
+                    self.prevTabAction()
+                    return nil
+                case 124:
+                    self.nextTabAction()
+                    return nil
+                default:
+                    break
                 }
             }
 

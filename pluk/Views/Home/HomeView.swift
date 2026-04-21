@@ -17,10 +17,8 @@ struct HomeView: View {
     private var connections: [Connection]
     @Query(sort: \Notebook.updatedAt, order: .reverse)
     private var notebooks: [Notebook]
-    @AppStorage("hasAcknowledgedNotebookBeta") private var hasAcknowledgedNotebookBeta = false
     @State private var showCreateSheet = false
     @State private var showConnectionAlert = false
-    @State private var showNotebookBetaInvite = false
     @State private var pendingConnection: Connection?
 
     private var allItems: [WorkspaceItem] {
@@ -86,13 +84,6 @@ struct HomeView: View {
             alignment: .leading
         )
         .postHogScreenView("HomeView")
-        .onAppear(perform: presentNotebookBetaInviteIfNeeded)
-        .sheet(isPresented: $showNotebookBetaInvite, onDismiss: handleNotebookBetaInviteSheetDismissed) {
-            NotebookBetaInviteModal(
-                onDismiss: dismissNotebookBetaInvite,
-                onTryNotebook: acceptNotebookBetaInvite
-            )
-        }
         .sheet(isPresented: $showCreateSheet) {
             ZStack {
                 VisualEffectView(
@@ -222,24 +213,6 @@ struct HomeView: View {
         }
     }
 
-    private func presentNotebookBetaInviteIfNeeded() {
-        guard !hasAcknowledgedNotebookBeta, !showNotebookBetaInvite else { return }
-        showNotebookBetaInvite = true
-    }
-
-    private func dismissNotebookBetaInvite() {
-        hasAcknowledgedNotebookBeta = true
-        showNotebookBetaInvite = false
-    }
-
-    private func acceptNotebookBetaInvite() {
-        dismissNotebookBetaInvite()
-        createAndOpenNotebook()
-    }
-
-    private func handleNotebookBetaInviteSheetDismissed() {
-        hasAcknowledgedNotebookBeta = true
-    }
 }
 
 struct DatabaseTypeIcon: View {

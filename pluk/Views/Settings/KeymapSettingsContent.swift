@@ -44,6 +44,8 @@ enum KeymapSettingsContent {
                 KeymapShortcutItem(action: "Find Tables", shortcut: "⌘ P"),
                 KeymapShortcutItem(action: "New Connection", shortcut: "⌘ ⇧ N"),
                 KeymapShortcutItem(action: "Close Tab or Connection", shortcut: "⌘ W"),
+                KeymapShortcutItem(action: "Previous Tab", shortcut: "⌘ ⇧ [ or ⌘ ⌥ ←"),
+                KeymapShortcutItem(action: "Next Tab", shortcut: "⌘ ⇧ ] or ⌘ ⌥ →"),
                 KeymapShortcutItem(action: "Previous Page", shortcut: "⌘ ←"),
                 KeymapShortcutItem(action: "Next Page", shortcut: "⌘ →"),
             ]

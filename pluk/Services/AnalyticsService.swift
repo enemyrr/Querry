@@ -143,6 +143,18 @@ final class AnalyticsService {
         ])
     }
 
+    func trackSidebarProPromo(
+        action: String,
+        databaseType: DatabaseType,
+        sidebarViewMode: String
+    ) {
+        PostHogSDK.shared.capture("sidebar_pro_promo", properties: [
+            "action": action,
+            "database_type": databaseType.rawValue,
+            "sidebar_view_mode": sidebarViewMode
+        ])
+    }
+
     // MARK: - Document/Table Events
 
     func trackTableViewed(databaseType: DatabaseType) {

@@ -93,12 +93,10 @@ struct DatabaseList: View {
                                 .foregroundStyle(.secondary.opacity(0.7))
                         }
                         .padding(.top, 20)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
                     }
                 }
             }
-
-            Spacer()
         }
         .sheet(isPresented: $showDatabaseSelector) {
             DatabaseSelectorModal(

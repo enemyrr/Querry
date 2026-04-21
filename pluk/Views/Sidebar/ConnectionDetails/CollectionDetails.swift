@@ -59,13 +59,38 @@ final class SidebarCollectionLoadCoordinator {
 struct ConnectionDetailsSidebar: View {
     @Environment(SidebarViewModel.self) var viewModel: SidebarViewModel
     @Environment(ConnectionInstance.self) var connectionInstance: ConnectionInstance
-    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("sidebarProPromoDismissedAt") private var proPromoDismissedAt: Double = 0
+    private var authService = WorkOSAuthService.shared
     @State private var collectionLoader = SidebarCollectionLoadCoordinator()
+
+    private static let proPromoCooldown: TimeInterval = 30 * 24 * 60 * 60
     @State private var isScrolled = false
     @State private var isSidebarHovered = false
     @State private var scrollOffset: CGFloat = 0
     @State private var sidebarViewMode: SidebarViewMode = .tables
     @State private var showAdvancedHistory = false
+    @State private var promoCardHeight: CGFloat = 0
+
+    private var sidebarViewModeAnalyticsValue: String {
+        switch sidebarViewMode {
+        case .tables: "tables"
+        case .history: "history"
+        }
+    }
+
+    private var shouldShowProPromo: Bool {
+        if proPromoDismissedAt > 0 {
+            let elapsed = Date().timeIntervalSince1970 - proPromoDismissedAt
+            if elapsed < Self.proPromoCooldown { return false }
+        }
+        guard !authService.isPro else { return false }
+
+        if authService.isAuthenticated {
+            return authService.hasLoadedSubscriptionStatus
+        }
+
+        return true
+    }
 
     var body: some View {
         let isLoadingCollections = collectionLoader.isLoading
@@ -101,31 +126,29 @@ struct ConnectionDetailsSidebar: View {
 
             ScrollView {
                 LazyVStack(spacing: 0, pinnedViews: []) {
-                    if sidebarViewMode == .tables {
-                        DatabaseList(viewModel: viewModel, collectionLoader: collectionLoader)
-                            .padding(.trailing, 10)
-                            .background(
-                                GeometryReader { geometry in
-                                    Color.clear
-                                        .onAppear {
-                                            scrollOffset = geometry.frame(in: .global).minY
-                                        }
-                                        .onChange(of: geometry.frame(in: .global).minY) { _, newValue in
-                                            let diff = scrollOffset - newValue
-                                            withAnimation(.easeOut(duration: 0.15)) {
-                                                isScrolled = diff > 20
-                                            }
-                                        }
-                                }
-                            )
-                    } else {
-                        QueryHistorySidebarList()
-                            .padding(.trailing, 16)
-                    }
+                    sidebarScrollableContent
                 }
+                .padding(.bottom, shouldShowProPromo ? promoCardHeight + 16 : 12)
             }
             .padding(.trailing, -10)
-
+            .overlay(alignment: .bottom) {
+                if shouldShowProPromo {
+                    promoCard
+                        .padding(.trailing, 2)
+                        .padding(.bottom, 8)
+                        .background(
+                            GeometryReader { geometry in
+                                Color.clear
+                                    .onAppear {
+                                        updatePromoCardHeight(geometry.size.height)
+                                    }
+                                    .onChange(of: geometry.size.height) { _, newValue in
+                                        updatePromoCardHeight(newValue)
+                                    }
+                            }
+                        )
+                }
+            }
         }
         .padding(.top, 4)
         .padding(.leading, 10)
@@ -151,6 +174,140 @@ struct ConnectionDetailsSidebar: View {
                 .environment(connectionInstance)
                 .frame(minWidth: 600, minHeight: 400)
         }
+    }
+
+    @ViewBuilder
+    private var sidebarScrollableContent: some View {
+        if sidebarViewMode == .tables {
+            DatabaseList(viewModel: viewModel, collectionLoader: collectionLoader)
+                .padding(.trailing, 12)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear
+                            .onAppear {
+                                scrollOffset = geometry.frame(in: .global).minY
+                            }
+                            .onChange(of: geometry.frame(in: .global).minY) { _, newValue in
+                                let diff = scrollOffset - newValue
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    isScrolled = diff > 20
+                                }
+                            }
+                    }
+                )
+        } else {
+            QueryHistorySidebarList()
+                .padding(.trailing, 16)
+        }
+    }
+
+    private var promoCard: some View {
+        SidebarProPromoCard {
+            AnalyticsService.shared.trackSidebarProPromo(
+                action: "cta_clicked",
+                databaseType: connectionInstance.connection.databaseType,
+                sidebarViewMode: sidebarViewModeAnalyticsValue
+            )
+            Paywall.present()
+        } onDismiss: {
+            AnalyticsService.shared.trackSidebarProPromo(
+                action: "dismissed",
+                databaseType: connectionInstance.connection.databaseType,
+                sidebarViewMode: sidebarViewModeAnalyticsValue
+            )
+            proPromoDismissedAt = Date().timeIntervalSince1970
+        } onAppear: {
+            AnalyticsService.shared.trackSidebarProPromo(
+                action: "viewed",
+                databaseType: connectionInstance.connection.databaseType,
+                sidebarViewMode: sidebarViewModeAnalyticsValue
+            )
+        }
+    }
+
+    private func updatePromoCardHeight(_ newHeight: CGFloat) {
+        guard abs(promoCardHeight - newHeight) > 0.5 else { return }
+        promoCardHeight = newHeight
+    }
+}
+
+private struct SidebarProPromoCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isDismissHovering = false
+    @State private var isCardHovering = false
+    let onUpgrade: () -> Void
+    let onDismiss: () -> Void
+    let onAppear: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 6) {
+                Text("Introducing Pluk Pro")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 4)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(isDismissHovering ? .primary : .secondary)
+                        .frame(width: 18, height: 18)
+                        .contentShape(.rect)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color(.separatorColor).opacity(isDismissHovering ? 0.5 : 0))
+                        )
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.08)) {
+                        isDismissHovering = hovering
+                    }
+                }
+            }
+
+            Text("Unlimited connections, expanded AI, and priority support.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+
+            HStack {
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .offset(x: isCardHovering ? 2 : 0)
+            }
+            .padding(.top, 6)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
+        .onTapGesture { onUpgrade() }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.controlBackgroundColor).opacity(0.98))
+                .shadow(color: .black.opacity(0.10), radius: 1, y: 0.5)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(
+                    colorScheme == .dark
+                        ? Color.white.opacity(0.06)
+                        : Color.black.opacity(0.08),
+                    lineWidth: 0.5
+                )
+        )
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.15)) {
+                isCardHovering = hovering
+            }
+        }
+        .onAppear(perform: onAppear)
     }
 }
 
