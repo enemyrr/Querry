@@ -6,31 +6,6 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
-            <title>Pluk 0.0.1 Beta 35</title>
-            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.35.dmg</link>
-            <sparkle:version>295</sparkle:version>
-            <sparkle:shortVersionString>0.0.1-beta.35</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 35</h2><div>Pluk v35 introduces SQL editor autocomplete, adds more keyboard shortcuts, makes shortcut handling more reliable across windows and databases, and fixes the repeated keychain access prompt for existing users. The rest of the release focuses on bug fixes and polish across the app.
-Here’s what’s new:
-<ul>
-<li><strong>SQL editor autocomplete.</strong> The SQL editor now includes autocomplete to help you write queries faster.</li>
-<li><strong>More keyboard shortcuts.</strong> Added more shortcuts to make it easier to move through Pluk.</li>
-<li><strong>More reliable shortcuts.</strong> Fixed cases where shortcuts could be picked up by the wrong window or tab, with better routing across windows and databases.</li>
-<li><strong>Keychain access migration.</strong> Existing users may need to approve keychain access one last time after updating as Pluk moves to a new keychain flow. Future updates will not ask again.</li>
-<li><strong>Bug fixes and polish.</strong> Also includes fixes and refinements across the menu bar, Open Quickly, recent tables, and sidebar.</li>
-</ul></div>
-            ]]></description>
-            <pubDate>Tue, 21 Apr 2026 17:16:26 +0000</pubDate>
-            <enclosure 
-                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.35.dmg"
-                length="48199344"
-                type="application/octet-stream"
-                sparkle:edSignature="4GbczxRxTigv43vVT31yZWFhibbOnqYlez7DuqFnRsnzn/fsxJsj4Yu8VfQ7Q6+q/CRZvhHMSRvsM/i5rR5yBw=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
-        <item>
             <title>Pluk 0.0.1 Beta 34</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.34.dmg</link>
             <sparkle:version>294</sparkle:version>
@@ -45,11 +20,11 @@ Here’s what’s new:
 <li><strong>Better save behavior in tables.</strong> Cmd+S now commits the active cell before saving. (<a href="https://github.com/pluk-inc/Pluk/issues/107">#107</a>)</li>
 <li><strong>Clearer bulk actions.</strong> The floating action bar once again shows the correct delete count. (<a href="https://github.com/pluk-inc/Pluk/issues/106">#106</a>)</li>
 <li><strong>More polish throughout the app.</strong> Smaller bug fixes and UI improvements round out the release.</li>
-- 
+-
 </ul></div>
             ]]></description>
             <pubDate>Sun, 19 Apr 2026 08:48:46 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.34.dmg"
                 length="47157434"
                 type="application/octet-stream"
@@ -75,7 +50,7 @@ Here’s what’s new:
 </ul></div>
             ]]></description>
             <pubDate>Sun, 19 Apr 2026 08:21:43 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.33.dmg"
                 length="47790263"
                 type="application/octet-stream"
@@ -100,7 +75,7 @@ Here’s what’s new:
 </ul></div>
             ]]></description>
             <pubDate>Sat, 11 Apr 2026 07:38:03 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.32.dmg"
                 length="24285786"
                 type="application/octet-stream"
@@ -138,7 +113,7 @@ We’ve also shipped some small but mighty updates:
   - Notebook connection list now refreshes correctly after creating the first connection. (<a href="https://github.com/pluk-inc/Pluk/issues/76">#76</a>)</div>
             ]]></description>
             <pubDate>Sun, 05 Apr 2026 07:30:31 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.31.dmg"
                 length="24297810"
                 type="application/octet-stream"
@@ -160,7 +135,7 @@ We’ve also shipped some small but mighty updates:
 </ul></div>
             ]]></description>
             <pubDate>Wed, 11 Mar 2026 12:15:21 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.30.dmg"
                 length="50688774"
                 type="application/octet-stream"
@@ -182,7 +157,7 @@ We’ve also shipped some small but mighty updates:
 </ul></div>
             ]]></description>
             <pubDate>Tue, 10 Mar 2026 13:37:49 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.29.dmg"
                 length="50746746"
                 type="application/octet-stream"
@@ -203,7 +178,7 @@ We’ve also shipped some small but mighty updates:
 </ul></div>
             ]]></description>
             <pubDate>Sun, 15 Feb 2026 12:10:49 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.28.dmg"
                 length="50569031"
                 type="application/octet-stream"
@@ -236,7 +211,7 @@ We’ve also shipped some small but mighty fixes:
 </ul></div>
             ]]></description>
             <pubDate>Thu, 05 Feb 2026 07:29:55 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.27.dmg"
                 length="50312739"
                 type="application/octet-stream"
@@ -263,7 +238,7 @@ We’ve also shipped some small but mighty updates:
 </ul></div>
             ]]></description>
             <pubDate>Wed, 28 Jan 2026 16:43:14 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.26.dmg"
                 length="50203341"
                 type="application/octet-stream"
@@ -297,7 +272,7 @@ We’ve also shipped some small but mighty updates:
 </ul></div>
             ]]></description>
             <pubDate>Mon, 26 Jan 2026 09:14:01 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.25.dmg"
                 length="50187071"
                 type="application/octet-stream"
@@ -323,7 +298,7 @@ We’ve also shipped some small but mighty updates:
 </ul></div>
             ]]></description>
             <pubDate>Sat, 20 Dec 2025 05:54:28 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.24.dmg"
                 length="49697595"
                 type="application/octet-stream"
@@ -362,7 +337,7 @@ We’ve also shipped some small but mighty updates:
 <strong>Note</strong>: The Schema Viewer is currently in read-only mode. Full editing capabilities will be added in a future release.</div>
             ]]></description>
             <pubDate>Tue, 21 Oct 2025 14:41:15 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.23.dmg"
                 length="49377615"
                 type="application/octet-stream"
@@ -406,7 +381,7 @@ This is our biggest backend integration yet — transforming Pluk into a powerfu
 </ul></div>
             ]]></description>
             <pubDate>Thu, 09 Oct 2025 03:11:02 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.22.dmg"
                 length="49353394"
                 type="application/octet-stream"
@@ -441,7 +416,7 @@ This is our biggest backend integration yet — transforming Pluk into a powerfu
 </ul></div>
             ]]></description>
             <pubDate>Sat, 20 Sep 2025 11:45:56 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.21.dmg"
                 length="19235827"
                 type="application/octet-stream"
@@ -495,7 +470,7 @@ This isn’t just another SQL editor — it’s a smarter, AI-assisted way to wo
 👉 With this release, Pluk becomes more than a database explorer — it’s your <strong>AI-powered SQL companion</strong>. Whether you’re working with SQLite, MySQL, Postgres, or MongoDB, Pluk now gives you a smarter way to query, debug, and explore your data.</div>
             ]]></description>
             <pubDate>Sat, 06 Sep 2025 04:54:42 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.20.dmg"
                 length="19395046"
                 type="application/octet-stream"
@@ -543,7 +518,7 @@ _Note: Table creation functionality is coming in a future release._
 👉 With this release, <strong>MySQL becomes a first-class citizen in Pluk</strong>, joining SQLite as a fully supported database driver. Whether you're prototyping with SQLite or running production workloads on MySQL, Pluk now provides a unified interface for all your database exploration needs.</div>
             ]]></description>
             <pubDate>Tue, 02 Sep 2025 12:01:59 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.19.dmg"
                 length="19188348"
                 type="application/octet-stream"
@@ -595,7 +570,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
 👉 With this release, <strong>SQLite becomes a first-class citizen in Pluk</strong>, making it easier than ever to query and explore your data.</div>
             ]]></description>
             <pubDate>Sat, 16 Aug 2025 15:01:28 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.18.dmg"
                 length="18648184"
                 type="application/octet-stream"
@@ -648,7 +623,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
 </ul></div>
             ]]></description>
             <pubDate>Sat, 02 Aug 2025 08:08:32 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.17.dmg"
                 length="16816104"
                 type="application/octet-stream"
@@ -669,7 +644,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
 </ul></div>
             ]]></description>
             <pubDate>Tue, 29 Jul 2025 14:26:56 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.16.dmg"
                 length="16678139"
                 type="application/octet-stream"
@@ -717,7 +692,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
 </ul></div>
             ]]></description>
             <pubDate>Wed, 23 Jul 2025 04:19:54 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.15.dmg"
                 length="16883968"
                 type="application/octet-stream"
@@ -765,7 +740,7 @@ This makes Pluk a powerful local-first companion for developers who rely on SQLi
 </ul></div>
             ]]></description>
             <pubDate>Tue, 22 Jul 2025 17:54:45 +0000</pubDate>
-            <enclosure 
+            <enclosure
                 url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.14.dmg"
                 length="16680196"
                 type="application/octet-stream"

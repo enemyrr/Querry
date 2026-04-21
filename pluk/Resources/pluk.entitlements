@@ -12,10 +12,6 @@
 	<true/>
 	<key>com.apple.security.hardened-runtime</key>
 	<true/>
-	<key>keychain-access-groups</key>
-	<array>
-		<string>$(AppIdentifierPrefix)doc.pluk</string>
-	</array>
   <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
 	<array>
 		<string>doc.pluk-spks</string>
