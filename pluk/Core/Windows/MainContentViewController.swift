@@ -16,7 +16,6 @@ final class MainContentViewController: NSViewController {
     private var backgroundView: NSVisualEffectView!
     private var tintOverlay: NSView!
     private var backgroundPanel: BackgroundPanelView!
-    private var homeWindowChromeView: WindowChromeInteractionView?
 
     private var isHome: Bool {
         switch tabType {
@@ -168,10 +167,6 @@ final class MainContentViewController: NSViewController {
             contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-
-        if case .home = tabType {
-            installHomeWindowChromeView()
-        }
     }
 
     private func setupCollapsibleSidebarLayout() {
@@ -183,23 +178,6 @@ final class MainContentViewController: NSViewController {
 
         addChild(splitVC)
         view.addSubviewPinningEdges(splitVC.view)
-    }
-
-    private func installHomeWindowChromeView() {
-        guard homeWindowChromeView == nil else { return }
-
-        let chromeView = WindowChromeInteractionView()
-        chromeView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(chromeView)
-
-        NSLayoutConstraint.activate([
-            chromeView.topAnchor.constraint(equalTo: view.topAnchor),
-            chromeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            chromeView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            chromeView.heightAnchor.constraint(equalToConstant: 50),
-        ])
-
-        homeWindowChromeView = chromeView
     }
 
     // MARK: - Sidebar Controllers

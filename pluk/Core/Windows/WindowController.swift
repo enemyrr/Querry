@@ -224,7 +224,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         }
 
         window.toolbarStyle = .unifiedCompact
-        window.isMovableByWindowBackground = false
+        window.isMovableByWindowBackground = true
         restoreWindowFrame(window)
 
         window.delegate = self
@@ -242,7 +242,6 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         toolbar.delegate = self
         window.toolbar = toolbar
         toolbar.validateVisibleItems()
-        (window as? TitlebarTabsVenturaTerminalWindow)?.scheduleWindowDragHandleRefresh()
 
         WindowController.register(self, for: window)
         setupConnectionObservation()
@@ -253,7 +252,6 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             try? await Task.sleep(for: .milliseconds(100))
             guard let self, let window else { return }
             self.hideTabBarViews(in: window)
-            (window as? TitlebarTabsVenturaTerminalWindow)?.scheduleWindowDragHandleRefresh()
         }
     }
 
