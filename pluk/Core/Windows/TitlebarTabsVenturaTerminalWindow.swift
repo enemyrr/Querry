@@ -2,8 +2,8 @@ import AppKit
 
 @MainActor
 class TitlebarTabsVenturaTerminalWindow: NSWindow {
-
     private weak var tabBarMouseTarget: NSView?
+    private weak var windowDragHandle: WindowDragHandleView?
 
     @MainActor
     override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
@@ -92,6 +92,7 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             )
             contentView.frame = newContentFrame
         }
+        refreshWindowDragHandle()
     }
 
     @objc func windowWillEnterFullScreen(_ notification: Notification) {
@@ -148,6 +149,7 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
 
         super.addTitlebarAccessoryViewController(childViewController)
+        scheduleWindowDragHandleRefresh()
 
         if #available(macOS 26, *), isTabBar {
             hideTabBarAccessoryClipViews()
@@ -251,6 +253,61 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         super.sendEvent(event)
     }
 
+    func scheduleWindowDragHandleRefresh() {
+        refreshWindowDragHandle()
+
+        Task { @MainActor [weak self] in
+            self?.refreshWindowDragHandle()
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            self?.refreshWindowDragHandle()
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            self?.refreshWindowDragHandle()
+        }
+    }
+
+    private func refreshWindowDragHandle() {
+        guard !styleMask.contains(.fullScreen) else {
+            windowDragHandle?.isHidden = true
+            return
+        }
+
+        guard let titlebarView = standardWindowButton(.closeButton)?.superview?.superview,
+              let toolbarView = titlebarView.subviews.first(where: {
+                  String(describing: type(of: $0)).contains("ToolbarView")
+              }),
+              let hostView = titlebarView.superview
+        else {
+            return
+        }
+
+        let dragHandle: WindowDragHandleView
+        if let windowDragHandle {
+            windowDragHandle.removeFromSuperview()
+            windowDragHandle.isHidden = false
+            dragHandle = windowDragHandle
+        } else {
+            let view = WindowDragHandleView()
+            view.identifier = .init("_plukWindowDragHandle")
+            view.translatesAutoresizingMaskIntoConstraints = false
+            windowDragHandle = view
+            dragHandle = view
+        }
+
+        hostView.addSubview(dragHandle)
+        NSLayoutConstraint.activate([
+            dragHandle.leadingAnchor.constraint(equalTo: toolbarView.leadingAnchor),
+            dragHandle.trailingAnchor.constraint(equalTo: toolbarView.trailingAnchor),
+            dragHandle.topAnchor.constraint(equalTo: toolbarView.topAnchor),
+            dragHandle.bottomAnchor.constraint(equalTo: toolbarView.topAnchor, constant: 12),
+        ])
+    }
+
     private func shouldCloseConnectionForCommandW(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard flags == .command,
@@ -344,5 +401,16 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+private final class WindowDragHandleView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        if event.type == .leftMouseDown, event.clickCount == 1 {
+            window?.performDrag(with: event)
+            return
+        }
+
+        super.mouseDown(with: event)
     }
 }

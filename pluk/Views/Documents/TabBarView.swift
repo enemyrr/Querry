@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-final class TabBarView: NSView {
+final class TabBarView: WindowChromeInteractionView {
 
     private let instance: ConnectionInstance
     private let appViewModel: AppViewModel
@@ -679,8 +679,6 @@ final class TabBarView: NSView {
 
     // MARK: - Appearance
 
-    override var mouseDownCanMoveWindow: Bool { false }
-
     @objc private func handleAppearanceChange() {
         refreshAppearance()
     }
@@ -1099,6 +1097,26 @@ final class TabButtonView: NSView {
 private class NonDraggingScrollView: NSScrollView {
     override var mouseDownCanMoveWindow: Bool { false }
 
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown,
+              let window
+        else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        if event.clickCount == 2, window.performConfiguredDoubleClickAction() {
+            return
+        }
+
+        if event.clickCount == 1 {
+            window.performDrag(with: event)
+            return
+        }
+
+        super.mouseDown(with: event)
+    }
+
     override func scrollWheel(with event: NSEvent) {
         guard let cgEvent = event.cgEvent?.copy() else { return }
         cgEvent.setDoubleValueField(.scrollWheelEventPointDeltaAxis1, value: 0)
@@ -1112,8 +1130,26 @@ private class NonDraggingScrollView: NSScrollView {
 
 private class NonDraggingClipView: NSClipView {
     override var mouseDownCanMoveWindow: Bool { false }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown,
+              let window
+        else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        if event.clickCount == 2, window.performConfiguredDoubleClickAction() {
+            return
+        }
+
+        if event.clickCount == 1 {
+            window.performDrag(with: event)
+            return
+        }
+
+        super.mouseDown(with: event)
+    }
 }
 
-private class NonDraggingView: NSView {
-    override var mouseDownCanMoveWindow: Bool { false }
-}
+private final class NonDraggingView: WindowChromeInteractionView {}

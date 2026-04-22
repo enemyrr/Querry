@@ -7,11 +7,13 @@ import AppKit
 import SwiftData
 import SwiftUI
 
-private enum WorkspaceSortField: CaseIterable {
+private enum WorkspaceSortField: String, CaseIterable {
     case name
     case lastViewed
     case dateCreated
     case dateUpdated
+
+    static let defaultValue: Self = .dateCreated
 
     var title: String {
         switch self {
@@ -23,9 +25,11 @@ private enum WorkspaceSortField: CaseIterable {
     }
 }
 
-private enum WorkspaceSortDirection {
+private enum WorkspaceSortDirection: String {
     case ascending
     case descending
+
+    static let defaultValue: Self = .descending
 
     var symbol: String {
         switch self {
@@ -59,9 +63,27 @@ struct WorkspaceList: View {
     @State private var searchText = ""
     @State private var isSearchVisible = false
     @State private var isSearchIconHovering = false
-    @State private var selectedSortField: WorkspaceSortField = .dateCreated
-    @State private var sortDirection: WorkspaceSortDirection = .descending
+    @AppStorage("homeWorkspaceSortField") private var selectedSortFieldRawValue = WorkspaceSortField.defaultValue.rawValue
+    @AppStorage("homeWorkspaceSortDirection") private var sortDirectionRawValue = WorkspaceSortDirection.defaultValue.rawValue
     @FocusState private var isSearchFocused: Bool
+
+    private var selectedSortField: WorkspaceSortField {
+        get {
+            WorkspaceSortField(rawValue: selectedSortFieldRawValue) ?? WorkspaceSortField.defaultValue
+        }
+        nonmutating set {
+            selectedSortFieldRawValue = newValue.rawValue
+        }
+    }
+
+    private var sortDirection: WorkspaceSortDirection {
+        get {
+            WorkspaceSortDirection(rawValue: sortDirectionRawValue) ?? WorkspaceSortDirection.defaultValue
+        }
+        nonmutating set {
+            sortDirectionRawValue = newValue.rawValue
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -117,12 +139,14 @@ struct WorkspaceList: View {
 
             createButtons
 
-            HStack(spacing: 0) {
-                sortMenu
-                searchControl
+            if !items.isEmpty {
+                HStack(spacing: 0) {
+                    sortMenu
+                    searchControl
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .toolbarIsland()
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .toolbarIsland()
         }
         .fixedSize(horizontal: false, vertical: true)
         .overlay {
@@ -276,15 +300,7 @@ struct WorkspaceList: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Items", systemImage: "tray")
-                .font(.title2)
-        } description: {
-            Text("Create a notebook or connect a database to get started.")
-        }
-        .frame(maxWidth: 400)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        WorkspaceEmptyState(onCreateConnection: onCreateConnection)
     }
 
     private var listContent: some View {
@@ -609,7 +625,7 @@ struct WorkspaceConnectionRow: View {
                     .ignoresSafeArea()
 
                 CreateConnectionForm(connection: connection)
-                    .frame(width: 500)
+                    .frame(width: 480)
             }
         }
         .confirmationDialog(
@@ -644,5 +660,93 @@ struct WorkspaceConnectionRow: View {
             Text("Are you sure you want to delete this connection? This action cannot be undone.")
         }
         .dialogSeverity(.critical)
+    }
+}
+
+private struct WorkspaceEmptyState: View {
+    let onCreateConnection: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let supportedTypes: [DatabaseType] = [
+        .postgres, .mysql, .sqlite, .mongodb, .convex
+    ]
+
+    var body: some View {
+        VStack(spacing: 28) {
+            databaseIconCluster
+
+            VStack(spacing: 8) {
+                Text("Connect your first database")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Text("Add a connection to browse tables, run queries, and use AI with your data.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: onCreateConnection) {
+                Text("New Connection")
+            }
+            .buttonStyle(PillPrimaryButtonStyle())
+        }
+        .frame(maxWidth: 440)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 56)
+    }
+
+    private var databaseIconCluster: some View {
+        HStack(spacing: -10) {
+            ForEach(Array(supportedTypes.enumerated()), id: \.offset) { index, type in
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(type.backgroundColor)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(type.homeIcon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 26, height: 26)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(iconRingColor, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                    .zIndex(Double(supportedTypes.count - index))
+            }
+        }
+    }
+
+    private var iconRingColor: Color {
+        colorScheme == .dark
+            ? Color(nsColor: .windowBackgroundColor)
+            : .white
+    }
+}
+
+private struct PillPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isEnabled ? Color.primaryButton : Color.white.opacity(0.1))
+                    .opacity(isHovering ? 0.88 : 1.0)
+            )
+            .shadow(color: Color.primaryButton.opacity(isEnabled ? 0.25 : 0), radius: 8, y: 3)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+            .onHover { hovering in
+                isHovering = hovering
+            }
     }
 }

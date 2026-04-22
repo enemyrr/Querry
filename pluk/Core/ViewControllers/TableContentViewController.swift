@@ -19,7 +19,7 @@ final class TableContentViewController: NSViewController {
 
     // MARK: - Views
 
-    private var filterBarHostingView: NSHostingView<AnyView>?
+    private var filterBarView: FilterBuilderAppKitView?
     private var contentArea: NSView!
     private var floatingBarHostingView: NSHostingView<AnyView>?
     private var currentContentView: NSView?
@@ -120,6 +120,7 @@ final class TableContentViewController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         dataController.updateFilterConditions()
+        updateFilterBarFromData()
         scheduleFilterBarLayout(afterAnimation: true)
         dataController.scheduleLoadDocumentsIfNeeded()
     }
@@ -138,8 +139,42 @@ final class TableContentViewController: NSViewController {
     }
 
     private func setupFilterBar() {
-        let filterBar = FilterBarContainer(
-            dataController: dataController,
+        let filterBarView = FilterBuilderAppKitView()
+        filterBarView.update(
+            columns: dataController.cachedSchema?.columns ?? [],
+            fallbackColumns: dataController.instance.connection.databaseType == .convex && dataController.cachedSchema == nil
+                ? (dataController.currentQueryResult?.columns ?? [])
+                : [],
+            tabID: dataController.tab.id,
+            conditions: dataController.filterConditions,
+            onConditionsChange: { [weak self] conditions in
+                self?.dataController.filterConditions = conditions
+            },
+            generateFilterQuery: { [weak self] conditions in
+                guard let self else { return "" }
+                return self.dataController.instance.databaseService.generateFilterQuery(
+                    from: conditions,
+                    tableName: self.dataController.tab.name,
+                    databaseSchema: self.dataController.tab.databaseSchema
+                )
+            },
+            onApplyFilter: { [weak self] filter in
+                guard let self else { return }
+                let effectiveFilter: String? = filter.isEmpty ? nil : filter
+                self.dataController.currentActiveFilter = effectiveFilter
+                if let databaseType = self.dataController.instance.databaseType, !filter.isEmpty {
+                    Task { @MainActor in
+                        AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
+                    }
+                }
+                self.dataController.scheduleLoadOrSubscribe(
+                    forceFetch: true,
+                    fetchSchema: false,
+                    page: 1,
+                    limit: 300,
+                    filter: effectiveFilter
+                )
+            },
             onLayoutInvalidated: { [weak self] in
                 self?.scheduleFilterBarLayout()
             },
@@ -147,8 +182,7 @@ final class TableContentViewController: NSViewController {
                 self?.updateMeasuredFilterBarHeight(height)
             }
         )
-        let wrapped = injectEnvironments(filterBar)
-        filterBarHostingView = NSHostingView(rootView: AnyView(wrapped))
+        self.filterBarView = filterBarView
     }
 
     private func setupFloatingBar() {
@@ -158,9 +192,9 @@ final class TableContentViewController: NSViewController {
     }
 
     private func setupLayout() {
-        guard let filterBarHostingView, let floatingBarHostingView else { return }
+        guard let filterBarView, let floatingBarHostingView else { return }
 
-        view.addSubview(filterBarHostingView)
+        view.addSubview(filterBarView)
         view.addSubview(contentArea)
         view.addSubview(floatingBarHostingView)
 
@@ -174,18 +208,17 @@ final class TableContentViewController: NSViewController {
     }
 
     private func layoutContentViews() {
-        guard let filterBarHostingView, let floatingBarHostingView else { return }
+        guard let filterBarView, let floatingBarHostingView else { return }
 
         let bounds = view.bounds
-        var measurementFrame = filterBarHostingView.frame
+        var measurementFrame = filterBarView.frame
         measurementFrame.size.width = bounds.width
-        filterBarHostingView.frame = measurementFrame
-        filterBarHostingView.invalidateIntrinsicContentSize()
-        filterBarHostingView.layoutSubtreeIfNeeded()
-        let measuredHeight = max(0, filterBarHostingView.fittingSize.height.rounded(.up))
+        filterBarView.frame = measurementFrame
+        filterBarView.layoutSubtreeIfNeeded()
+        let measuredHeight = max(0, filterBarView.resolvedHeight.rounded(.up))
         let filterHeight = measuredFilterBarHeight ?? measuredHeight
 
-        filterBarHostingView.frame = NSRect(
+        filterBarView.frame = NSRect(
             x: 0,
             y: bounds.height - filterHeight,
             width: bounds.width,
@@ -234,35 +267,6 @@ final class TableContentViewController: NSViewController {
             }
         }
 
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleToggleFilterBuilder(_:)),
-            name: .toggleFilterBuilder,
-            object: nil
-        )
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleFilterBuilderDidClose(_:)),
-            name: .filterBuilderDidClose,
-            object: nil
-        )
-    }
-
-    @objc private func handleToggleFilterBuilder(_ notification: Notification) {
-        scheduleFilterBarLayoutIfNeeded(for: notification)
-    }
-
-    @objc private func handleFilterBuilderDidClose(_ notification: Notification) {
-        scheduleFilterBarLayoutIfNeeded(for: notification)
-    }
-
-    private func scheduleFilterBarLayoutIfNeeded(for notification: Notification) {
-        guard let sourceWindow = notification.object as? NSWindow,
-              let currentWindow = view.window,
-              sourceWindow === currentWindow,
-              notification.userInfo?["tabID"] as? UUID == tab.id else { return }
-        scheduleFilterBarLayout(afterAnimation: true)
     }
 
     // MARK: - Content Mode Switching
@@ -386,6 +390,7 @@ final class TableContentViewController: NSViewController {
         observeViewState()
         observeViewMode()
         observeHighlighting()
+        observeFilterBarState()
         observeErrors()
     }
 
@@ -393,14 +398,14 @@ final class TableContentViewController: NSViewController {
         filterLayoutTask?.cancel()
         filterLayoutTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            self.filterBarHostingView?.invalidateIntrinsicContentSize()
+            self.filterBarView?.needsLayout = true
             self.layoutContentViews()
             await Task.yield()
-            self.filterBarHostingView?.invalidateIntrinsicContentSize()
+            self.filterBarView?.needsLayout = true
             self.layoutContentViews()
             if afterAnimation {
                 try? await Task.sleep(for: .milliseconds(250))
-                self.filterBarHostingView?.invalidateIntrinsicContentSize()
+                self.filterBarView?.needsLayout = true
                 self.layoutContentViews()
             }
         }
@@ -437,6 +442,21 @@ final class TableContentViewController: NSViewController {
             Task { @MainActor in
                 self?.updateTableFromData()
                 self?.observeViewState()
+            }
+        }
+    }
+
+    private func observeFilterBarState() {
+        withObservationTracking {
+            _ = self.dataController.filterConditions
+            _ = self.dataController.cachedSchema
+            _ = self.dataController.currentQueryResult
+            _ = self.tab.name
+            _ = self.tab.databaseSchema
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.updateFilterBarFromData()
+                self?.observeFilterBarState()
             }
         }
     }
@@ -511,31 +531,36 @@ final class TableContentViewController: NSViewController {
 
         dataController.handleViewStateChange()
     }
-}
 
-// MARK: - SwiftUI Bridge Views
-
-private struct FilterBarContainer: View {
-    @Bindable var dataController: TableDataController
-    var onLayoutInvalidated: () -> Void
-    var onHeightChanged: (CGFloat) -> Void
-
-    var body: some View {
-        FilterBuilderView(
+    private func updateFilterBarFromData() {
+        filterBarView?.update(
             columns: dataController.cachedSchema?.columns ?? [],
-            fallbackColumns: dataController.instance.connection.databaseType == .convex && dataController.cachedSchema == nil ? (dataController.currentQueryResult?.columns ?? []) : [],
+            fallbackColumns: dataController.instance.connection.databaseType == .convex && dataController.cachedSchema == nil
+                ? (dataController.currentQueryResult?.columns ?? [])
+                : [],
             tabID: dataController.tab.id,
-            tableName: dataController.tab.name,
-            databaseSchema: dataController.tab.databaseSchema,
-            onApplyFilter: { filter in
+            conditions: dataController.filterConditions,
+            onConditionsChange: { [weak self] conditions in
+                self?.dataController.filterConditions = conditions
+            },
+            generateFilterQuery: { [weak self] conditions in
+                guard let self else { return "" }
+                return self.dataController.instance.databaseService.generateFilterQuery(
+                    from: conditions,
+                    tableName: self.dataController.tab.name,
+                    databaseSchema: self.dataController.tab.databaseSchema
+                )
+            },
+            onApplyFilter: { [weak self] filter in
+                guard let self else { return }
                 let effectiveFilter: String? = filter.isEmpty ? nil : filter
-                dataController.currentActiveFilter = effectiveFilter
-                if let databaseType = dataController.instance.databaseType, !filter.isEmpty {
+                self.dataController.currentActiveFilter = effectiveFilter
+                if let databaseType = self.dataController.instance.databaseType, !filter.isEmpty {
                     Task { @MainActor in
                         AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
                     }
                 }
-                dataController.scheduleLoadOrSubscribe(
+                self.dataController.scheduleLoadOrSubscribe(
                     forceFetch: true,
                     fetchSchema: false,
                     page: 1,
@@ -543,12 +568,17 @@ private struct FilterBarContainer: View {
                     filter: effectiveFilter
                 )
             },
-            conditions: $dataController.filterConditions,
-            onLayoutInvalidated: onLayoutInvalidated,
-            onHeightChanged: onHeightChanged
+            onLayoutInvalidated: { [weak self] in
+                self?.scheduleFilterBarLayout()
+            },
+            onHeightChanged: { [weak self] height in
+                self?.updateMeasuredFilterBarHeight(height)
+            }
         )
     }
 }
+
+// MARK: - SwiftUI Bridge Views
 
 private struct FloatingBarContainer: View {
     @Bindable var dataController: TableDataController

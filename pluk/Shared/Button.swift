@@ -569,7 +569,8 @@ struct CustomMenuButtonStyle: ButtonStyle {
         HStack {
             configuration.label
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -1145,7 +1146,7 @@ struct UpdateActionButton: View {
     let updateCount: Int
     let isProcessingBatch: Bool
     let onUpdate: () -> Void
-    
+
     var body: some View {
         Button(action: onUpdate) {
             HStack(alignment: .center, spacing: 4) {
@@ -1159,7 +1160,7 @@ struct UpdateActionButton: View {
                     Image(systemName: "tray")
                         .font(.system(size: 12))
                         .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
-                    
+
                     Text("\(updateCount)")
                         .font(.system(size: 12, weight: .light))
                         .lineLimit(1)
@@ -1246,5 +1247,28 @@ extension Button {
     
     func fileChangeStyle() -> some View {
         self.buttonStyle(FileChangeButtonStyle())
+    }
+}
+
+// MARK: - Sheet Chrome Button
+// 34×34 circular button used as back / close chrome on modal sheets
+// (Create Connection form, Convex OAuth view, DB selection view).
+struct SheetChromeButton: View {
+    let systemImage: String
+    let action: () -> Void
+    var keyboardShortcut: SwiftUI.KeyboardShortcut? = nil
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 34, height: 34)
+                .background(
+                    Circle().fill(Color(.tertiaryLabelColor).opacity(0.28))
+                )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(keyboardShortcut ?? .init(.escape, modifiers: []))
     }
 }

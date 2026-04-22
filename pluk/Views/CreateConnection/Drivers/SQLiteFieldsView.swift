@@ -28,72 +28,40 @@ struct SQLiteFieldsView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Database Config")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-            
-            VStack(spacing: 12) {
-                FormField(label: "File Path") {
-                    if filePath.isEmpty {
-                        // Phase 1: No file selected - show center-aligned select button
-                        Button(action: {
+        Section {
+            if filePath.isEmpty {
+                Button {
+                    showFileImporter = true
+                } label: {
+                    VStack(spacing: 4) {
+                        Text("Select File")
+                            .foregroundStyle(.primary)
+
+                        Text("Choose a .db, .sqlite, or .sqlite3 file")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .fileSelectionStyle()
+            } else {
+                LabeledContent("File") {
+                    HStack(spacing: 8) {
+                        Image(systemName: "externaldrive.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        Text(displayText)
+                            .truncationMode(.middle)
+                            .lineLimit(1)
+
+                        Button("Change") {
                             showFileImporter = true
-                        }) {
-                            VStack(spacing: 8) {
-                                VStack(spacing: 4) {
-                                    Text("Select File")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    
-                                    Text("Choose a .db, .sqlite, or .sqlite3 file")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                            }
                         }
-                        .fileSelectionStyle()
-                    } else {
-                        // Phase 2: File selected - show file details with change button
-                        HStack(spacing: 12) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "externaldrive.fill")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                
-                                Text(displayText)
-                                    .truncationMode(.middle)
-                                    .lineLimit(1)
-                                
-                                Spacer()
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color(.controlColor).opacity(0.05))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(.separator.opacity(0.5), lineWidth: 1)
-                            )
-                            
-                            Button("Change") {
-                                showFileImporter = true
-                            }
-                            .fileChangeStyle()
-                        }
+                        .controlSize(.small)
                     }
                 }
             }
-            .padding(16)
-            .background(Color(.controlColor).opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .cornerRadius(16)
         }
         .fileImporter(
             isPresented: $showFileImporter,

@@ -217,19 +217,22 @@ struct ConvexOAuthView: View {
     @State private var authorizationError: String?
     @State private var authorizationCode: String?
     @State private var arrowPulse: Bool = false
+    @State private var callbackObserver: NSObjectProtocol?
     
     var body: some View {
         VStack(spacing: 0) {
-            // Modern header with back navigation (hide when connected)
             HStack {
+                SheetChromeButton(systemImage: "chevron.left") {
+                    selectedDatabaseType = nil
+                }
+
                 Spacer()
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 4)
             
-            // OAuth Authorization Card
-            VStack(spacing: 32) {
-                // App Icons and Connection - Hide when connected
+            VStack(spacing: 40) {
                 if convexAccessToken.isEmpty {
                     // Setup state - show arrow and smaller icons
                     HStack(spacing: 24) {
@@ -292,130 +295,61 @@ struct ConvexOAuthView: View {
                     )
                 }
                 
-                // Main Content
-                VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Text("Pluk is about to integrate with")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        HStack(spacing: 4) {
-                            Text("your Convex project.")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.primary)
-                        }
+                VStack(spacing: 32) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Connect Convex to Pluk")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.primary)
+
+                        Text("Pluk will be able to create deployments, manage your project, and read or write data in any deployment.")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    
-                    HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.orange)
-                        
-                        Text("This integration is still in beta. Some features might experience occasional issues.")
-                            .font(.system(size: 14))
-                            .foregroundColor(.orange)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.orange.opacity(0.05))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                    )
-                    
-                    // Divider
-                    Divider()
-                    
-                    // Permissions Section (only show when not connected)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Authorizing will give Pluk access to:")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                
-                                Text("Create new deployments in the selected project")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                            }
-                            
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                
-                                Text("Manage the selected project")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                            }
-                            
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                
-                                Text("Read and write data in any deployment in this project")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // Divider
-                    Divider()
-                    
-                    // What happens next (only show when not connected)
+                    .frame(maxWidth: 350, alignment: .leading)
+
                     VStack(alignment: .leading, spacing: 12) {
                         Text("What happens next")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 10) {
                                 Image(systemName: "globe")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 18)
                                 Text("You'll be redirected to Convex in your browser")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
                                 Spacer()
                             }
-                            
-                            HStack(spacing: 8) {
+
+                            HStack(spacing: 10) {
                                 Image(systemName: "checkmark.shield")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 18)
                                 Text("Complete the authorization process")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
                                 Spacer()
                             }
-                            
-                            HStack(spacing: 8) {
+
+                            HStack(spacing: 10) {
                                 Image(systemName: "arrow.uturn.left")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 18)
                                 Text("Return here to finish setting up your connection")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
                                 Spacer()
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
+                    .frame(maxWidth: 320)
+
                     // Error display
                     if let error = authorizationError {
                         HStack(spacing: 12) {
@@ -437,38 +371,40 @@ struct ConvexOAuthView: View {
                         )
                     }
                     
-                    HStack(spacing: 16) {
-                        Button("Decline") {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedDatabaseType = nil
-                            }
+                    HStack(spacing: 8) {
+                        Button {
+                            selectedDatabaseType = nil
+                        } label: {
+                            Text("Cancel")
+                                .frame(minWidth: 80)
                         }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 32)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .background(Color(.controlColor).opacity(colorScheme == .dark ? 0.1 : 0.4))
-                        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
-                        .cornerRadius(10)
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Button(action: {
-                            authorizationError = nil // Clear any previous errors
+                        .buttonStyle(.bordered)
+                        .controlSize(.extraLarge)
+                        .buttonBorderShape(.capsule)
+
+                        Button {
+                            authorizationError = nil
                             openConvexOAuthInBrowser()
-                        }) {
-                            HStack(spacing: 8) {
-                                Text(isAuthorizationLoading ? "Opening Convex..." : "Authorize")
-                            }
+                        } label: {
+                            Text(isAuthorizationLoading ? "Opening Convex…" : "Authorize")
+                                .frame(minWidth: 80)
                         }
-                        .primaryStyle()
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.extraLarge)
+                        .tint(Color.primaryButton)
+                        .buttonBorderShape(.capsule)
                         .disabled(isAuthorizationLoading)
-                    }.padding(.top, 12)
+                        .keyboardShortcut(.defaultAction)
+                    }
+                    .padding(.top, 12)
                 }
             }
+            .padding(.horizontal, 32)
             .padding(.bottom, 42)
-            .frame(maxWidth: 400)
-        }.onAppear {
-            NotificationCenter.default.addObserver(
+            .frame(maxWidth: 460)
+        }
+        .onAppear {
+            callbackObserver = NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("ConvexOAuthCallback"),
                 object: nil,
                 queue: .main
@@ -486,6 +422,12 @@ struct ConvexOAuthView: View {
                         }
                     }
                 }
+            }
+        }
+        .onDisappear {
+            if let observer = callbackObserver {
+                NotificationCenter.default.removeObserver(observer)
+                callbackObserver = nil
             }
         }
     }

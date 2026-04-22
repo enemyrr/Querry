@@ -32,16 +32,24 @@ struct HomeView: View {
         Array(allItems.prefix(8))
     }
 
+    private var titleText: String {
+        allItems.isEmpty ? "Welcome to Pluk" : "My Workspace"
+    }
+
+    private var subtitleText: String {
+        allItems.isEmpty
+            ? "Start by connecting your first database."
+            : "Notebooks, connections, and everything in between."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading) {
-                    Text("My Workspace")
+                    Text(titleText)
                         .font(.title)
                         .fontWeight(.semibold)
-                    Text(
-                        "Notebooks, connections, and everything in between."
-                    )
+                    Text(subtitleText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 }
@@ -58,10 +66,12 @@ struct HomeView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    RecentsSection(
-                        items: recentItems,
-                        onOpen: handleItemOpen
-                    )
+                    if !recentItems.isEmpty {
+                        RecentsSection(
+                            items: recentItems,
+                            onOpen: handleItemOpen
+                        )
+                    }
 
                     WorkspaceList(
                         items: allItems,
@@ -93,7 +103,7 @@ struct HomeView: View {
                 .ignoresSafeArea()
 
                 CreateConnectionForm()
-                    .frame(width: 560)
+                    .frame(width: 480)
             }
         }
         .alert("\"\(pendingConnection?.name ?? "")\" is already connected", isPresented: $showConnectionAlert) {

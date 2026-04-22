@@ -14,31 +14,8 @@ struct RecentsSection: View {
             Text("Recents")
                 .font(.system(size: 14, weight: .semibold))
 
-            if items.isEmpty {
-                emptyState
-            } else {
-                cardRow
-            }
+            cardRow
         }
-    }
-
-    private var emptyState: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "clock")
-                .font(.system(size: 14))
-                .foregroundStyle(.tertiary)
-
-            Text("Items you open will show up here")
-                .font(.system(size: 13))
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                .foregroundStyle(Color(.separatorColor).opacity(0.4))
-        )
     }
 
     private var cardRow: some View {

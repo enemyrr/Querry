@@ -43,7 +43,8 @@ struct ConnectionColorPicker: View {
                     Image(systemName: "chevron.compact.down")
                         .scaleEffect(CGSize(width: 0.7, height: 1.5))
                 }
-                .padding(12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
                 .cornerRadius(10)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)

@@ -64,6 +64,7 @@ Core/Database       Core/Database/                          BSON/JSON conversion
 ## Debugging Surprises
 
 - The top-level workspace instructions reference `.agents/pluk/Core/Windows/AGENTS.md`, but that file is not currently present. Use this root architecture overview and `.agents/pluk/Core/ViewControllers/AGENTS.md` for nearby window/view-controller context until the Windows-specific file exists.
+- `WindowController` windows render custom top chrome inside `.fullSizeContentView`, so custom bars such as `TabBarView` and notebook toolbar/header must explicitly preserve window drag and double-click zoom/minimize behavior if they should feel native.
 
 ## Downlinks
 

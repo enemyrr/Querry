@@ -10,107 +10,56 @@ import SwiftUI
 
 struct DatabaseSelectionView: View {
     @Binding var selectedDatabaseType: DatabaseType?
-    @State private var searchText = ""
+
     @State private var hoveredDatabaseType: DatabaseType? = nil
     @Environment(\.dismiss) var dismiss
-    
-    var filteredDatabaseTypes: [DatabaseType] {
-        if searchText.isEmpty {
-            return DatabaseType.allCases
-        }
-        return DatabaseType.allCases.filter {
-            $0.displayName.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-    
+
     var groupedDatabaseTypes: [(DatabaseCategory, [DatabaseType])] {
-        let grouped = Dictionary(grouping: filteredDatabaseTypes) { $0.category }
+        let visible = DatabaseType.allCases.filter { $0 != .supabase }
+        let grouped = Dictionary(grouping: visible) { $0.category }
         return DatabaseCategory.allCases.compactMap { category in
             guard let databaseTypes = grouped[category], !databaseTypes.isEmpty else { return nil }
             return (category, databaseTypes)
         }
     }
-    
+
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 0) {
-                // Header Section
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 6) {
+                    Text("Connect Your Database")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("Choose from cloud-hosted solutions or connect to your existing database")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 68)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 28)
+
                 VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Text("Connect Your Database")
-                            .font(.title)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        Text("Choose from cloud-hosted solutions or connect to your existing database")
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                    ForEach(groupedDatabaseTypes, id: \.0) { category, databaseTypes in
+                        DatabaseCategorySection(
+                            category: category,
+                            databaseTypes: databaseTypes,
+                            selectedDatabaseType: $selectedDatabaseType,
+                            hoveredDatabaseType: $hoveredDatabaseType
+                        )
                     }
-                    .padding(.top, 16)
-                    
-                    // Modern Search Bar
-                    HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.secondary)
-                        
-                        TextField("Search database types", text: $searchText)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .font(.system(size: 15))
-                        
-                        if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.controlColor).opacity(0.2))
-                    }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.separatorColor).opacity(0.5), lineWidth: 1)
-                    )
-                    .cornerRadius(12)
                 }
                 .padding(.horizontal, 32)
-                .padding(.top, 32)
-                
-                // Database Types Grid
-                ScrollView {
-                    VStack(spacing: 32) {
-                        ForEach(groupedDatabaseTypes, id: \.0) { category, databaseTypes in
-                            DatabaseCategorySection(
-                                category: category,
-                                databaseTypes: databaseTypes,
-                                selectedDatabaseType: $selectedDatabaseType,
-                                hoveredDatabaseType: $hoveredDatabaseType
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 24)
-                }
+                .padding(.bottom, 32)
             }
-            .padding(.bottom, 16)
-            
-            Button(action: {
+        }
+        .overlay(alignment: .topTrailing) {
+            SheetChromeButton(systemImage: "xmark") {
                 dismiss()
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
             }
-            .buttonStyle(XMarkButtonStyle())
-            .padding(.top, 16)
-            .padding(.trailing, 16)
+            .padding(.top, 20)
+            .padding(.trailing, 20)
         }
     }
 }
@@ -121,19 +70,19 @@ struct DatabaseCategorySection: View {
     let databaseTypes: [DatabaseType]
     @Binding var selectedDatabaseType: DatabaseType?
     @Binding var hoveredDatabaseType: DatabaseType?
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text(category.rawValue)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(1)
-                
+
                 Spacer()
             }
-            
+
             DatabaseTypesGrid(
                 databaseTypes: databaseTypes,
                 selectedDatabaseType: $selectedDatabaseType,
@@ -148,7 +97,7 @@ struct DatabaseTypesGrid: View {
     let databaseTypes: [DatabaseType]
     @Binding var selectedDatabaseType: DatabaseType?
     @Binding var hoveredDatabaseType: DatabaseType?
-    
+
     var body: some View {
         LazyVGrid(columns: [
             GridItem(.flexible(), spacing: 16),
@@ -160,14 +109,10 @@ struct DatabaseTypesGrid: View {
                     isSelected: selectedDatabaseType == databaseType,
                     isHovered: hoveredDatabaseType == databaseType
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedDatabaseType = databaseType
-                    }
+                    selectedDatabaseType = databaseType
                 }
                 .onHover { isHovered in
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        hoveredDatabaseType = isHovered ? databaseType : nil
-                    }
+                    hoveredDatabaseType = isHovered ? databaseType : nil
                 }
             }
         }
@@ -181,134 +126,80 @@ struct DatabaseTypeCard: View {
     let isSelected: Bool
     let isHovered: Bool
     let onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 0) {
-                VStack(spacing: 16) {
-                    HStack {
-                        // Database type icon and name
-                        HStack(spacing: 12) {
-                            Image(databaseType.icon)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 32, height: 32)
-                                .scaleEffect(isHovered ? 1.05 : 1.0)
-                                .animation(.easeInOut(duration: 0.15), value: isHovered)
-                                .foregroundStyle(databaseType.accentColor)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 8) {
-                                    Text(databaseType.displayName)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.primary)
-                                    
-                                    // Inline status text
-                                    if databaseType.status == .beta {
-                                        Text("• \(statusText)")
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundColor(statusColor)
-                                    }
-                                }
-                                
-                                if databaseType.status == .comingSoon {
-                                    Text("Comming Soon")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.secondary)
-                                    
-                                }
-                            }
-                        }
-                        
-                        Spacer()
-                    }
-                }
-                .padding(20)
+            HStack(spacing: 12) {
+                Image(databaseType.icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 32, height: 32)
+                    .foregroundStyle(databaseType.accentColor)
+
+                Text(databaseType.displayName)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(databaseType.status == .comingSoon ? .secondary : .primary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 4)
+
+                statusBadge
             }
-            .background(cardBackground)
-            .cornerRadius(16)
-            .scaleEffect(isHovered ? 1.01 : 1.0)
-            .shadow(
-                color: shadowColor,
-                radius: shadowRadius,
-                x: 0,
-                y: shadowOffset
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(cardBackground)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(borderColor)
-                    .blendMode(colorScheme == .dark ? .plusLighter : .normal)
-                    .scaleEffect(isHovered ? 1.01 : 1.0)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: 0.5)
             )
+            .contentShape(.rect)
         }
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
-        .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 4)
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
         .disabled(databaseType.status == .comingSoon)
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
-    
-    private var statusColor: Color {
+
+    @ViewBuilder
+    private var statusBadge: some View {
         switch databaseType.status {
-        case .beta: return .orange
-        default: return .clear
+        case .beta:
+            Text("Beta")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(Color.orange.opacity(0.82), lineWidth: 1)
+                )
+        case .comingSoon:
+            Text("Soon")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(Color(.separatorColor), lineWidth: 1)
+                )
+        default:
+            EmptyView()
         }
     }
-    
-    private var statusText: String {
-        switch databaseType.status {
-        case .beta: return "Beta"
-        case .comingSoon: return "Comming Soon"
-        default: return ""
-        }
-    }
-    
+
     private var cardBackground: Color {
-        if isSelected {
-            return Color(.controlColor)
-        } else if isHovered {
-            return Color(.controlColor).opacity(0.5)
-        } else {
-            return Color(.controlColor).opacity(0.1)
+        if isHovered {
+            return Color(.controlColor).opacity(0.35)
         }
+        return Color(.controlColor).opacity(0.15)
     }
-    
+
     private var borderColor: Color {
-        if isSelected {
-            return databaseType.accentColor
-        } else if isHovered {
-            return databaseType.accentColor
-        } else {
-            return Color(.separatorColor).opacity(0.5)
-        }
-    }
-    
-    private var borderWidth: CGFloat {
-        isSelected ? 2 : 1
-    }
-    
-    private var shadowColor: Color {
-        if isSelected {
-            return databaseType.accentColor.opacity(0.2)
-        } else if isHovered {
-            return Color.black.opacity(0.1)
-        } else {
-            return Color.clear
-        }
-    }
-    
-    private var shadowRadius: CGFloat {
-        if isSelected {
-            return 8
-        } else if isHovered {
-            return 4
-        } else {
-            return 0
-        }
-    }
-    
-    private var shadowOffset: CGFloat {
-        isHovered || isSelected ? 2 : 0
+        Color(.separatorColor).opacity(0.5)
     }
 }

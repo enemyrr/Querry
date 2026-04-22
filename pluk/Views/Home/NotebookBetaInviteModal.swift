@@ -208,7 +208,7 @@ private struct NotebookBetaInviteDetails: View {
                 Spacer(minLength: 0)
 
                 HStack(spacing: 10) {
-                    Button("Maybe later", action: onDismiss)
+                    Button("Cancel", action: onDismiss)
                         .secondaryStyle()
                         .frame(width: 110)
 

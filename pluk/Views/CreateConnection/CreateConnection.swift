@@ -185,8 +185,8 @@ struct CreateConnectionForm: View {
     @FocusState private var uriFieldIsFocused: Bool
     @FocusState private var nameFieldIsFocused: Bool
     @State private var isTestingConnection = false
-    @State private var testResultMessage: String? = nil
     @State private var testSucceeded: Bool? = nil
+    @State private var currentTestID: UUID?
     
     @State private var databaseService = DatabaseService()
     
@@ -199,8 +199,6 @@ struct CreateConnectionForm: View {
     @State private var sslMode = "prefer"
 
     // URI import
-    @State private var showURIImportSheet = false
-    @State private var uriToImport = ""
 
     private let connection: Connection?
     private let onDisconnect: (() async -> Void)?
@@ -212,6 +210,49 @@ struct CreateConnectionForm: View {
         self.connection = connection
         self.onDisconnect = onDisconnect
         _color = State(initialValue: .blue)
+    }
+
+    private var supportsConnectionTest: Bool {
+        guard let databaseType = selectedDatabaseType else { return false }
+        return databaseType == .postgres
+            || databaseType == .supabase
+            || databaseType == .mysql
+    }
+
+    @ViewBuilder
+    private var testButton: some View {
+        if let success = testSucceeded {
+            Button {
+                Task { await testConnection() }
+            } label: {
+                Text(success ? "Success" : "Failed")
+                    .frame(minWidth: 60)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.extraLarge)
+            .buttonBorderShape(.capsule)
+            .tint(success ? .green : .red)
+            .transition(.opacity)
+        } else {
+            Button {
+                Task { await testConnection() }
+            } label: {
+                Text("Test")
+                    .opacity(isTestingConnection ? 0 : 1)
+                    .frame(minWidth: 60)
+                    .overlay {
+                        if isTestingConnection {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.7)
+                        }
+                    }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.extraLarge)
+            .buttonBorderShape(.capsule)
+            .disabled(isTestingConnection)
+        }
     }
 
     private var isFormValid: Bool {
@@ -358,14 +399,6 @@ struct CreateConnectionForm: View {
                     DatabaseSelectionView(
                         selectedDatabaseType: $selectedDatabaseType
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 1).combined(
-                                with: .opacity
-                            ),
-                            removal: .scale(scale: 0.9).combined(with: .opacity)
-                        )
-                    )
                 } else if selectedDatabaseType?.category == .cloud {
                     if selectedDatabaseType == .convex {
                         ConvexOAuthView(
@@ -373,253 +406,183 @@ struct CreateConnectionForm: View {
                             convexAccessToken: $password,
                             dismiss: dismiss
                         )
-                        .transition(
-                            .asymmetric(
-                                insertion: .move(edge: .trailing).combined(
-                                    with: .opacity
-                                ),
-                                removal: .scale(scale: 0.9).combined(
-                                    with: .opacity
-                                )
-                            )
-                        )
                     }
                 } else {
                     connectionFormView
-                        .transition(
-                            .asymmetric(
-                                insertion: .move(edge: .trailing).combined(
-                                    with: .opacity
-                                ),
-                                removal: .scale(scale: 0.9).combined(
-                                    with: .opacity
-                                )
-                            )
-                        )
                 }
 
             }
         }
         .onAppear {
             mapExistingConnectionData()
-
-            // Focus on first field when form appears
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                nameFieldIsFocused = true
-            }
+            nameFieldIsFocused = true
         }
         .onChange(of: selectedDatabaseType) { oldValue, newValue in
             // Reset form when switching database types (but not on initial load or when editing)
             if connection == nil && oldValue != nil && newValue != oldValue {
                 resetForm()
-
-                // Focus on first field after switching database types
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    nameFieldIsFocused = true
-                }
+                nameFieldIsFocused = true
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: selectedDatabaseType)
         .postHogScreenView("CreateConnection")
     }
     
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     
     private var connectionFormView: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Header with database type info
-                HStack(spacing: 16) {
-                    if let databaseType = selectedDatabaseType {
-                        Image(databaseType.icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 32, height: 32)
-                            .foregroundStyle(databaseType.accentColor)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(
-                            "Configure \(selectedDatabaseType?.displayName ?? "") Connection"
-                        )
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.primary)
-
-                        Text("Enter your connection details to get started")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            if connection == nil {
+                HStack {
+                    SheetChromeButton(systemImage: "chevron.left") {
+                        selectedDatabaseType = nil
                     }
 
                     Spacer()
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 32)
-                
-
-                // Connection Form
-                VStack(spacing: 18) {
-                    FormSection(title: "Basic Information") {
-                        FormField(label: "Name") {
-                            TextField("e.g first connection", text: $name)
-                                .textFieldStyle(CustomTextFieldStyle())
-                                .focused($nameFieldIsFocused)
-                        }
-                    }
-
-                    if selectedDatabaseType == .postgres
-                        || selectedDatabaseType == .supabase
-                    {
-                        // PostgreSQL field-based input
-                        PostgreSQLFieldsView(
-                            hostname: $hostname,
-                            port: $port,
-                            username: $username,
-                            password: $password,
-                            defaultDatabase: $defaultDatabase,
-                            sslMode: $sslMode,
-                            showURIImportSheet: $showURIImportSheet,
-                            testBackground: fieldTestBackground,
-                            isTesting: isTestingConnection,
-                            onTest: { Task { await testConnection() } }
-                        )
-                    } else if selectedDatabaseType == .sqlite {
-                        SQLiteFieldsView(filePath: $uri)
-                    } else if selectedDatabaseType == .mysql {
-                        MySQLFieldsView(
-                            hostname: $hostname,
-                            port: $port,
-                            username: $username,
-                            password: $password,
-                            defaultDatabase: $defaultDatabase,
-                            sslMode: $sslMode,
-                            showURIImportSheet: $showURIImportSheet,
-                            testBackground: fieldTestBackground,
-                            isTesting: isTestingConnection,
-                            onTest: { Task { await testConnection() } }
-                        )
-                    } else if selectedDatabaseType == .mongodb {
-                        // Non-PostgreSQL databases use URI
-                        FormSection(title: "Connection Details") {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text("URI")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-
-                                    Spacer()
-
-                                    if let error = uriError {
-                                        Text(error)
-                                            .font(.caption)
-                                            .foregroundColor(.red)
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                    }
-                                }
-
-                                HStack(spacing: 8) {
-                                    TextField(
-                                        selectedDatabaseType?.placeholderURI
-                                            ?? "",
-                                        text: $uri
-                                    )
-                                    .textFieldStyle(CustomTextFieldStyle())
-                                    .focused($uriFieldIsFocused)
-                                    .onChange(of: uri) { oldValue, newValue in
-                                        if uriFieldIsFocused {
-                                            if let selectedDatabaseType =
-                                                selectedDatabaseType
-                                            {
-                                                validateConnectionString(
-                                                    uri,
-                                                    for: selectedDatabaseType
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    if showDatabaseField {
-                                        Text("/")
-                                            .foregroundColor(.secondary)
-
-                                        TextField(
-                                            "database",
-                                            text: $defaultDatabase
-                                        )
-                                        .textFieldStyle(CustomTextFieldStyle())
-                                        .frame(width: 100)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    FormSection(title: "Display Settings") {
-                        HStack(spacing: 20) {
-                            EnvironmentPicker(
-                                selectedEnvironment: $selectedEnvironment
-                            )
-                            ConnectionColorPicker(selectedColor: $color)
-                        }
-                    }
-                }
-                .padding(.horizontal, 32)
-
-                // Action buttons
-                HStack(spacing: 12) {
-                    Button("Cancel") {
-                        if connection != nil {
-                            dismiss()
-                        } else {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedDatabaseType = nil
-                            }
-                        }
-                    }
-                    .customCancelButtonStyle()
-
-                    Spacer()
-
-                    Button(
-                        connection != nil
-                            ? "Update Connection" : "Create Connection"
-                    ) {
-                        saveConnection()
-                    }
-                    .primaryStyle()
-                    .disabled(!isFormValid)
-                    .frame(width: 200)
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 20)
-
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
             }
-        }
-        .sheet(isPresented: $showURIImportSheet) {
-            URIImportSheet(
-                uriInput: $uriToImport,
-                onImport: { uri in
-                    if let db = selectedDatabaseType {
-                        switch db {
-                        case .postgres, .supabase:
-                            parsePostgresURI(uri)
-                        case .mysql:
-                            parseMySQLURI(uri)
-                        default:
-                            break
+
+            HStack(spacing: 12) {
+                if let databaseType = selectedDatabaseType {
+                    Image(databaseType.icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                        .foregroundStyle(databaseType.accentColor)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Configure Connection")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("Enter your connection details to get started")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 26)
+            .padding(.top, connection == nil ? 24 : 26)
+            .padding(.bottom, 8)
+
+            Form {
+                Section("Basic Information") {
+                    TextField("Name", text: $name, prompt: Text("e.g. first connection"))
+                        .focused($nameFieldIsFocused)
+                }
+
+                if selectedDatabaseType == .postgres
+                    || selectedDatabaseType == .supabase {
+                    PostgreSQLFieldsView(
+                        hostname: $hostname,
+                        port: $port,
+                        username: $username,
+                        password: $password,
+                        defaultDatabase: $defaultDatabase,
+                        sslMode: $sslMode,
+                        onImportURI: { parsePostgresURI($0) }
+                    )
+                } else if selectedDatabaseType == .sqlite {
+                    SQLiteFieldsView(filePath: $uri)
+                } else if selectedDatabaseType == .mysql {
+                    MySQLFieldsView(
+                        hostname: $hostname,
+                        port: $port,
+                        username: $username,
+                        password: $password,
+                        defaultDatabase: $defaultDatabase,
+                        sslMode: $sslMode,
+                        onImportURI: { parseMySQLURI($0) }
+                    )
+                } else if selectedDatabaseType == .mongodb {
+                    Section {
+                        TextField(
+                            "URI",
+                            text: $uri,
+                            prompt: Text(selectedDatabaseType?.placeholderURI ?? "")
+                        )
+                        .focused($uriFieldIsFocused)
+                        .onChange(of: uri) { _, _ in
+                            if uriFieldIsFocused,
+                               let selectedDatabaseType {
+                                validateConnectionString(uri, for: selectedDatabaseType)
+                            }
+                        }
+
+                        if showDatabaseField {
+                            TextField("Database", text: $defaultDatabase, prompt: Text("database"))
+                        }
+                    } header: {
+                        HStack {
+                            Text("Connection Details")
+                            Spacer()
+                            if let error = uriError {
+                                Text(error)
+                                    .foregroundStyle(.red)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
                         }
                     }
-                    showURIImportSheet = false
-                    uriToImport = ""
-                },
-                onCancel: {
-                    showURIImportSheet = false
-                    uriToImport = ""
                 }
-            )
+
+                Section("Display Settings") {
+                    Picker("Environment", selection: $selectedEnvironment) {
+                        Text("None").tag(ConnectionEnvironment?.none)
+                        ForEach(ConnectionEnvironment.allCases, id: \.self) { env in
+                            Text(env.rawValue).tag(Optional(env))
+                        }
+                    }
+
+                    LabeledContent("Color") {
+                        InlineColorPicker(selectedColor: $color)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .padding(.horizontal, 6)
+
+            HStack(spacing: 10) {
+                if supportsConnectionTest {
+                    testButton
+                        .animation(.easeInOut(duration: 0.2), value: testSucceeded)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Cancel")
+                            .frame(minWidth: 80)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.extraLarge)
+                    .buttonBorderShape(.capsule)
+
+                    Button(action: saveConnection) {
+                        Text(connection != nil ? "Update Connection" : "Connect")
+                            .frame(minWidth: 80)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.extraLarge)
+                    .tint(Color.primaryButton)
+                    .buttonBorderShape(.capsule)
+                    .disabled(!isFormValid)
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 20)
         }
     }
-    
+
     private func buildUriForTest() -> String? {
         guard let db = selectedDatabaseType else { return nil }
         switch db {
@@ -656,29 +619,29 @@ struct CreateConnectionForm: View {
         }
     }
     
-    private var fieldTestBackground: Color? {
-        guard let success = testSucceeded else { return nil }
-        return success ? Color.green : Color.red
-    }
-    
     private func testConnection() async {
         guard let db = selectedDatabaseType, let uri = buildUriForTest() else { return }
-        await MainActor.run { isTestingConnection = true; testResultMessage = nil; testSucceeded = nil }
+        let testID = UUID()
+        await MainActor.run {
+            currentTestID = testID
+            isTestingConnection = true
+            testSucceeded = nil
+        }
         let result = await databaseService.testConnection(databaseType: db, uri: uri)
         await MainActor.run {
+            guard currentTestID == testID else { return }
             isTestingConnection = false
             switch result {
             case .success:
-                testResultMessage = "Success"
                 testSucceeded = true
-            case .failure(_):
-                testResultMessage = "Failed"
+            case .failure:
                 testSucceeded = false
             }
         }
         try? await Task.sleep(for: .seconds(2))
         await MainActor.run {
-            testResultMessage = nil
+            // Only clear if this is still the latest test; otherwise a newer test has taken over.
+            guard currentTestID == testID else { return }
             testSucceeded = nil
         }
     }
@@ -1005,32 +968,74 @@ struct CreateConnectionForm: View {
     }
 }
 
-// MARK: - Form Components
-struct FormSection<Content: View>: View {
-    let title: String
-    let content: Content
+// MARK: - Inline Color Picker (custom grid popover with native-feel chrome)
 
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
+struct InlineColorPicker: View {
+    @Binding var selectedColor: ConnectionColor?
+    @State private var isPickerPresented = false
+    @State private var isHovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.5)
+        Button {
+            isPickerPresented.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                if let color = selectedColor {
+                    Circle()
+                        .fill(color.color)
+                        .frame(width: 10, height: 10)
 
-            content
-                .padding(16)
-                .background(Color(.controlColor).opacity(0.1))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(.separator, lineWidth: 1)
+                    Text(color.displayName)
+                        .foregroundStyle(.primary)
+                } else {
+                    Text("None")
+                        .foregroundStyle(.secondary)
+                }
+
+                pickerChevron
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.leading, 10)
+            .padding(.trailing, 4)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive ? Color(.tertiaryLabelColor).opacity(0.18) : .clear)
+            )
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
+        .popover(isPresented: $isPickerPresented, arrowEdge: .bottom) {
+            ColorPickerPopover(selectedColor: $selectedColor) {
+                isPickerPresented = false
+            }
+        }
+    }
+
+    private var isActive: Bool {
+        isHovering || isPickerPresented
+    }
+
+    @ViewBuilder
+    private var pickerChevron: some View {
+        if #available(macOS 26.0, *) {
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 20, height: 20)
+                .background(
+                    Circle().fill(Color(.tertiaryLabelColor).opacity(isActive ? 0.32 : 0.22))
                 )
-                .cornerRadius(16)
+        } else {
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
         }
     }
 }
+

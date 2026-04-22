@@ -82,8 +82,6 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
     
     var status: DatabaseStatus {
         switch self {
-        case .mongodb, .convex:
-            return .beta
         case .supabase:
             return .comingSoon
         default:

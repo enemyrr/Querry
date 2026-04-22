@@ -14,168 +14,123 @@ struct PostgreSQLFieldsView: View {
     @Binding var password: String
     @Binding var defaultDatabase: String
     @Binding var sslMode: String
-    @Binding var showURIImportSheet: Bool
-    
-    // Testing controls
-    let testBackground: Color?
-    let isTesting: Bool
-    let onTest: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Database Connection")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
-                
-                Spacer()
-                
-                Button(action: { onTest() }) {
-                    HStack(spacing: 6) {
-                        Text(isTesting ? "Testing..." : "Test")
-                    }
-                }
-                .font(.caption)
-                .disabled(isTesting)
+    let onImportURI: (String) -> Void
 
-                Button("Import from URI") {
-                    showURIImportSheet = true
-                }
-                .font(.caption)
-            }
-            
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    FormField(label: "Host", highlight: testBackground) {
-                        TextField("localhost", text: $hostname)
-                            .textFieldStyle(CustomTextFieldStyle())
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    FormField(label: "Port", highlight: testBackground) {
-                        TextField("5432", text: $port)
-                            .textFieldStyle(CustomTextFieldStyle())
-                    }
-                    .frame(width: 120)
-                }
-                
-                HStack(spacing: 12) {
-                    FormField(label: "Username", highlight: testBackground) {
-                        TextField("postgres", text: $username)
-                            .textFieldStyle(CustomTextFieldStyle())
-                    }
-                    
-                    FormField(label: "Password", highlight: testBackground) {
-                        SecureField("password", text: $password)
-                            .textFieldStyle(CustomTextFieldStyle())
+    @State private var showURIImportPopover = false
+
+    var body: some View {
+        Group {
+            Section {
+                LabeledContent("Host") {
+                    HStack(spacing: 4) {
+                        TextField("", text: $hostname, prompt: Text("localhost"))
+                            .multilineTextAlignment(.trailing)
+                            .labelsHidden()
+                            .frame(width: 180)
+
+                        Text(":")
+                            .foregroundStyle(.tertiary)
+
+                        TextField("", text: $port, prompt: Text("5432"))
+                            .multilineTextAlignment(.trailing)
+                            .labelsHidden()
+                            .frame(width: 50)
                     }
                 }
-                
-                HStack(spacing: 12) {
-                    FormField(label: "Database", highlight: testBackground) {
-                        TextField("postgres", text: $defaultDatabase)
-                            .textFieldStyle(CustomTextFieldStyle())
+                TextField("Database", text: $defaultDatabase, prompt: Text("postgres"))
+            } header: {
+                HStack {
+                    Text("Connection")
+                    Spacer()
+                    Button("Import from URI") {
+                        showURIImportPopover.toggle()
                     }
-                    
-                    FormField(label: "SSL Mode", highlight: testBackground) {
-                        Menu {
-                            Button(action: { sslMode = "disable" }) {
-                                Text("disable")
-                            }
-                            Button(action: { sslMode = "prefer" }) {
-                                Text("prefer")
-                            }
-                            Button(action: { sslMode = "require" }) {
-                                Text("require")
-                            }
-                        } label: {
-                            Text(sslMode)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            Image(systemName: "chevron.compact.down")
-                                .scaleEffect(CGSize(width: 0.7, height: 1.5))
+                    .popover(isPresented: $showURIImportPopover, arrowEdge: .top) {
+                        URIImportPopover(
+                            placeholder: "postgresql://username:password@host:port/database"
+                        ) { uri in
+                            onImportURI(uri)
+                            showURIImportPopover = false
                         }
-                        .menuStyle(.button)
-                        .buttonStyle(CustomMenuButtonStyle())
                     }
                 }
+                .padding(.trailing, -8)
             }
-            .padding(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(.separator, lineWidth: 1)
-            )
-            .cornerRadius(16)
+
+            Section {
+                TextField("Username", text: $username, prompt: Text("postgres"))
+                SecureField("Password", text: $password, prompt: Text("password"))
+            }
+
+            Section {
+                Picker("SSL Mode", selection: $sslMode) {
+                    Text("disable").tag("disable")
+                    Text("prefer").tag("prefer")
+                    Text("require").tag("require")
+                }
+            }
         }
     }
 }
 
-struct URIImportSheet: View {
-    @Binding var uriInput: String
+struct URIImportPopover: View {
+    let placeholder: String
     let onImport: (String) -> Void
-    let onCancel: () -> Void
-    
+
+    @State private var uriInput: String = ""
     @FocusState private var uriFieldFocused: Bool
-    
+
+    private var trimmedInput: String {
+        uriInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSubmit: Bool {
+        !trimmedInput.isEmpty
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Import from URI")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                }
-                
-                Text("Paste your PostgreSQL connection URI to autofill the form fields")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            
-            // URI Input
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Connection URI")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
-                
-                TextField("postgresql://username:password@host:port/database", text: $uriInput)
-                    .textFieldStyle(CustomTextFieldStyle())
-                    .focused($uriFieldFocused)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            uriFieldFocused = true
-                        }
-                    }
-            }
-            .padding(.horizontal, 24)
-            
-            // Action Buttons
-            HStack(spacing: 12) {
-                Button("Cancel") {
-                    onCancel()
-                }
-                .customCancelButtonStyle()
-                
+        VStack(spacing: 10) {
+            TextField(placeholder, text: $uriInput)
+                .textFieldStyle(CustomTextFieldStyle())
+                .font(.system(size: 12))
+                .focused($uriFieldFocused)
+                .onSubmit(submit)
+
+            HStack {
                 Spacer()
-                
-                Button("Import") {
-                    onImport(uriInput)
+
+                Button(action: submit) {
+                    HStack(spacing: 5) {
+                        Text("Import")
+                            .font(.system(size: 11, weight: .semibold))
+
+                        Text("⏎")
+                            .font(.system(size: 10, weight: .semibold))
+                            .opacity(0.7)
+                    }
+                    .foregroundStyle(canSubmit ? Color(.textBackgroundColor) : .secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(canSubmit ? Color.primaryButton : Color.primaryButton.opacity(0.35))
+                    )
                 }
-                .primaryStyle()
-                .disabled(uriInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .frame(width: 120)
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+                .keyboardShortcut(.return, modifiers: [])
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 20)
         }
-        .frame(width: 480)
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
+        .padding(12)
+        .frame(width: 360)
+        .task {
+            try? await Task.sleep(for: .milliseconds(80))
+            uriFieldFocused = true
+        }
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        onImport(trimmedInput)
     }
 }

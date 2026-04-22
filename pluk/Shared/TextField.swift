@@ -14,8 +14,8 @@ struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .textFieldStyle(.plain)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
             .background(
                        (colorScheme == .dark ? Color.black : Color.white)
                            .opacity(isFocused ? 0.2 : 0.0)
