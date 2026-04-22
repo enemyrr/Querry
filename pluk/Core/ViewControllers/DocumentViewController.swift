@@ -540,7 +540,7 @@ extension DocumentViewController: NSTabViewDelegate {
 
 // MARK: - Empty Document State
 
-private final class EmptyDocumentStateView: WindowChromeInteractionView {
+private final class EmptyDocumentStateView: NSView {
 
     private let instance: ConnectionInstance
     private var emptyStateVC: EmptyStateViewController?
@@ -575,6 +575,8 @@ private final class EmptyDocumentStateView: WindowChromeInteractionView {
 
         updateBackgroundColor()
     }
+
+    override var mouseDownCanMoveWindow: Bool { true }
 
     override func updateLayer() {
         updateBackgroundColor()

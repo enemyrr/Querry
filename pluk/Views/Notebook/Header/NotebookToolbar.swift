@@ -61,7 +61,7 @@ final class NotebookToolbarController: NSViewController {
     }
 
     override func loadView() {
-        containerView = WindowChromeInteractionView()
+        containerView = NSView()
         containerView.wantsLayer = true
         self.view = containerView
 
@@ -80,7 +80,7 @@ final class NotebookToolbarController: NSViewController {
     // MARK: - Normal Toolbar
 
     private func setupNormalToolbar() {
-        normalToolbar = WindowChromeInteractionView()
+        normalToolbar = NSView()
         normalToolbar.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(normalToolbar)
 
@@ -583,7 +583,7 @@ final class NotebookToolbarController: NSViewController {
     // MARK: - Published Toolbar
 
     private func setupPreviewToolbar() {
-        previewToolbar = WindowChromeInteractionView()
+        previewToolbar = NSView()
         previewToolbar.translatesAutoresizingMaskIntoConstraints = false
         previewToolbar.isHidden = true
         containerView.addSubview(previewToolbar)
@@ -698,7 +698,7 @@ final class NotebookToolbarController: NSViewController {
     }
 
     private func setupPublishedToolbar() {
-        publishedToolbar = WindowChromeInteractionView()
+        publishedToolbar = NSView()
         publishedToolbar.translatesAutoresizingMaskIntoConstraints = false
         publishedToolbar.isHidden = true
         containerView.addSubview(publishedToolbar)

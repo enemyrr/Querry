@@ -18,7 +18,7 @@ final class NotebookHeaderViewController: NSViewController, NSTextFieldDelegate 
     }
 
     override func loadView() {
-        let container = WindowChromeInteractionView()
+        let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
         self.view = container
 
