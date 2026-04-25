@@ -475,15 +475,13 @@ struct DatabaseSchemaItem: View {
 
 // MARK: - SearchInput
 struct SearchInput: View {
-    @Environment(\.colorScheme) var colorScheme
     var viewModel: SidebarViewModel
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.gray)
-                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
 
             TextField("Search", text: Binding(
                 get: { viewModel.searchText },
@@ -491,8 +489,6 @@ struct SearchInput: View {
             ))
             .focused($isSearchFocused)
             .textFieldStyle(.plain)
-            .font(.system(size: 14))
-            .foregroundStyle(Color(.textColor))
             .onExitCommand {
                 if viewModel.searchText.isEmpty {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -506,8 +502,7 @@ struct SearchInput: View {
             if !viewModel.searchText.isEmpty {
                 Button(action: { viewModel.searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.gray)
-                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .onHover { hovering in
@@ -518,19 +513,12 @@ struct SearchInput: View {
                     }
                 }
                 .transition(.opacity)
-                .padding(.horizontal, 2)
             }
 
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 6)
-        .padding(.vertical, 6)
-        .background {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(colorScheme == .dark ? .black : .white).opacity(0.3))
-                .stroke(.separator)
-        }
-        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
+        .padding(.horizontal, ToolbarIslandMetrics.controlHorizontalPadding)
+        .padding(.vertical, ToolbarIslandMetrics.controlVerticalPadding)
+        .toolbarIsland()
         .onTapGesture {
             isSearchFocused = true
         }

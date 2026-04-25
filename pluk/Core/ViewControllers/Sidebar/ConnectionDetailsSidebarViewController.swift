@@ -168,9 +168,7 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
 
     private func makeSearchInput() -> some View {
         SearchInput(viewModel: viewModel)
-            .padding(.horizontal, 6)
-            .padding(.leading, -2)
-            .padding(.bottom, 2)
+            .padding(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 2))
             .environment(viewModel)
             .modelContainer(modelContainer)
     }
@@ -244,7 +242,7 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
     private func refreshSearchInput() {
         let isVisible = viewModel.isSearchVisible && viewModel.sidebarViewMode == .tables
         searchInputHost.isHidden = !isVisible
-        searchInputHeightConstraint.constant = isVisible ? 30 : 0
+        searchInputHeightConstraint.constant = isVisible ? 40 : 0
         // Rebuild hosted content so bindings pick up state changes.
         searchInputHost.rootView = AnyView(makeSearchInput())
     }
