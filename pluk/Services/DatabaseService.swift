@@ -93,18 +93,20 @@ import SwiftUI
         // Create and isolate the driver behind the actor boundary.
         self.activeDriverBox = DatabaseDriverBox(databaseType: connection.databaseType)
 
-        // For Convex, append target database to URI if specified
-        var connectionUri = connection.connectionUri
-        if connection.databaseType == .convex, let targetName = targetDatabaseName {
-            connectionUri += "#target=\(targetName)"
-        }
+        let requiresDatabaseSelection = shouldDeferDatabaseSelection(for: connection, targetDatabaseName: targetDatabaseName)
+        let connectionUri = connectionUriForInitialConnect(
+            connection,
+            targetDatabaseName: targetDatabaseName,
+            requiresDatabaseSelection: requiresDatabaseSelection
+        )
         
         // Connect to database
         guard let driverBox = activeDriverBox else {
             throw DatabaseError.operationFailed("Failed to create database driver")
         }
 
-        self.connectedDatabase = try await driverBox.connect(to: connectionUri)
+        let initialDatabase = try await driverBox.connect(to: connectionUri)
+        self.connectedDatabase = requiresDatabaseSelection ? nil : initialDatabase
         self.currentDeploymentURL = await driverBox.getCurrentDeploymentUrl()
 
         // For non-Convex databases, switch to target database if needed
@@ -132,6 +134,45 @@ import SwiftUI
 
         // Post notification about database connection change
         NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
+    }
+
+    private func shouldDeferDatabaseSelection(for connection: Connection, targetDatabaseName: String?) -> Bool {
+        guard targetDatabaseName?.isEmpty != false else { return false }
+
+        switch connection.databaseType {
+        case .postgres, .supabase:
+            return connection.defaultDatabase?.isEmpty != false
+        default:
+            return false
+        }
+    }
+
+    private func connectionUriForInitialConnect(
+        _ connection: Connection,
+        targetDatabaseName: String?,
+        requiresDatabaseSelection: Bool
+    ) -> String {
+        var connectionUri = connection.connectionUri
+
+        if connection.databaseType == .convex, let targetName = targetDatabaseName {
+            connectionUri += "#target=\(targetName)"
+            return connectionUri
+        }
+
+        guard requiresDatabaseSelection else { return connectionUri }
+
+        if let queryStart = connectionUri.firstIndex(of: "?") {
+            let prefix = String(connectionUri[..<queryStart])
+            let suffix = String(connectionUri[queryStart...])
+            return "\(appendingPostgresDatabase(to: prefix))\(suffix)"
+        }
+
+        return appendingPostgresDatabase(to: connectionUri)
+    }
+
+    private func appendingPostgresDatabase(to connectionUri: String) -> String {
+        let prefix = connectionUri.hasSuffix("/") ? String(connectionUri.dropLast()) : connectionUri
+        return "\(prefix)/postgres"
     }
     
     func setCurrentSchema(_ schema: String) {
@@ -203,12 +244,11 @@ import SwiftUI
            if let existingTask = activeSubscriptionTasks[subscriptionKey] {
                existingTask.cancel()
                activeSubscriptionTasks.removeValue(forKey: subscriptionKey)
-               
-               // Clear subscription cache for the previous table
+
+               // Clear subscription cache for the previous table synchronously
+               // so the new subscription doesn't race with a stale dedup hash.
                if let previousTableName = subscriptionTableNames[subscriptionKey] {
-                   Task {
-                       await driverBox.clearSubscriptionCache(for: previousTableName)
-                   }
+                   await driverBox.clearSubscriptionCache(for: previousTableName)
                }
                subscriptionTableNames.removeValue(forKey: subscriptionKey)
            }
@@ -332,12 +372,16 @@ import SwiftUI
     }
     
     func listDatabases() async throws -> [any DatabaseWrapper] {
-        guard let activeDriverBox else { return [] }
+        guard let activeDriverBox else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
         return try await activeDriverBox.listDatabases()
     }
     
     func listCollections(schema: String?) async throws -> [any CollectionWrapper] {
-        guard let activeDriverBox else { return [] }
+        guard let activeDriverBox else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
         return try await activeDriverBox.listCollections(schema: schema)
     }
     
@@ -407,7 +451,9 @@ import SwiftUI
     }
     
     func getSchema(for collectionName: String, databaseSchema: String?, forceFetch: Bool = false) async throws -> DatabaseSchemaResult? {
-        guard let activeDriverBox else { return nil }
+        guard let activeDriverBox else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
 
         if forceFetch {
             await activeDriverBox.clearSchemaCache(for: collectionName, schema: databaseSchema)
@@ -417,12 +463,16 @@ import SwiftUI
     }
     
     func getInformationSchema() async throws -> [InformationSchema] {
-        guard let activeDriverBox else { return [] }
+        guard let activeDriverBox else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
         return try await activeDriverBox.getInformationSchema()
     }
 
     func getIndexes(for collectionName: String, databaseSchema: String?, forceFetch: Bool = false) async throws -> [DatabaseIndexInfo]? {
-        guard let activeDriverBox else { return nil }
+        guard let activeDriverBox else {
+            throw DatabaseError.operationFailed("No active database connection")
+        }
 
         if forceFetch {
             await activeDriverBox.clearSchemaCache(for: collectionName, schema: databaseSchema)
@@ -763,5 +813,7 @@ import SwiftUI
     // MARK: - Getters for Current State
     var currentConnection: Connection? { activeConnection }
     var currentDatabase: (any DatabaseWrapper)? { connectedDatabase }
-    var isConnected: Bool { activeDriverBox != nil && connectedDatabase != nil }
+    var isConnected: Bool {
+        activeDriverBox != nil && connectedDatabase?.name.isEmpty == false
+    }
 }

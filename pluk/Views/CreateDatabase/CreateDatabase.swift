@@ -106,13 +106,12 @@ struct CreateTableForm: View {
                         nameError = validateName(newValue)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(.controlColor).opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(.separator, lineWidth: 1)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.textBackgroundColor))
                     )
-                    .clipShape(.rect(cornerRadius: 8))
+                    .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 1)
 
                 if let nameError {
                     Text(nameError)
@@ -122,19 +121,23 @@ struct CreateTableForm: View {
             }
 
             Button(action: create) {
-                Group {
-                    if isSubmitting {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Create \(entityName)")
+                Text("Create \(entityName)")
+                    .opacity(isSubmitting ? 0 : 1)
+                    .frame(maxWidth: .infinity)
+                    .overlay {
+                        if isSubmitting {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.7)
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 36)
             }
-            .buttonStyle(CreateButtonStyle())
+            .buttonStyle(.borderedProminent)
+            .controlSize(.extraLarge)
+            .tint(Color.primaryButton)
+            .buttonBorderShape(.capsule)
             .disabled(!isFormValid || isSubmitting)
+            .keyboardShortcut(.defaultAction)
         }
         .padding(20)
         .frame(width: 280)
@@ -152,7 +155,7 @@ struct CreateTableForm: View {
 struct CreateDatabaseForm: View {
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.dismiss) var dismiss
-    @Namespace private var animation
+    @Namespace private var segmentAnimation
 
     var onCreated: ((String) -> Void)?
 
@@ -298,13 +301,12 @@ struct CreateDatabaseForm: View {
                             nameError = validateName(newValue)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color(.controlColor).opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(.separator, lineWidth: 1)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(.textBackgroundColor))
                         )
-                        .clipShape(.rect(cornerRadius: 8))
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 1)
 
                     if let nameError {
                         Text(nameError)
@@ -319,27 +321,13 @@ struct CreateDatabaseForm: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
 
-                        HStack(spacing: 0) {
-                            ForEach(["UTF8", "LATIN1", "SQL_ASCII"], id: \.self) { option in
-                                SegmentTextButton(
-                                    text: option,
-                                    isSelected: encoding == option,
-                                    segmentId: "encoding",
-                                    animation: animation
-                                ) {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                        encoding = option
-                                    }
-                                }
-                                .disabled(isSubmitting)
-                            }
-                        }
-                        .padding(2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.clear)
-                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        SegmentedTextToggle(
+                            options: ["UTF8", "LATIN1", "SQL_ASCII"],
+                            selection: $encoding,
+                            namespace: segmentAnimation,
+                            segmentId: "encoding"
                         )
+                        .disabled(isSubmitting)
                     }
                 }
 
@@ -350,27 +338,13 @@ struct CreateDatabaseForm: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
 
-                            HStack(spacing: 0) {
-                                ForEach(["utf8mb4", "utf8mb3", "latin1", "ascii"], id: \.self) { option in
-                                    SegmentTextButton(
-                                        text: option,
-                                        isSelected: charset == option,
-                                        segmentId: "charset",
-                                        animation: animation
-                                    ) {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                            charset = option
-                                        }
-                                    }
-                                    .disabled(isSubmitting)
-                                }
-                            }
-                            .padding(2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.clear)
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            SegmentedTextToggle(
+                                options: ["utf8mb4", "utf8mb3", "latin1", "ascii"],
+                                selection: $charset,
+                                namespace: segmentAnimation,
+                                segmentId: "charset"
                             )
+                            .disabled(isSubmitting)
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
@@ -378,45 +352,36 @@ struct CreateDatabaseForm: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
 
-                            HStack(spacing: 0) {
-                                ForEach(["utf8mb4_unicode_ci", "utf8mb4_general_ci", "utf8mb4_bin"], id: \.self) { option in
-                                    SegmentTextButton(
-                                        text: option.replacing("utf8mb4_", with: ""),
-                                        isSelected: collation == option,
-                                        segmentId: "collation",
-                                        animation: animation
-                                    ) {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                                            collation = option
-                                        }
-                                    }
-                                    .disabled(isSubmitting)
-                                }
-                            }
-                            .padding(2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.clear)
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            SegmentedTextToggle(
+                                options: ["utf8mb4_unicode_ci", "utf8mb4_general_ci", "utf8mb4_bin"],
+                                selection: $collation,
+                                namespace: segmentAnimation,
+                                segmentId: "collation",
+                                labelTransform: { $0.replacing("utf8mb4_", with: "") }
                             )
+                            .disabled(isSubmitting)
                         }
                     }
                 }
 
                 Button(action: create) {
-                    Group {
-                        if isSubmitting {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Create Database")
+                    Text("Create")
+                        .opacity(isSubmitting ? 0 : 1)
+                        .frame(maxWidth: .infinity)
+                        .overlay {
+                            if isSubmitting {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.7)
+                            }
                         }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 36)
                 }
-                .buttonStyle(CreateButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .controlSize(.extraLarge)
+                .tint(Color.primaryButton)
+                .buttonBorderShape(.capsule)
                 .disabled(!isFormValid || isSubmitting)
+                .keyboardShortcut(.defaultAction)
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
@@ -551,13 +516,12 @@ struct CreateSchemaForm: View {
                             nameError = validateName(newValue)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color(.controlColor).opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(.separator, lineWidth: 1)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(.textBackgroundColor))
                         )
-                        .clipShape(.rect(cornerRadius: 8))
+                        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 1)
 
                     if let nameError {
                         Text(nameError)
@@ -567,19 +531,23 @@ struct CreateSchemaForm: View {
                 }
 
                 Button(action: create) {
-                    Group {
-                        if isSubmitting {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Create Schema")
+                    Text("Create Schema")
+                        .opacity(isSubmitting ? 0 : 1)
+                        .frame(maxWidth: .infinity)
+                        .overlay {
+                            if isSubmitting {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.7)
+                            }
                         }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 36)
                 }
-                .buttonStyle(CreateButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .controlSize(.extraLarge)
+                .tint(Color.primaryButton)
+                .buttonBorderShape(.capsule)
                 .disabled(!isFormValid || isSubmitting)
+                .keyboardShortcut(.defaultAction)
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
@@ -606,51 +574,50 @@ struct CreateSchemaForm: View {
     }
 }
 
-// MARK: - SegmentTextButton
-
-private struct SegmentTextButton: View {
-    let text: String
-    let isSelected: Bool
+// MARK: - SegmentedTextToggle
+// Mirrors the visual style of `ViewModeToggle` (table/schema view) but for text segments.
+private struct SegmentedTextToggle: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let options: [String]
+    @Binding var selection: String
+    let namespace: Namespace.ID
     let segmentId: String
-    let animation: Namespace.ID
-    let action: () -> Void
+    var labelTransform: (String) -> String = { $0 }
 
     var body: some View {
-        Button(action: action) {
-            Text(text)
-                .font(.system(size: 11))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+        HStack(spacing: 4) {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selection = option
+                    }
+                } label: {
+                    Text(labelTransform(option))
+                        .font(.system(size: 11))
+                        .foregroundStyle(selection == option ? .primary : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                }
                 .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(.separatorColor).opacity(0.5))
-                            .matchedGeometryEffect(id: segmentId, in: animation)
+                    if selection == option {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(.secondary.opacity(colorScheme == .dark ? 1 : 0.2))
+                            .matchedGeometryEffect(id: segmentId, in: namespace)
                     }
                 }
-                .contentShape(RoundedRectangle(cornerRadius: 6))
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - CreateButtonStyle
-
-private struct CreateButtonStyle: ButtonStyle {
-    static let buttonColor = Color.primaryButton
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isEnabled ? Self.buttonColor : Color(.controlColor).opacity(0.3))
-            )
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    colorScheme == .dark
+                        ? Color(.controlColor).opacity(0.3)
+                        : Color(.white)
+                )
+        )
+        .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.10), radius: 1)
     }
 }

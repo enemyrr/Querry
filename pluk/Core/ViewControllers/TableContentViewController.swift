@@ -25,6 +25,7 @@ final class TableContentViewController: NSViewController {
     private var currentContentView: NSView?
     private var measuredFilterBarHeight: CGFloat?
     nonisolated(unsafe) private var filterLayoutTask: Task<Void, Never>?
+    private var hasAppeared = false
 
     // MARK: - Notification Observers
 
@@ -119,14 +120,14 @@ final class TableContentViewController: NSViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        dataController.updateFilterConditions()
-        updateFilterBarFromData()
+        hasAppeared = true
         scheduleFilterBarLayout(afterAnimation: true)
-        dataController.scheduleLoadDocumentsIfNeeded()
+        scheduleLoadWhenConnectionIsReady()
     }
 
     override func viewWillDisappear() {
         super.viewWillDisappear()
+        hasAppeared = false
         filterLayoutTask?.cancel()
         dataController.cancel()
     }
@@ -387,6 +388,7 @@ final class TableContentViewController: NSViewController {
     // MARK: - Observation
 
     private func startObserving() {
+        observeConnectionReadiness()
         observeViewState()
         observeViewMode()
         observeHighlighting()
@@ -444,6 +446,29 @@ final class TableContentViewController: NSViewController {
                 self?.observeViewState()
             }
         }
+    }
+
+    private func observeConnectionReadiness() {
+        withObservationTracking {
+            _ = self.instance.readiness
+            _ = self.instance.connectionGeneration
+            _ = self.tab.name
+            _ = self.tab.databaseSchema
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.scheduleLoadWhenConnectionIsReady()
+                self.observeConnectionReadiness()
+            }
+        }
+    }
+
+    private func scheduleLoadWhenConnectionIsReady() {
+        guard hasAppeared, instance.isReady else { return }
+
+        dataController.updateFilterConditions()
+        updateFilterBarFromData()
+        dataController.scheduleLoadDocumentsIfNeeded()
     }
 
     private func observeFilterBarState() {

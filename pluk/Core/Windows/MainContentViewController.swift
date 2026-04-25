@@ -195,21 +195,21 @@ final class MainContentViewController: NSViewController {
         let container = SidebarContainerViewController()
         container.addChild(navVC)
 
-        let detailsView = ConnectionDetailsSidebar()
-            .environment(connectionInstance)
-            .environment(sidebarViewModel)
-            .environment(tabManager)
-            .environment(appViewModel)
-            .environment(\.currentDatabaseType, connectionInstance?.connection.databaseType)
-            .padding(.top, 50)
-            .ignoresSafeArea(.container, edges: .top)
-            .modelContainer(modelContainer)
-        let detailsHost = NSHostingController(rootView: AnyView(detailsView))
-        detailsHost.safeAreaRegions = []
-        container.addChild(detailsHost)
+        guard let connectionInstance else {
+            return container
+        }
+
+        let detailsVC = ConnectionDetailsSidebarViewController(
+            instance: connectionInstance,
+            viewModel: sidebarViewModel,
+            tabManager: tabManager,
+            appViewModel: appViewModel,
+            modelContainer: modelContainer
+        )
+        container.addChild(detailsVC)
 
         let navView = navVC.view
-        let detailView = detailsHost.view
+        let detailView = detailsVC.view
 
         navView.translatesAutoresizingMaskIntoConstraints = false
         detailView.translatesAutoresizingMaskIntoConstraints = false
@@ -223,7 +223,9 @@ final class MainContentViewController: NSViewController {
             navView.bottomAnchor.constraint(equalTo: container.view.bottomAnchor),
             navView.widthAnchor.constraint(equalToConstant: 50),
 
-            detailView.topAnchor.constraint(equalTo: container.view.topAnchor),
+            // 50pt top inset to clear the titlebar (matched the old SwiftUI
+            // shell's .padding(.top, 50)).
+            detailView.topAnchor.constraint(equalTo: container.view.topAnchor, constant: 50),
             detailView.leadingAnchor.constraint(equalTo: navView.trailingAnchor),
             detailView.trailingAnchor.constraint(equalTo: container.view.trailingAnchor),
             detailView.bottomAnchor.constraint(equalTo: container.view.bottomAnchor),

@@ -81,32 +81,24 @@ final class QueryHistoryService {
         queryTypes: Set<QueryType>? = nil,
         sources: Set<QuerySource>? = nil,
         tableName: String? = nil,
-        successOnly: Bool? = nil
+        successOnly: Bool? = nil,
+        databaseName: String? = nil
     ) -> [QueryHistoryEntryViewModel] {
-        var predicate = #Predicate<QueryHistoryEntry> { entry in
-            entry.connectionKeychainId == connectionKeychainId
-        }
-
-        if let queryTypes = queryTypes, !queryTypes.isEmpty {
-            let typeStrings = queryTypes.map { $0.rawValue }
+        // SwiftData #Predicate macros can't compose at runtime and the Swift
+        // type checker times out when a single predicate gates four optional
+        // axes via `||` chains. So we narrow on the server-side via a small
+        // predicate (connectionKeychainId + optional databaseName) and apply
+        // the remaining filters in memory — the result set is bounded by
+        // `limit` so post-filtering is cheap.
+        let predicate: Predicate<QueryHistoryEntry>
+        if let databaseName {
             predicate = #Predicate<QueryHistoryEntry> { entry in
                 entry.connectionKeychainId == connectionKeychainId &&
-                typeStrings.contains(entry.queryType)
+                entry.databaseName == databaseName
             }
-        }
-
-        if let sources = sources, !sources.isEmpty {
-            let sourceStrings = sources.map { $0.rawValue }
+        } else {
             predicate = #Predicate<QueryHistoryEntry> { entry in
-                entry.connectionKeychainId == connectionKeychainId &&
-                sourceStrings.contains(entry.querySource)
-            }
-        }
-
-        if let successOnly = successOnly {
-            predicate = #Predicate<QueryHistoryEntry> { entry in
-                entry.connectionKeychainId == connectionKeychainId &&
-                entry.wasSuccessful == successOnly
+                entry.connectionKeychainId == connectionKeychainId
             }
         }
 
@@ -118,7 +110,18 @@ final class QueryHistoryService {
         descriptor.fetchOffset = offset
 
         do {
-            let entries = try modelContext.fetch(descriptor)
+            var entries = try modelContext.fetch(descriptor)
+            if let queryTypes, !queryTypes.isEmpty {
+                let allowed = Set(queryTypes.map(\.rawValue))
+                entries = entries.filter { allowed.contains($0.queryType) }
+            }
+            if let sources, !sources.isEmpty {
+                let allowed = Set(sources.map(\.rawValue))
+                entries = entries.filter { allowed.contains($0.querySource) }
+            }
+            if let successOnly {
+                entries = entries.filter { $0.wasSuccessful == successOnly }
+            }
             return entries.compactMap { entry in
                 createViewModel(from: entry, searchText: searchText)
             }

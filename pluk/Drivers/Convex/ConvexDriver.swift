@@ -479,6 +479,12 @@ actor ConvexDriver: DatabaseDriver {
     // Component ID mapping (schema name -> component ID)
     private var _componentIdMapping: [String: String] = [:]
 
+    // Dedup for getInformationSchema — multiple table-open call sites would
+    // otherwise each fire their own components:list query before the prefetch
+    // lands. Cleared by disconnect() / switchDatabase().
+    private var componentsLoaded = false
+    private var componentsFetchTask: Task<Void, Never>?
+
     // Subscription payload deduplication (per table)
     private var lastSubscriptionPayloadHash: [String: String] = [:]
 
@@ -531,7 +537,7 @@ actor ConvexDriver: DatabaseDriver {
 
     private func clearCachedSchemas(for schema: String?) {
         let cacheKey = normalizedSchemaName(schema)
-        schemaCache.withLock {
+        _ = schemaCache.withLock {
             $0.entries.removeValue(forKey: cacheKey)
         }
     }
@@ -582,6 +588,10 @@ actor ConvexDriver: DatabaseDriver {
         try await convexMobileClient?.setAdminAuth(deployKey: deployKey)
         self.isConnected = true
 
+        // Warm component mapping + root schema cache during the user's click-delay
+        // so the first table open doesn't pay those round-trips serially.
+        Task { await self.prefetchAfterConnect() }
+
         return deploymentToUse
     }
     
@@ -595,6 +605,10 @@ actor ConvexDriver: DatabaseDriver {
         self.convexMobileClient = nil
         self.schemaCache.withLock { $0 = SchemaCache() }
         self.lastSubscriptionPayloadHash.removeAll()
+        self._componentIdMapping.removeAll()
+        self.componentsLoaded = false
+        self.componentsFetchTask?.cancel()
+        self.componentsFetchTask = nil
         self.isConnected = false
     }
     
@@ -673,6 +687,13 @@ actor ConvexDriver: DatabaseDriver {
             let newMobileClient = ConvexMobile.ConvexClient(deploymentUrl: deployment.deploymentUrl)
             try await newMobileClient.setAdminAuth(deployKey: token)
             convexMobileClient = newMobileClient
+            // Previous deployment's caches are stale for the new URL.
+            schemaCache.withLock { $0 = SchemaCache() }
+            _componentIdMapping.removeAll()
+            componentsLoaded = false
+            componentsFetchTask?.cancel()
+            componentsFetchTask = nil
+            Task { await self.prefetchAfterConnect() }
         }
     }
     
@@ -754,21 +775,37 @@ actor ConvexDriver: DatabaseDriver {
         let effectiveSchema = normalizedSchemaName(schema)
 
         return try await wrapConvexError("query") {
-            var schemaArgs: [String: ConvexEncodable?] = [:]
-            if effectiveSchema != "app" {
-                if getComponentId(for: effectiveSchema) == nil {
-                    _ = try await getInformationSchema()
-                }
-                if let componentId = getComponentId(for: effectiveSchema), !componentId.isEmpty {
-                    schemaArgs["componentId"] = componentId
-                }
+            if effectiveSchema != "app", getComponentId(for: effectiveSchema) == nil {
+                await ensureComponentsLoaded()
             }
+            // Extract a Sendable String? so the arg dict (which contains the
+            // non-Sendable ConvexEncodable existential) can be rebuilt inside
+            // each child task rather than sent across them.
+            let componentId: String? = (effectiveSchema == "app") ? nil : getComponentId(for: effectiveSchema)
 
-            let tableMappingJson: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/getTableMapping", with: schemaArgs)
-            let schemasJson: ConvexMobile.ConvexValue = try await mobileClient.query(name: "_system/frontend/getSchemas", with: schemaArgs)
-
-            if let schemasDict = schemasJson.anyValue as? [String: Any], !schemasDict.isEmpty {
-                self.setCachedSchemas(schemasDict, for: effectiveSchema)
+            // Skip the getSchemas round-trip when the cache is already warm
+            // (connect-time prefetch or a prior call). On a miss, fire both
+            // queries in parallel so the hot path is bound by max(RTT), not sum.
+            let tableMappingJson: ConvexMobile.ConvexValue
+            if cachedSchemas(for: effectiveSchema) == nil {
+                async let tableMappingTask: ConvexMobile.ConvexValue = mobileClient.query(
+                    name: "_system/frontend/getTableMapping",
+                    with: Self.schemaQueryArgs(componentId: componentId)
+                )
+                async let schemasTask: ConvexMobile.ConvexValue = mobileClient.query(
+                    name: "_system/frontend/getSchemas",
+                    with: Self.schemaQueryArgs(componentId: componentId)
+                )
+                let (fetchedMapping, schemasJson) = try await (tableMappingTask, schemasTask)
+                tableMappingJson = fetchedMapping
+                if let schemasDict = schemasJson.anyValue as? [String: Any], !schemasDict.isEmpty {
+                    self.setCachedSchemas(schemasDict, for: effectiveSchema)
+                }
+            } else {
+                tableMappingJson = try await mobileClient.query(
+                    name: "_system/frontend/getTableMapping",
+                    with: Self.schemaQueryArgs(componentId: componentId)
+                )
             }
 
             guard let tableMappingDict = tableMappingJson.objectValue, !tableMappingDict.isEmpty else {
@@ -1033,9 +1070,9 @@ actor ConvexDriver: DatabaseDriver {
         let schema = normalizedSchemaName(schema)
 
         if schema != "app", getComponentId(for: schema) == nil {
-            _ = try await getInformationSchema()
+            await ensureComponentsLoaded()
         }
-        
+
         return try await wrapConvexError("query") {
             let args: [String: ConvexEncodable?] = [
                 "tableName": collectionName,
@@ -1292,6 +1329,14 @@ actor ConvexDriver: DatabaseDriver {
         }
     }
 
+    /// Builds a componentId-keyed arg dict locally (no capture of non-Sendable
+    /// existentials), so it can be safely constructed inside concurrent child
+    /// tasks under Swift 6 strict concurrency.
+    nonisolated private static func schemaQueryArgs(componentId: String?) -> [String: ConvexEncodable?] {
+        guard let componentId, !componentId.isEmpty else { return [:] }
+        return ["componentId": componentId]
+    }
+
     // MARK: - Filter Encoding
 
     private func encodeFilterToBase64(rawFilterJSON: String?, order: String?, defaultOrder: String? = nil) throws -> String {
@@ -1366,6 +1411,46 @@ actor ConvexDriver: DatabaseDriver {
 
     // MARK: - Schema Caching
 
+    /// Best-effort warm-up of the caches that gate the table-open hot path.
+    /// Runs after connect() / switchDatabase() and swallows errors — if it fails,
+    /// the lazy fetch paths still work, just without the pre-warm benefit.
+    private func prefetchAfterConnect() async {
+        guard isConnected, convexMobileClient != nil else { return }
+        async let components: Void = prefetchComponentMapping()
+        async let appSchemas: Void = prefetchAppSchemas()
+        _ = await components
+        _ = await appSchemas
+    }
+
+    private func prefetchComponentMapping() async {
+        await ensureComponentsLoaded()
+    }
+
+    /// Collapses concurrent `getInformationSchema` calls into a single in-flight
+    /// request, and short-circuits once the component mapping has been loaded.
+    private func ensureComponentsLoaded() async {
+        if componentsLoaded { return }
+        if let existing = componentsFetchTask {
+            await existing.value
+            return
+        }
+        let task = Task {
+            _ = try? await self.getInformationSchema()
+            self.markComponentsLoaded()
+        }
+        componentsFetchTask = task
+        await task.value
+    }
+
+    private func markComponentsLoaded() {
+        componentsLoaded = true
+        componentsFetchTask = nil
+    }
+
+    private func prefetchAppSchemas() async {
+        _ = try? await getAllSchemas(for: "app")
+    }
+
     private func getAllSchemas(for schema: String?) async throws -> [String: Any] {
         let effectiveSchema = normalizedSchemaName(schema)
         let cached = cachedSchemas(for: effectiveSchema)
@@ -1379,7 +1464,7 @@ actor ConvexDriver: DatabaseDriver {
         var args: [String: ConvexEncodable?] = [:]
         if effectiveSchema != "app" {
             if getComponentId(for: effectiveSchema) == nil {
-                _ = try await getInformationSchema()
+                await ensureComponentsLoaded()
             }
             if let componentId = getComponentId(for: effectiveSchema), !componentId.isEmpty {
                 args["componentId"] = componentId
@@ -1628,6 +1713,11 @@ actor ConvexDriver: DatabaseDriver {
         }
 
         debugLog("🛰️ Subscribing to _system/frontend/paginatedTableDocuments for table: \(collectionName)")
+
+        // Clear any stale dedup hash from a previous subscription on the same
+        // table so the new subscription's first event isn't mistaken for a
+        // duplicate (which would leave the view stuck on .loading).
+        lastSubscriptionPayloadHash.removeValue(forKey: collectionName)
 
         // Create subscription using ConvexValue to handle arbitrary JSON objects
         let subscription = mobileClient.subscribe(

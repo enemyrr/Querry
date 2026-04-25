@@ -108,15 +108,11 @@ struct DatabaseHeader: View {
             selectedDatabase = instance.connectedDatabase?.name ?? ""
             loadAvailableSchemas()
         }
-        .onChange(of: instance.connectionStatus) { _, _ in
+        .onChange(of: instance.readiness) { _, _ in
             selectedDatabase = instance.connectedDatabase?.name ?? ""
             loadAvailableSchemas()
         }
-        .onChange(of: instance.connectedDatabase?.name) { oldName, newName in
-            selectedDatabase = newName ?? ""
-            loadAvailableSchemas()
-        }
-        .onChange(of: instance.databaseService.currentSchema) { oldSchema, newSchema in
+        .onChange(of: instance.databaseService.currentSchema) { _, newSchema in
             collectionLoader.start {
                 await loadCollectionsForSchemaChange(newSchema)
             }
@@ -146,6 +142,12 @@ struct DatabaseHeader: View {
     }
     
     private func loadAvailableSchemas() {
+        guard instance.isReady else {
+            availableSchemas = []
+            selectedSchema = ""
+            return
+        }
+
         Task {
             do {
                 try await reloadAvailableSchemas()
@@ -179,7 +181,7 @@ struct DatabaseHeader: View {
 
     @MainActor
     private func performSidebarRefresh() async {
-        guard instance.connectionStatus == .connected else { return }
+        guard instance.isReady else { return }
 
         refreshError = nil
 
@@ -203,6 +205,8 @@ struct DatabaseHeader: View {
 
     @MainActor
     private func loadCollectionsForSchemaChange(_ schema: String?) async {
+        guard instance.isReady else { return }
+
         refreshError = nil
 
         if let databaseName = instance.connectedDatabase?.name {
@@ -220,7 +224,7 @@ struct DatabaseHeader: View {
             debugLog("Failed to load collections for schema change: \(error)")
         }
     }
-    
+
     private func fetchSchemas() async throws -> [String] {
         guard let databaseType = instance.databaseType else {
             return []
@@ -250,6 +254,24 @@ struct DatabaseHeader: View {
     private func handleDatabaseSelection(_ databaseName: String) {
         // Don't do anything if selecting the already-connected database
         guard databaseName != instance.connectedDatabase?.name else { return }
+
+        // First-time selection (no database yet) — switch the current
+        // instance in-place. Once a database is already bound to this tab,
+        // switching opens the target database in its own tab instead.
+        if instance.connectedDatabase == nil {
+            Task { @MainActor in
+                guard let database = instance.databases.first(where: { $0.name == databaseName }) else { return }
+                do {
+                    try await instance.databaseService.switchActiveDatabase(to: database)
+                    try await instance.loadCollectionsForCurrentDatabase(
+                        schema: instance.databaseService.currentSchema
+                    )
+                } catch {
+                    debugLog("Failed to switch to \(databaseName): \(error)")
+                }
+            }
+            return
+        }
 
         Task {
             if let instanceId = await ConnectionService.shared.openEnvironmentInNewTab(
@@ -695,6 +717,27 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
         }
     }
 
+    @ViewBuilder
+    private var selectDatabaseDropdown: some View {
+        MinimalDropdown(selectedValue: "Select database", chevron: "chevron.down") {
+            ForEach(instance.databases, id: \.name) { db in
+                Button(db.name) { onDatabaseChange(db.name) }
+            }
+
+            if supportsCreateDatabase {
+                Divider()
+
+                Button("New Database...") {
+                    showCreateDatabasePopover = true
+                }
+            }
+        }
+        .popover(isPresented: $showCreateDatabasePopover) {
+            CreateDatabaseForm()
+                .environment(instance)
+        }
+    }
+
     var body: some View {
         if !availableSchemas.isEmpty {
             if let database = instance.connectedDatabase?.name {
@@ -727,8 +770,7 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                         .environment(instance)
                 }
             } else {
-                HStack {}
-                    .padding(12)
+                selectDatabaseDropdown
             }
 
             MinimalDropdown(selectedValue: selectedSchema, chevron: nil) {
@@ -792,8 +834,7 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
                         .environment(instance)
                 }
             } else {
-                HStack {}
-                    .padding(12)
+                selectDatabaseDropdown
             }
         }
     }

@@ -173,8 +173,14 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
         for clipView in titlebarContainer.descendants(withClassName: "NSTitlebarAccessoryClipView") {
             if clipView.firstDescendant(withClassName: "NSTabBar") != nil {
+                // Don't force `clipView.frame = .zero` — the system clip
+                // view's children carry autoresizing constraints (minY == 0
+                // AND V:|-(40)-[child]) that can't be satisfied when its
+                // height collapses to 0, which spams the console with
+                // conflicting-constraint warnings on every show. Hidden +
+                // transparent is sufficient for visibility; the accessory
+                // view's own frame below reclaims the layout space.
                 clipView.isHidden = true
-                clipView.frame = .zero
                 clipView.alphaValue = 0
             }
         }

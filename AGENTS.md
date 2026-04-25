@@ -128,6 +128,30 @@ The scheme is **`Collection`**, not `Pluk` — the app was originally named Coll
 - Implement proper responder chain for keyboard shortcuts and menu actions
 - Use NSMenu and NSMenuItem for context menus; wire up actions and `validateMenuItem`
 
+## Typography
+
+**Always use predefined semantic text styles over custom point sizes.** Do not write `.font(.system(size: 13))` or `NSFont.systemFont(ofSize: 13)` when a semantic style matches — use `.font(.body)` / `NSFont.preferredFont(forTextStyle: .body)` instead. Only drop to custom sizes if the user explicitly instructs you to.
+
+Reference table (macOS HIG):
+
+| Text style   | Weight  | Size | Line height | Emphasized weight |
+| ------------ | ------- | ---- | ----------- | ----------------- |
+| Large Title  | Regular | 26   | 32          | Bold              |
+| Title 1      | Regular | 22   | 26          | Bold              |
+| Title 2      | Regular | 17   | 22          | Bold              |
+| Title 3      | Regular | 15   | 20          | Semibold          |
+| Headline     | Bold    | 13   | 16          | Heavy             |
+| Body         | Regular | 13   | 16          | Semibold          |
+| Callout      | Regular | 12   | 15          | Semibold          |
+| Subheadline  | Regular | 11   | 14          | Semibold          |
+| Footnote     | Regular | 10   | 13          | Semibold          |
+| Caption 1    | Regular | 10   | 13          | Medium            |
+| Caption 2    | Medium  | 10   | 13          | Semibold          |
+
+- SwiftUI: `.font(.largeTitle | .title | .title2 | .title3 | .headline | .body | .callout | .subheadline | .footnote | .caption | .caption2)`
+- AppKit: `NSFont.preferredFont(forTextStyle: .largeTitle | .title1 | .title2 | .title3 | .headline | .body | .callout | .subheadline | .footnote | .caption1 | .caption2)`
+- For emphasis, use `.bold()` / `.fontWeight(.semibold)` on the semantic style rather than hardcoding a new size.
+
 ## SwiftData Rules
 
 - Never use `@Attribute(.unique)`

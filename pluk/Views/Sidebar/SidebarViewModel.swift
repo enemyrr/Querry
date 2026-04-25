@@ -16,6 +16,8 @@ import SwiftUI
     var activeSidebarItem: SidebarNavItem = .home
     var searchText: String = ""
     var isSearchVisible: Bool = false
+    var sidebarViewMode: SidebarViewMode = .tables
+    var isShowingAdvancedHistory: Bool = false
 
     var activeConnection: ConnectionInstance? {
         windowConnectionInstance ?? connectionService.activeConnectionInstance

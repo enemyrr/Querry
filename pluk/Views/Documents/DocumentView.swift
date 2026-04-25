@@ -72,7 +72,11 @@ class TabContentView: NSView {
         case .canvas:
             return
         case .browse, .aggregate, .schema, .indexes:
-            rootView = applyEnvironments(TableListView(selectedTab: tab))
+            // SQL .browse/.aggregate/.schema/.indexes tabs are routed to
+            // TableContentViewController (AppKit) in
+            // DocumentViewController.makeTabContentView and never reach here.
+            setupDefaultView()
+            return
         }
 
         setContentView(NSHostingView(rootView: rootView))

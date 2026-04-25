@@ -1,6 +1,31 @@
 import AppKit
 import SwiftUI
 
+enum TableListViewState: Equatable {
+    case loading
+    case error(String)
+    case loaded(QueryResult, DatabaseSchemaResult?)
+
+    var isError: Bool {
+        if case .error = self { return true }
+        return false
+    }
+
+    static func == (lhs: TableListViewState, rhs: TableListViewState) -> Bool {
+        switch (lhs, rhs) {
+        case (.loading, .loading):
+            return true
+        case (.error(let lhsMessage), .error(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        case (.loaded(let lhsResult, let lhsSchema), .loaded(let rhsResult, let rhsSchema)):
+            return lhsResult.totalCount == rhsResult.totalCount &&
+                   lhsSchema?.columns.count == rhsSchema?.columns.count
+        default:
+            return false
+        }
+    }
+}
+
 @Observable @MainActor
 class TableDataController {
 
@@ -15,6 +40,8 @@ class TableDataController {
     var cachedIndexes: [DatabaseIndexInfo]?
     var cachedDocuments: QueryResult?
     var cachedTabName: String?
+    private var cachedConnectionGeneration: Int?
+    private var cachedDatabaseName: String?
 
     var loadingTask: Task<Void, Never>?
     private var loadingTaskID = UUID()
@@ -179,9 +206,16 @@ class TableDataController {
     // MARK: - Loading
 
     func loadDocumentsIfNeeded() async {
+        guard instance.isReady else {
+            if viewState != .loading { viewState = .loading }
+            return
+        }
+
         let shouldFetch = cachedTabName != tab.name
             || cachedDocuments == nil
             || tab.forceFetch
+            || cachedConnectionGeneration != instance.connectionGeneration
+            || cachedDatabaseName != instance.connectedDatabase?.name
 
         guard shouldFetch else {
             if let cachedDocuments {
@@ -204,6 +238,11 @@ class TableDataController {
     }
 
     func loadOrSubscribe(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
+        guard instance.isReady else {
+            if viewState != .loading { viewState = .loading }
+            return
+        }
+
         let effectiveFilter = filter ?? currentActiveFilter
         currentActiveFilter = effectiveFilter
 
@@ -240,6 +279,8 @@ class TableDataController {
                 }
             }
             cachedTabName = tab.name
+            cachedConnectionGeneration = instance.connectionGeneration
+            cachedDatabaseName = instance.connectedDatabase?.name
             cancelRealTimeSubscription()
             await subscribeToRealTimeUpdatesIfSupported(page: page)
             return
@@ -251,9 +292,15 @@ class TableDataController {
 
     func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
         guard !Task.isCancelled else { return }
+        guard instance.isReady else {
+            if viewState != .loading { viewState = .loading }
+            return
+        }
 
         if !forceFetch,
            cachedTabName == tab.name,
+           cachedConnectionGeneration == instance.connectionGeneration,
+           cachedDatabaseName == instance.connectedDatabase?.name,
            let cachedDocuments {
             viewState = .loaded(cachedDocuments, cachedSchema)
             return
@@ -311,6 +358,8 @@ class TableDataController {
 
             cachedDocuments = documentsResult
             cachedTabName = tab.name
+            cachedConnectionGeneration = instance.connectionGeneration
+            cachedDatabaseName = instance.connectedDatabase?.name
 
             updateTabSchemaDeviation(hasColumnMismatch(queryResult: documentsResult, schema: schemaToUse))
 
@@ -331,6 +380,8 @@ class TableDataController {
         cachedSchema = nil
         cachedDocuments = nil
         cachedTabName = nil
+        cachedConnectionGeneration = nil
+        cachedDatabaseName = nil
         sortColumn = nil
         sortAscending = instance.connection.databaseType != .convex
         viewState = .loading

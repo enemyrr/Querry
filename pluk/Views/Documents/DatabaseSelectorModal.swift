@@ -4,6 +4,7 @@
 //
 //  Created by Fauzaan on 6/27/25.
 //
+import Foundation
 import SwiftUI
 
 struct DatabaseSelectorModal: View {
@@ -15,11 +16,10 @@ struct DatabaseSelectorModal: View {
 
     @State private var databases: [DatabaseWrapper] = []
     @State private var searchText = ""
-    @State private var hoveredDatabase: DatabaseWrapper? = nil
-    @State private var isHoveringCreateButton = false
     @State private var isLoading = true
     @State private var loadError: Error? = nil
-    @State private var showCreateDatabaseSheet = false
+    @State private var showCreateDatabasePopover = false
+    @FocusState private var searchFocused: Bool
 
     private var supportsCreateDatabase: Bool {
         guard let databaseType else { return false }
@@ -30,322 +30,289 @@ struct DatabaseSelectorModal: View {
             return false
         }
     }
-    
+
     var filteredDatabases: [DatabaseWrapper] {
         if searchText.isEmpty {
             return databases
         }
         return databases.filter {
-            $0.name.localizedCaseInsensitiveContains(searchText)
+            $0.name.localizedStandardContains(searchText)
         }
     }
-    
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 0) {
-                // Header Section
-                VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Text("Select Database")
-                            .font(.title)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        
-                        Text("Choose a database to continue or create a new one")
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 16)
-                    
-                    // Modern Search Bar
-                    HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.secondary)
-                        
-                        TextField("Search databases", text: $searchText)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .font(.system(size: 15))
-                        
-                        if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.controlColor).opacity(0.1))
-                    }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(.separator, lineWidth: 1)
-                    )
-                    .clipShape(.rect(cornerRadius: 12))
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 32)
-                
-                // Databases List
-                if filteredDatabases.isEmpty {
-                    // Empty State
-                    VStack(spacing: 16) {
-                        Spacer()
-                        
-                        Image(systemName: searchText.isEmpty ? "cylinder.split.1x2" : "magnifyingglass")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary.opacity(0.6))
-                        
-                        VStack(spacing: 4) {
-                            Text(searchText.isEmpty ? "No Databases Available" : "No Results Found")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.primary)
-                            
-                            Text(searchText.isEmpty ?
-                                 "Create your first database to get started" :
-                                 "Try adjusting your search terms")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 32)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(filteredDatabases, id: \.name) { database in
-                                DatabaseCard(
-                                    database: database,
-                                    isHovered: hoveredDatabase?.name == database.name,
-                                    onSelect: {
-                                        onSelection(database)
-                                        dismiss()
-                                    }
-                                )
-                                .onHover { isHovered in
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        hoveredDatabase = isHovered ? database : nil
-                                    }
-                                }
-                            }
 
-                            if supportsCreateDatabase && searchText.isEmpty {
-                                CreateDatabaseCard(
-                                    isHovered: isHoveringCreateButton,
-                                    onSelect: { showCreateDatabaseSheet = true }
-                                )
-                                .onHover { isHovered in
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        isHoveringCreateButton = isHovered
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 20)
-                    }
-                }
+    var body: some View {
+        VStack(spacing: 0) {
+            contentWithFloatingSearchBar {
+                contentView
             }
+            footerActions
         }
-        .frame(width: 500, height: 650)
-        .background(
-            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                .ignoresSafeArea()
-        )
+        .frame(width: 450, height: 560)
         .task {
             await loadDatabases()
+            searchFocused = true
         }
-        .interactiveDismissDisabled()
-        .sheet(isPresented: $showCreateDatabaseSheet) {
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-                CreateDatabaseForm(onCreated: { _ in
-                    Task {
-                        await loadDatabases()
-                    }
-                })
+        .onAppear {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                searchFocused = true
             }
         }
     }
-    
+
+    private var contentView: some View {
+        Form {
+            Section {
+                if isLoading && databases.isEmpty {
+                    loadingState
+                } else if databases.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(filteredDatabases, id: \.name) { database in
+                        Button {
+                            onSelection(database)
+                            dismiss()
+                        } label: {
+                            databaseRowLabel(for: database)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if filteredDatabases.isEmpty && !searchText.isEmpty {
+                        Text("No results found")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 6)
+                    }
+
+                    if supportsCreateDatabase {
+                        HStack {
+                            Spacer()
+                            Button("Add Database…") {
+                                showCreateDatabasePopover = true
+                            }
+                            .popover(isPresented: $showCreateDatabasePopover) {
+                                CreateDatabaseForm(onCreated: { _ in
+                                    Task {
+                                        await loadDatabases()
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var loadingState: some View {
+        VStack {
+            Spacer()
+            ProgressView().controlSize(.small)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func contentWithFloatingSearchBar<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            content()
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    headerRow
+                }
+                .scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content()
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    headerRow
+                }
+        }
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Database")
+                    .font(.body)
+                    .bold()
+                    .foregroundStyle(.primary)
+
+                Text("Choose a database to continue")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            floatingSearchChrome
+        }
+        .padding(.trailing, 20)
+        .padding(.leading, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var floatingSearchChrome: some View {
+        if #available(macOS 26.0, *) {
+            floatingSearchField
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .glassEffect(.clear, in: .capsule)
+        } else {
+            floatingSearchField
+                .toolbarIsland()
+        }
+    }
+
+    private var footerActions: some View {
+        HStack {
+            Spacer()
+            Button("Cancel") { dismiss() }
+                .controlSize(.large)
+                .keyboardShortcut(.cancelAction)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+    }
+
+    private var floatingSearchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 14)
+
+            TextField("Search databases", text: $searchText)
+                .font(.system(size: 12))
+                .textFieldStyle(.plain)
+                .focused($searchFocused)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, ToolbarIslandMetrics.controlVerticalPadding)
+        .frame(width: 170, alignment: .trailing)
+    }
+
+    private static let iconPalette: [Color] = [
+        .indigo, .blue, .orange, .green, .pink, .teal, .purple, .red, .cyan, .mint
+    ]
+
+    private func iconGradient(for name: String) -> LinearGradient {
+        let index = abs(name.hashValue) % Self.iconPalette.count
+        let base = Self.iconPalette[index]
+        return LinearGradient(
+            colors: [base.opacity(0.85), base],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func databaseRowLabel(for database: DatabaseWrapper) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(iconGradient(for: database.name))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 1.5, y: 0.5)
+
+                Image(systemName: "cylinder.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(database.name)
+                    .lineLimit(1)
+
+                HStack(spacing: 10) {
+                    if let size = database.size {
+                        HStack(spacing: 3) {
+                            Image(systemName: "internaldrive")
+                                .font(.system(size: 10))
+                            Text(size)
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(.tertiary)
+                    }
+
+                    if let tableCount = database.tableCount {
+                        HStack(spacing: 3) {
+                            Image(systemName: "tablecells")
+                                .font(.system(size: 10))
+                            Text("\(tableCount) tables")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.leading, 4)
+        .contentShape(.rect)
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Spacer()
+
+            Image(systemName: "cylinder.split.1x2")
+                .font(.system(size: 32))
+                .foregroundStyle(.secondary.opacity(0.6))
+
+            Text("No databases available")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.primary)
+
+            Text("Create your first database to get started")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+    }
+
     @MainActor
     private func loadDatabases() async {
         isLoading = true
         loadError = nil
-        
+
         do {
             databases = try await databaseService.getDatabaseMetadata()
         } catch {
             loadError = error
             debugLog("Failed to load databases: \(error)")
         }
-        
+
         isLoading = false
-    }
-}
-
-// MARK: - Database Card
-struct DatabaseCard: View {
-    let database: DatabaseWrapper
-    let isHovered: Bool
-    let onSelect: () -> Void
-    
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 12) {
-                // Database Icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(databaseIconBackground)
-                        .frame(width: 40, height: 40)
-
-                    Image(systemName: "cylinder.fill")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(databaseIconColor)
-                        .scaleEffect(isHovered ? 1.05 : 1.0)
-                        .animation(.easeInOut(duration: 0.15), value: isHovered)
-                }
-
-                // Database Info
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(database.name)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // Database details
-                    HStack(spacing: 12) {
-                        if let size = database.size {
-                            Label(size, systemImage: "internaldrive")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        if let tableCount = database.tableCount {
-                            Label("\(tableCount) tables", systemImage: "tablecells")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(cardBackground)
-            .clipShape(.rect(cornerRadius: 16))
-            .shadow(
-                color: shadowColor,
-                radius: shadowRadius,
-                x: 0,
-                y: shadowOffset
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(borderColor, lineWidth: 1)
-            )
-            .scaleEffect(isHovered ? 1.01 : 1.0)
-        }
-        .buttonStyle(PlainButtonStyle())
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
-    }
-    
-    private var databaseIconBackground: Color {
-        Color(.controlBackgroundColor).opacity(0.5)
-    }
-
-    private var databaseIconColor: Color {
-        Color(.gray)
-    }
-
-    private var cardBackground: Color {
-        Color(.controlColor).opacity(isHovered ? 0.2 : 0.1)
-    }
-
-    private var borderColor: Color {
-        Color(.separatorColor)
-    }
-
-    private var shadowColor: Color {
-        isHovered ? Color.black.opacity(0.1) : Color.clear
-    }
-
-    private var shadowRadius: CGFloat {
-        isHovered ? 4 : 0
-    }
-
-    private var shadowOffset: CGFloat {
-        isHovered ? 2 : 0
-    }
-}
-
-// MARK: - Create Database Card
-struct CreateDatabaseCard: View {
-    let isHovered: Bool
-    let onSelect: () -> Void
-
-    private var cardBackground: Color {
-        Color(.controlColor).opacity(isHovered ? 0.2 : 0.1)
-    }
-
-    private var shadowColor: Color {
-        isHovered ? Color.black.opacity(0.1) : Color.clear
-    }
-
-    private var shadowRadius: CGFloat {
-        isHovered ? 4 : 0
-    }
-
-    private var shadowOffset: CGFloat {
-        isHovered ? 2 : 0
-    }
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(.controlBackgroundColor).opacity(0.5))
-                        .frame(width: 40, height: 40)
-
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .scaleEffect(isHovered ? 1.05 : 1.0)
-                        .animation(.easeInOut(duration: 0.15), value: isHovered)
-                }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Create Database")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text("Create a new database")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(cardBackground)
-            .clipShape(.rect(cornerRadius: 16))
-            .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowOffset)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color(.separatorColor), lineWidth: 1)
-            )
-            .scaleEffect(isHovered ? 1.01 : 1.0)
-        }
-        .buttonStyle(PlainButtonStyle())
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
 }

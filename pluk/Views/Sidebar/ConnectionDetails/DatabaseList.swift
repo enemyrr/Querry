@@ -14,7 +14,6 @@ struct DatabaseList: View {
     let collectionLoader: SidebarCollectionLoadCoordinator
 
     @State private var loadError: Error?
-    @State private var showDatabaseSelector: Bool = false
 
     private var allCollections: [any CollectionWrapper]? {
         guard
@@ -98,26 +97,9 @@ struct DatabaseList: View {
                 }
             }
         }
-        .sheet(isPresented: $showDatabaseSelector) {
-            DatabaseSelectorModal(
-                databaseService: instance.databaseService,
-                databaseType: instance.databaseType,
-                onSelection: { database in
-                    collectionLoader.start {
-                        await updateConnection(with: database)
-                    }
-                },
-                onCreateNew: {
-                    debugLog("Create new database")
-                    showDatabaseSelector = false
-                }
-            )
-        }
-        .onChange(of: instance.connectionStatus) { oldStatus, newStatus in
-            if newStatus == .connected && oldStatus != .connected {
-                collectionLoader.start {
-                    await loadCollectionsForCurrentDatabase()
-                }
+        .task(id: instance.readiness) {
+            if case .ready = instance.readiness {
+                await loadCollectionsForCurrentDatabase()
             }
         }
         .alert(
@@ -177,28 +159,13 @@ struct DatabaseList: View {
             try await instance.loadCollectionsForCurrentDatabase(schema: instance.databaseService.currentSchema)
             try Task.checkCancellation()
         } catch let error as DatabaseError where error.code == .databaseNotSelected {
-            guard !Task.isCancelled else { return }
-            showDatabaseSelector = true
+            return
         } catch is CancellationError {
             return
         } catch {
             guard !Task.isCancelled else { return }
             loadError = error
             debugLog("Failed to load collections: \(error)")
-        }
-    }
-    
-    func updateConnection(with database: any DatabaseWrapper) async {
-        do {
-            try await instance.databaseService.switchActiveDatabase(to: database)
-            try await instance.loadCollectionsForCurrentDatabase(schema: instance.databaseService.currentSchema)
-            try Task.checkCancellation()
-        } catch is CancellationError {
-            return
-        } catch {
-            guard !Task.isCancelled else { return }
-            loadError = error
-            debugLog("Failed to update connection: \(error)")
         }
     }
 }

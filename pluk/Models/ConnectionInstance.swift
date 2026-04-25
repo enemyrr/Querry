@@ -58,7 +58,8 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
     var database: MongoDatabase?
     
     // Connection state
-    var connectionStatus: ConnectionStatus = .connecting
+    var connectionStatus: ConnectionStatus = .disconnected
+    var connectionGeneration = 0
     var connectionVersion: String?
     var lastError: Error?
     
@@ -137,8 +138,6 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
                 return
             }
 
-            connectionStatus = .connected
-
             do {
                 let buildInfo = try await databaseService.getBuildInfo()
                 guard shouldContinueConnectionAttempt(attemptID) else {
@@ -155,6 +154,8 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
                 await finishCancelledConnectionAttemptIfNeeded(attemptID)
                 return
             }
+            connectionStatus = .connected
+            connectionGeneration += 1
 
             // Persist fetched deployments back to keychain so they're cached for next connect
             if connection.databaseType == .convex,
@@ -208,6 +209,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
                 return
             }
             connectionStatus = .connected
+            connectionGeneration += 1
             lastError = nil
         } catch is CancellationError {
             await finishCancelledConnectionAttemptIfNeeded(attemptID)
@@ -225,6 +227,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         connectionStatus = .disconnected
         connectionVersion = nil
         lastError = nil
+        connectionGeneration += 1
     }
 
     func disconnect() async {
@@ -266,8 +269,9 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
     }
     
     func loadCollectionsForCurrentDatabase(schema: String?) async throws {
-        guard let database = connectedDatabase else { return }
-        guard !database.name.isEmpty else { throw DatabaseError.databaseNotSelected }
+        guard let database = connectedDatabase, !database.name.isEmpty else {
+            throw DatabaseError.databaseNotSelected
+        }
 
         let databaseName = database.name
 
@@ -544,4 +548,32 @@ enum ConnectionStatus: String {
     case connecting = "Connecting"
     case disconnected = "Disconnected"
     case error = "Error"
+}
+
+enum ConnectionReadiness: Equatable {
+    case disconnected
+    case connecting
+    case errored
+    case needsDatabaseSelection
+    case ready(database: String)
+}
+
+extension ConnectionInstance {
+    var readiness: ConnectionReadiness {
+        switch connectionStatus {
+        case .disconnected: return .disconnected
+        case .connecting: return .connecting
+        case .error: return .errored
+        case .connected:
+            if let dbName = connectedDatabase?.name, !dbName.isEmpty {
+                return .ready(database: dbName)
+            }
+            return .needsDatabaseSelection
+        }
+    }
+
+    var isReady: Bool {
+        if case .ready = readiness { return true }
+        return false
+    }
 }

@@ -139,9 +139,13 @@ final class SidebarSplitViewController: NSSplitViewController {
         sidebarItem = NSSplitViewItem(viewController: sidebarController)
         sidebarItem.canCollapse = true
         sidebarItem.minimumThickness = configuration.minWidth
+        sidebarItem.maximumThickness = .greatestFiniteMagnitude
+        sidebarItem.automaticMaximumThickness = .greatestFiniteMagnitude
+        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(260)
 
         contentItem = NSSplitViewItem(viewController: contentController)
         contentItem.minimumThickness = 400
+        contentItem.holdingPriority = NSLayoutConstraint.Priority(250)
 
         splitViewItems = [sidebarItem, contentItem]
     }
