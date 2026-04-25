@@ -34,7 +34,7 @@ import AppKit
         "\(autosaveKey).\(columnId)"
     }
     public var needsToSelectLastRow = false
-    
+
     private var sortColumn: String?
     private var sortAscending = true
     
@@ -317,42 +317,41 @@ import AppKit
         }
         let newColumnNames = Set(newColumns.map(\.name))
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
+        if let previousSelectedRow, previousSelectedRow >= totalCount {
+            debugLog("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(totalCount)). Clearing selection.")
+            tableView.clearAllSelection()
+        }
 
-            if let previousSelectedRow, previousSelectedRow >= self.totalCount {
-                debugLog("🔄 Previously selected row \(previousSelectedRow) is out of bounds (new count: \(self.totalCount)). Clearing selection.")
-                self.tableView.clearAllSelection()
-            }
-
-            if newColumnNames != oldColumnNames {
-                if oldColumnNames.isEmpty {
-                    // First data arrival — full setup needed
-                    self.rebuildTableStructure()
-                } else {
-                    let addedColumns = newColumns.filter { !oldColumnNames.contains($0.name) }
-                    let removedColumns = oldColumnNames.subtracting(newColumnNames)
-
-                    if removedColumns.isEmpty && !addedColumns.isEmpty {
-                        for col in addedColumns {
-                            self.createColumn(identifier: col.name, title: col.name, dataType: col.dataType, icon: nil)
-                        }
-                        self.tableView.reloadData()
-                    } else {
-                        self.rebuildTableStructure()
-                    }
-                }
+        if newColumnNames != oldColumnNames {
+            if oldColumnNames.isEmpty {
+                rebuildTableStructure()
             } else {
-                self.tableView.reloadData()
-            }
+                let addedColumns = newColumns.filter { !oldColumnNames.contains($0.name) }
+                let removedColumns = oldColumnNames.subtracting(newColumnNames)
 
-            if self.needsToSelectLastRow {
-                self.scrollToBottomAndSelectFirstCell()
+                if removedColumns.isEmpty && !addedColumns.isEmpty {
+                    for col in addedColumns {
+                        createColumn(identifier: col.name, title: col.name, dataType: col.dataType, icon: nil)
+                    }
+                    refreshColumnHeadersFromSchema()
+                    tableView.reloadData()
+                } else {
+                    rebuildTableStructure()
+                }
             }
+        } else {
+            // Columns unchanged — but schema may have just arrived, so refresh
+            // header FK badges/tooltips. Cells re-render via reloadData below.
+            refreshColumnHeadersFromSchema()
+            tableView.reloadData()
+        }
 
-            if let queryResult = self.queryResult {
-                self.recalculateColumnWidthsIfNeeded(queryResult: queryResult)
-            }
+        if needsToSelectLastRow {
+            scrollToBottomAndSelectFirstCell()
+        }
+
+        if let queryResult {
+            recalculateColumnWidthsIfNeeded(queryResult: queryResult)
         }
     }
     
@@ -453,6 +452,55 @@ import AppKit
         }
     }
     
+    private func resolveHeaderInfo(identifier: String, dataType: String?) -> (tooltip: String?, isForeignKey: Bool) {
+        guard let schema, let columnInfo = schema.column(named: identifier) else {
+            return (dataType, false)
+        }
+        var isForeignKey = false
+        var relationText: String?
+        if let fkConstraint = columnInfo.constraints.first(where: { $0.type == .foreignKey }) {
+            isForeignKey = true
+            let refSchema = fkConstraint.referencedSchema
+            let refTable = fkConstraint.referencedTable
+            let refColumn = fkConstraint.referencedColumns?.first
+            var target = ""
+            if let refTable {
+                if let refSchema, !refSchema.isEmpty {
+                    target = "\(refSchema).\(refTable)"
+                } else {
+                    target = refTable
+                }
+                if let refColumn, !refColumn.isEmpty {
+                    target += ".\(refColumn)"
+                }
+            }
+            if !target.isEmpty {
+                relationText = "Foreign key relation: \(identifier) → \(target)"
+            }
+        }
+        let tooltip: String?
+        if let relationText {
+            tooltip = relationText
+        } else if let dataType, !dataType.isEmpty {
+            tooltip = dataType
+        } else {
+            tooltip = nil
+        }
+        return (tooltip, isForeignKey)
+    }
+
+    private func refreshColumnHeadersFromSchema() {
+        for column in tableView.tableColumns {
+            guard let headerCell = column.headerCell as? CustomTableHeaderCell else { continue }
+            let identifier = column.identifier.rawValue
+            let dataType = queryResult?.column(named: identifier)?.dataType
+                ?? schema?.column(named: identifier)?.dataType
+            let (tooltip, isForeignKey) = resolveHeaderInfo(identifier: identifier, dataType: dataType)
+            headerCell.configure(title: column.title, fieldType: dataType, tooltip: tooltip, isForeignKey: isForeignKey)
+        }
+        tableView.headerView?.needsDisplay = true
+    }
+
     private func createColumn(identifier: String, title: String, dataType: String?, icon: NSImage?) {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
         column.title = title
@@ -468,39 +516,7 @@ import AppKit
 
         // Add custom header
         let customHeaderCell = CustomTableHeaderCell(textCell: identifier)
-        var tooltip: String? = nil
-        var isForeignKey: Bool = false
-        if let schema = schema, let columnInfo = schema.column(named: identifier) {
-            var relationText: String?
-            if let fkConstraint = columnInfo.constraints.first(where: { $0.type == .foreignKey }) {
-                isForeignKey = true
-                let localColumn = identifier
-                let refSchema = fkConstraint.referencedSchema
-                let refTable = fkConstraint.referencedTable
-                let refColumn = fkConstraint.referencedColumns?.first
-                var target = ""
-                if let refTable = refTable {
-                    if let refSchema = refSchema, !refSchema.isEmpty {
-                        target = "\(refSchema).\(refTable)"
-                    } else {
-                        target = refTable
-                    }
-                    if let refColumn = refColumn, !refColumn.isEmpty {
-                        target += ".\(refColumn)"
-                    }
-                }
-                if !target.isEmpty {
-                    relationText = "Foreign key relation: \(localColumn) → \(target)"
-                }
-            }
-            if let relationText = relationText {
-                tooltip = relationText
-            } else if let dt = dataType, !dt.isEmpty {
-                tooltip = dt
-            }
-        } else {
-            tooltip = dataType
-        }
+        let (tooltip, isForeignKey) = resolveHeaderInfo(identifier: identifier, dataType: dataType)
         customHeaderCell.configure(title: title, fieldType: dataType, tooltip: tooltip, isForeignKey: isForeignKey)
         column.headerCell = customHeaderCell
         

@@ -95,16 +95,8 @@ struct HomeView: View {
         )
         .postHogScreenView("HomeView")
         .sheet(isPresented: $showCreateSheet) {
-            ZStack {
-                VisualEffectView(
-                    material: .hudWindow,
-                    blendingMode: .behindWindow
-                )
-                .ignoresSafeArea()
-
-                CreateConnectionForm()
-                    .frame(width: 480)
-            }
+            CreateConnectionForm()
+                .frame(width: 480)
         }
         .alert("\"\(pendingConnection?.name ?? "")\" is already connected", isPresented: $showConnectionAlert) {
             Button("Continue Current Tab") {

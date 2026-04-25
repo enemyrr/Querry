@@ -523,8 +523,9 @@ private struct SidebarProPromoCardBody: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 6) {
-                Text("Introducing Pluk Pro")
-                    .font(.system(size: 13, weight: .medium))
+                Text("Try Pluk Pro for free")
+                    .font(.body)
+                    .fontWeight(.medium)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .multilineTextAlignment(.leading)
@@ -557,7 +558,8 @@ private struct SidebarProPromoCardBody: View {
             HStack {
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
                     .foregroundStyle(.secondary)
                     .offset(x: isCardHovering ? 2 : 0)
             }

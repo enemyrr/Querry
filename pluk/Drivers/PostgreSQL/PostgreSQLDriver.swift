@@ -534,9 +534,14 @@ actor PostgreSQLDriver: DatabaseDriver {
             } else {
                 // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
-                
-                // Get primary key for default sorting when no sorting is provided
-                let primaryKey = try await getPrimaryKeyColumn(for: String(sanitizedCollectionName.dropFirst().dropLast())) // Remove quotes
+
+                // Pass the raw (unquoted) names through. The previous
+                // `sanitizedCollectionName.dropFirst().dropLast()` trick
+                // assumed the sanitized form was `"table"` and produced
+                // `public"."address` for qualified names — which then matched
+                // nothing and the query silently returned no PK, breaking
+                // default ORDER BY.
+                let primaryKey = try await getPrimaryKeyColumn(for: collectionName, in: databaseSchema ?? "public")
                 let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending, primaryKey: primaryKey)
                 
                 var queryString = "SELECT * FROM \(sanitizedCollectionName)"
@@ -550,18 +555,18 @@ actor PostgreSQLDriver: DatabaseDriver {
                 }
                 
                 queryString += " LIMIT \(limit) OFFSET \(skip)"
-                
+
                 query = PostgresQuery(stringLiteral: queryString)
             }
-            
+
             let results = try await poolQuery(query)
-            
+
             // Single-pass processing: build everything in one loop
             var queryColumns: [QueryColumnInfo] = []
             var convertedRows: [[String: QueryRowInfo]] = []
             var convertedRawRows: [DatabaseRawRow] = []
             var columnsInitialized = false
-            
+
             for try await row in results {
                 // Extract and convert column info only once
                 if !columnsInitialized {
@@ -604,7 +609,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                 convertedRows.append(processedRowData)
                 convertedRawRows.append(rawRowData)
             }
-            
+
             return QueryResult(
                 columns: queryColumns,
                 rows: convertedRows,
@@ -1830,22 +1835,33 @@ actor PostgreSQLDriver: DatabaseDriver {
     // MARK: - Helper method to get primary key column
     private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
         do {
-            let query = PostgresQuery("""
+            // Avoid `::regclass` and `to_regclass($1)` entirely — both attempt
+            // to *parse* the qualified name from a string, which breaks if
+            // `tableName` already contains a schema prefix or special chars.
+            // Joining pg_class + pg_namespace by name is parameter-safe and
+            // can't be confused into thinking `public.public.address` is a
+            // 3-part `database.schema.table` qualifier.
+            let queryString = """
                    SELECT a.attname
                    FROM pg_index i
+                   JOIN pg_class c ON c.oid = i.indrelid
+                   JOIN pg_namespace n ON n.oid = c.relnamespace
                    JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-                   WHERE i.indrelid = '\(unescaped: schemaName).\(unescaped: tableName)'::regclass
-                   AND i.indisprimary
+                   WHERE c.relname = $1 AND n.nspname = $2 AND i.indisprimary
                    ORDER BY a.attnum
                    LIMIT 1
-               """)
-            
-            let results = try await poolQuery(query)
-            
+               """
+            var bindings = PostgresBindings()
+            bindings.append(tableName)
+            bindings.append(schemaName)
+            let parameterized = PostgresQuery(unsafeSQL: queryString, binds: bindings)
+
+            let results = try await poolQuery(parameterized)
+
             for try await (columnName) in results.decode((String).self) {
                 return "\"\(columnName)\""  // Return quoted column name
             }
-            
+
             // If no primary key is found, return nil
             return nil
 

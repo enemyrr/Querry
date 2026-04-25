@@ -153,16 +153,8 @@ struct CreateConnection: View {
         }
         .buttonStyle(ActionButtonStyle())
         .sheet(isPresented: $showSheet) {
-            ZStack {
-                VisualEffectView(
-                    material: .hudWindow,
-                    blendingMode: .behindWindow
-                )
-                .ignoresSafeArea()
-                
-                CreateConnectionForm()
-                    .frame(width: 560)
-            }
+            CreateConnectionForm()
+                .frame(width: 560, height: 640)
         }
     }
 
@@ -415,13 +407,11 @@ struct CreateConnectionForm: View {
         }
         .onAppear {
             mapExistingConnectionData()
-            nameFieldIsFocused = true
         }
         .onChange(of: selectedDatabaseType) { oldValue, newValue in
             // Reset form when switching database types (but not on initial load or when editing)
             if connection == nil && oldValue != nil && newValue != oldValue {
                 resetForm()
-                nameFieldIsFocused = true
             }
         }
         .postHogScreenView("CreateConnection")
@@ -430,157 +420,187 @@ struct CreateConnectionForm: View {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     
     private var connectionFormView: some View {
-        VStack(spacing: 0) {
-            if connection == nil {
-                HStack {
-                    SheetChromeButton(systemImage: "chevron.left") {
-                        selectedDatabaseType = nil
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-            }
-
-            HStack(spacing: 12) {
-                if let databaseType = selectedDatabaseType {
-                    Image(databaseType.icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 28, height: 28)
-                        .foregroundStyle(databaseType.accentColor)
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Configure Connection")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    Text("Enter your connection details to get started")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 26)
-            .padding(.top, connection == nil ? 24 : 26)
-            .padding(.bottom, 8)
-
-            Form {
-                Section("Basic Information") {
-                    TextField("Name", text: $name, prompt: Text("e.g. first connection"))
-                        .focused($nameFieldIsFocused)
-                }
-
-                if selectedDatabaseType == .postgres
-                    || selectedDatabaseType == .supabase {
-                    PostgreSQLFieldsView(
-                        hostname: $hostname,
-                        port: $port,
-                        username: $username,
-                        password: $password,
-                        defaultDatabase: $defaultDatabase,
-                        sslMode: $sslMode,
-                        onImportURI: { parsePostgresURI($0) }
-                    )
-                } else if selectedDatabaseType == .sqlite {
-                    SQLiteFieldsView(filePath: $uri)
-                } else if selectedDatabaseType == .mysql {
-                    MySQLFieldsView(
-                        hostname: $hostname,
-                        port: $port,
-                        username: $username,
-                        password: $password,
-                        defaultDatabase: $defaultDatabase,
-                        sslMode: $sslMode,
-                        onImportURI: { parseMySQLURI($0) }
-                    )
-                } else if selectedDatabaseType == .mongodb {
-                    Section {
-                        TextField(
-                            "URI",
-                            text: $uri,
-                            prompt: Text(selectedDatabaseType?.placeholderURI ?? "")
-                        )
-                        .focused($uriFieldIsFocused)
-                        .onChange(of: uri) { _, _ in
-                            if uriFieldIsFocused,
-                               let selectedDatabaseType {
-                                validateConnectionString(uri, for: selectedDatabaseType)
-                            }
-                        }
-
-                        if showDatabaseField {
-                            TextField("Database", text: $defaultDatabase, prompt: Text("database"))
-                        }
-                    } header: {
-                        HStack {
-                            Text("Connection Details")
-                            Spacer()
-                            if let error = uriError {
-                                Text(error)
-                                    .foregroundStyle(.red)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                            }
-                        }
-                    }
-                }
-
-                Section("Display Settings") {
-                    Picker("Environment", selection: $selectedEnvironment) {
-                        Text("None").tag(ConnectionEnvironment?.none)
-                        ForEach(ConnectionEnvironment.allCases, id: \.self) { env in
-                            Text(env.rawValue).tag(Optional(env))
-                        }
-                    }
-
-                    LabeledContent("Color") {
-                        InlineColorPicker(selectedColor: $color)
-                    }
+        formWithFloatingChrome
+            .onAppear {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(50))
+                    nameFieldIsFocused = true
                 }
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
-            .padding(.horizontal, 6)
+    }
 
-            HStack(spacing: 10) {
-                if supportsConnectionTest {
-                    testButton
-                        .animation(.easeInOut(duration: 0.2), value: testSucceeded)
+    @ViewBuilder
+    private var formWithFloatingChrome: some View {
+        if #available(macOS 26.0, *) {
+            connectionForm
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    connectionFormHeader
                 }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Text("Cancel")
-                            .frame(minWidth: 80)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.extraLarge)
-                    .buttonBorderShape(.capsule)
-
-                    Button(action: saveConnection) {
-                        Text(connection != nil ? "Update Connection" : "Connect")
-                            .frame(minWidth: 80)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.extraLarge)
-                    .tint(Color.primaryButton)
-                    .buttonBorderShape(.capsule)
-                    .disabled(!isFormValid)
-                    .keyboardShortcut(.defaultAction)
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    connectionFormFooter
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 20)
+                .scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+        } else {
+            connectionForm
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    connectionFormHeader
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    connectionFormFooter
+                }
         }
+    }
+
+    private var connectionFormFooter: some View {
+        HStack(spacing: 10) {
+            if supportsConnectionTest {
+                testButton
+                    .animation(.easeInOut(duration: 0.2), value: testSucceeded)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Cancel")
+                        .frame(minWidth: 80)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.extraLarge)
+                .buttonBorderShape(.capsule)
+
+                Button(action: saveConnection) {
+                    Text(connection != nil ? "Update Connection" : "Connect")
+                        .frame(minWidth: 80)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.extraLarge)
+                .tint(Color.primaryButton)
+                .buttonBorderShape(.capsule)
+                .disabled(!isFormValid)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 20)
+    }
+
+    private var headerTitle: String {
+        guard let databaseType = selectedDatabaseType else {
+            return "Configure Connection"
+        }
+        return "Configure \(databaseType.displayName)"
+    }
+
+    private var connectionFormHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            if connection == nil {
+                SheetChromeButton(systemImage: "chevron.left") {
+                    selectedDatabaseType = nil
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(headerTitle)
+                    .font(.body)
+                    .bold()
+                    .foregroundStyle(.primary)
+
+                Text("Enter your connection details to get started")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+        }
+        .padding(.trailing, 20)
+        .padding(.leading, connection == nil ? 12 : 22)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+    }
+
+    private var connectionForm: some View {
+        Form {
+            Section("Basic Information") {
+                TextField("Name", text: $name, prompt: Text("e.g. first connection"))
+                    .focused($nameFieldIsFocused)
+            }
+
+            if selectedDatabaseType == .postgres
+                || selectedDatabaseType == .supabase {
+                PostgreSQLFieldsView(
+                    hostname: $hostname,
+                    port: $port,
+                    username: $username,
+                    password: $password,
+                    defaultDatabase: $defaultDatabase,
+                    sslMode: $sslMode,
+                    onImportURI: { parsePostgresURI($0) }
+                )
+            } else if selectedDatabaseType == .sqlite {
+                SQLiteFieldsView(filePath: $uri)
+            } else if selectedDatabaseType == .mysql {
+                MySQLFieldsView(
+                    hostname: $hostname,
+                    port: $port,
+                    username: $username,
+                    password: $password,
+                    defaultDatabase: $defaultDatabase,
+                    sslMode: $sslMode,
+                    onImportURI: { parseMySQLURI($0) }
+                )
+            } else if selectedDatabaseType == .mongodb {
+                Section {
+                    TextField(
+                        "URI",
+                        text: $uri,
+                        prompt: Text(selectedDatabaseType?.placeholderURI ?? "")
+                    )
+                    .focused($uriFieldIsFocused)
+                    .onChange(of: uri) { _, _ in
+                        if uriFieldIsFocused,
+                           let selectedDatabaseType {
+                            validateConnectionString(uri, for: selectedDatabaseType)
+                        }
+                    }
+
+                    if showDatabaseField {
+                        TextField("Database", text: $defaultDatabase, prompt: Text("database"))
+                    }
+                } header: {
+                    HStack {
+                        Text("Connection Details")
+                        Spacer()
+                        if let error = uriError {
+                            Text(error)
+                                .foregroundStyle(.red)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                }
+            }
+
+            Section("Display Settings") {
+                Picker("Environment", selection: $selectedEnvironment) {
+                    Text("None").tag(ConnectionEnvironment?.none)
+                    ForEach(ConnectionEnvironment.allCases, id: \.self) { env in
+                        Text(env.rawValue).tag(Optional(env))
+                    }
+                }
+
+                LabeledContent("Color") {
+                    InlineColorPicker(selectedColor: $color)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, 6)
     }
 
     private func buildUriForTest() -> String? {

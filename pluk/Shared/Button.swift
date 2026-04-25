@@ -58,25 +58,14 @@ struct ActionButtonStyle: ButtonStyle {
         }
         .padding(padding)
         .background(
-            Group {
-                if #available(macOS 26, *) {
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(
-                            (isHovering || isActive)
-                            ? Color(.separatorColor)
-                            : Color.clear
-                        )
-                } else {
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(
-                            (isHovering || isActive)
-                            ? (colorScheme == .dark
-                               ? Color.black.opacity(0.3)
-                               : Color(.separatorColor).opacity(0.4))
-                            : Color.clear
-                        )
-                }
-            }
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(
+                    (isHovering || isActive)
+                    ? (colorScheme == .dark
+                       ? Color.black.opacity(0.3)
+                       : Color(.separatorColor).opacity(0.4))
+                    : Color.clear
+                )
         )
         .if(!disableScaleEffect) { view in
             view.scaleEffect(configuration.isPressed ? 0.9 : 1.0)

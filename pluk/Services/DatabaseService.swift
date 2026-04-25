@@ -386,6 +386,14 @@ import SwiftUI
     }
     
     // MARK: - Document Operations
+    /// Exposes the underlying driver actor so prewarm paths can fire DB queries
+    /// without going through this @MainActor entry point. Calls into the
+    /// returned actor hop to its own executor (not Main), so they don't block
+    /// behind tab UI mounting.
+    func currentDriverBox() -> DatabaseDriverBox? {
+        activeDriverBox
+    }
+
     func findDocuments(
         in collectionName: String,
         databaseSchema: String?,

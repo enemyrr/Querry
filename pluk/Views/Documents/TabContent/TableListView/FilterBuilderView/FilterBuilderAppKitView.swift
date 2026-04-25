@@ -1119,6 +1119,18 @@ final class FilterBuilderAppKitView: FilterBuilderFlippedView {
         }
     }
 
+    func showBuilder() {
+        guard !showFilterBuilder else { return }
+        showFilterBuilder = true
+        syncInitialFieldIfNeeded()
+        syncRows(forceRebuild: rowViews.count != conditions.count)
+        updateActions()
+        focusFirstRowAfterDelay()
+        onLayoutInvalidated?()
+        reportHeightIfNeeded(force: true)
+        needsLayout = true
+    }
+
     @objc private func handleToggleFilterBuilder(_ notification: Notification) {
         guard let sourceWindow = notification.object as? NSWindow,
               let hostingWindow,

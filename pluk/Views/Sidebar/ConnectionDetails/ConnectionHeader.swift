@@ -18,9 +18,9 @@ struct ConnectionHeader: View {
     @State private var showConnectionDetails = false
     @State private var showEditSheet = false
     @State private var showEditConfirmation = false
-    
+
     @Environment(SidebarViewModel.self) private var sidebarViewModel
-    
+
     // Get color based on connection status
     private var statusColor: Color {
         switch instance.connectionStatus {
@@ -158,16 +158,11 @@ struct ConnectionHeader: View {
             )
         }
         .sheet(isPresented: $showEditSheet) {
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-                
-                CreateConnectionForm(
-                    connection: instance.connection,
-                    onDisconnect: onDisconnect
-                )
-                .frame(width: 560)
-            }
+            CreateConnectionForm(
+                connection: instance.connection,
+                onDisconnect: onDisconnect
+            )
+            .frame(width: 560)
         }
         .alert("Edit Connection", isPresented: $showEditConfirmation) {
             Button("Continue") {

@@ -239,10 +239,16 @@ final class DatabaseListViewController: NSViewController {
         if tables.isEmpty && functions.isEmpty {
             if !searchText.isEmpty {
                 emptyStateLabel.stringValue = "No results"
+                emptyStateLabel.isHidden = false
+            } else if !instance.isReady || instance.isLoadingCollections {
+                // Connection is still coming up or a load is in flight —
+                // suppress "No tables" so it doesn't flash before the first
+                // response lands.
+                emptyStateLabel.isHidden = true
             } else {
                 emptyStateLabel.stringValue = "No \(entityPlural)"
+                emptyStateLabel.isHidden = false
             }
-            emptyStateLabel.isHidden = false
         } else {
             emptyStateLabel.isHidden = true
         }
@@ -631,16 +637,57 @@ final class DatabaseListViewController: NSViewController {
         observeCollections()
         observeSelectedTab()
         observeSearch()
+        observeReadiness()
+        loadCollectionsIfReady()
     }
 
     private func observeCollections() {
         withObservationTracking {
             _ = self.instance.collections
             _ = self.instance.connectedDatabase?.name
+            _ = self.instance.isLoadingCollections
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.rebuildRows()
                 self?.observeCollections()
+            }
+        }
+    }
+
+    /// Mirrors the old SwiftUI `DatabaseList`'s `.task(id: instance.readiness)`:
+    /// when the connection becomes `.ready`, fetch collections. Postgres/MySQL/
+    /// Convex incidentally re-fetch via the schema-change cascade in
+    /// `DatabaseHeader`, but MongoDB and SQLite produce an empty schema list,
+    /// so nothing else triggers the load — without this they show as empty.
+    private func observeReadiness() {
+        withObservationTracking {
+            _ = self.instance.readiness
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.loadCollectionsIfReady()
+                self?.rebuildRows()
+                self?.observeReadiness()
+            }
+        }
+    }
+
+    private var pendingCollectionLoadTask: Task<Void, Never>?
+
+    private func loadCollectionsIfReady() {
+        guard case .ready = instance.readiness else { return }
+        pendingCollectionLoadTask?.cancel()
+        pendingCollectionLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.instance.loadCollectionsForCurrentDatabase(
+                    schema: self.instance.databaseService.currentSchema
+                )
+            } catch is CancellationError {
+                return
+            } catch let error as DatabaseError where error.code == .databaseNotSelected {
+                return
+            } catch {
+                debugLog("Failed to load collections: \(error)")
             }
         }
     }
@@ -1031,10 +1078,6 @@ private final class SidebarRowCell: NSView {
         addSubview(titleLabel)
         addSubview(disclosureView)
 
-        addSubview(iconView)
-        addSubview(titleLabel)
-        addSubview(disclosureView)
-
         if isGroupHeader {
             // Group-header layout: [Functions text]  ···  [chevron]
             // No leading icon; chevron pinned to the trailing edge and
@@ -1114,8 +1157,7 @@ struct InlineRenameView: View {
             Image(systemName: "pencil.line")
                 .opacity(0.7)
                 .foregroundStyle(.secondary)
-                .padding(.leading, 4)
-                .padding(.leading, 2)
+                .padding(.leading, 6)
 
             TextField("Collection name", text: $text)
                 .textFieldStyle(.plain)
@@ -1125,13 +1167,13 @@ struct InlineRenameView: View {
             HStack(spacing: 4) {
                 if hasTextChanged {
                     Button(action: submit) {
-                        Text("Save").font(.system(size: 12))
+                        Text("Save").font(.callout)
                     }
                     .buttonStyle(RenameSaveButtonStyle(backgroundColor: .primaryButton))
                     .disabled(isRenaming)
                 } else {
                     Button(action: { onCancel() }) {
-                        Text("Cancel").font(.system(size: 12))
+                        Text("Cancel").font(.callout)
                     }
                     .buttonStyle(RenameCancelButtonStyle())
                     .disabled(isRenaming)

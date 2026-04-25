@@ -620,13 +620,8 @@ struct WorkspaceConnectionRow: View {
             }
         }
         .sheet(isPresented: $showEditSheet) {
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-
-                CreateConnectionForm(connection: connection)
-                    .frame(width: 480)
-            }
+            CreateConnectionForm(connection: connection)
+                .frame(width: 480)
         }
         .confirmationDialog(
             "Delete Connection",

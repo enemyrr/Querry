@@ -8,7 +8,7 @@ import SwiftUI
 /// connection-details popover; the Edit flow there routes back to this view
 /// to present the edit sheet.
 @MainActor
-final class ConnectionNameHeaderView: NSView {
+final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
 
     // MARK: - Dependencies
 
@@ -201,8 +201,12 @@ final class ConnectionNameHeaderView: NSView {
         updateHoverBackground()
     }
 
+    private var isAnyPopoverShown: Bool {
+        (connectionDetailsPopover?.isShown ?? false) || (createTablePopover?.isShown ?? false)
+    }
+
     private func updateHoverBackground() {
-        hoverBackground.alphaValue = isHovering ? 0.3 : 0
+        hoverBackground.alphaValue = (isHovering || isAnyPopoverShown) ? 0.3 : 0
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -310,9 +314,11 @@ final class ConnectionNameHeaderView: NSView {
 
         let popover = NSPopover()
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentViewController = NSHostingController(rootView: form)
         popover.show(relativeTo: plusButton.bounds, of: plusButton, preferredEdge: .maxY)
         createTablePopover = popover
+        updateHoverBackground()
     }
 
     private func showConnectionDetailsPopover() {
@@ -356,9 +362,11 @@ final class ConnectionNameHeaderView: NSView {
 
         let popover = NSPopover()
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentViewController = NSHostingController(rootView: popoverContent)
         popover.show(relativeTo: bounds, of: self, preferredEdge: .maxX)
         connectionDetailsPopover = popover
+        updateHoverBackground()
     }
 
     private func handleCollectionCreated(_ createdName: String) {
@@ -411,7 +419,6 @@ final class ConnectionNameHeaderView: NSView {
             }
         )
         .frame(width: 560)
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
 
         let hostingController = NSHostingController(rootView: editForm)
         let sheetWindow = NSWindow(contentViewController: hostingController)
@@ -425,6 +432,19 @@ final class ConnectionNameHeaderView: NSView {
         parentWindow.beginSheet(sheetWindow) { [weak self] _ in
             self?.editSheetController = nil
         }
+    }
+
+    // MARK: - NSPopoverDelegate
+
+    func popoverWillClose(_ notification: Notification) {
+        guard let popover = notification.object as? NSPopover else { return }
+        if popover === connectionDetailsPopover {
+            connectionDetailsPopover = nil
+        } else if popover === createTablePopover {
+            createTablePopover = nil
+        }
+        refreshHoverState()
+        updateHoverBackground()
     }
 
     // MARK: - Teardown

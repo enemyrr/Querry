@@ -112,7 +112,15 @@ struct DatabaseHeader: View {
             selectedDatabase = instance.connectedDatabase?.name ?? ""
             loadAvailableSchemas()
         }
-        .onChange(of: instance.databaseService.currentSchema) { _, newSchema in
+        .onChange(of: instance.databaseService.currentSchema) { oldSchema, newSchema in
+            // The first `nil → default-schema` transition fires right after
+            // `reloadAvailableSchemas` auto-picks the driver default. The
+            // initial `loadCollectionsForCurrentDatabase(schema: nil)` already
+            // fetched that schema's tables (the driver normalizes `nil`
+            // internally), so reloading here would just re-fetch the same data
+            // — wasting an API round-trip and flashing the empty state.
+            // User-initiated schema switches always go default → other.
+            guard oldSchema != nil else { return }
             collectionLoader.start {
                 await loadCollectionsForSchemaChange(newSchema)
             }
@@ -209,6 +217,12 @@ struct DatabaseHeader: View {
 
         refreshError = nil
 
+        // Mark loading BEFORE clearing the cached list, otherwise the
+        // sidebar observes an empty `collections[dbName]` while
+        // `isLoadingCollections` is still false and flashes "No tables".
+        // `loadCollectionsForCurrentDatabase` itself flips this back to
+        // false via `defer` on every exit path.
+        instance.isLoadingCollections = true
         if let databaseName = instance.connectedDatabase?.name {
             instance.collections[databaseName] = []
         }

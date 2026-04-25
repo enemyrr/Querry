@@ -91,9 +91,119 @@ class TableDataController {
         loadingTask = nil
     }
 
+    /// Eager non-MainActor fetch used by `prewarmTableDataController`. The DB
+    /// query is dispatched on the driver's actor (separate from Main) so it
+    /// runs *in parallel* with the tab UI mount that's blocking Main. Saves
+    /// ~17–21 ms on first table open per window.
+    ///
+    /// Honors `tab.filterColumn`/`tab.filterValue` (set by foreign-key click
+    /// navigation) by computing the initial filter clause synchronously here
+    /// — otherwise FK-link tabs would prewarm an unfiltered result set.
+    func prewarmFetch() {
+        guard instance.isReady,
+              let driverBox = instance.databaseService.currentDriverBox() else {
+            return
+        }
+
+        // Match `loadDocumentsIfNeeded` behavior: derive the initial filter
+        // from the tab's FK-link parameters before kicking off the fetch.
+        let initialFilter = generateInitialFilter()
+        currentActiveFilter = initialFilter
+
+        // Snapshot Sendable params on MainActor so the detached task doesn't
+        // need to hop back here just to read them.
+        let tabName = tab.name
+        let dbSchema = tab.databaseSchema
+        let connectionGen = instance.connectionGeneration
+        let dbName = instance.connectedDatabase?.name
+        let limit = 300
+        let sortBy = sortColumn
+        let asc = sortAscending
+        let filterString = initialFilter ?? ""
+
+        let taskID = UUID()
+        loadingTaskID = taskID
+
+        loadingTask = Task.detached(priority: .userInitiated) { [weak self] in
+            async let docsResult: QueryResult? = {
+                do {
+                    return try await driverBox.findDocuments(
+                        in: tabName,
+                        databaseSchema: dbSchema,
+                        filter: ["rawQuery": .string(filterString)],
+                        skip: 0,
+                        limit: limit,
+                        sortBy: sortBy,
+                        ascending: asc
+                    )
+                } catch {
+                    return nil
+                }
+            }()
+            async let schemaResult: DatabaseSchemaResult? = {
+                do {
+                    return try await driverBox.getSchema(for: tabName, schema: dbSchema)
+                } catch {
+                    return nil
+                }
+            }()
+
+            let documents = await docsResult
+            let schema = await schemaResult
+
+            await MainActor.run {
+                guard let self else { return }
+                guard self.tab.name == tabName else { return }
+                guard self.loadingTaskID == taskID else { return }
+
+                if let schema {
+                    self.cachedSchema = schema
+                }
+                if let documents {
+                    self.cachedDocuments = documents
+                    self.cachedTabName = tabName
+                    self.cachedConnectionGeneration = connectionGen
+                    self.cachedDatabaseName = dbName
+                    self.viewState = .loaded(documents, self.cachedSchema)
+                }
+
+                if self.loadingTaskID == taskID {
+                    self.loadingTask = nil
+                }
+            }
+        }
+    }
+
     func scheduleLoadDocumentsIfNeeded() {
+        // Idempotent guard: if a load is already in flight (e.g. the prewarm
+        // fetch from `createNewTab`) and the tab hasn't asked for a forced
+        // refetch, leave it alone — cancelling and restarting would waste the
+        // in-flight DB roundtrip.
+        if loadingTask != nil, !tab.forceFetch {
+            return
+        }
         scheduleLoadingTask { controller in
             await controller.loadDocumentsIfNeeded()
+        }
+    }
+
+    /// Lazily fetch indexes only when the user actually views the schema mode.
+    /// Indexes were a 200+ KB query at every table open; they're only used in
+    /// `SchemaModeView`, so we keep them off the table-open hot path.
+    func loadIndexesIfNeeded(force: Bool = false) {
+        if !force, cachedIndexes != nil { return }
+        guard instance.isReady else { return }
+        let tabName = tab.name
+        let databaseSchema = tab.databaseSchema
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let indexes = try await instance.databaseService.getIndexes(for: tabName, databaseSchema: databaseSchema, forceFetch: force)
+                guard self.cachedTabName == tabName else { return }
+                self.cachedIndexes = indexes
+            } catch {
+                debugLog("Failed to fetch indexes for \(tabName): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -233,11 +343,15 @@ class TableDataController {
 
         let initialFilter = generateInitialFilter()
         currentActiveFilter = initialFilter
-        await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: initialFilter)
+        // Initial open: forceFetch documents (we have nothing cached) but
+        // DON'T force schema refetch — let the driver's per-connection
+        // schema cache (PostgreSQLDriver.databaseSchema) serve repeat opens
+        // instantly. Only explicit user refresh (refreshData) bypasses cache.
+        await loadOrSubscribe(forceFetch: true, fetchSchema: true, forceSchemaRefetch: false, page: 1, limit: 300, filter: initialFilter)
         tab.forceFetch = false
     }
 
-    func loadOrSubscribe(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
+    func loadOrSubscribe(forceFetch: Bool = false, fetchSchema: Bool = true, forceSchemaRefetch: Bool = false, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
         guard instance.isReady else {
             if viewState != .loading { viewState = .loading }
             return
@@ -249,33 +363,20 @@ class TableDataController {
         if shouldUseRealtime(for: effectiveFilter) {
             if forceFetch || cachedDocuments == nil { viewState = .loading }
 
-            // Fire schema+indexes in background — don't block the subscription
-            if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != tab.name) {
+            // Fire schema in background — don't block the subscription. Indexes
+            // are loaded lazily by the schema-mode UI on demand.
+            if fetchSchema && (forceSchemaRefetch || cachedSchema == nil || cachedTabName != tab.name) {
                 let tabName = tab.name
                 let databaseSchema = tab.databaseSchema
                 Task { [weak self] in
                     guard let self else { return }
-                    async let schemaTask: DatabaseSchemaResult? = {
-                        do {
-                            return try await instance.databaseService.getSchema(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
-                        } catch {
-                            debugLog("Failed to fetch schema for \(tabName): \(error.localizedDescription)")
-                            return nil
-                        }
-                    }()
-                    async let indexesTask: [DatabaseIndexInfo]? = {
-                        do {
-                            return try await instance.databaseService.getIndexes(for: tabName, databaseSchema: databaseSchema, forceFetch: forceFetch)
-                        } catch {
-                            debugLog("Failed to fetch indexes for \(tabName): \(error.localizedDescription)")
-                            return nil
-                        }
-                    }()
-
-                    let (schema, indexes) = await (schemaTask, indexesTask)
-                    guard self.cachedTabName == tabName else { return }
-                    if let schema { self.cachedSchema = schema }
-                    if let indexes { self.cachedIndexes = indexes }
+                    do {
+                        let schema = try await instance.databaseService.getSchema(for: tabName, databaseSchema: databaseSchema, forceFetch: forceSchemaRefetch)
+                        guard self.tab.name == tabName else { return }
+                        self.cachedSchema = schema
+                    } catch {
+                        debugLog("Failed to fetch schema for \(tabName): \(error.localizedDescription)")
+                    }
                 }
             }
             cachedTabName = tab.name
@@ -287,10 +388,10 @@ class TableDataController {
         }
 
         cancelRealTimeSubscription()
-        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, page: page, limit: limit, filter: effectiveFilter)
+        await loadDocuments(forceFetch: forceFetch, fetchSchema: fetchSchema, forceSchemaRefetch: forceSchemaRefetch, page: page, limit: limit, filter: effectiveFilter)
     }
 
-    func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
+    func loadDocuments(forceFetch: Bool = false, fetchSchema: Bool = true, forceSchemaRefetch: Bool = false, page: Int = 1, limit: Int = 300, filter: String? = nil) async {
         guard !Task.isCancelled else { return }
         guard instance.isReady else {
             if viewState != .loading { viewState = .loading }
@@ -311,59 +412,92 @@ class TableDataController {
 
             guard !Task.isCancelled else { return }
 
-            let schemaToUse: DatabaseSchemaResult?
-            let documentsResult: QueryResult
             let databaseSchema = tab.databaseSchema
+            // Schema is kicked off only when we don't already have it locally
+            // OR when the user explicitly asked for a refresh. Documents
+            // forceFetch alone does NOT force schema refetch — the driver's
+            // per-connection schema cache (PostgreSQLDriver.databaseSchema)
+            // makes repeat opens of the same table instant, matching TablePlus.
+            let needsSchema = fetchSchema && (forceSchemaRefetch || cachedSchema == nil || cachedTabName != tab.name)
 
-            if fetchSchema && (forceFetch || cachedSchema == nil || cachedTabName != tab.name) {
-                async let schemaTask = instance.databaseService.getSchema(for: tab.name, databaseSchema: databaseSchema, forceFetch: forceFetch)
-                async let indexesTask = instance.databaseService.getIndexes(for: tab.name, databaseSchema: databaseSchema, forceFetch: forceFetch)
-                async let documentsTask = instance.databaseService.findDocuments(
-                    in: tab.name,
-                    databaseSchema: databaseSchema,
-                    filter: filter ?? "",
-                    skip: (page - 1) * limit,
-                    limit: limit,
-                    sortBy: sortColumn,
-                    ascending: sortAscending
-                )
-
-                let (schema, indexes, documents) = try await (schemaTask, indexesTask, documentsTask)
-
-                guard !Task.isCancelled else { return }
-
-                schemaToUse = schema
-                documentsResult = documents
-
-                cachedSchema = schema
-                cachedIndexes = indexes
-            } else {
-                let documents = try await instance.databaseService.findDocuments(
-                    in: tab.name,
-                    databaseSchema: databaseSchema,
-                    filter: filter ?? "",
-                    skip: (page - 1) * limit,
-                    limit: limit,
-                    sortBy: sortColumn,
-                    ascending: sortAscending
-                )
-
-                guard !Task.isCancelled else { return }
-
-                schemaToUse = cachedSchema
-                documentsResult = documents
+            // Kick off schema in the background so the document fetch doesn't
+            // wait on it. Indexes are NOT fetched here — they're only used in
+            // schema mode and we lazy-load on demand (TablePlus parity). The
+            // big indexes query was the dominant cost on the wire after
+            // schema started caching.
+            if needsSchema {
+                let tabName = tab.name
+                Task { [weak self] in
+                    guard let self else { return }
+                    let schema: DatabaseSchemaResult?
+                    do {
+                        schema = try await instance.databaseService.getSchema(for: tabName, databaseSchema: databaseSchema, forceFetch: forceSchemaRefetch)
+                    } catch {
+                        debugLog("Failed to fetch schema for \(tabName): \(error.localizedDescription)")
+                        schema = nil
+                    }
+                    guard self.tab.name == tabName else { return }
+                    if let schema {
+                        self.cachedSchema = schema
+                        self.updateTabSchemaDeviation(self.hasColumnMismatch(queryResult: self.cachedDocuments, schema: schema))
+                        if let docs = self.cachedDocuments {
+                            // Re-emit loaded state so observers refresh with the
+                            // newly-arrived schema info.
+                            self.viewState = .loaded(docs, schema)
+                        }
+                    }
+                }
             }
+
+            let documents = try await instance.databaseService.findDocuments(
+                in: tab.name,
+                databaseSchema: databaseSchema,
+                filter: filter ?? "",
+                skip: (page - 1) * limit,
+                limit: limit,
+                sortBy: sortColumn,
+                ascending: sortAscending
+            )
 
             guard !Task.isCancelled else { return }
 
-            cachedDocuments = documentsResult
+            cachedDocuments = documents
             cachedTabName = tab.name
             cachedConnectionGeneration = instance.connectionGeneration
             cachedDatabaseName = instance.connectedDatabase?.name
 
-            updateTabSchemaDeviation(hasColumnMismatch(queryResult: documentsResult, schema: schemaToUse))
+            // Paint immediately with whatever schema we already have. If
+            // `needsSchema` is true and the background task hasn't returned
+            // yet, schema is nil here — the background task will re-emit
+            // `.loaded(documents, schema)` when it arrives.
+            viewState = .loaded(documents, cachedSchema)
 
-            viewState = .loaded(documentsResult, schemaToUse)
+            if let schema = cachedSchema {
+                let mismatch = hasColumnMismatch(queryResult: documents, schema: schema)
+                updateTabSchemaDeviation(mismatch)
+                // Lazy revalidation: if the freshly-fetched documents return
+                // columns that don't match our cached schema, the schema is
+                // stale (someone altered the table externally). Refetch in
+                // the background to repair the cache.
+                if mismatch {
+                    let tabName = tab.name
+                    let dbSchema = tab.databaseSchema
+                    Task { [weak self] in
+                        guard let self else { return }
+                        do {
+                            let freshSchema = try await instance.databaseService.getSchema(for: tabName, databaseSchema: dbSchema, forceFetch: true)
+                            guard self.tab.name == tabName else { return }
+                            self.cachedSchema = freshSchema
+                            self.updateTabSchemaDeviation(self.hasColumnMismatch(queryResult: self.cachedDocuments, schema: freshSchema))
+                            if let docs = self.cachedDocuments {
+                                self.viewState = .loaded(docs, freshSchema)
+                            }
+                        } catch {
+                            debugLog("Lazy schema refetch failed for \(tabName): \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
         } catch {
             debugLog(error.localizedDescription)
             viewState = .error(error.localizedDescription)
@@ -371,7 +505,8 @@ class TableDataController {
     }
 
     func refreshData() async {
-        await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: currentActiveFilter)
+        // Explicit user refresh: bypass driver schema cache too.
+        await loadOrSubscribe(forceFetch: true, fetchSchema: true, forceSchemaRefetch: true, page: 1, limit: 300, filter: currentActiveFilter)
     }
 
     func clearCache() {
@@ -417,7 +552,8 @@ class TableDataController {
 
             schemaModificationTracker.clearAll()
 
-            await loadOrSubscribe(forceFetch: true, fetchSchema: true, page: 1, limit: 300, filter: currentActiveFilter)
+            // We just executed ALTER/CREATE/DROP — the cached schema is stale.
+            await loadOrSubscribe(forceFetch: true, fetchSchema: true, forceSchemaRefetch: true, page: 1, limit: 300, filter: currentActiveFilter)
 
             debugLog("✅ Schema modifications saved successfully")
         } catch {

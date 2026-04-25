@@ -132,10 +132,6 @@ final class QueryHistoryListViewController: NSViewController {
             databaseName: instance.connectedDatabase?.name
         )
 
-        var lookup: [String: QueryHistoryEntryViewModel] = [:]
-        for entry in entries { lookup[entry.id] = entry }
-        entriesById = lookup
-
         let calendar = Calendar.current
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
@@ -146,8 +142,10 @@ final class QueryHistoryListViewController: NSViewController {
         let startOfLastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: startOfThisWeek)
             ?? startOfThisWeek
 
+        var lookup: [String: QueryHistoryEntryViewModel] = [:]
         var bucketed: [String: [QueryHistoryEntryViewModel]] = [:]
         for entry in entries {
+            lookup[entry.id] = entry
             let key: String
             if entry.executedAt >= startOfToday {
                 key = "Today"
@@ -162,6 +160,7 @@ final class QueryHistoryListViewController: NSViewController {
             }
             bucketed[key, default: []].append(entry)
         }
+        entriesById = lookup
 
         let order = ["Today", "Yesterday", "This Week", "Last Week", "Older"]
         var newRows: [Row] = []

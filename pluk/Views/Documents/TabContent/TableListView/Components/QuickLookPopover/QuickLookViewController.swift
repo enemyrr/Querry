@@ -33,14 +33,14 @@ final class QuickLookViewController: NSViewController {
         resizeHandleSize - resizeHandleHitOutset
     }
     fileprivate static let editorCornerRadius: CGFloat = 12
-    fileprivate static let contentInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
-    fileprivate static let contentSpacing: CGFloat = 8
+    fileprivate static let contentInsets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+    fileprivate static let contentSpacing: CGFloat = 6
     fileprivate static let footerHeight: CGFloat = 28
     fileprivate static let editorLineHeight: CGFloat = 17
     fileprivate static var editorBackgroundColor: NSColor {
         let isDark = NSAppearance.currentDrawing().isDarkMode
         return isDark
-            ? NSColor.black.withAlphaComponent(0.25)
+            ? NSColor.black.withAlphaComponent(0.6)
             : NSColor.controlBackgroundColor.withAlphaComponent(0.86)
     }
     private static let contentWidthDefaultsKey = "quickLookPopover.contentWidth"
@@ -1232,7 +1232,7 @@ private final class QuickLookResizeHandleView: NSView {
 
     private func updateHandleLayer(animated: Bool) {
         let style = resizeHandleStyle
-        let displayPath = handleBlobPath(for: style, middleScale: isDragging ? 0.86 : 1)
+        let displayPath = handleBlobPath(for: style, middleScale: isDragging ? 0.45 : 1)
 
         CATransaction.begin()
         if animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -1272,7 +1272,8 @@ private final class QuickLookResizeHandleView: NSView {
                 x: center.x + (radius * cos(angle)),
                 y: center.y + (radius * sin(angle))
             )
-            let squeezeWeight = sin(.pi * progress)
+            let topProgress = drawsFromTop ? progress : (1 - progress)
+            let squeezeWeight = sin(.pi / 2 * topProgress)
             let thicknessScale = 1 - ((1 - middleScale) * squeezeWeight * squeezeWeight)
             let circleRadius = max(0.8, (style.strokeWidth * thicknessScale) / 2)
             let circleRect = CGRect(
@@ -1425,13 +1426,13 @@ private struct QuickLookPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 10)
+            .font(.system(size: 12, weight: .regular))
+            .padding(.horizontal, 14)
             .padding(.vertical, verticalPadding)
             .foregroundStyle(isEnabled ? Color(.textBackgroundColor) : .secondary)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isEnabled ? Color.primaryButton : Color.primaryButton.opacity(0.5))
+                Capsule(style: .continuous)
+                    .fill(isEnabled ? Color.primaryButton : Color.gray.opacity(0.25))
                     .opacity(isHovering ? 0.8 : 1)
             )
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
@@ -1452,11 +1453,11 @@ private struct QuickLookSecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 10)
+            .font(.system(size: 12, weight: .regular))
+            .padding(.horizontal, 14)
             .padding(.vertical, verticalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                Capsule(style: .continuous)
                     .fill(
                         (colorScheme == .dark ? Color.white : Color.black)
                             .opacity(isHovering ? 0.15 : 0.08)

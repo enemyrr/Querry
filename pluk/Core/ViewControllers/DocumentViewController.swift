@@ -324,6 +324,9 @@ final class DocumentViewController: NSViewController {
             if let vc = tabContentControllers.removeValue(forKey: id) {
                 vc.removeFromParent()
             }
+            if let uuid = UUID(uuidString: id) {
+                instance.tableDataControllers.removeValue(forKey: uuid)?.cancel()
+            }
         }
 
         for (index, tab) in instance.tabs.enumerated() {
@@ -359,23 +362,38 @@ final class DocumentViewController: NSViewController {
 
         let isTableTab = tab.type == .browse || tab.type == .aggregate || tab.type == .schema || tab.type == .indexes
         if isTableTab, [.postgres, .sqlite, .mysql, .convex].contains(dbType) {
-            let tableVC = TableContentViewController(
-                tab: tab,
-                instance: instance,
-                appViewModel: appViewModel,
-                sidebarViewModel: sidebarViewModel,
-                tabManager: tabManager,
-                modelContainer: modelContainer
-            )
-            addChild(tableVC)
-            tabContentControllers[tab.id.uuidString] = tableVC
-            return tableVC.view
+            return LazyTableTabContainer(tab: tab, owner: self)
         }
 
         return TabContentView(tab: tab, databaseType: dbType, environmentInjector: { [weak self] view in
             guard let self else { return AnyView(view) }
             return AnyView(injectEnvironments(view))
         }, instance: instance)
+    }
+
+    fileprivate func mountTableContent(in container: LazyTableTabContainer, for tab: DatabaseTab) -> TableContentViewController {
+        if let existing = tabContentControllers[tab.id.uuidString] as? TableContentViewController {
+            return existing
+        }
+        let tableVC = TableContentViewController(
+            tab: tab,
+            instance: instance,
+            appViewModel: appViewModel,
+            sidebarViewModel: sidebarViewModel,
+            tabManager: tabManager,
+            modelContainer: modelContainer
+        )
+        addChild(tableVC)
+        tabContentControllers[tab.id.uuidString] = tableVC
+        tableVC.view.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(tableVC.view)
+        NSLayoutConstraint.activate([
+            tableVC.view.topAnchor.constraint(equalTo: container.topAnchor),
+            tableVC.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            tableVC.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            tableVC.view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        return tableVC
     }
 
     private func syncInitialSidebarState() {
@@ -535,6 +553,72 @@ extension DocumentViewController: NSTabViewDelegate {
 
     func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
         tabViewItem?.view?.menu = nil
+    }
+}
+
+// MARK: - Lazy Table Tab Container
+
+/// Lightweight placeholder NSView that defers building the heavy
+/// `TableContentViewController` (FilterBuilderAppKitView, FloatingActionBar
+/// hosting view, observers) until the tab is actually mounted in a window.
+/// The tab item paints first; the real content fills in on the next runloop tick.
+fileprivate final class LazyTableTabContainer: NSView {
+
+    private let tab: DatabaseTab
+    private weak var owner: DocumentViewController?
+    private var hasMounted = false
+
+    init(tab: DatabaseTab, owner: DocumentViewController) {
+        self.tab = tab
+        self.owner = owner
+        super.init(frame: .zero)
+        autoresizingMask = [.width, .height]
+        wantsLayer = true
+        // Pre-paint the white/dark card background so the area between tab
+        // creation and TableContentViewController mounting doesn't render as
+        // a transparent gap. The VC's root view will paint over this once
+        // it's added, with the same color, so there's no visible transition.
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
+        applyEmptyBackgroundColor()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppearanceChange),
+            name: .appAppearanceDidChange,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func handleAppearanceChange() {
+        applyEmptyBackgroundColor()
+    }
+
+    private func applyEmptyBackgroundColor() {
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let isDark = NSAppearance.currentDrawing().isDarkMode
+            layer?.backgroundColor = isDark
+                ? NSColor.black.withAlphaComponent(0.25).cgColor
+                : NSColor.white.cgColor
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil, !hasMounted else { return }
+        hasMounted = true
+        // Defer to next runloop tick so the tab item itself paints first.
+        Task { @MainActor [weak self] in
+            guard let self, let owner = self.owner else { return }
+            _ = owner.mountTableContent(in: self, for: self.tab)
+        }
     }
 }
 

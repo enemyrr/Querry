@@ -123,9 +123,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "206"
-            endingLineNumber = "206"
-            landmarkName = "cardBackground"
-            landmarkType = "24">
+            endingLineNumber = "206">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -139,9 +137,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "207"
-            endingLineNumber = "207"
-            landmarkName = "cardBackground"
-            landmarkType = "24">
+            endingLineNumber = "207">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

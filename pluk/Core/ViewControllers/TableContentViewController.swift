@@ -31,6 +31,7 @@ final class TableContentViewController: NSViewController {
 
     nonisolated(unsafe) private var markRowObserver: Any?
     nonisolated(unsafe) private var pasteObserver: Any?
+    nonisolated(unsafe) private var filterToggleObserver: Any?
 
     // MARK: - Init
 
@@ -48,7 +49,13 @@ final class TableContentViewController: NSViewController {
         self.sidebarViewModel = sidebarViewModel
         self.tabManager = tabManager
         self.modelContainer = modelContainer
-        self.dataController = TableDataController(instance: instance, tab: tab)
+        if let prewarmed = instance.tableDataControllers[tab.id] {
+            self.dataController = prewarmed
+        } else {
+            let controller = TableDataController(instance: instance, tab: tab)
+            instance.tableDataControllers[tab.id] = controller
+            self.dataController = controller
+        }
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -61,7 +68,7 @@ final class TableContentViewController: NSViewController {
             dataController.cancel()
         }
         filterLayoutTask?.cancel()
-        for observer in [markRowObserver, pasteObserver].compactMap({ $0 }) {
+        for observer in [markRowObserver, pasteObserver, filterToggleObserver].compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
         }
         NotificationCenter.default.removeObserver(self)
@@ -90,7 +97,8 @@ final class TableContentViewController: NSViewController {
         self.view = root
 
         setupContentArea()
-        setupFilterBar()
+        // Filter bar is lazy: see ensureFilterBarMounted(). It's built on first
+        // user toggle (Cmd+F) or when persisted conditions need auto-show.
         setupFloatingBar()
         setupLayout()
         setupNotifications()
@@ -103,6 +111,13 @@ final class TableContentViewController: NSViewController {
             name: .appAppearanceDidChange,
             object: nil
         )
+
+        // Prime the UI from any data the prewarmed controller already loaded
+        // before this VC mounted. observeViewState only fires onChange, so
+        // already-loaded state would otherwise sit invisible until the next
+        // mutation.
+        updateFilterBarFromData()
+        updateTableFromData()
     }
 
     @objc private func handleAppearanceChange() {
@@ -123,6 +138,13 @@ final class TableContentViewController: NSViewController {
         hasAppeared = true
         scheduleFilterBarLayout(afterAnimation: true)
         scheduleLoadWhenConnectionIsReady()
+        // Defer the floating action bar mount one tick past viewDidAppear so
+        // its SwiftUI body computation doesn't compete with the table's first
+        // paint. The user can't see the floating bar until rows are visible
+        // anyway.
+        Task { @MainActor [weak self] in
+            self?.mountFloatingBarIfNeeded()
+        }
     }
 
     override func viewWillDisappear() {
@@ -137,6 +159,15 @@ final class TableContentViewController: NSViewController {
     private func setupContentArea() {
         contentArea = NSView()
         contentArea.wantsLayer = true
+    }
+
+    private func ensureFilterBarMounted() {
+        guard filterBarView == nil else { return }
+        setupFilterBar()
+        if let filterBarView {
+            view.addSubview(filterBarView)
+            layoutContentViews()
+        }
     }
 
     private func setupFilterBar() {
@@ -187,20 +218,71 @@ final class TableContentViewController: NSViewController {
     }
 
     private func setupFloatingBar() {
-        let floatingBar = FloatingBarContainer(dataController: dataController, tab: tab)
-        let wrapped = injectEnvironments(floatingBar)
-        floatingBarHostingView = NSHostingView(rootView: AnyView(wrapped))
+        // Deferred: do nothing here. The NSHostingView<FloatingBarContainer>
+        // is heavy to instantiate + body-compute (it's a large SwiftUI tree
+        // with multiple Bindable observations). Building it during loadView
+        // would push the SwiftUI body pass into the addTabViewItem layout
+        // cycle, delaying the table paint. We mount it after viewDidAppear
+        // — the user can't even see the floating bar until rows are painted.
     }
 
     private func setupLayout() {
-        guard let filterBarView, let floatingBarHostingView else { return }
-
-        view.addSubview(filterBarView)
+        if let filterBarView {
+            view.addSubview(filterBarView)
+        }
         view.addSubview(contentArea)
-        view.addSubview(floatingBarHostingView)
 
         showContentMode()
         layoutContentViews()
+    }
+
+    private func mountFloatingBarIfNeeded() {
+        guard floatingBarHostingView == nil else { return }
+        let floatingBar = FloatingBarContainer(dataController: dataController, tab: tab)
+        let wrapped = injectEnvironments(floatingBar)
+        let hosting = NSHostingView(rootView: AnyView(wrapped))
+        floatingBarHostingView = hosting
+        view.addSubview(hosting)
+        layoutContentViews()
+
+        // Subtle fade + 3pt slide-down entrance from above. CALayer-driven so
+        // it runs on the GPU and doesn't compete with the table's first paint.
+        // Mount already happens after viewDidAppear, so rows are visible by
+        // the time this animates. Respects the system "Reduce motion"
+        // accessibility setting by dropping the slide and shortening the fade.
+        hosting.wantsLayer = true
+        guard let layer = hosting.layer else { return }
+
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let translation: CGFloat = reduceMotion ? 0 : -3
+        let duration = reduceMotion ? 0.12 : 0.18
+
+        layer.opacity = 0
+        layer.transform = CATransform3DMakeTranslation(0, translation, 0)
+
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+
+        let group: CAAnimationGroup = {
+            let g = CAAnimationGroup()
+            if reduceMotion {
+                g.animations = [fade]
+            } else {
+                let slide = CABasicAnimation(keyPath: "transform")
+                slide.fromValue = NSValue(caTransform3D: CATransform3DMakeTranslation(0, translation, 0))
+                slide.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+                g.animations = [fade, slide]
+            }
+            g.duration = duration
+            g.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            g.fillMode = .forwards
+            return g
+        }()
+
+        layer.opacity = 1
+        layer.transform = CATransform3DIdentity
+        layer.add(group, forKey: "floatingBarEntrance")
     }
 
     override func viewDidLayout() {
@@ -209,22 +291,25 @@ final class TableContentViewController: NSViewController {
     }
 
     private func layoutContentViews() {
-        guard let filterBarView, let floatingBarHostingView else { return }
-
         let bounds = view.bounds
-        var measurementFrame = filterBarView.frame
-        measurementFrame.size.width = bounds.width
-        filterBarView.frame = measurementFrame
-        filterBarView.layoutSubtreeIfNeeded()
-        let measuredHeight = max(0, filterBarView.resolvedHeight.rounded(.up))
-        let filterHeight = measuredFilterBarHeight ?? measuredHeight
+        let filterHeight: CGFloat
+        if let filterBarView {
+            var measurementFrame = filterBarView.frame
+            measurementFrame.size.width = bounds.width
+            filterBarView.frame = measurementFrame
+            filterBarView.layoutSubtreeIfNeeded()
+            let measuredHeight = max(0, filterBarView.resolvedHeight.rounded(.up))
+            filterHeight = measuredFilterBarHeight ?? measuredHeight
 
-        filterBarView.frame = NSRect(
-            x: 0,
-            y: bounds.height - filterHeight,
-            width: bounds.width,
-            height: filterHeight
-        )
+            filterBarView.frame = NSRect(
+                x: 0,
+                y: bounds.height - filterHeight,
+                width: bounds.width,
+                height: filterHeight
+            )
+        } else {
+            filterHeight = 0
+        }
 
         let contentHeight = max(0, bounds.height - filterHeight)
 
@@ -235,7 +320,7 @@ final class TableContentViewController: NSViewController {
             height: contentHeight
         )
 
-        floatingBarHostingView.frame = NSRect(
+        floatingBarHostingView?.frame = NSRect(
             x: 0,
             y: 0,
             width: bounds.width,
@@ -268,6 +353,24 @@ final class TableContentViewController: NSViewController {
             }
         }
 
+        // Lazy filter bar: mount on first toggle for this tab, then let the
+        // bar's own observer take over for subsequent toggles. Tab IDs are
+        // globally unique UUIDs, so matching on tabID alone is sufficient.
+        filterToggleObserver = NotificationCenter.default.addObserver(
+            forName: .toggleFilterBuilder,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let notificationTabID = notification.userInfo?["tabID"] as? UUID
+            MainActor.assumeIsolated {
+                guard let self,
+                      self.filterBarView == nil,
+                      notificationTabID == self.tab.id
+                else { return }
+                self.ensureFilterBarMounted()
+                self.filterBarView?.showBuilder()
+            }
+        }
     }
 
     // MARK: - Content Mode Switching
@@ -334,6 +437,9 @@ final class TableContentViewController: NSViewController {
     }
 
     private func showSchemaMode() {
+        // Lazy-fetch indexes the first time the user enters schema mode.
+        // Skipped on table open to keep the hot path lean (TablePlus parity).
+        dataController.loadIndexesIfNeeded()
         let schemaView = SchemaModeView(
             schema: dataController.cachedSchema,
             indexes: dataController.cachedIndexes,
@@ -558,6 +664,13 @@ final class TableContentViewController: NSViewController {
     }
 
     private func updateFilterBarFromData() {
+        if filterBarView == nil {
+            let needsAutoShow = dataController.filterConditions.contains {
+                !$0.field.isEmpty && !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            guard needsAutoShow else { return }
+            ensureFilterBarMounted()
+        }
         filterBarView?.update(
             columns: dataController.cachedSchema?.columns ?? [],
             fallbackColumns: dataController.instance.connection.databaseType == .convex && dataController.cachedSchema == nil

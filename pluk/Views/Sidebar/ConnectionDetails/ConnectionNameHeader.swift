@@ -111,18 +111,13 @@ struct ConnectionNameHeader: View {
             )
         }
         .sheet(isPresented: $showEditSheet) {
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-
-                CreateConnectionForm(
-                    connection: connectionInstance.connection,
-                    onDisconnect: {
-                        await viewModel.disconnectConnectionInstance(connectionInstance.id)
-                    }
-                )
-                .frame(width: 560)
-            }
+            CreateConnectionForm(
+                connection: connectionInstance.connection,
+                onDisconnect: {
+                    await viewModel.disconnectConnectionInstance(connectionInstance.id)
+                }
+            )
+            .frame(width: 560)
         }
         .alert("Edit Connection", isPresented: $showEditConfirmation) {
             Button("Continue") {

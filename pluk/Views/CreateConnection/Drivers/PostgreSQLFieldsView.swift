@@ -79,6 +79,7 @@ struct URIImportPopover: View {
 
     @State private var uriInput: String = ""
     @FocusState private var uriFieldFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     private var trimmedInput: String {
         uriInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,10 +90,21 @@ struct URIImportPopover: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             TextField(placeholder, text: $uriInput)
-                .textFieldStyle(CustomTextFieldStyle())
+                .textFieldStyle(.plain)
                 .font(.system(size: 12))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(uriFieldFocused ? 0.2 : 0.0)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.separator, lineWidth: 1)
+                )
                 .focused($uriFieldFocused)
                 .onSubmit(submit)
 
@@ -102,18 +114,18 @@ struct URIImportPopover: View {
                 Button(action: submit) {
                     HStack(spacing: 5) {
                         Text("Import")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11, weight: .regular))
 
                         Text("⏎")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 10, weight: .regular))
                             .opacity(0.7)
                     }
                     .foregroundStyle(canSubmit ? Color(.textBackgroundColor) : .secondary)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 4)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(canSubmit ? Color.primaryButton : Color.primaryButton.opacity(0.35))
+                        Capsule(style: .continuous)
+                            .fill(canSubmit ? Color.primaryButton : Color.gray.opacity(0.25))
                     )
                 }
                 .buttonStyle(.plain)
@@ -121,7 +133,7 @@ struct URIImportPopover: View {
                 .keyboardShortcut(.return, modifiers: [])
             }
         }
-        .padding(12)
+        .padding(8)
         .frame(width: 360)
         .task {
             try? await Task.sleep(for: .milliseconds(80))

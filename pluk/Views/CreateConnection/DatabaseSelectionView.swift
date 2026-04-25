@@ -11,7 +11,6 @@ import SwiftUI
 struct DatabaseSelectionView: View {
     @Binding var selectedDatabaseType: DatabaseType?
 
-    @State private var hoveredDatabaseType: DatabaseType? = nil
     @Environment(\.dismiss) var dismiss
 
     var groupedDatabaseTypes: [(DatabaseCategory, [DatabaseType])] {
@@ -24,144 +23,129 @@ struct DatabaseSelectionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 6) {
-                    Text("Connect Your Database")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.primary)
+        contentWithFloatingHeader {
+            Form {
+                Section {
+                    VStack(spacing: 6) {
+                        HeaderAppIcon()
+                            .padding(.bottom, 12)
 
-                    Text("Choose from cloud-hosted solutions or connect to your existing database")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                        Text("Connect Your Database")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+
+                        Text("Connect to your databases to browse tables, run queries, and use notebooks. Connection details stay on this Mac.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 16)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .listRowBackground(Color.clear)
                 }
-                .padding(.top, 68)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 28)
 
-                VStack(spacing: 24) {
-                    ForEach(groupedDatabaseTypes, id: \.0) { category, databaseTypes in
-                        DatabaseCategorySection(
-                            category: category,
-                            databaseTypes: databaseTypes,
-                            selectedDatabaseType: $selectedDatabaseType,
-                            hoveredDatabaseType: $hoveredDatabaseType
-                        )
+                ForEach(groupedDatabaseTypes, id: \.0) { category, databaseTypes in
+                    Section(category.rawValue) {
+                        ForEach(databaseTypes, id: \.self) { databaseType in
+                            DatabaseTypeRow(databaseType: databaseType) {
+                                selectedDatabaseType = databaseType
+                            }
+                        }
                     }
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
             }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
-        .overlay(alignment: .topTrailing) {
+    }
+
+    @ViewBuilder
+    private func contentWithFloatingHeader<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            content()
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    floatingHeader
+                }
+                .scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+        } else {
+            content()
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    floatingHeader
+                }
+        }
+    }
+
+    private var floatingHeader: some View {
+        HStack {
+            Spacer()
             SheetChromeButton(systemImage: "xmark") {
                 dismiss()
             }
-            .padding(.top, 20)
-            .padding(.trailing, 20)
         }
+        .padding(.top, 12)
+        .padding(.trailing, 12)
     }
 }
 
-// MARK: - Database Category Section
-struct DatabaseCategorySection: View {
-    let category: DatabaseCategory
-    let databaseTypes: [DatabaseType]
-    @Binding var selectedDatabaseType: DatabaseType?
-    @Binding var hoveredDatabaseType: DatabaseType?
-
+private struct HeaderAppIcon: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(category.rawValue)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(1)
-
-                Spacer()
-            }
-
-            DatabaseTypesGrid(
-                databaseTypes: databaseTypes,
-                selectedDatabaseType: $selectedDatabaseType,
-                hoveredDatabaseType: $hoveredDatabaseType
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.primaryButton.opacity(0.85),
+                        Color.primaryButton
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             )
-        }
+            .frame(width: 52, height: 52)
+            .overlay(
+                Image(systemName: "app.connected.to.app.below.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.white)
+            )
+            .shadow(color: Color.primaryButton.opacity(0.25), radius: 8, y: 3)
     }
 }
 
-// MARK: - Database Types Grid
-struct DatabaseTypesGrid: View {
-    let databaseTypes: [DatabaseType]
-    @Binding var selectedDatabaseType: DatabaseType?
-    @Binding var hoveredDatabaseType: DatabaseType?
-
-    var body: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: 16),
-            GridItem(.flexible(), spacing: 16)
-        ], spacing: 16) {
-            ForEach(databaseTypes, id: \.self) { databaseType in
-                DatabaseTypeCard(
-                    databaseType: databaseType,
-                    isSelected: selectedDatabaseType == databaseType,
-                    isHovered: hoveredDatabaseType == databaseType
-                ) {
-                    selectedDatabaseType = databaseType
-                }
-                .onHover { isHovered in
-                    hoveredDatabaseType = isHovered ? databaseType : nil
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Database Type Card
-struct DatabaseTypeCard: View {
-    @Environment(\.colorScheme) var colorScheme
+private struct DatabaseTypeRow: View {
     let databaseType: DatabaseType
-    let isSelected: Bool
-    let isHovered: Bool
     let onTap: () -> Void
 
+    private var isDisabled: Bool { databaseType.status == .comingSoon }
+
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                Image(databaseType.icon)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
-                    .foregroundStyle(databaseType.accentColor)
+        HStack(spacing: 12) {
+            Image(databaseType.icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 24, height: 24)
+                .foregroundStyle(databaseType.accentColor)
 
-                Text(databaseType.displayName)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(databaseType.status == .comingSoon ? .secondary : .primary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: false, vertical: true)
+            Text(databaseType.displayName)
+                .foregroundStyle(isDisabled ? .secondary : .primary)
 
-                Spacer(minLength: 4)
+            Spacer()
 
-                statusBadge
+            statusBadge
+
+            if !isDisabled {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 0.5)
-            )
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
-        .disabled(databaseType.status == .comingSoon)
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .contentShape(.rect)
+        .onTapGesture {
+            guard !isDisabled else { return }
+            onTap()
+        }
     }
 
     @ViewBuilder
@@ -171,35 +155,12 @@ struct DatabaseTypeCard: View {
             Text("Beta")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.orange)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(Color.orange.opacity(0.82), lineWidth: 1)
-                )
         case .comingSoon:
             Text("Soon")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(Color(.separatorColor), lineWidth: 1)
-                )
         default:
             EmptyView()
         }
-    }
-
-    private var cardBackground: Color {
-        if isHovered {
-            return Color(.controlColor).opacity(0.35)
-        }
-        return Color(.controlColor).opacity(0.15)
-    }
-
-    private var borderColor: Color {
-        Color(.separatorColor).opacity(0.5)
     }
 }
