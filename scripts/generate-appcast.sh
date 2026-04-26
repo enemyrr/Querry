@@ -399,9 +399,15 @@ main() {
         exit 0
     fi
     
-    # Separate stable and pre-releases
-    local stable_releases=$(echo "$releases" | jq -c '.[] | select(.prerelease == false)')
-    local pre_releases=$(echo "$releases" | jq -c '.[] | select(.prerelease == true)')
+    # Separate stable and pre-releases. Cap each list to the most recent
+    # APPCAST_*_LIMIT entries — Sparkle only ever updates to the latest item
+    # that matches the user's channel, so older entries are dead weight that
+    # slow down each release run (every entry triggers a DMG download to
+    # extract the build number).
+    local stable_limit="${APPCAST_STABLE_LIMIT:-5}"
+    local prerelease_limit="${APPCAST_PRERELEASE_LIMIT:-5}"
+    local stable_releases=$(echo "$releases" | jq -c '.[] | select(.prerelease == false)' | head -n "$stable_limit")
+    local pre_releases=$(echo "$releases" | jq -c '.[] | select(.prerelease == true)' | head -n "$prerelease_limit")
     
     # Generate stable appcast
     print_info "Generating appcast.xml..."
