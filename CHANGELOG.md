@@ -2,6 +2,15 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.41] – 2026-04-26
+
+A small polish release that keeps you in the right window after signing in.
+
+Here’s what’s new:
+
+- **Sign-in keeps Settings in front.** When you sign in from Settings → Account, Pluk now brings the Settings window back to the front after the browser callback instead of pushing it behind the home window. The same fix applies to billing and checkout callbacks, so whichever window you were last in stays where you expect. ([#127](https://github.com/pluk-inc/Pluk/issues/127))
+- **Bug fixes and improvements.** A handful of smaller fixes and refinements across the app.
+
 ## [0.0.1-beta.40] – 2026-04-26
 
 A small polish and stability release with a handful of fixes and improvements across the app.
