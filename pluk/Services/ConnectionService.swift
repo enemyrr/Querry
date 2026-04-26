@@ -151,6 +151,8 @@ class ConnectionService {
             }
         }
 
+        if presentPaywallIfAtOpenLimit() { return nil }
+
         // No existing tab found, create a new connection instance
         let newId = createNewConnectionInstance(for: instance.connection)
         guard let newInstance = getInstance(newId) else { return nil }
