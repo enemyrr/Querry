@@ -480,7 +480,7 @@ struct CreateConnectionForm: View {
                 .tint(Color.primaryButton)
                 .buttonBorderShape(.capsule)
                 .disabled(!isFormValid)
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.return, modifiers: [.command])
             }
         }
         .padding(.horizontal, 20)
@@ -965,22 +965,25 @@ struct CreateConnectionForm: View {
             )
         }
 
-        // If we edited an existing connection that was disconnected, reconnect to it
-        if isEditingExistingConnection {
-            // Only reconnect if the connection was previously connected
-            // The onDisconnect callback indicates it was connected when editing started
-            if onDisconnect != nil {
-                let instanceId = sidebarViewModel.createNewConnectionInstance(
-                    for: savedConnection
+        // For new connections, always open a tab. For edits, only reconnect if
+        // the connection was previously connected (signalled by onDisconnect).
+        let shouldConnect = isEditingExistingConnection ? (onDisconnect != nil) : true
+        if shouldConnect {
+            let instanceId = sidebarViewModel.createNewConnectionInstance(
+                for: savedConnection
+            )
+
+            if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
+                WindowController.newTab(
+                    tabType: .connection(instanceId),
+                    connectionInstance: connectionInstance
                 )
-                
-                // Create new native tab
-                if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
-                    WindowController.newTab(
-                        tabType: .connection(instanceId),
-                        connectionInstance: connectionInstance
-                    )
-                }
+
+                let totalConnections = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
+                AnalyticsService.shared.trackConnectionOpened(
+                    databaseType: databaseTypeEnum,
+                    isFirstConnection: !isEditingExistingConnection && totalConnections == 1
+                )
             }
         }
 

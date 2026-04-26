@@ -71,7 +71,6 @@ struct DatabaseSelectorModal: View {
                     ForEach(filteredDatabases, id: \.name) { database in
                         Button {
                             onSelection(database)
-                            dismiss()
                         } label: {
                             databaseRowLabel(for: database)
                         }

@@ -3,11 +3,17 @@
 //  Pluk
 //
 
+import AppKit
+import SwiftData
 import SwiftUI
 
 struct RecentsSection: View {
     let items: [WorkspaceItem]
     let onOpen: (WorkspaceItem) -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    @State private var notebookToDelete: Notebook?
+    @State private var showDeleteNotebook = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -16,16 +22,32 @@ struct RecentsSection: View {
 
             cardRow
         }
+        .confirmationDialog(
+            "Delete Notebook",
+            isPresented: $showDeleteNotebook,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let notebook = notebookToDelete {
+                    modelContext.delete(notebook)
+                    notebookToDelete = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                notebookToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this notebook? This action cannot be undone.")
+        }
+        .dialogSeverity(.critical)
     }
 
     private var cardRow: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 12) {
                 ForEach(items) { item in
-                    RecentCard(item: item) {
-                        onOpen(item)
-                    }
-                    .frame(width: 200)
+                    cardForItem(item)
+                        .frame(width: 200)
                 }
             }
             .padding(.vertical, 6)
@@ -44,11 +66,31 @@ struct RecentsSection: View {
             .padding(.horizontal, -6)
         )
     }
+
+    @ViewBuilder
+    private func cardForItem(_ item: WorkspaceItem) -> some View {
+        switch item {
+        case .connection(let connection):
+            RecentConnectionCard(connection: connection) {
+                onOpen(item)
+            }
+        case .notebook(let notebook):
+            RecentNotebookCard(
+                notebook: notebook,
+                onOpen: { onOpen(item) },
+                onDelete: { nb in
+                    notebookToDelete = nb
+                    showDeleteNotebook = true
+                }
+            )
+        }
+    }
 }
 
-struct RecentCard: View {
+struct RecentCard<ContextMenu: View>: View {
     let item: WorkspaceItem
     let onTap: () -> Void
+    @ViewBuilder let contextMenu: ContextMenu
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
@@ -67,6 +109,7 @@ struct RecentCard: View {
                     isHovering = hovering
                 }
             }
+            .contextMenu { contextMenu }
     }
 
     private var cardContent: some View {
@@ -160,5 +203,109 @@ struct RecentCard: View {
             return "Just now"
         }
         return item.lastAccessedAt.formatted(.relative(presentation: .named))
+    }
+}
+
+struct RecentConnectionCard: View {
+    let connection: Connection
+    let onOpen: () -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirmation = false
+
+    var body: some View {
+        RecentCard(item: .connection(connection), onTap: onOpen) {
+            Button {
+                onOpen()
+            } label: {
+                Label("Connect", systemImage: "arrow.up.forward.square")
+            }
+
+            Divider()
+
+            Button {
+                showEditSheet = true
+            } label: {
+                Label("Edit", systemImage: "square.and.pencil")
+            }
+
+            Divider()
+
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(connection.copyableConnectionUri, forType: .string)
+            } label: {
+                Label("Copy connection string", systemImage: "doc.on.doc")
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            CreateConnectionForm(connection: connection)
+                .frame(width: 480)
+        }
+        .confirmationDialog(
+            "Delete Connection",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                let databaseType = connection.databaseType
+
+                QueryHistoryService.deleteHistoryForConnection(
+                    modelContext: modelContext,
+                    connectionKeychainId: connection.keychainId
+                )
+                connection.cleanupKeychain()
+                modelContext.delete(connection)
+
+                Task { @MainActor in
+                    AnalyticsService.shared.trackConnectionDeleted(databaseType: databaseType)
+
+                    let remainingConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []
+                    let databaseTypes = Array(Set(remainingConnections.map { $0.databaseType.rawValue }))
+                    AnalyticsService.shared.updateConnectionSuperProperties(
+                        totalConnections: remainingConnections.count,
+                        databaseTypes: databaseTypes
+                    )
+                }
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete this connection? This action cannot be undone.")
+        }
+        .dialogSeverity(.critical)
+    }
+}
+
+struct RecentNotebookCard: View {
+    let notebook: Notebook
+    let onOpen: () -> Void
+    let onDelete: (Notebook) -> Void
+
+    var body: some View {
+        RecentCard(item: .notebook(notebook), onTap: onOpen) {
+            Button {
+                onOpen()
+            } label: {
+                Label("Open", systemImage: "arrow.up.forward.square")
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                onDelete(notebook)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 }

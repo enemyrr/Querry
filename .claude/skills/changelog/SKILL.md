@@ -5,14 +5,16 @@ description: Generate a Pluk release: pull issues from a GitHub milestone, write
 
 # Changelog / Release Skill
 
-Use this skill when the user runs `/changelog` (with or without a milestone number). It produces a complete release in one pass: notes, version bump, and PR.
+Use this skill when the user runs `/changelog` (with or without a milestone number) or asks to create/generate release notes or a changelog for a Pluk version. It produces a complete release in one pass: notes, version bump, branch, commit, push, and PR.
+
+If the user asks for a changelog for a concrete version (for example, "create a changelog for v0.0.1-beta.38"), treat that as release prep, not a docs-only edit. Draft the notes first, then after approval create the release branch, update both `CHANGELOG.md` and `pluk/version.xcconfig`, commit, push, and open the PR unless the user explicitly says "draft only", "changelog only", or "local only".
 
 ## Inputs
 
-- Optional milestone number (e.g. `/changelog 16`). If omitted, auto-detect the **latest open milestone** on `pluk-inc/Pluk`.
+- Optional milestone number (e.g. `/changelog 16`). If omitted, inspect open milestones on `pluk-inc/Pluk`.
 - Optional explicit version override (rare). Default behavior is to use the milestone title as the version.
 
-If multiple open milestones exist and the user did not specify one, **ask which to use** before continuing.
+If exactly one open milestone exists, use it. If multiple open milestones exist and the user did not specify one, **ask which to use** before continuing.
 
 ## Repo facts (don't re-discover)
 
@@ -34,10 +36,12 @@ Run the steps in order. Surface progress with one-line updates between phases.
 gh api "repos/pluk-inc/Pluk/milestones/<number>" \
   --jq '{number, title, state, open_issues, closed_issues, description}'
 
-# Otherwise, list open milestones and pick the latest:
+# Otherwise, list open milestones:
 gh api "repos/pluk-inc/Pluk/milestones?state=open&sort=due_on&direction=desc" \
   --jq '.[] | {number, title, open_issues, closed_issues}'
 ```
+
+If the list returns exactly one milestone, use it. If it returns multiple milestones, ask the user which one to release.
 
 If `open_issues > 0`, **warn the user** and ask whether to proceed (open issues won't be in the notes). Don't auto-close issues.
 
@@ -62,7 +66,9 @@ For each issue, keep `number`, `title`, `body` (truncate to ~600 chars when summ
 
 ### 4. Draft the release notes in Dia style
 
-Match the style of recent entries in `CHANGELOG.md` — they are already Dia-styled. Reference: <https://www.diabrowser.com/changelog>.
+**Canonical templates: read these first.** Open `CHANGELOG.md` and study **beta.25, beta.26, beta.27, beta.31, beta.32, beta.34** — these are the entries the user wants to match. Older entries (beta.18 through beta.24) use a deprecated format and **must not be copied**.
+
+Reference for tone: <https://www.diabrowser.com/changelog>. The recent Pluk entries are already Dia-styled, so the existing CHANGELOG is the more accurate template.
 
 **Structural template:**
 
@@ -71,17 +77,24 @@ Match the style of recent entries in `CHANGELOG.md` — they are already Dia-sty
 
 <One-paragraph summary. Lead with what this release feels like / what it unlocks for the user. 1–3 sentences. Use "Pluk vXX" or "This release" as the subject. Avoid changelog jargon like "version bump" or "patch".>
 
-Here's what's new:
+Here’s what’s new:
 
 - **<Punchy feature name with period.>** <One- or two-sentence explanation in user-facing language. Link the issue at the end.> ([#<n>](https://github.com/pluk-inc/Pluk/issues/<n>))
 - **<Next item.>** <Explanation.> ([#<n>](https://github.com/pluk-inc/Pluk/issues/<n>))
 
-<Optional second group for smaller polish, intro'd with a sentence like:>
+<Optional second group for smaller polish, intro'd with this exact sentence:>
 
-We've also shipped some small but mighty updates:
+We’ve also shipped some small but mighty updates:
 
 - **<Polish item.>** <Explanation.> ([#<n>](https://github.com/pluk-inc/Pluk/issues/<n>))
 ```
+
+The **two recurring section breaks** are literally these strings — use them verbatim. Use curly apostrophes in `Here’s` and `We’ve` to match recent Pluk entries:
+
+- `Here’s what’s new:`
+- `We’ve also shipped some small but mighty updates:` (or `…small but mighty fixes:` for a fix-heavy release, per beta.27)
+
+If the release has only 2–3 user-facing items, drop the second group entirely — see beta.28 and beta.30.
 
 **Voice & word choices (from Dia + existing Pluk entries — keep these):**
 
@@ -93,6 +106,14 @@ We've also shipped some small but mighty updates:
 - Use the actual em dash character `–` in the version heading (matches existing entries)
 - Group related fixes under one bullet rather than listing every commit
 - A pure bug-fix release can use the "polish & stability" framing — see beta.30 for a template
+
+**Dia-style rewrite heuristics:**
+
+- Start each bullet with a concrete user-facing noun phrase, not an engineering verb: `Faster data loading`, `A calmer sidebar`, `More reliable PostgreSQL editing`.
+- Make the first sentence about what users can now do or what feels better. Push implementation details into the second sentence only when they help explain the benefit.
+- Collapse internal work into outcomes: "refactored connection routing" becomes "shortcuts route to the right window and database more reliably."
+- Give the release a theme in the summary paragraph: speed, flow, table editing, workspace switching, stability, or polish. Avoid just listing issue categories.
+- Prefer one strong grouped bullet over several tiny fix bullets when issues share the same user-facing area.
 
 **What NOT to do:**
 
@@ -110,24 +131,26 @@ Before writing files or creating a PR, **print the drafted release notes inline*
 
 After approval:
 
-1. **Update `pluk/version.xcconfig`** — bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. Use the Edit tool, not sed.
-2. **Update `CHANGELOG.md`** — insert the new section directly under the `# Pluk Release Notes` heading (newest first). Do not reorder or rewrite older entries.
-3. **Create a release branch** off `main`:
+Do not stop after local file edits. A normal release run is complete only after the release branch is pushed and the PR is opened.
+
+1. **Check the working tree before changing files.** If it has unrelated changes, stop and ask — don't stash or discard.
+2. **Create a release branch** off `main` before editing files:
    ```bash
    git checkout main && git pull --ff-only
    git checkout -b release/<version>   # e.g. release/0.0.1-beta.38
    ```
-   If the working tree has unrelated changes, **stop and ask** — don't stash or discard.
-4. **Commit** with a message like:
+3. **Update `pluk/version.xcconfig`** — bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. Use the Edit tool, not sed.
+4. **Update `CHANGELOG.md`** — insert the new section directly under the `# Pluk Release Notes` heading (newest first). Do not reorder or rewrite older entries.
+5. **Commit** with a message like:
    ```
    Release <version>
-
-   Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
    ```
-   Stage only `pluk/version.xcconfig` and `CHANGELOG.md`.
-5. **Push** with `git push -u origin release/<version>`.
+   Stage only `pluk/version.xcconfig` and `CHANGELOG.md`. Do not add generated-by or co-author attribution unless the user explicitly asks for it.
+6. **Push** with `git push -u origin release/<version>`.
 
 ### 7. Open the PR
+
+This step is mandatory for normal release prep. Skip it only when the user explicitly requests draft-only, changelog-only, or local-only output.
 
 ```bash
 gh pr create \
@@ -146,8 +169,6 @@ Cuts <version> from milestone [<milestone-title>](https://github.com/pluk-inc/Pl
 - [ ] Build the `Collection` scheme locally and smoke-test the highlighted features
 - [ ] Verify About box shows `<MARKETING_VERSION> (<CURRENT_PROJECT_VERSION>)`
 - [ ] Confirm appcast generation picks up the new CHANGELOG section
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```
