@@ -6,6 +6,28 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 41</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.41.dmg</link>
+            <sparkle:version>301</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.41</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 41</h2><div>A small polish release that keeps you in the right window after signing in.
+Here’s what’s new:
+<ul>
+<li><strong>Sign-in keeps Settings in front.</strong> When you sign in from Settings → Account, Pluk now brings the Settings window back to the front after the browser callback instead of pushing it behind the home window. The same fix applies to billing and checkout callbacks, so whichever window you were last in stays where you expect. (<a href="https://github.com/pluk-inc/Pluk/issues/127">#127</a>)</li>
+<li><strong>Bug fixes and improvements.</strong> A handful of smaller fixes and refinements across the app.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 14:10:37 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.41.dmg"
+                length="47984591"
+                type="application/octet-stream"
+                sparkle:edSignature="wKvNJ7heJn40wgK7YJWzvmuhvoZT41VkCpTa4Y+nPUVy49YVnCY1SGJt6wRT61tnfSnjQBlCKS7dVJJ2SDskCw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 40</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.40.dmg</link>
             <sparkle:version>300</sparkle:version>
@@ -104,32 +126,6 @@ Here’s what’s new:
                 length="48199388"
                 type="application/octet-stream"
                 sparkle:edSignature="A7aWvkfbS1c1MLILjqYYj/21DTh5Xm6PZRo5PBqZMBfIqT6RVlAmsbEsJTZQGGorMd/Ite3rUtWRjN5X29NKCQ=="
-            />
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-        </item>
-        <item>
-            <title>Pluk 0.0.1 Beta 36</title>
-            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.36.dmg</link>
-            <sparkle:version>296</sparkle:version>
-            <sparkle:shortVersionString>0.0.1-beta.36</sparkle:shortVersionString>
-            <description><![CDATA[
-                <h2>Pluk 0.0.1 Beta 36</h2><div>Pluk v35 introduces SQL editor autocomplete, adds more keyboard shortcuts, makes shortcut handling more reliable across windows and databases, and fixes the repeated keychain access prompt for existing users. The rest of the release focuses on bug fixes and polish across the app.
-Here’s what’s new:
-<ul>
-<li><strong>SQL editor autocomplete.</strong> The SQL editor now includes autocomplete to help you write queries faster.</li>
-<li><strong>More keyboard shortcuts.</strong> Added more shortcuts to make it easier to move through Pluk.</li>
-<li><strong>More reliable shortcuts.</strong> Fixed cases where shortcuts could be picked up by the wrong window or tab, with better routing across windows and databases.</li>
-<li><strong>Keychain access migration.</strong> Existing users may need to approve keychain access one last time after updating as Pluk moves to a new keychain flow. Future updates will not ask again.</li>
-<li><strong>Bug fixes and polish.</strong> Also includes fixes and refinements across the menu bar, Open Quickly, recent tables, and sidebar.</li>
-- 
-</ul></div>
-            ]]></description>
-            <pubDate>Tue, 21 Apr 2026 18:16:53 +0000</pubDate>
-            <enclosure 
-                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.36.dmg"
-                length="48191389"
-                type="application/octet-stream"
-                sparkle:edSignature="FTsSFOxnd0WHfEGfR1+u1JdmyZ4RvkzR1OCqb6H3kkIvToHIKEDAaSda4ScvcWRfd7yiy9hTADsw8KPF7+3XDQ=="
             />
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
         </item>
