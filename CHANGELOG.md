@@ -2,6 +2,15 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.39] – 2026-04-26
+
+A small release with polish and stability improvements across the app.
+
+Here’s what’s new:
+
+- **Sign-in links bring Pluk to the front.** When an auth callback or any custom URL link opens Pluk while it’s in the background, the app now activates and brings a window forward instead of staying hidden behind your browser. ([#126](https://github.com/pluk-inc/Pluk/issues/126))
+- **Bug fixes and polish.** A handful of smaller fixes and stability improvements across the app.
+
 ## [0.0.1-beta.38] – 2026-04-26
 
 This release makes Pluk feel faster and more native in the places you touch most: opening table tabs, switching through the sidebar, setting up new connections, and working in schema view. It also fixes a Convex root-component loading hang and tightens up Ask AI for PostgreSQL.
