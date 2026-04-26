@@ -32,6 +32,7 @@ final class TableContentViewController: NSViewController {
     nonisolated(unsafe) private var markRowObserver: Any?
     nonisolated(unsafe) private var pasteObserver: Any?
     nonisolated(unsafe) private var filterToggleObserver: Any?
+    nonisolated(unsafe) private var viewModeShortcutMonitor: Any?
 
     // MARK: - Init
 
@@ -70,6 +71,9 @@ final class TableContentViewController: NSViewController {
         filterLayoutTask?.cancel()
         for observer in [markRowObserver, pasteObserver, filterToggleObserver].compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
+        }
+        if let monitor = viewModeShortcutMonitor {
+            NSEvent.removeMonitor(monitor)
         }
         NotificationCenter.default.removeObserver(self)
     }
@@ -138,6 +142,7 @@ final class TableContentViewController: NSViewController {
         hasAppeared = true
         scheduleFilterBarLayout(afterAnimation: true)
         scheduleLoadWhenConnectionIsReady()
+        installViewModeShortcutMonitor()
         // Defer the floating action bar mount one tick past viewDidAppear so
         // its SwiftUI body computation doesn't compete with the table's first
         // paint. The user can't see the floating bar until rows are visible
@@ -152,6 +157,45 @@ final class TableContentViewController: NSViewController {
         hasAppeared = false
         filterLayoutTask?.cancel()
         dataController.cancel()
+        removeViewModeShortcutMonitor()
+    }
+
+    // MARK: - ⌘E view-mode toggle
+
+    private func installViewModeShortcutMonitor() {
+        guard viewModeShortcutMonitor == nil else { return }
+        viewModeShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            // Only act when this VC's view is the on-screen tab content in the key window.
+            guard self.view.window?.isKeyWindow == true,
+                  !self.view.isHiddenOrHasHiddenAncestor else { return event }
+
+            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+            guard flags == .command,
+                  event.charactersIgnoringModifiers?.lowercased() == "e" else {
+                return event
+            }
+
+            self.toggleViewMode()
+            return nil
+        }
+    }
+
+    private func removeViewModeShortcutMonitor() {
+        if let monitor = viewModeShortcutMonitor {
+            NSEvent.removeMonitor(monitor)
+            viewModeShortcutMonitor = nil
+        }
+    }
+
+    private func toggleViewMode() {
+        // Flip between content and schema. Definition mode is currently hidden
+        // in the toggle UI; treat it as content for the purpose of this shortcut.
+        // Mirror ViewModeToggle's button animation so the selector pill slides
+        // when the shortcut fires, instead of snapping.
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            tab.viewMode = (tab.viewMode == .schema) ? .content : .schema
+        }
     }
 
     // MARK: - Setup

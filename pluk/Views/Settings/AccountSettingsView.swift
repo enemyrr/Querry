@@ -100,6 +100,10 @@ private struct AccountSettingsContentView: View {
 
                 HStack(spacing: 12) {
                     Button {
+                        AnalyticsService.shared.trackAuthLoginStarted(
+                            mode: "sign_up",
+                            source: "account_pane"
+                        )
                         authService.login(signUp: true)
                     } label: {
                         Text("Sign Up")
@@ -109,6 +113,10 @@ private struct AccountSettingsContentView: View {
                     .disabled(authService.isLoading)
 
                     Button("Log In") {
+                        AnalyticsService.shared.trackAuthLoginStarted(
+                            mode: "log_in",
+                            source: "account_pane"
+                        )
                         authService.login()
                     }
                     .controlSize(.large)
@@ -198,6 +206,10 @@ private struct AccountSettingsContentView: View {
                     Spacer()
 
                     Button {
+                        AnalyticsService.shared.trackBillingCheckoutStarted(
+                            source: "account_pane_manage",
+                            currentStatus: authService.subscriptionStatus.rawValue
+                        )
                         Task { await authService.openBillingPortal() }
                     } label: {
                         BillingPortalButtonLabel(authService: authService)
@@ -223,6 +235,10 @@ private struct AccountSettingsContentView: View {
 
                 VStack(spacing: 10) {
                     Button {
+                        AnalyticsService.shared.trackBillingCheckoutStarted(
+                            source: "account_pane_upgrade",
+                            currentStatus: authService.subscriptionStatus.rawValue
+                        )
                         Task { await authService.openBillingPortal() }
                     } label: {
                         BillingPortalButtonLabel(authService: authService)

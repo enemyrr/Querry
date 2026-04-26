@@ -489,7 +489,7 @@ private struct SidebarProPromoCardView: View {
                     databaseType: databaseType,
                     sidebarViewMode: sidebarViewModeAnalyticsValue
                 )
-                Paywall.present()
+                Paywall.present(source: "sidebar_promo")
             },
             onDismiss: {
                 AnalyticsService.shared.trackSidebarProPromo(

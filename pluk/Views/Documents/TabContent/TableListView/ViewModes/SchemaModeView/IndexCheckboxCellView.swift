@@ -236,11 +236,14 @@ class IndexCheckboxCellView: NSTableCellView {
     }
 
     private func createBorderView(isLastColumn: Bool) {
+        let alternatingRowsEnabled = TableAppearanceSettings.alternatingRowColors
+
         // Right border (skip for last column)
         if !isLastColumn {
             rightBorderView = NSView()
             rightBorderView?.wantsLayer = true
             rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+            rightBorderView?.isHidden = alternatingRowsEnabled
 
             addSubview(rightBorderView!)
             rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
@@ -256,6 +259,7 @@ class IndexCheckboxCellView: NSTableCellView {
         bottomBorderView = NSView()
         bottomBorderView?.wantsLayer = true
         bottomBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        bottomBorderView?.isHidden = alternatingRowsEnabled
 
         addSubview(bottomBorderView!)
         bottomBorderView?.translatesAutoresizingMaskIntoConstraints = false

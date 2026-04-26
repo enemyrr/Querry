@@ -205,9 +205,9 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
     private func scrollToLastRowAndEditNameCell() {
         guard let tableView = tableView else { return }
 
-        // Use tableView.numberOfRows instead of columns.count to get the actual row count
-        // after reloadData() - self.columns may not be updated yet from SwiftUI's update cycle
-        let lastRowIndex = tableView.numberOfRows - 1
+        // Last *real* row, skipping padding rows we add to extend the
+        // alternating-color pattern past the data.
+        let lastRowIndex = tableView.numberOfRows - paddingRowCount - 1
         guard lastRowIndex >= 0 else { return }
 
         tableView.scrollRowToVisible(lastRowIndex)
@@ -253,16 +253,33 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
     }
 
     // MARK: - Data Source
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        return columns.count
+
+    /// Empty rows appended after the data so the alternating-row pattern keeps
+    /// going past the last column, matching the data table view.
+    private var paddingRowCount: Int { 3 }
+
+    private func isPaddingRow(_ row: Int) -> Bool {
+        return row >= columns.count
     }
-    
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        return columns.count + paddingRowCount
+    }
+
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         return SchemaNSTableRowView()
     }
 
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        return !isPaddingRow(row)
+    }
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard row < columns.count else { return nil }
+        if isPaddingRow(row) {
+            let emptyView = NSView()
+            emptyView.wantsLayer = false
+            return emptyView
+        }
         let column = columns[row]
 
         let identifier = tableColumn?.identifier ?? NSUserInterfaceItemIdentifier("")
@@ -301,6 +318,11 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
 
     // MARK: - Cell Factories
     private func addCellBorders(to cell: NSView, isLastColumn: Bool = false) {
+        // When alternating row colors are on, the table view supplies vertical
+        // grid lines and the row stripes supply horizontal separation, so we
+        // skip per-cell borders entirely (matches the data table view).
+        guard !TableAppearanceSettings.alternatingRowColors else { return }
+
         // Right border (skip for last column)
         if !isLastColumn {
             let rightBorderView = NSView()
@@ -317,7 +339,6 @@ class SchemaTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSour
             ])
         }
 
-        // Bottom border
         let bottomBorderView = NSView()
         bottomBorderView.wantsLayer = true
         bottomBorderView.layer?.backgroundColor = NSColor.separatorColor.cgColor
@@ -498,12 +519,36 @@ class SchemaNSTableRowView: NSTableRowView {
             // Don't call super to prevent the emphasized state from changing
         }
     }
-    
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        TableAppearanceSettings.initialize()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        TableAppearanceSettings.initialize()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if !isSelected && TableAppearanceSettings.alternatingRowColors {
+            if let tableView = superview as? NSTableView {
+                let rowIndex = tableView.row(for: self)
+                if rowIndex % 2 == 1 {
+                    NSColor.alternatingRowStripeColor.setFill()
+                    bounds.fill()
+                }
+            }
+        }
+
+        super.draw(dirtyRect)
+    }
+
     override func drawSelection(in dirtyRect: NSRect) {
         drawFullRowSelection()
     }
-    
-    
+
+
     private func drawFullRowSelection() {
         // Subtle row selection color with different colors for light/dark theme
         let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua

@@ -37,7 +37,12 @@ struct SchemaTableView: NSViewRepresentable {
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .clear
-        tableView.gridStyleMask = []
+        if TableAppearanceSettings.alternatingRowColors {
+            tableView.gridStyleMask = [.solidVerticalGridLineMask]
+            tableView.gridColor = .separatorColor
+        } else {
+            tableView.gridStyleMask = []
+        }
 
         // Header
         tableView.headerView = NSTableHeaderView()

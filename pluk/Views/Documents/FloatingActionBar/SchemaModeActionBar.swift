@@ -110,6 +110,7 @@ struct SchemaModeActionBar: View {
                                 Text("\(totalDeletionCount)")
                                     .font(.system(size: 12, weight: .light))
                                     .lineLimit(1)
+                                    .fixedSize()
                             }
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10)
@@ -118,7 +119,7 @@ struct SchemaModeActionBar: View {
                         }
                         .buttonStyle(.plain)
                         .background(Color.red)
-                        .clipShape(.rect(cornerRadius: 6))
+                        .clipShape(.rect(cornerRadius: 8))
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         .transition(.scale.combined(with: .opacity))
                         .customHelp("Delete Columns/Indexes", position: .top, shortcut: KeyboardShortcut(
@@ -139,6 +140,7 @@ struct SchemaModeActionBar: View {
                                 Text("\(nonDeletionCount)")
                                     .font(.system(size: 12, weight: .light))
                                     .lineLimit(1)
+                                    .fixedSize()
                             }
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10)
@@ -147,7 +149,7 @@ struct SchemaModeActionBar: View {
                         }
                         .buttonStyle(.plain)
                         .background(Color.orange)
-                        .clipShape(.rect(cornerRadius: 6))
+                        .clipShape(.rect(cornerRadius: 8))
                         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         .transition(.scale.combined(with: .opacity))
                         .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
@@ -168,6 +170,8 @@ struct SchemaModeActionBar: View {
                         onRefresh(1, 300, true)
                     }) {
                         Text("Discard")
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8)))
                     .customHelp("Discard schema changes", position: .top)
@@ -189,6 +193,8 @@ struct SchemaModeActionBar: View {
             }) {
                 Text("\(columnCount) Columns")
                     .foregroundColor(.gray)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), disableScaleEffect: true))
         }

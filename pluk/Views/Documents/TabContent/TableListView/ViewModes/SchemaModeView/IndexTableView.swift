@@ -81,7 +81,12 @@ struct IndexTableContentView: NSViewRepresentable {
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .clear
-        tableView.gridStyleMask = []
+        if TableAppearanceSettings.alternatingRowColors {
+            tableView.gridStyleMask = [.solidVerticalGridLineMask]
+            tableView.gridColor = .separatorColor
+        } else {
+            tableView.gridStyleMask = []
+        }
 
         tableView.headerView = NSTableHeaderView()
         tableView.allowsColumnReordering = false
@@ -381,16 +386,32 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
         )
     }
 
+    /// Empty rows appended after the data so the alternating-row pattern keeps
+    /// going past the last index, matching the data table view.
+    private var paddingRowCount: Int { 3 }
+
+    private func isPaddingRow(_ row: Int) -> Bool {
+        return row >= indexes.count
+    }
+
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return indexes.count
+        return indexes.count + paddingRowCount
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         return SchemaNSTableRowView()
     }
 
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        return !isPaddingRow(row)
+    }
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard row < indexes.count else { return nil }
+        if isPaddingRow(row) {
+            let emptyView = NSView()
+            emptyView.wantsLayer = false
+            return emptyView
+        }
         let index = indexes[row]
 
         let identifier = tableColumn?.identifier ?? NSUserInterfaceItemIdentifier("")
@@ -429,6 +450,11 @@ class IndexTableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSourc
     // MARK: - Cell Factories
 
     private func addCellBorders(to cell: NSView, isLastColumn: Bool = false) {
+        // When alternating row colors are on, the table view supplies vertical
+        // grid lines and the row stripes supply horizontal separation, so we
+        // skip per-cell borders entirely (matches the data table view).
+        guard !TableAppearanceSettings.alternatingRowColors else { return }
+
         if !isLastColumn {
             let rightBorderView = NSView()
             rightBorderView.wantsLayer = true

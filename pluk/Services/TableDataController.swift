@@ -555,6 +555,9 @@ class TableDataController {
             // We just executed ALTER/CREATE/DROP — the cached schema is stale.
             await loadOrSubscribe(forceFetch: true, fetchSchema: true, forceSchemaRefetch: true, page: 1, limit: 300, filter: currentActiveFilter)
 
+            // SchemaModeView holds its own snapshot of the schema/indexes — nudge it to refetch.
+            NotificationCenter.default.post(name: .schemaTableRefresh, object: nil)
+
             debugLog("✅ Schema modifications saved successfully")
         } catch {
             currentError = error

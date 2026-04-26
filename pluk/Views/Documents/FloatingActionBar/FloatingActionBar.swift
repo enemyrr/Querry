@@ -65,14 +65,14 @@ struct FloatingActionBar: View {
         case .commandPalette:
             14
         case .main, .create:
-            12
+            14
         }
     }
 
     private var loaderCornerRadius: CGFloat {
         switch action {
         case .main:
-            12
+            14
         case .commandPalette:
             14
         case .search, .create:

@@ -253,13 +253,6 @@ final class QuickLookViewController: NSViewController {
             return
         }
 
-        if event.modifierFlags.contains(.command), event.keyCode == 36 { // Cmd+Return
-            if buttonState.isSaveEnabled {
-                saveAction()
-            }
-            return
-        }
-
         super.keyDown(with: event)
     }
 
@@ -1410,9 +1403,14 @@ private struct QuickLookButtonBar: View {
             .buttonStyle(QuickLookSecondaryButtonStyle(verticalPadding: Self.buttonVerticalPadding))
 
             Button(action: onSave) {
-                Text("Save ⏎")
+                HStack(spacing: 4) {
+                    Text("Save")
+                    Text("⌘⏎")
+                        .opacity(0.6)
+                }
             }
             .buttonStyle(QuickLookPrimaryButtonStyle(verticalPadding: Self.buttonVerticalPadding))
+            .keyboardShortcut(.return, modifiers: .command)
             .disabled(!state.isSaveEnabled)
         }
     }

@@ -285,20 +285,12 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         isLoadingCollections = true
         defer { isLoadingCollections = false }
 
-        let inMemoryCount = collections[databaseName]?.count
-        debugLog("[CollectionCache] load start type=\(connection.databaseType) db=\(databaseName) schema=\(schema ?? "nil") inMemory=\(inMemoryCount.map(String.init) ?? "nil")")
-
         // Restore cached collections instantly so the sidebar appears immediately.
         if collections[databaseName] == nil || collections[databaseName]?.isEmpty == true {
             let cached = loadCachedCollections(databaseName: databaseName, schema: schema)
             if !cached.isEmpty {
                 collections[databaseName] = cached
-                debugLog("[CollectionCache] HIT db=\(databaseName) schema=\(schema ?? "nil") count=\(cached.count)")
-            } else {
-                debugLog("[CollectionCache] MISS db=\(databaseName) schema=\(schema ?? "nil")")
             }
-        } else {
-            debugLog("[CollectionCache] skip cache lookup — already populated db=\(databaseName) count=\(inMemoryCount ?? 0)")
         }
 
         // Fetch fresh list in background and reconcile
@@ -313,15 +305,12 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
                 databaseName: databaseName,
                 schema: schema
             )
-            debugLog("[CollectionCache] fresh fetched db=\(databaseName) schema=\(schema ?? "nil") count=\(freshCollections.count)")
         } catch is CancellationError {
-            debugLog("[CollectionCache] fresh fetch cancelled db=\(databaseName) schema=\(schema ?? "nil")")
             return
         } catch {
             if collections[databaseName]?.isEmpty != false {
                 collections[databaseName] = []
             }
-            debugLog("[CollectionCache] fresh fetch failed db=\(databaseName) schema=\(schema ?? "nil") error=\(error)")
             throw error
         }
     }
@@ -336,24 +325,13 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
 
     private func loadCachedCollections(databaseName: String, schema: String?) -> [CachedCollectionWrapper] {
         let cacheKey = collectionCacheKeyFor(databaseName: databaseName, schema: schema)
-        debugLog("[CollectionCache] read key=\(cacheKey)")
 
-        if let data = UserDefaults.standard.data(forKey: cacheKey) {
-            do {
-                let cachedCollections = try Foundation.JSONDecoder().decode([CachedCollectionWrapper].self, from: data)
-                debugLog("[CollectionCache] decoded JSON cache bytes=\(data.count) count=\(cachedCollections.count)")
-                return cachedCollections
-            } catch {
-                debugLog("[CollectionCache] JSON decode FAILED bytes=\(data.count) error=\(error)")
-            }
-        } else {
-            debugLog("[CollectionCache] no Data for key — checking legacy stringArray")
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let cachedCollections = try? Foundation.JSONDecoder().decode([CachedCollectionWrapper].self, from: data) {
+            return cachedCollections
         }
 
         let legacyNames = UserDefaults.standard.stringArray(forKey: cacheKey) ?? []
-        if !legacyNames.isEmpty {
-            debugLog("[CollectionCache] legacy stringArray hit count=\(legacyNames.count)")
-        }
         return legacyNames.map {
             CachedCollectionWrapper(name: $0, type: "table", schema: schema)
         }
@@ -361,12 +339,8 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
 
     private func saveCachedCollections(_ collections: [CachedCollectionWrapper], databaseName: String, schema: String?) {
         let cacheKey = collectionCacheKeyFor(databaseName: databaseName, schema: schema)
-        do {
-            let encodedCollections = try Foundation.JSONEncoder().encode(collections)
+        if let encodedCollections = try? Foundation.JSONEncoder().encode(collections) {
             UserDefaults.standard.set(encodedCollections, forKey: cacheKey)
-            debugLog("[CollectionCache] write key=\(cacheKey) count=\(collections.count) bytes=\(encodedCollections.count)")
-        } catch {
-            debugLog("[CollectionCache] write FAILED key=\(cacheKey) error=\(error)")
         }
     }
 

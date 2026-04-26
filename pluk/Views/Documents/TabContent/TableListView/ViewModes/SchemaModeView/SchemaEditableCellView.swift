@@ -420,11 +420,17 @@ class SchemaEditableCellView: NSView, NSTextFieldDelegate {
     }
 
     private func createBorderView(isLastColumn: Bool) {
+        // When alternating row colors are on, the table view supplies vertical
+        // grid lines and the row stripes supply horizontal separation, so we
+        // hide per-cell borders (matches the data table view's TextCellView).
+        let alternatingRowsEnabled = TableAppearanceSettings.alternatingRowColors
+
         // Right border (skip for last column)
         if !isLastColumn {
             rightBorderView = NSView()
             rightBorderView?.wantsLayer = true
             rightBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+            rightBorderView?.isHidden = alternatingRowsEnabled
 
             addSubview(rightBorderView!)
             rightBorderView?.translatesAutoresizingMaskIntoConstraints = false
@@ -440,6 +446,7 @@ class SchemaEditableCellView: NSView, NSTextFieldDelegate {
         bottomBorderView = NSView()
         bottomBorderView?.wantsLayer = true
         bottomBorderView?.layer?.backgroundColor = NSColor.separatorColor.cgColor
+        bottomBorderView?.isHidden = alternatingRowsEnabled
 
         addSubview(bottomBorderView!)
         bottomBorderView?.translatesAutoresizingMaskIntoConstraints = false

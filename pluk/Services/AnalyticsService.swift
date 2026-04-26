@@ -155,6 +155,56 @@ final class AnalyticsService {
         ])
     }
 
+    // MARK: - Auth Funnel
+
+    func trackAuthLoginStarted(mode: String, source: String) {
+        PostHogSDK.shared.capture("auth_login_started", properties: [
+            "mode": mode,
+            "source": source
+        ])
+    }
+
+    func trackAuthLoginCompleted() {
+        PostHogSDK.shared.capture("auth_login_completed")
+    }
+
+    func trackAuthLoginFailed(reason: String) {
+        PostHogSDK.shared.capture("auth_login_failed", properties: [
+            "reason": reason
+        ])
+    }
+
+    // MARK: - Billing Funnel
+
+    func trackBillingCheckoutStarted(source: String, currentStatus: String) {
+        PostHogSDK.shared.capture("billing_checkout_started", properties: [
+            "source": source,
+            "current_status": currentStatus
+        ])
+    }
+
+    func trackBillingPortalOpened(kind: String, currentStatus: String) {
+        PostHogSDK.shared.capture("billing_portal_opened", properties: [
+            "kind": kind,
+            "current_status": currentStatus
+        ])
+    }
+
+    func trackBillingCheckoutFailed(reason: String, currentStatus: String) {
+        PostHogSDK.shared.capture("billing_checkout_failed", properties: [
+            "reason": reason,
+            "current_status": currentStatus
+        ])
+    }
+
+    func trackSubscriptionActivated(status: String, fromStatus: String, isTrial: Bool) {
+        PostHogSDK.shared.capture("subscription_activated", properties: [
+            "status": status,
+            "from_status": fromStatus,
+            "is_trial": isTrial
+        ])
+    }
+
     // MARK: - Document/Table Events
 
     func trackTableViewed(databaseType: DatabaseType) {

@@ -239,7 +239,16 @@ final class WorkOSAuthService {
                let status = json["status"] as? String {
                 let parsed = SubscriptionStatus(rawValue: status) ?? .none
                 NSLog("[WorkOS] Subscription status: \(status) → \(parsed)")
+                let wasPro = isPro
+                let previousStatus = subscriptionStatus
                 subscriptionStatus = parsed
+                if !wasPro && isPro {
+                    AnalyticsService.shared.trackSubscriptionActivated(
+                        status: parsed.rawValue,
+                        fromStatus: previousStatus.rawValue,
+                        isTrial: parsed == .trialing
+                    )
+                }
                 isCancelling = (json["isCancelling"] as? Bool) ?? false
                 if let ts = json["cancelAt"] as? TimeInterval {
                     cancelAt = Date(timeIntervalSince1970: ts)
@@ -334,7 +343,10 @@ final class WorkOSAuthService {
         isBillingLoading = true
         defer { isBillingLoading = false }
 
-        let endpoint = subscriptionStatus == .none
+        let isCheckout = subscriptionStatus == .none
+        let kind = isCheckout ? "checkout" : "portal"
+        let statusForAnalytics = subscriptionStatus.rawValue
+        let endpoint = isCheckout
             ? WorkOSConfig.billingCheckoutURL
             : WorkOSConfig.billingPortalURL
 
@@ -342,6 +354,10 @@ final class WorkOSAuthService {
 
         guard let url = URL(string: endpoint) else {
             NSLog("[Billing] ❌ invalid endpoint URL: \(endpoint)")
+            AnalyticsService.shared.trackBillingCheckoutFailed(
+                reason: "invalid_endpoint_url",
+                currentStatus: statusForAnalytics
+            )
             showBillingErrorAlert()
             return
         }
@@ -359,14 +375,26 @@ final class WorkOSAuthService {
                   let portalURLString = json["url"] as? String,
                   let portalURL = URL(string: portalURLString) else {
                 NSLog("[Billing] ❌ unusable response — status=\(statusCode) body=\(body)")
+                AnalyticsService.shared.trackBillingCheckoutFailed(
+                    reason: "http_\(statusCode)",
+                    currentStatus: statusForAnalytics
+                )
                 showBillingErrorAlert()
                 return
             }
 
             NSLog("[Billing] ✅ opening \(portalURL)")
             NSWorkspace.shared.open(portalURL)
+            AnalyticsService.shared.trackBillingPortalOpened(
+                kind: kind,
+                currentStatus: statusForAnalytics
+            )
         } catch {
             NSLog("[Billing] ❌ request failed: \(error)")
+            AnalyticsService.shared.trackBillingCheckoutFailed(
+                reason: "request_error",
+                currentStatus: statusForAnalytics
+            )
             showBillingErrorAlert()
         }
     }
@@ -578,6 +606,7 @@ final class WorkOSAuthService {
                 let body = String(data: data, encoding: .utf8) ?? "no body"
                 NSLog("[WorkOS] Token exchange failed: HTTP \(httpResponse.statusCode) — \(body)")
                 authError = "Authentication failed (HTTP \(httpResponse.statusCode))"
+                AnalyticsService.shared.trackAuthLoginFailed(reason: "http_\(httpResponse.statusCode)")
                 return
             }
 
@@ -585,6 +614,7 @@ final class WorkOSAuthService {
 
             guard let accessToken = json["access_token"] as? String else {
                 authError = "No access token received"
+                AnalyticsService.shared.trackAuthLoginFailed(reason: "missing_access_token")
                 return
             }
 
@@ -600,10 +630,12 @@ final class WorkOSAuthService {
                 let user = try Foundation.JSONDecoder().decode(WorkOSUser.self, from: userData)
                 currentUser = user
                 persistUser(user)
+                AnalyticsService.shared.trackAuthLoginCompleted()
                 await fetchSubscriptionStatus()
             }
         } catch {
             authError = error.localizedDescription
+            AnalyticsService.shared.trackAuthLoginFailed(reason: "request_error")
         }
     }
 

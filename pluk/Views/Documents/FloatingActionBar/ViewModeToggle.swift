@@ -26,6 +26,7 @@ struct ViewModeToggle: View {
                 namespace: animation,
                 id: DatabaseTab.ViewMode.content
             )
+            .customHelp("Content", position: .top, shortcut: KeyboardShortcut(modifiers: [.command], key: "E"))
             ToggleButton(
                 icon: "square.stack.3d.up",
                 isSelected: tabViewMode == .schema,
@@ -37,6 +38,7 @@ struct ViewModeToggle: View {
                 namespace: animation,
                 id: DatabaseTab.ViewMode.schema
             )
+            .customHelp("Schema", position: .top, shortcut: KeyboardShortcut(modifiers: [.command], key: "E"))
 //            ToggleButton(
 //                icon: "ellipsis.curlybraces",
 //                isSelected: tabViewMode == .definition,
@@ -51,10 +53,10 @@ struct ViewModeToggle: View {
         }
         .padding(4)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(
-                    colorScheme == .dark ? Color(.black).opacity(0.2) :
-                    Color(.separatorColor).opacity(0.3)
+                    colorScheme == .dark ? Color(.black).opacity(0.70) :
+                    Color(.separatorColor).opacity(0.70)
                 )
         )
     }
@@ -81,7 +83,7 @@ struct ViewModeToggle: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(
                             colorScheme == .dark ?
-                            Color(.controlColor).opacity(0.3) :
+                            Color(.controlColor).opacity(0.50) :
                             Color(.white)
                         )
                         .matchedGeometryEffect(id: "selector", in: namespace)

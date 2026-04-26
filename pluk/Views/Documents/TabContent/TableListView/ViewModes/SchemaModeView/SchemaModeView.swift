@@ -234,9 +234,9 @@ struct SchemaModeView: View {
     // MARK: - Async Operations
 
     private func refreshSchema() async {
-        isLoading = true
-        defer { isLoading = false }
-
+        // Silent in-place refresh — like the data table view. The cell views
+        // reload via updateNSView when currentSchema / currentIndexes change,
+        // so we don't take over the whole pane with a spinner.
         do {
             let schemaResult = try await instance.databaseService.getSchema(
                 for: tableName,

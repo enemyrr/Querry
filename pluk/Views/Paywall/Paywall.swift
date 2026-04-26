@@ -19,12 +19,12 @@ enum Paywall {
         case openLimitReached
     }
 
-    static func present(reason: Reason = .userRequestedUpgrade) {
+    static func present(reason: Reason = .userRequestedUpgrade, source: String? = nil) {
         switch reason {
         case .userRequestedUpgrade:
-            openAccountPane(source: "upgrade_cta")
+            openAccountPane(source: source ?? "upgrade_cta")
         case .openLimitReached:
-            showLimitAlert()
+            showLimitAlert(source: source ?? "connection_limit_alert")
         }
     }
 
@@ -32,7 +32,7 @@ enum Paywall {
         SettingsWindowController.shared.show(pane: .account, source: source)
     }
 
-    private static func showLimitAlert() {
+    private static func showLimitAlert(source: String) {
         let alert = NSAlert()
         alert.messageText = "You've reached the Free plan limit"
         alert.informativeText = "The Free plan allows up to 4 open connections at a time. Upgrade to Pluk Pro for unlimited."
@@ -41,7 +41,7 @@ enum Paywall {
         alert.addButton(withTitle: "Cancel")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            openAccountPane(source: "connection_limit_alert")
+            openAccountPane(source: source)
         }
     }
 }
