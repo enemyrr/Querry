@@ -2,6 +2,15 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.40] – 2026-04-26
+
+A small polish and stability release with a handful of fixes and improvements across the app.
+
+Here’s what’s new:
+
+- **A more responsive database selector.** The database picker sheet now closes properly when you hit Cancel or press Esc, so you can back out without committing to a database. ([#129](https://github.com/pluk-inc/Pluk/issues/129))
+- **Bug fixes and improvements.** Lots of smaller fixes and refinements across the app to make everyday use feel smoother.
+
 ## [0.0.1-beta.39] – 2026-04-26
 
 A small release with polish and stability improvements across the app.
