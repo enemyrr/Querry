@@ -2,6 +2,26 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.38] – 2026-04-26
+
+This release makes Pluk feel faster and more native in the places you touch most: opening table tabs, switching through the sidebar, setting up new connections, and working in schema view. It also fixes a Convex root-component loading hang and tightens up Ask AI for PostgreSQL.
+
+Here’s what’s new:
+
+- **Faster data loading.** Opening tables is now around 2x faster than before, so your data appears sooner when you move through a connection.
+- **A native connection sidebar.** The connection sidebar has moved to an AppKit-backed implementation for smoother table browsing, search, query history, hover behavior, resizing, context menus, and database selection.
+- **Cleaner connection setup.** The database picker, PostgreSQL setup, MySQL setup, create-database flow, and database selector modal have been redesigned to feel more focused and consistent. ([#119](https://github.com/pluk-inc/Pluk/issues/119), [#120](https://github.com/pluk-inc/Pluk/issues/120))
+- **A steadier filter builder.** Table filters now use a native AppKit implementation that stays in sync with table state and schema changes. ([#121](https://github.com/pluk-inc/Pluk/issues/121))
+- **Better schema view editing.** Schema and index tables now match the main data table styling, save changes refresh in place, and ⌘E toggles between content and schema view.
+- **More reliable Convex root tables.** Convex tables in the root `app` component no longer hang when loading, querying, subscribing, or editing documents. ([#124](https://github.com/pluk-inc/Pluk/issues/124))
+
+We’ve also shipped some small but mighty updates:
+
+- **PostgreSQL Ask AI quotes identifiers.** Ask AI now generates PostgreSQL examples with quoted table and column names, and tapping outside no longer wipes an in-progress Ask AI prompt.
+- **A cleaner home screen.** Empty states, recent workspaces, and first-run states on the home screen have been refreshed. ([#122](https://github.com/pluk-inc/Pluk/issues/122))
+- **Window dragging feels native again.** Custom titlebar tab areas once again support expected window dragging behavior. ([#123](https://github.com/pluk-inc/Pluk/issues/123))
+- **Sidebar search matches the design system.** The sidebar search field now uses the same toolbar island treatment as the surrounding controls.
+
 ## [0.0.1-beta.37] – 2026-04-21
 
 Pluk v35 introduces SQL editor autocomplete, adds more keyboard shortcuts, makes shortcut handling more reliable across windows and databases, and fixes the repeated keychain access prompt for existing users. The rest of the release focuses on bug fixes and polish across the app.
