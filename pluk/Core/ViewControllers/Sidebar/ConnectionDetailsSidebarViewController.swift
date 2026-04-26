@@ -402,6 +402,10 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
             },
             onCreateNew: { [weak self] in
                 self?.userDismissedDatabaseSelector = true
+            },
+            onCancel: { [weak self] in
+                guard let self, let presented = self.presentedViewControllers?.first else { return }
+                self.dismiss(presented)
             }
         )
         .environment(instance)

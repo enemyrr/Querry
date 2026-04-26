@@ -12,7 +12,7 @@ struct DatabaseSelectorModal: View {
     let databaseType: DatabaseType?
     let onSelection: (DatabaseWrapper) -> Void
     let onCreateNew: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onCancel: () -> Void
 
     @State private var databases: [DatabaseWrapper] = []
     @State private var searchText = ""
@@ -173,7 +173,7 @@ struct DatabaseSelectorModal: View {
     private var footerActions: some View {
         HStack {
             Spacer()
-            Button("Cancel") { dismiss() }
+            Button("Cancel") { onCancel() }
                 .controlSize(.large)
                 .keyboardShortcut(.cancelAction)
         }
