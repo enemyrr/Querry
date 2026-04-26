@@ -63,11 +63,20 @@ render_entitlements_template() {
 APP_BUNDLE="${1:-build/Build/Products/Release/Pluk.app}"
 SIGN_IDENTITY="Developer ID Application: Mohamed Fauzaan (5P3TSMNV42)"
 TIMEOUT_MINUTES=30
+PROVISION_PROFILE="${PROVISION_PROFILE:-$PROJECT_ROOT/Pluk.provisionprofile}"
 
 # Check if app bundle exists
 if [ ! -d "$APP_BUNDLE" ]; then
     error "App bundle not found at $APP_BUNDLE"
 fi
+
+# Required for restricted entitlements like keychain-access-groups; without
+# it taskgated rejects the launch with "No matching profile found".
+if [ ! -f "$PROVISION_PROFILE" ]; then
+    error "Provisioning profile not found at $PROVISION_PROFILE (set PROVISION_PROFILE=/path/to/profile to override)"
+fi
+log "Embedding provisioning profile: $PROVISION_PROFILE"
+cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
 log "Starting complete notarization process for $APP_BUNDLE"
 

@@ -191,9 +191,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        bringAppToFront()
         for url in urls {
             handleURLCallback(url)
         }
+    }
+
+    private func bringAppToFront() {
+        NSApp.activate(ignoringOtherApps: true)
+        let target = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.canBecomeKey })
+        target?.makeKeyAndOrderFront(nil)
     }
 
     private func handleURLCallback(_ url: URL) {

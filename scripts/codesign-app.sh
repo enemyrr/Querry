@@ -50,6 +50,7 @@ render_entitlements_template() {
 # Default parameters
 APP_BUNDLE="${1:-build/Build/Products/Release/Pluk.app}"
 SIGN_IDENTITY="${2:-Developer ID Application}"
+PROVISION_PROFILE="${PROVISION_PROFILE:-Pluk.provisionprofile}"
 
 # Validate input
 if [ ! -d "$APP_BUNDLE" ]; then
@@ -59,6 +60,15 @@ if [ ! -d "$APP_BUNDLE" ]; then
 fi
 
 log "Code signing $APP_BUNDLE with identity: $SIGN_IDENTITY"
+
+# Embed Developer ID provisioning profile.
+# Required for restricted entitlements like keychain-access-groups; without
+# it taskgated rejects the launch with "No matching profile found".
+if [ ! -f "$PROVISION_PROFILE" ]; then
+    error "Provisioning profile not found at $PROVISION_PROFILE (set PROVISION_PROFILE=/path/to/profile to override)"
+fi
+log "Embedding provisioning profile: $PROVISION_PROFILE"
+cp "$PROVISION_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
 # Create entitlements with hardened runtime
 ENTITLEMENTS_FILE="pluk/Resources/pluk.entitlements"
