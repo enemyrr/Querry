@@ -19,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var systemAppearanceObservation: NSKeyValueObservation?
     private var menuBarController: MenuBarController?
     private var windowShortcutMonitor: Any?
+    private weak var lastUserActiveWindow: NSWindow?
+    private var keyWindowObserver: NSObjectProtocol?
 
     static func appearance(for value: Int) -> NSAppearance? {
         switch value {
@@ -106,6 +108,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.handleWindowShortcut(event) ? nil : event
         }
 
+        keyWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let window = note.object as? NSWindow else { return }
+            Task { @MainActor in
+                self?.lastUserActiveWindow = window
+            }
+        }
+
         if #available(macOS 26, *) {
             configureMenuItemImages()
         }
@@ -180,6 +193,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(windowShortcutMonitor)
             self.windowShortcutMonitor = nil
         }
+        if let keyWindowObserver {
+            NotificationCenter.default.removeObserver(keyWindowObserver)
+            self.keyWindowObserver = nil
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -199,7 +216,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func bringAppToFront() {
         NSApp.activate(ignoringOtherApps: true)
-        let target = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.canBecomeKey })
+        let target = NSApp.keyWindow
+            ?? lastUserActiveWindow.flatMap { $0.isVisible ? $0 : nil }
+            ?? NSApp.orderedWindows.first(where: { $0.isVisible && $0.canBecomeKey })
+            ?? NSApp.mainWindow
         target?.makeKeyAndOrderFront(nil)
     }
 
