@@ -6,6 +6,39 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 38</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.38.dmg</link>
+            <sparkle:version>298</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.38</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 38</h2><div>This release makes Pluk feel faster and more native in the places you touch most: opening table tabs, switching through the sidebar, setting up new connections, and working in schema view. It also fixes a Convex root-component loading hang and tightens up Ask AI for PostgreSQL.
+Here’s what’s new:
+<ul>
+<li><strong>Faster data loading.</strong> Opening tables is now around 2x faster than before, so your data appears sooner when you move through a connection.</li>
+<li><strong>A native connection sidebar.</strong> The connection sidebar has moved to an AppKit-backed implementation for smoother table browsing, search, query history, hover behavior, resizing, context menus, and database selection.</li>
+<li><strong>Cleaner connection setup.</strong> The database picker, PostgreSQL setup, MySQL setup, create-database flow, and database selector modal have been redesigned to feel more focused and consistent. (<a href="https://github.com/pluk-inc/Pluk/issues/119">#119</a>, <a href="https://github.com/pluk-inc/Pluk/issues/120">#120</a>)</li>
+<li><strong>A steadier filter builder.</strong> Table filters now use a native AppKit implementation that stays in sync with table state and schema changes. (<a href="https://github.com/pluk-inc/Pluk/issues/121">#121</a>)</li>
+<li><strong>Better schema view editing.</strong> Schema and index tables now match the main data table styling, save changes refresh in place, and ⌘E toggles between content and schema view.</li>
+<li><strong>More reliable Convex root tables.</strong> Convex tables in the root <code>app</code> component no longer hang when loading, querying, subscribing, or editing documents. (<a href="https://github.com/pluk-inc/Pluk/issues/124">#124</a>)</li>
+</ul>
+We’ve also shipped some small but mighty updates:
+<ul>
+<li><strong>PostgreSQL Ask AI quotes identifiers.</strong> Ask AI now generates PostgreSQL examples with quoted table and column names, and tapping outside no longer wipes an in-progress Ask AI prompt.</li>
+<li><strong>A cleaner home screen.</strong> Empty states, recent workspaces, and first-run states on the home screen have been refreshed. (<a href="https://github.com/pluk-inc/Pluk/issues/122">#122</a>)</li>
+<li><strong>Window dragging feels native again.</strong> Custom titlebar tab areas once again support expected window dragging behavior. (<a href="https://github.com/pluk-inc/Pluk/issues/123">#123</a>)</li>
+<li><strong>Sidebar search matches the design system.</strong> The sidebar search field now uses the same toolbar island treatment as the surrounding controls.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 06:55:57 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.38.dmg"
+                length="47970836"
+                type="application/octet-stream"
+                sparkle:edSignature="nmdVkue9PIoqGf3cQCMYGDFyrO+T/ZFaalBVocA+laG0QKsbtZV+OkqnPkBOkCoYrLeHCZdumKXpDvRLIvqLAw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 37</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.37.dmg</link>
             <sparkle:version>297</sparkle:version>
