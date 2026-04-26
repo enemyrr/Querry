@@ -380,6 +380,7 @@ struct FloatingActionBar: View {
                 debounceTask?.cancel()
             }
         }.onTapOutside {
+            guard action != .search else { return }
             withAnimation(.spring(response: 0.3)) {
                 action = .main
             }
