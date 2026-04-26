@@ -6,6 +6,28 @@
         <description>Pluk pre-release and beta updates feed</description>
         <language>en</language>
         <item>
+            <title>Pluk 0.0.1 Beta 39</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.39.dmg</link>
+            <sparkle:version>299</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.39</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 39</h2><div>A small release with polish and stability improvements across the app.
+Here’s what’s new:
+<ul>
+<li><strong>Sign-in links bring Pluk to the front.</strong> When an auth callback or any custom URL link opens Pluk while it’s in the background, the app now activates and brings a window forward instead of staying hidden behind your browser. (<a href="https://github.com/pluk-inc/Pluk/issues/126">#126</a>)</li>
+<li><strong>Bug fixes and polish.</strong> A handful of smaller fixes and stability improvements across the app.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 12:50:19 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.39.dmg"
+                length="47973247"
+                type="application/octet-stream"
+                sparkle:edSignature="8fuSWQxMLUb56nP7URpZLsrCuV4vzT/OnxVS6VVDkksXdiVmgrCZxHTXmKnt2yrKGI7/1+YwVTfUbrEcB/atAA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Pluk 0.0.1 Beta 38</title>
             <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.38.dmg</link>
             <sparkle:version>298</sparkle:version>
