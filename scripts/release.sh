@@ -373,21 +373,24 @@ else
 fi
 git push "https://github.com/$GITHUB_RELEASE_REPO.git" "$TAG"
 
-PRERELEASE_FLAG=()
-if [[ "$RELEASE_TYPE" != "stable" ]]; then
-    PRERELEASE_FLAG=(--prerelease)
-fi
-
 if gh release view "$TAG" --repo "$GITHUB_RELEASE_REPO" >/dev/null 2>&1; then
     echo "  ! GitHub release $TAG exists - uploading DMG as new asset"
     gh release upload "$TAG" "$DMG_PATH" --repo "$GITHUB_RELEASE_REPO" --clobber
 else
-    gh release create "$TAG" \
-        --repo "$GITHUB_RELEASE_REPO" \
-        --title "Pluk $VERSION" \
-        --notes "$NOTES" \
-        "${PRERELEASE_FLAG[@]}" \
-        "$DMG_PATH"
+    if [[ "$RELEASE_TYPE" == "stable" ]]; then
+        gh release create "$TAG" \
+            --repo "$GITHUB_RELEASE_REPO" \
+            --title "Pluk $VERSION" \
+            --notes "$NOTES" \
+            "$DMG_PATH"
+    else
+        gh release create "$TAG" \
+            --repo "$GITHUB_RELEASE_REPO" \
+            --title "Pluk $VERSION" \
+            --notes "$NOTES" \
+            --prerelease \
+            "$DMG_PATH"
+    fi
 fi
 
 echo
