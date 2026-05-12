@@ -2,6 +2,16 @@
 
 # Pluk Release Notes
 
+## [0.0.1-beta.42] – 2026-05-12
+
+A small release focused on release infrastructure and SQLite file access reliability.
+
+Here’s what’s new:
+
+- **SQLite files open more reliably.** Pluk now includes the file access entitlements needed for SQLite database files to work correctly in sandboxed builds.
+- **Release automation moved to Amore.** The release scripts now use Amore for the macOS distribution flow, including signing, notarization, DMG creation, publishing, and Sparkle appcast handling.
+- **Bug fixes and improvements.** A handful of smaller fixes and refinements across the app.
+
 ## [0.0.1-beta.41] – 2026-04-26
 
 A small polish release that keeps you in the right window after signing in.
