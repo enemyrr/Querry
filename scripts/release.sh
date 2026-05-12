@@ -1,978 +1,397 @@
-#!/bin/bash
-
-# =============================================================================
-# Pluk Automated Release Script
-# =============================================================================
+#!/usr/bin/env bash
 #
-# This script handles the complete end-to-end release process for Pluk,
-# including building, signing, notarization, DMG creation, GitHub releases,
-# and appcast updates. It supports both stable and pre-release versions.
+# Release Pluk via Amore, then mirror the Amore appcast to Pluk's legacy
+# Sparkle URLs so existing installs keep receiving updates.
 #
-# USAGE:
-#   ./scripts/release.sh [--dry-run] <type> [number]
+# Usage:
+#   scripts/release.sh stable
+#   scripts/release.sh beta 42
+#   scripts/release.sh alpha 1
+#   scripts/release.sh rc 1
+#   scripts/release.sh --version 0.1.0 --build 302 stable
+#   scripts/release.sh --draft beta 42
+#   scripts/release.sh --skip-github stable
+#   scripts/release.sh --skip-r2 beta 42
 #
-# ARGUMENTS:
-#   type     Release type: stable, beta, alpha, rc
-#   number   Pre-release number (required for beta/alpha/rc)
+# Source of truth:
+#   - pluk/version.xcconfig -> MARKETING_VERSION, CURRENT_PROJECT_VERSION
+#   - CHANGELOG.md          -> release notes, heading: ## [X.Y.Z] - YYYY-MM-DD
 #
-# OPTIONS:
-#   --dry-run   Preview what would be done without making changes
-#
-# IMPORTANT NOTES:
-#   - This script can take 10-15 minutes due to notarization
-#   - If running from Claude or other tools with timeouts, use a longer timeout
-#   - If the script fails partway, use release-resume.sh to continue
-#
-# FEATURES:
-#   - Complete build and release automation
-#   - Automatic IS_PRERELEASE_BUILD flag handling
-#   - Code signing and notarization
-#   - DMG creation with signing
-#   - GitHub release creation with assets
-#   - Appcast XML generation and updates
-#   - Git tag management and commit automation
-#   - Comprehensive error checking and validation
-#
-# ENVIRONMENT VARIABLES:
-#   APP_STORE_CONNECT_API_KEY_P8    App Store Connect API key (for notarization)
-#   APP_STORE_CONNECT_KEY_ID        API Key ID
-#   APP_STORE_CONNECT_ISSUER_ID     API Key Issuer ID
-#
-# DEPENDENCIES:
-#   - preflight-check.sh (validates release readiness)
-#   - Xcode workspace and project files
-#   - build.sh (application building)
-#   - sign-and-notarize.sh (code signing and notarization)
-#   - create-dmg.sh (DMG creation)
-#   - generate-appcast.sh (appcast updates)
-#   - GitHub CLI (gh) for release creation
-#   - Sparkle tools (sign_update) for EdDSA signatures
-#
-# RELEASE PROCESS:
-#   1. Pre-flight validation (git status, tools, certificates)
-#   2. Xcode project generation and commit if needed
-#   3. Application building with appropriate flags
-#   4. Code signing and notarization
-#   5. DMG creation and signing
-#   6. GitHub release creation with assets
-#   7. Appcast XML generation and updates
-#   8. Git commits and pushes
-#
-# EXAMPLES:
-#   ./scripts/release.sh stable         # Create stable release
-#   ./scripts/release.sh beta 1         # Create beta.1 release
-#   ./scripts/release.sh alpha 2        # Create alpha.2 release
-#   ./scripts/release.sh rc 1           # Create rc.1 release
-#   ./scripts/release.sh --dry-run stable     # Preview stable release
-#   ./scripts/release.sh --dry-run beta 1     # Preview beta.1 release
-#
-# OUTPUT:
-#   - GitHub release at: https://github.com/amantus-ai/pluk/releases
-#   - Signed DMG file in build/ directory
-#   - Updated appcast.xml and appcast-prerelease.xml files
-#   - Git commits and tags pushed to repository
-#
-# =============================================================================
+# Important:
+#   - The Xcode scheme is Collection.
+#   - Pluk's installed apps check https://r2.pluk.sh/appcast.xml and
+#     https://r2.pluk.sh/appcast-prerelease.xml. Do not strand those URLs.
+#   - The existing Sparkle private key in private/sparkle_ed_private_key must
+#     match SUPublicEDKey in pluk/Info.plist and must be the key imported into
+#     Amore for bundle id doc.pluk.
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION_CONFIG="$PROJECT_ROOT/pluk/version.xcconfig"
+CHANGELOG="$PROJECT_ROOT/CHANGELOG.md"
+INFO_PLIST="$PROJECT_ROOT/pluk/Info.plist"
+SPARKLE_PRIVATE_KEY="$PROJECT_ROOT/private/sparkle_ed_private_key"
+SPARKLE_PUBLIC_KEY_FILE="$PROJECT_ROOT/pluk/sparkle-public-ed-key.txt"
+R2_CONFIG_FILE="$PROJECT_ROOT/private/r2-config"
 
-# Source state management functions
-source "$SCRIPT_DIR/release-state.sh"
+APP_NAME="Pluk"
+BUNDLE_ID="doc.pluk"
+SCHEME="Collection"
+GITHUB_RELEASE_REPO="pluk-inc/Pluk"
+LEGACY_STABLE_APPCAST_URL="https://r2.pluk.sh/appcast.xml"
+LEGACY_PRERELEASE_APPCAST_URL="https://r2.pluk.sh/appcast-prerelease.xml"
+AMORE_APPCAST_URL="${AMORE_APPCAST_URL:-https://releases.pluk.sh/v1/apps/doc.pluk/appcast.xml}"
 
-# Color codes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-# Parse arguments and flags
-DRY_RUN=false
+VERSION_OVERRIDE=""
+BUILD_OVERRIDE=""
 RELEASE_TYPE=""
 PRERELEASE_NUMBER=""
-RESUME_MODE=false
+DRAFT_FLAG=""
+SKIP_GH=false
+SKIP_R2=false
 
-# Function to show usage
-show_usage() {
-    echo "Usage:"
-    echo "  $0 [--dry-run] <release-type> [number]"
-    echo "  $0 --resume"
-    echo "  $0 --status"
-    echo ""
-    echo "Arguments:"
-    echo "  release-type    stable, beta, alpha, or rc"
-    echo "  number          Pre-release number (required for beta/alpha/rc)"
-    echo ""
-    echo "Options:"
-    echo "  --dry-run       Show what would be done without making changes"
-    echo "  --resume        Resume an interrupted release"
-    echo "  --status        Show current release progress"
-    echo ""
-    echo "Examples:"
-    echo "  $0 stable                    # Create stable release"
-    echo "  $0 beta 1                    # Create beta.1 release"
-    echo "  $0 alpha 2                   # Create alpha.2 release"
-    echo "  $0 rc 3                      # Create rc.3 release"
-    echo "  $0 --dry-run stable          # Preview stable release"
-    echo "  $0 --dry-run beta 1          # Preview beta.1 release"
-    echo "  $0 --resume                  # Resume interrupted release"
-    echo "  $0 --status                  # Check release progress"
+usage() {
+    sed -n '/^# Usage:/,/^# Important:/p' "$0" | sed 's/^# //;s/^#//'
 }
 
-# Parse command line arguments
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        --resume)
-            RESUME_MODE=true
-            shift
-            ;;
-        --status)
-            show_progress
-            exit 0
-            ;;
-        -h|--help)
-            show_usage
-            exit 0
-            ;;
-        stable|beta|alpha|rc)
-            if [[ -n "$RELEASE_TYPE" ]]; then
-                echo -e "${RED}❌ Error: Release type already specified as '$RELEASE_TYPE'${NC}"
-                echo ""
-                show_usage
-                exit 1
-            fi
-            RELEASE_TYPE="$1"
-            shift
-            ;;
+    case "$1" in
+        --version) VERSION_OVERRIDE="$2"; shift 2 ;;
+        --build) BUILD_OVERRIDE="$2"; shift 2 ;;
+        --draft) DRAFT_FLAG="--draft"; SKIP_GH=true; shift ;;
+        --skip-github) SKIP_GH=true; shift ;;
+        --skip-r2) SKIP_R2=true; shift ;;
+        stable|beta|alpha|rc) RELEASE_TYPE="$1"; shift ;;
+        -h|--help) usage; exit 0 ;;
         *)
-            # Check if this could be a pre-release number
-            if [[ -n "$RELEASE_TYPE" ]] && [[ "$RELEASE_TYPE" != "stable" ]] && [[ -z "$PRERELEASE_NUMBER" ]]; then
-                # This might be intended as a pre-release number
+            if [[ -n "$RELEASE_TYPE" && "$RELEASE_TYPE" != "stable" && -z "$PRERELEASE_NUMBER" ]]; then
                 PRERELEASE_NUMBER="$1"
                 shift
             else
-                echo -e "${RED}❌ Error: Unknown argument: $1${NC}"
-                echo ""
-                show_usage
-                exit 1
+                echo "Unknown option: $1" >&2
+                usage
+                exit 2
             fi
             ;;
     esac
 done
 
-# Handle resume mode
-if [[ "$RESUME_MODE" == "true" ]]; then
-    if ! can_resume; then
-        echo -e "${RED}❌ Error: No release in progress to resume${NC}"
-        echo ""
-        echo "Start a new release with: $0 <release-type> [number]"
-        exit 1
-    fi
-    
-    # Load release info from state
-    RELEASE_TYPE=$(get_release_info "release_type")
-    RELEASE_VERSION=$(get_release_info "release_version")
-    BUILD_NUMBER=$(get_release_info "build_number")
-    TAG_NAME=$(get_release_info "tag_name")
-    
-    echo -e "${BLUE}📋 Resuming release${NC}"
-    show_progress
-    echo ""
-else
-    # Normal mode - validate required arguments
-    if [[ -z "$RELEASE_TYPE" ]]; then
-        echo -e "${RED}❌ Error: Release type is required${NC}"
-        echo ""
-        show_usage
-        exit 1
-    fi
+if [[ -z "$RELEASE_TYPE" ]]; then
+    echo "error: release type is required: stable, beta, alpha, or rc" >&2
+    usage
+    exit 2
 fi
 
-# Validate release type
-case "$RELEASE_TYPE" in
-    stable|beta|alpha|rc)
-        # Valid release type
-        ;;
-    *)
-        echo -e "${RED}❌ Error: Invalid release type: $RELEASE_TYPE${NC}"
-        echo "Valid types are: stable, beta, alpha, rc"
-        echo ""
-        show_usage
-        exit 1
-        ;;
-esac
-
-# For pre-releases, validate number
 if [[ "$RELEASE_TYPE" != "stable" ]]; then
     if [[ -z "$PRERELEASE_NUMBER" ]]; then
-        echo -e "${RED}❌ Error: Pre-release number is required for $RELEASE_TYPE releases${NC}"
-        echo ""
-        echo "Example: $0 $RELEASE_TYPE 1"
-        echo ""
-        show_usage
-        exit 1
+        echo "error: $RELEASE_TYPE releases require a number, e.g. scripts/release.sh $RELEASE_TYPE 42" >&2
+        exit 2
     fi
-    
-    # Validate that pre-release number is a positive integer
     if ! [[ "$PRERELEASE_NUMBER" =~ ^[0-9]+$ ]] || [[ "$PRERELEASE_NUMBER" -eq 0 ]]; then
-        echo -e "${RED}❌ Error: Pre-release number must be a positive integer${NC}"
-        echo "Got: '$PRERELEASE_NUMBER'"
-        echo ""
-        show_usage
+        echo "error: prerelease number must be a positive integer" >&2
+        exit 2
+    fi
+fi
+
+amore_bin() {
+    if command -v amore >/dev/null 2>&1; then command -v amore
+    elif [[ -x /usr/local/bin/amore ]]; then echo /usr/local/bin/amore
+    else echo "error: amore CLI not found" >&2; return 1
+    fi
+}
+
+read_xcconfig() {
+    grep "^$1" "$VERSION_CONFIG" | sed -E 's/^[A-Z_]+ *= *//'
+}
+
+write_xcconfig() {
+    /usr/bin/sed -i '' -E "s|^$1 *=.*|$1 = $2|" "$VERSION_CONFIG"
+}
+
+extract_notes() {
+    awk -v ver="$1" '
+        $0 ~ "^## \\[" ver "\\]" { flag=1; next }
+        flag && /^## \[/         { exit }
+        flag                     { print }
+    ' "$CHANGELOG" | awk 'NF{found=1} found' | sed -E '$ { /^[[:space:]]*$/d; }'
+}
+
+info_plist_value() {
+    /usr/libexec/PlistBuddy -c "Print :$1" "$INFO_PLIST" 2>/dev/null || true
+}
+
+require_clean_tree() {
+    git update-index --refresh >/dev/null 2>&1 || true
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        echo "  x working tree is dirty - commit or stash first"
+        git status --short
         exit 1
     fi
-elif [[ -n "$PRERELEASE_NUMBER" ]]; then
-    echo -e "${YELLOW}⚠️  Warning: Pre-release number ignored for stable releases${NC}"
-    PRERELEASE_NUMBER=""
-fi
+    echo "  ok working tree clean"
+}
 
-echo -e "${BLUE}🚀 Pluk Automated Release${NC}"
-echo "=============================="
-echo ""
+validate_sparkle_continuity() {
+    echo "  - Sparkle continuity"
 
-# Show dry-run mode if enabled
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo -e "${YELLOW}🔍 DRY RUN MODE - No changes will be made${NC}"
-    echo ""
-fi
-
-# Additional strict pre-conditions before preflight check
-echo -e "${BLUE}🔍 Running strict pre-conditions...${NC}"
-
-# CHANGELOG.md will be checked later with proper fallback logic
-
-# Clean up any stuck Pluk volumes before starting
-echo "🧹 Cleaning up any stuck DMG volumes..."
-for volume in /Volumes/Pluk*; do
-    if [ -d "$volume" ]; then
-        echo "   Unmounting $volume..."
-        hdiutil detach "$volume" -force 2>/dev/null || true
-    fi
-done
-
-# Check if we're on main branch
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [[ "$CURRENT_BRANCH" != "main" ]]; then
-    echo -e "${RED}❌ Error: Must be on main branch to release (current: $CURRENT_BRANCH)${NC}"
-    echo "   Run: git checkout main"
-    exit 1
-fi
-
-# Check for uncommitted changes
-# if ! git diff-index --quiet HEAD --; then
-#     echo -e "${RED}❌ Error: Uncommitted changes detected${NC}"
-#     echo "   Please commit or stash your changes before releasing"
-#     git status --short
-#     exit 1
-# fi
-
-# Check if IS_PRERELEASE_BUILD is already set in environment
-if [[ -n "${IS_PRERELEASE_BUILD:-}" ]]; then
-    echo -e "${YELLOW}⚠️  Warning: IS_PRERELEASE_BUILD is already set to: $IS_PRERELEASE_BUILD${NC}"
-    echo "   This will be overridden by the release script"
-    unset IS_PRERELEASE_BUILD
-fi
-
-# Check for required environment variables for notarization
-if [[ -z "${APP_STORE_CONNECT_API_KEY_P8:-}" ]] || \
-   [[ -z "${APP_STORE_CONNECT_KEY_ID:-}" ]] || \
-   [[ -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]]; then
-    echo -e "${RED}❌ Error: Missing notarization environment variables${NC}"
-    echo "   Required variables:"
-    echo "   - APP_STORE_CONNECT_API_KEY_P8"
-    echo "   - APP_STORE_CONNECT_KEY_ID"  
-    echo "   - APP_STORE_CONNECT_ISSUER_ID"
-    exit 1
-fi
-
-# Check if notarize-dmg.sh exists
-if [[ ! -x "$SCRIPT_DIR/notarize-dmg.sh" ]]; then
-    echo -e "${RED}❌ Error: notarize-dmg.sh not found or not executable${NC}"
-    echo "   Expected at: $SCRIPT_DIR/notarize-dmg.sh"
-    exit 1
-fi
-
-# Check if GitHub CLI is installed and authenticated
-if ! command -v gh >/dev/null 2>&1; then
-    echo -e "${RED}❌ Error: GitHub CLI (gh) is not installed${NC}"
-    echo "   Install with: brew install gh"
-    exit 1
-fi
-
-if ! gh auth status >/dev/null 2>&1; then
-    echo -e "${RED}❌ Error: GitHub CLI is not authenticated${NC}"
-    echo "   Run: gh auth login"
-    exit 1
-fi
-
-# Check if changelog file exists in project root
-if [[ -f "$PROJECT_ROOT/CHANGELOG.md" ]]; then
-    CHANGELOG_PATH="$PROJECT_ROOT/CHANGELOG.md"
-else
-    echo -e "${YELLOW}⚠️  Warning: CHANGELOG.md not found${NC}"
-    echo "   Expected location: $PROJECT_ROOT/CHANGELOG.md"
-    echo "   Release notes will be basic"
-    CHANGELOG_PATH=""
-fi
-
-# Check if we're up to date with origin/main
-git fetch origin main --quiet
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-if [[ "$LOCAL" != "$REMOTE" ]]; then
-    echo -e "${RED}❌ Error: Not up to date with origin/main${NC}"
-    echo "   Run: git pull --rebase origin main"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ Strict pre-conditions passed${NC}"
-echo ""
-
-# Step 1: Run pre-flight check
-echo -e "${BLUE}📋 Step 1/8: Running pre-flight check...${NC}"
-if ! "$SCRIPT_DIR/preflight-check.sh"; then
-    echo ""
-    echo -e "${RED}❌ Pre-flight check failed. Please fix the issues above.${NC}"
-    exit 1
-fi
-
-echo ""
-echo -e "${GREEN}✅ Pre-flight check passed!${NC}"
-echo ""
-
-# Get version info
-VERSION_CONFIG="$PROJECT_ROOT/Pluk/version.xcconfig"
-if [[ -f "$VERSION_CONFIG" ]]; then
-    MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$VERSION_CONFIG" | sed 's/.*MARKETING_VERSION = //')
-    BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' "$VERSION_CONFIG" | sed 's/.*CURRENT_PROJECT_VERSION = //')
-else
-    echo -e "${RED}❌ Error: Version configuration file not found at $VERSION_CONFIG${NC}"
-    exit 1
-fi
-
-# Determine release version
-if [[ "$RELEASE_TYPE" == "stable" ]]; then
-    RELEASE_VERSION="$MARKETING_VERSION"
-    TAG_NAME="v$RELEASE_VERSION"
-else
-    # Check if MARKETING_VERSION already contains the pre-release suffix
-    EXPECTED_SUFFIX="$RELEASE_TYPE.$PRERELEASE_NUMBER"
-    if [[ "$MARKETING_VERSION" == *"-$EXPECTED_SUFFIX" ]]; then
-        # Version already has the correct suffix, use as-is
-        RELEASE_VERSION="$MARKETING_VERSION"
-    else
-        # Add the suffix
-        RELEASE_VERSION="$MARKETING_VERSION-$RELEASE_TYPE.$PRERELEASE_NUMBER"
-    fi
-    TAG_NAME="v$RELEASE_VERSION"
-fi
-
-echo "📦 Preparing release:"
-echo "   Type: $RELEASE_TYPE"
-echo "   Version: $RELEASE_VERSION"
-echo "   Build: $BUILD_NUMBER"
-echo "   Tag: $TAG_NAME"
-echo ""
-
-# Initialize state tracking for new releases
-if [[ "$RESUME_MODE" != "true" ]]; then
-    init_state "$RELEASE_TYPE" "$RELEASE_VERSION" "$BUILD_NUMBER" "$TAG_NAME"
-fi
-
-# Additional validation after version determination
-echo -e "${BLUE}🔍 Validating release configuration...${NC}"
-
-# Check for double suffix issue
-if [[ "$RELEASE_VERSION" =~ -[a-zA-Z]+\.[0-9]+-[a-zA-Z]+\.[0-9]+ ]]; then
-    echo -e "${RED}❌ Error: Version has double suffix: $RELEASE_VERSION${NC}"
-    echo "   This indicates version.xcconfig already has a pre-release suffix"
-    echo "   Current MARKETING_VERSION: $MARKETING_VERSION"
-    exit 1
-fi
-
-# Verify build number hasn't been used
-echo "🔍 Checking build number uniqueness..."
-EXISTING_BUILDS=""
-if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
-    APPCAST_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
-    EXISTING_BUILDS+="$APPCAST_BUILDS"
-fi
-if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
-    PRERELEASE_BUILDS=$(grep -E '<sparkle:version>[0-9]+</sparkle:version>' "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null | sed 's/.*<sparkle:version>\([0-9]*\)<\/sparkle:version>.*/\1/' | tr '\n' ' ' || true)
-    EXISTING_BUILDS+="$PRERELEASE_BUILDS"
-fi
-
-for EXISTING_BUILD in $EXISTING_BUILDS; do
-    if [[ "$BUILD_NUMBER" == "$EXISTING_BUILD" ]]; then
-        echo -e "${RED}❌ Error: Build number $BUILD_NUMBER already exists in appcast!${NC}"
-        echo "   Please increment CURRENT_PROJECT_VERSION in version.xcconfig"
+    local feed_url
+    feed_url="$(info_plist_value SUFeedURL)"
+    if [[ "$feed_url" != "$LEGACY_STABLE_APPCAST_URL" ]]; then
+        echo "  x SUFeedURL changed: $feed_url"
+        echo "    Keep $LEGACY_STABLE_APPCAST_URL so older update paths remain continuous."
         exit 1
     fi
-done
 
-echo -e "${GREEN}✅ Release configuration validated${NC}"
-echo ""
-
-# Step 2: Clean build directory
-echo -e "${BLUE}📋 Step 2/8: Cleaning build directory...${NC}"
-rm -rf "$PROJECT_ROOT/build"
-rm -rf "$PROJECT_ROOT/DerivedData"
-rm -rf "$PROJECT_ROOT/.build"
-rm -rf ~/Library/Developer/Xcode/DerivedData/Pluk-*
-echo "✓ Cleaned all build artifacts"
-
-# Step 3: Update version in version.xcconfig
-echo ""
-echo -e "${BLUE}📋 Step 3/8: Setting version...${NC}"
-
-# Determine the version string to set
-if [[ "$RELEASE_TYPE" == "stable" ]]; then
-    # For stable releases, ensure MARKETING_VERSION doesn't have pre-release suffix
-    # Extract base version (remove any existing pre-release suffix)
-    BASE_VERSION=$(echo "$MARKETING_VERSION" | sed 's/-.*$//')
-    VERSION_TO_SET="$BASE_VERSION"
-else
-    # For pre-releases, use the RELEASE_VERSION we calculated above
-    # (which already handles whether to add suffix or not)
-    VERSION_TO_SET="$RELEASE_VERSION"
-fi
-
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "📝 Would update MARKETING_VERSION to: $VERSION_TO_SET"
-    echo "   Current value: $MARKETING_VERSION"
-    echo -e "${GREEN}✅ Version would be set to: $VERSION_TO_SET${NC}"
-else
-    # Backup version.xcconfig
-    cp "$VERSION_CONFIG" "$VERSION_CONFIG.bak"
-    
-    # Update MARKETING_VERSION in version.xcconfig
-    echo "📝 Updating MARKETING_VERSION to: $VERSION_TO_SET"
-    sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $VERSION_TO_SET/" "$VERSION_CONFIG"
-    
-    # Verify the update
-    NEW_MARKETING_VERSION=$(grep 'MARKETING_VERSION' "$VERSION_CONFIG" | sed 's/.*MARKETING_VERSION = //')
-    if [[ "$NEW_MARKETING_VERSION" != "$VERSION_TO_SET" ]]; then
-        echo -e "${RED}❌ Failed to update MARKETING_VERSION${NC}"
+    local plist_public_key file_public_key
+    plist_public_key="$(info_plist_value SUPublicEDKey)"
+    file_public_key="$(grep -E '^[A-Za-z0-9+/]+=*$' "$SPARKLE_PUBLIC_KEY_FILE" | tail -1 || true)"
+    if [[ -z "$plist_public_key" || "$plist_public_key" != "$file_public_key" ]]; then
+        echo "  x SUPublicEDKey does not match $SPARKLE_PUBLIC_KEY_FILE"
         exit 1
     fi
-    
-    echo -e "${GREEN}✅ Version updated to: $VERSION_TO_SET${NC}"
-fi
 
-
-# Check if Xcode project was modified and commit if needed
-if ! git diff --quiet "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"; then
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "📝 Would commit Xcode project changes"
-        echo "   Commit message: Update Xcode project for build $BUILD_NUMBER"
-    else
-        echo "📝 Committing Xcode project changes..."
-        git add "$PROJECT_ROOT/Pluk.xcodeproj/project.pbxproj"
-        git commit -m "Update Xcode project for build $BUILD_NUMBER"
-        echo -e "${GREEN}✅ Xcode project changes committed${NC}"
-    fi
-fi
-
-# Step 4: Build the app
-echo ""
-echo -e "${BLUE}📋 Step 4/8: Building universal application...${NC}"
-
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "🔨 Would build ARM64 binary with:"
-    echo "   Configuration: Release"
-    echo "   IS_PRERELEASE_BUILD: $([ "$RELEASE_TYPE" != "stable" ] && echo "YES" || echo "NO")"
-    echo "   Command: $SCRIPT_DIR/build.sh --configuration Release"
-    echo ""
-    echo "   Would verify:"
-    echo "   - App exists at expected path"
-    echo "   - Build number matches $BUILD_NUMBER"
-    echo "   - Binary architecture is ARM64"
-    echo -e "${GREEN}✅ Build would be performed${NC}"
-else
-    # For pre-release builds, set the environment variable
-    if [[ "$RELEASE_TYPE" != "stable" ]]; then
-        echo "📝 Marking build as pre-release..."
-        export IS_PRERELEASE_BUILD=YES
-    else
-        export IS_PRERELEASE_BUILD=NO
-    fi
-    
-    # Build ARM64 binary
-    echo ""
-    echo "🔨 Building ARM64 binary..."
-    "$SCRIPT_DIR/build.sh" --configuration Release
-    
-    # Find the built app - could be in build directory or DerivedData
-    APP_PATH="$PROJECT_ROOT/build/Build/Products/Release/Pluk.app"
-    if [[ ! -d "$APP_PATH" ]]; then
-        # Check DerivedData
-        DEFAULT_DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
-        APP_PATH=$(find "$DEFAULT_DERIVED_DATA" -name "Pluk.app" -path "*/Build/Products/Release/*" ! -path "*/Index.noindex/*" 2>/dev/null | head -n 1)
-        
-        if [[ ! -d "$APP_PATH" ]]; then
-            echo -e "${RED}❌ Build failed - app not found${NC}"
-            exit 1
-        fi
-        
-        # Copy to expected location for consistency
-        mkdir -p "$PROJECT_ROOT/build/Build/Products/Release"
-        cp -R "$APP_PATH" "$PROJECT_ROOT/build/Build/Products/Release/"
-        APP_PATH="$PROJECT_ROOT/build/Build/Products/Release/Pluk.app"
-    fi
-    
-    # Verify build number
-    BUILT_VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleVersion)
-    if [[ "$BUILT_VERSION" != "$BUILD_NUMBER" ]]; then
-        echo -e "${RED}❌ Build number mismatch! Expected $BUILD_NUMBER but got $BUILT_VERSION${NC}"
+    if [[ ! -s "$SPARKLE_PRIVATE_KEY" ]]; then
+        echo "  x missing Sparkle private key: $SPARKLE_PRIVATE_KEY"
         exit 1
     fi
-    
-    # Verify it's an ARM64 binary
-    APP_BINARY="$APP_PATH/Contents/MacOS/Pluk"
-    if [[ -f "$APP_BINARY" ]]; then
-        ARCH_INFO=$(lipo -info "$APP_BINARY" 2>/dev/null || echo "")
-        if [[ "$ARCH_INFO" == *"arm64"* ]]; then
-            echo "✅ ARM64 binary created"
+
+    local signer
+    signer="$(command -v sign_update || true)"
+    if [[ -z "$signer" && -x /Users/fauzaan/Desktop/Pluk/Sparkle/bin/sign_update ]]; then
+        signer="/Users/fauzaan/Desktop/Pluk/Sparkle/bin/sign_update"
+    fi
+    if [[ -n "$signer" ]]; then
+        local tmp
+        tmp="$(mktemp)"
+        printf 'pluk sparkle continuity check\n' > "$tmp"
+        local signature
+        if signature="$("$signer" "$tmp" -f "$SPARKLE_PRIVATE_KEY" -p 2>/dev/null)"; then
+            local amore_for_verify
+            amore_for_verify="$(amore_bin 2>/dev/null || true)"
+            if [[ -n "$amore_for_verify" ]]; then
+                if "$amore_for_verify" verify "$tmp" "$signature" "$plist_public_key" >/dev/null 2>&1; then
+                    echo "  ok Sparkle private key matches SUPublicEDKey"
+                else
+                    rm -f "$tmp"
+                    echo "  x Sparkle private key does not verify against SUPublicEDKey"
+                    exit 1
+                fi
+            else
+                echo "  ok Sparkle private key can sign updates"
+            fi
         else
-            echo -e "${RED}❌ Error: Binary is not ARM64: $ARCH_INFO${NC}"
+            rm -f "$tmp"
+            echo "  x Sparkle private key could not sign with sign_update"
             exit 1
         fi
-    fi
-    
-    echo -e "${GREEN}✅ Build complete${NC}"
-    
-    # Save artifact path
-    save_artifact "app_path" "$APP_PATH"
-fi
-
-
-# Step 5: Sign and notarize
-echo ""
-echo -e "${BLUE}📋 Step 5/8: Signing and notarizing...${NC}"
-
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "🔐 Would sign and notarize the application"
-    echo "   Command: $SCRIPT_DIR/sign-and-notarize.sh --sign-and-notarize"
-    echo -e "${GREEN}✅ Signing and notarization would be performed${NC}"
-    
-    # For dry run, we need to exit early since we don't have actual build artifacts
-    echo ""
-    echo -e "${BLUE}📋 Remaining steps (would be performed):${NC}"
-    echo "   6/8: Creating DMG and ZIP"
-    echo "   7/8: Creating GitHub release with tag $TAG_NAME"
-    echo "   8/8: Updating appcast files"
-    echo "   9/9: Committing and pushing changes"
-    echo ""
-    echo "📦 Release summary:"
-    echo "   Type: $RELEASE_TYPE"
-    echo "   Version: $RELEASE_VERSION"
-    echo "   Build: $BUILD_NUMBER"
-    echo "   Tag: $TAG_NAME"
-    echo ""
-    echo -e "${GREEN}🎉 Dry run complete!${NC}"
-    echo ""
-    echo "To perform the actual release, run without --dry-run:"
-    echo "   $0 $RELEASE_TYPE${PRERELEASE_NUMBER:+ $PRERELEASE_NUMBER}"
-    exit 0
-fi
-
-"$SCRIPT_DIR/sign-and-notarize.sh" --sign-and-notarize
-
-# Verify Sparkle component signing
-echo ""
-echo -e "${BLUE}🔍 Verifying Sparkle component signatures...${NC}"
-SPARKLE_OK=true
-
-# Check each Sparkle component for proper signing with timestamps
-if [ -d "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]; then
-    CODESIGN_OUT=$(codesign -dv "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" 2>&1)
-    if echo "$CODESIGN_OUT" | grep -qE "(Timestamp|timestamp)"; then
-        echo "✅ Installer.xpc properly signed with timestamp"
+        rm -f "$tmp"
     else
-        echo -e "${RED}❌ Installer.xpc missing timestamp signature${NC}"
-        SPARKLE_OK=false
+        echo "  ! sign_update not found; checked key file presence only"
     fi
-fi
+}
 
-if [ "$SPARKLE_OK" = false ]; then
-    echo -e "${RED}❌ Sparkle component signing verification failed!${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ All Sparkle components properly signed${NC}"
-
-
-# Step 6: Create DMG and ZIP
-echo ""
-echo -e "${BLUE}📋 Step 6/8: Creating DMG and ZIP...${NC}"
-DMG_NAME="Pluk-$RELEASE_VERSION.dmg"
-DMG_PATH="$PROJECT_ROOT/build/$DMG_NAME"
-ZIP_NAME="Pluk-$RELEASE_VERSION.zip"
-ZIP_PATH="$PROJECT_ROOT/build/$ZIP_NAME"
-
-"$SCRIPT_DIR/create-dmg.sh" "$APP_PATH" "$DMG_PATH"
-if [[ ! -f "$DMG_PATH" ]]; then
-    echo -e "${RED}❌ DMG creation failed${NC}"
-    exit 1
-fi
-
-"$SCRIPT_DIR/create-zip.sh" "$APP_PATH" "$ZIP_PATH"
-if [[ ! -f "$ZIP_PATH" ]]; then
-    echo -e "${RED}❌ ZIP creation failed${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ DMG and ZIP created${NC}"
-
-# Save artifact paths
-save_artifact "dmg_path" "$DMG_PATH"
-save_artifact "zip_path" "$ZIP_PATH"
-
-# Step 6.5: Notarize DMG
-echo ""
-echo -e "${BLUE}📋 Notarizing DMG...${NC}"
-"$SCRIPT_DIR/notarize-dmg.sh" "$DMG_PATH"
-echo -e "${GREEN}✅ DMG notarized${NC}"
-
-# Verify DMG notarization
-echo ""
-echo -e "${BLUE}🔍 Verifying DMG notarization...${NC}"
-
-# Check if DMG is properly signed
-if codesign -dv "$DMG_PATH" &>/dev/null; then
-    echo "✅ DMG is signed"
-else
-    echo -e "${RED}❌ Error: DMG is not signed${NC}"
-    exit 1
-fi
-
-# Verify notarization with spctl
-if spctl -a -t open --context context:primary-signature -v "$DMG_PATH" 2>&1 | grep -q "accepted"; then
-    echo "✅ DMG notarization verified - accepted by Gatekeeper"
-else
-    echo -e "${YELLOW}⚠️  Warning: Could not verify DMG notarization with spctl${NC}"
-    echo "   This might be normal in some environments"
-fi
-
-# Check if notarization ticket is stapled
-if xcrun stapler validate "$DMG_PATH" 2>&1 | grep -q "The validate action worked"; then
-    echo "✅ Notarization ticket is properly stapled"
-else
-    echo -e "${RED}❌ Error: Notarization ticket is not stapled to DMG${NC}"
-    echo "   Users may experience delays when opening the DMG"
-    exit 1
-fi
-
-# Verify app inside DMG
-DMG_MOUNT=$(mktemp -d)
-if hdiutil attach "$DMG_PATH" -mountpoint "$DMG_MOUNT" -nobrowse -quiet; then
-    DMG_APP="$DMG_MOUNT/Pluk.app"
-    
-    # Check if app is notarized
-    if spctl -a -t exec -vv "$DMG_APP" 2>&1 | grep -q "source=Notarized Developer ID"; then
-        echo "✅ App in DMG is properly notarized"
-    else
-        echo -e "${RED}❌ App in DMG is not properly notarized!${NC}"
-        hdiutil detach "$DMG_MOUNT" -quiet
-        exit 1
+sync_legacy_appcasts() {
+    if $SKIP_R2; then
+        echo "  ! skipped legacy R2 appcast sync"
+        return
     fi
-    
-    hdiutil detach "$DMG_MOUNT" -quiet
-else
-    echo -e "${RED}❌ Failed to mount DMG for verification${NC}"
-    exit 1
-fi
 
-echo ""
-echo -e "${GREEN}✅ DMG notarized and verified${NC}"
-
-
-
-# Step 7: Create GitHub release
-echo ""
-echo -e "${BLUE}📋 Step 7/9: Creating GitHub release...${NC}"
-
-# Check if tag already exists locally
-if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️  Tag $TAG_NAME already exists locally!${NC}"
-    DELETE_EXISTING=true
-else
-    # Check if tag exists on remote
-    if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
-        echo -e "${YELLOW}⚠️  Tag $TAG_NAME already exists on remote!${NC}"
-        DELETE_EXISTING=true
-    else
-        DELETE_EXISTING=false
+    if [[ -f "$R2_CONFIG_FILE" ]]; then
+        # shellcheck source=/dev/null
+        source "$R2_CONFIG_FILE"
     fi
-fi
 
-if [[ "$DELETE_EXISTING" == "true" ]]; then
-    # Check if a release exists for this tag
-    if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-        echo ""
-        echo "A GitHub release already exists for this tag."
-        echo "What would you like to do?"
-        echo "  1) Delete the existing release and tag, then create new ones"
-        echo "  2) Cancel the release"
-        echo ""
-        read -p "Enter your choice (1 or 2): " choice
-        
-        case $choice in
-            1)
-                echo "🗑️  Deleting existing release and tag..."
-                gh release delete "$TAG_NAME" --yes 2>/dev/null || true
-                git tag -d "$TAG_NAME"
-                git push origin :refs/tags/"$TAG_NAME" 2>/dev/null || true
-                echo -e "${GREEN}✅ Existing release and tag deleted${NC}"
-                ;;
-            2)
-                echo -e "${RED}❌ Release cancelled${NC}"
-                exit 1
-                ;;
-            *)
-                echo -e "${RED}❌ Invalid choice. Release cancelled${NC}"
-                exit 1
-                ;;
-        esac
-    else
-        # Tag exists but no release - just delete the tag
-        echo "🗑️  Deleting existing tag..."
-        git tag -d "$TAG_NAME"
-        git push origin :refs/tags/"$TAG_NAME" 2>/dev/null || true
-        echo -e "${GREEN}✅ Existing tag deleted${NC}"
+    if [[ -z "${R2_ACCESS_KEY_ID:-}" || -z "${R2_SECRET_ACCESS_KEY:-}" || -z "${R2_ENDPOINT_URL:-}" || -z "${R2_BUCKET_NAME:-}" ]]; then
+        echo "  ! R2 config missing; legacy appcast sync skipped"
+        echo "    Existing users still need $LEGACY_STABLE_APPCAST_URL to serve the Amore feed."
+        return
     fi
-fi
 
-# Create and push tag
-echo "🏷️  Creating tag $TAG_NAME..."
-git tag -a "$TAG_NAME" -m "Release $RELEASE_VERSION (build $BUILD_NUMBER)"
-git push origin "$TAG_NAME"
-
-# Create release
-echo "📤 Creating GitHub release..."
-
-# Generate release notes from changelog
-echo "📝 Generating release notes from changelog..."
-CHANGELOG_HTML=""
-if [[ -x "$SCRIPT_DIR/changelog-to-html.sh" ]] && [[ -n "$CHANGELOG_PATH" ]] && [[ -f "$CHANGELOG_PATH" ]]; then
-    # Extract version for changelog (remove any pre-release suffixes for lookup)
-    CHANGELOG_VERSION="$RELEASE_VERSION"
-    if [[ "$CHANGELOG_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-        CHANGELOG_BASE="${BASH_REMATCH[1]}"
-        # Try full version first, then base version
-        CHANGELOG_HTML=$("$SCRIPT_DIR/changelog-to-html.sh" "$CHANGELOG_VERSION" "$CHANGELOG_PATH" 2>/dev/null || \
-                        "$SCRIPT_DIR/changelog-to-html.sh" "$CHANGELOG_BASE" "$CHANGELOG_PATH" 2>/dev/null || \
-                        echo "")
+    if ! command -v aws >/dev/null 2>&1; then
+        echo "  ! aws CLI missing; legacy appcast sync skipped"
+        return
     fi
-fi
 
-# Fallback to basic release notes if changelog extraction fails
-if [[ -z "$CHANGELOG_HTML" ]]; then
-    echo "⚠️  Could not extract changelog, using basic release notes"
-    RELEASE_NOTES="Release $RELEASE_VERSION (build $BUILD_NUMBER)"
-else
-    echo "✅ Generated release notes from changelog"
-    RELEASE_NOTES="$CHANGELOG_HTML"
-fi
-
-# Format the release title properly
-# Convert "1.0.0-beta.10" to "Pluk 1.0.0 Beta 10"
-RELEASE_TITLE="Pluk $RELEASE_VERSION"
-if [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta\.([0-9]+)$ ]]; then
-    VERSION_BASE="${BASH_REMATCH[1]}"
-    BETA_NUM="${BASH_REMATCH[2]}"
-    RELEASE_TITLE="Pluk $VERSION_BASE Beta $BETA_NUM"
-elif [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-alpha\.([0-9]+)$ ]]; then
-    VERSION_BASE="${BASH_REMATCH[1]}"
-    ALPHA_NUM="${BASH_REMATCH[2]}"
-    RELEASE_TITLE="Pluk $VERSION_BASE Alpha $ALPHA_NUM"
-elif [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc\.([0-9]+)$ ]]; then
-    VERSION_BASE="${BASH_REMATCH[1]}"
-    RC_NUM="${BASH_REMATCH[2]}"
-    RELEASE_TITLE="Pluk $VERSION_BASE RC $RC_NUM"
-fi
-
-if [[ "$RELEASE_TYPE" == "stable" ]]; then
-    gh release create "$TAG_NAME" \
-        --title "$RELEASE_TITLE" \
-        --notes "$RELEASE_NOTES" \
-        "$DMG_PATH" \
-        "$ZIP_PATH"
-else
-    gh release create "$TAG_NAME" \
-        --title "$RELEASE_TITLE" \
-        --notes "$RELEASE_NOTES" \
-        --prerelease \
-        "$DMG_PATH" \
-        "$ZIP_PATH"
-fi
-
-echo -e "${GREEN}✅ GitHub release created${NC}"
-
-
-# Step 8: Upload to Cloudflare R2
-echo ""
-echo -e "${BLUE}📋 Step 8/9: Uploading to Cloudflare R2...${NC}"
-
-if "$SCRIPT_DIR/upload-to-r2.sh" "$DMG_PATH" "$ZIP_PATH" "$RELEASE_VERSION" "$RELEASE_TYPE"; then
-    echo -e "${GREEN}✅ Files uploaded to R2${NC}"
-else
-    echo -e "${YELLOW}⚠️  R2 upload failed - continuing without upload${NC}"
-    echo "   You can manually upload later with:"
-    echo "   $SCRIPT_DIR/upload-to-r2.sh \"$DMG_PATH\" \"$ZIP_PATH\" \"$RELEASE_VERSION\" \"$RELEASE_TYPE\""
-fi
-
-
-# Step 9: Update appcast
-echo ""
-echo -e "${BLUE}📋 Step 9/9: Updating appcast...${NC}"
-
-# Generate appcast
-echo "🔐 Generating appcast with EdDSA signatures..."
-# Set the Sparkle account for sign_update
-export SPARKLE_ACCOUNT="Pluk"
-echo "   Using Sparkle account: $SPARKLE_ACCOUNT"
-"$SCRIPT_DIR/generate-appcast.sh"
-
-# Verify the appcast was updated
-if [[ "$RELEASE_TYPE" == "stable" ]]; then
-    if ! grep -q "<sparkle:version>$BUILD_NUMBER</sparkle:version>" "$PROJECT_ROOT/appcast.xml"; then
-        echo -e "${YELLOW}⚠️  Appcast may not have been updated. Please check manually.${NC}"
+    local appcast_path
+    appcast_path="$(mktemp)"
+    curl -fsSL -o "$appcast_path" "$AMORE_APPCAST_URL"
+    if command -v xmllint >/dev/null 2>&1; then
+        xmllint --noout "$appcast_path"
     fi
-else
-    if ! grep -q "<sparkle:version>$BUILD_NUMBER</sparkle:version>" "$PROJECT_ROOT/appcast-prerelease.xml"; then
-        echo -e "${YELLOW}⚠️  Pre-release appcast may not have been updated. Please check manually.${NC}"
-    fi
-fi
 
-echo -e "${GREEN}✅ Appcast updated${NC}"
-
-
-# Commit and push appcast and version files
-echo ""
-echo "📤 Committing and pushing changes..."
-
-# Add version.xcconfig changes
-git add "$VERSION_CONFIG" 2>/dev/null || true
-
-# Add appcast files (they're in project root, not mac/)
-if [[ -f "$PROJECT_ROOT/appcast.xml" ]]; then
-    git add "$PROJECT_ROOT/appcast.xml" 2>/dev/null || true
-else
-    echo -e "${YELLOW}⚠️  Warning: appcast.xml not found in project root${NC}"
-fi
-if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
-    git add "$PROJECT_ROOT/appcast-prerelease.xml" 2>/dev/null || true
-else
-    echo -e "${YELLOW}⚠️  Warning: appcast-prerelease.xml not found in project root${NC}"
-fi
-
-if ! git diff --cached --quiet; then
-    git commit -m "Update appcast and version for $RELEASE_VERSION"
-    git push origin main
-    echo -e "${GREEN}✅ Changes pushed${NC}"
-else
-    echo "ℹ️  No changes to commit"
-fi
-
-# For pre-releases, optionally restore base version
-if [[ "$RELEASE_TYPE" != "stable" ]]; then
-    echo ""
-    echo "📝 Note: MARKETING_VERSION is now set to '$VERSION_TO_SET'"
-    echo "   To restore base version for development, run:"
-    echo "   git checkout -- $VERSION_CONFIG"
-fi
-
-# Optional: Verify appcast
-echo ""
-echo "🔍 Verifying appcast files..."
-if "$SCRIPT_DIR/verify-appcast.sh" | grep -q "All appcast checks passed"; then
-    echo -e "${GREEN}✅ Appcast verification passed${NC}"
-else
-    echo -e "${YELLOW}⚠️  Some appcast issues detected. Please review the output above.${NC}"
-fi
-
-# Upload updated appcast files to R2
-echo ""
-echo -e "${BLUE}📤 Uploading updated appcast files to R2...${NC}"
-
-# Load R2 configuration from private file if it exists and not already loaded
-R2_CONFIG_FILE="$PROJECT_ROOT/private/r2-config"
-if [[ -f "$R2_CONFIG_FILE" ]]; then
-    source "$R2_CONFIG_FILE"
-fi
-
-# Upload the updated appcast files using AWS CLI
-if [[ -n "${R2_ACCESS_KEY_ID:-}" ]] && [[ -n "${R2_SECRET_ACCESS_KEY:-}" ]] && \
-   [[ -n "${R2_ENDPOINT_URL:-}" ]] && [[ -n "${R2_BUCKET_NAME:-}" ]]; then
-    
-    # Configure AWS CLI for R2
     export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
     export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
     export AWS_DEFAULT_REGION="auto"
-    
-    # Upload appcast-prerelease.xml as appcast.xml
-    if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
-        echo "📤 Uploading appcast-prerelease.xml as appcast.xml..."
-        aws s3 cp "$PROJECT_ROOT/appcast-prerelease.xml" "s3://$R2_BUCKET_NAME/appcast.xml" \
-            --endpoint-url="$R2_ENDPOINT_URL" \
-            --content-type="application/xml"
-        echo -e "${GREEN}✅ Appcast uploaded: appcast.xml${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Warning: appcast-prerelease.xml not found${NC}"
-    fi
-    
-    # Also upload the original appcast-prerelease.xml
-    if [[ -f "$PROJECT_ROOT/appcast-prerelease.xml" ]]; then
-        echo "📤 Uploading appcast-prerelease.xml..."
-        aws s3 cp "$PROJECT_ROOT/appcast-prerelease.xml" "s3://$R2_BUCKET_NAME/appcast-prerelease.xml" \
-            --endpoint-url="$R2_ENDPOINT_URL" \
-            --content-type="application/xml"
-        echo -e "${GREEN}✅ Pre-release appcast uploaded: appcast-prerelease.xml${NC}"
-    fi
-    
-    echo -e "${GREEN}✅ Appcast files uploaded to R2${NC}"
-else
-    echo -e "${YELLOW}⚠️  R2 configuration not found - skipping appcast upload${NC}"
-    echo "   Appcast files are committed to git but not uploaded to R2"
+
+    aws s3 cp "$appcast_path" "s3://$R2_BUCKET_NAME/appcast.xml" \
+        --endpoint-url="$R2_ENDPOINT_URL" \
+        --content-type="application/xml"
+    aws s3 cp "$appcast_path" "s3://$R2_BUCKET_NAME/appcast-prerelease.xml" \
+        --endpoint-url="$R2_ENDPOINT_URL" \
+        --content-type="application/xml"
+
+    echo "  ok synced legacy appcasts: $LEGACY_STABLE_APPCAST_URL and $LEGACY_PRERELEASE_APPCAST_URL"
+
+    rm -f "$appcast_path"
+}
+
+current_marketing_version="$(read_xcconfig MARKETING_VERSION)"
+current_build="$(read_xcconfig CURRENT_PROJECT_VERSION)"
+base_version="${current_marketing_version%%-*}"
+
+if [[ -n "$VERSION_OVERRIDE" ]]; then
+    base_version="${VERSION_OVERRIDE%%-*}"
 fi
 
-echo ""
-echo -e "${GREEN}🎉 Release Complete!${NC}"
-echo "=================="
-echo ""
-echo -e "${GREEN}✅ Successfully released Pluk $RELEASE_VERSION${NC}"
-echo ""
-echo "Release details:"
-echo "  - Version: $RELEASE_VERSION"
-echo "  - Build: $BUILD_NUMBER"
-echo "  - Tag: $TAG_NAME"
-echo "  - GitHub: https://github.com/pluk-inc/app-pluk/releases/tag/$TAG_NAME"
-echo ""
-echo "Release artifacts:"
-echo "  - DMG: $(basename "$DMG_PATH")"
-echo "  - ZIP: $(basename "$ZIP_PATH")"
-echo ""
+if [[ "$RELEASE_TYPE" == "stable" ]]; then
+    VERSION="${VERSION_OVERRIDE:-$base_version}"
+else
+    VERSION="$base_version-$RELEASE_TYPE.$PRERELEASE_NUMBER"
+fi
 
+if [[ -n "$BUILD_OVERRIDE" ]]; then
+    BUILD="$BUILD_OVERRIDE"
+elif [[ "$VERSION" != "$current_marketing_version" ]]; then
+    BUILD=$((current_build + 1))
+else
+    BUILD="$current_build"
+fi
+
+if [[ -z "$VERSION" || -z "$BUILD" ]]; then
+    echo "error: could not resolve version/build" >&2
+    exit 1
+fi
+
+echo "Releasing $APP_NAME $VERSION (build $BUILD) via Amore"
+echo
+echo "Preflight"
+
+require_clean_tree
+
+if [[ "$(read_xcconfig PRODUCT_BUNDLE_IDENTIFIER)" != "$BUNDLE_ID" ]]; then
+    echo "  x PRODUCT_BUNDLE_IDENTIFIER is not $BUNDLE_ID"
+    exit 1
+fi
+echo "  ok bundle id $BUNDLE_ID"
+
+validate_sparkle_continuity
+
+if [[ ! -f "$CHANGELOG" ]] || ! grep -q "^## \[$VERSION\]" "$CHANGELOG"; then
+    echo "  x no CHANGELOG.md entry for [$VERSION]"
+    echo "    add a heading like: ## [$VERSION] - $(date +%Y-%m-%d)"
+    exit 1
+fi
+echo "  ok CHANGELOG.md entry found"
+
+AMORE="$(amore_bin)"
+if ! "$AMORE" whoami >/dev/null 2>&1; then
+    echo "  x amore not logged in - run: amore login"
+    exit 1
+fi
+echo "  ok amore logged in"
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "  x jq not installed - brew install jq"
+    exit 1
+fi
+
+if ! $SKIP_GH; then
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "  x gh CLI not installed - brew install gh, or pass --skip-github"
+        exit 1
+    fi
+    if ! gh auth status >/dev/null 2>&1; then
+        echo "  x gh not authenticated - run: gh auth login"
+        exit 1
+    fi
+    if ! gh repo view "$GITHUB_RELEASE_REPO" >/dev/null 2>&1; then
+        echo "  x cannot access GitHub release repo $GITHUB_RELEASE_REPO"
+        exit 1
+    fi
+    echo "  ok gh ready"
+fi
+
+echo
+echo "Version"
+if [[ "$current_marketing_version" != "$VERSION" || "$current_build" != "$BUILD" ]]; then
+    echo "  updating pluk/version.xcconfig: $current_marketing_version ($current_build) -> $VERSION ($BUILD)"
+    write_xcconfig MARKETING_VERSION "$VERSION"
+    write_xcconfig CURRENT_PROJECT_VERSION "$BUILD"
+    git add "$VERSION_CONFIG"
+    git commit -m "Release $VERSION ($BUILD)" >/dev/null
+    echo "  ok committed version bump"
+else
+    echo "  ok already at $VERSION ($BUILD)"
+fi
+
+NOTES="$(extract_notes "$VERSION")"
+if [[ -z "$NOTES" ]]; then
+    echo "error: empty CHANGELOG.md body for [$VERSION]" >&2
+    exit 1
+fi
+
+AMORE_RELEASE_FLAGS=(--scheme "$SCHEME" --release-notes "$NOTES" --format json)
 if [[ "$RELEASE_TYPE" != "stable" ]]; then
-    echo "📝 Note: This is a pre-release. Users with 'Include Pre-releases' enabled will receive this update."
-else
-    echo "📝 Note: This is a stable release. All users will receive this update."
+    AMORE_RELEASE_FLAGS+=(--beta)
+fi
+if [[ -n "$DRAFT_FLAG" ]]; then
+    AMORE_RELEASE_FLAGS+=("$DRAFT_FLAG")
 fi
 
+echo
+echo "Amore release"
+LOG="$(mktemp)"
+"$AMORE" release "${AMORE_RELEASE_FLAGS[@]}" | tee "$LOG"
 
-# Clean up state tracking
-cleanup_state
+DMG_URL="$(sed -n '/^{/,$p' "$LOG" | jq -er '.release.downloadURL' 2>/dev/null || true)"
+if [[ -z "$DMG_URL" ]]; then
+    echo "x no .release.downloadURL in Amore JSON output (see $LOG)" >&2
+    exit 1
+fi
+echo "  ok DMG: $DMG_URL"
 
-echo ""
-echo "💡 Next steps:"
-echo "  - Test the update from an older version"
-echo "  - Monitor Console.app for any update errors"
-echo "  - Update release notes on GitHub if needed"
+echo
+echo "Legacy Sparkle appcast sync"
+sync_legacy_appcasts
+
+if $SKIP_GH; then
+    echo
+    echo "Released $VERSION ($BUILD). GitHub step skipped."
+    exit 0
+fi
+
+echo
+echo "GitHub release"
+DMG_PATH="$(mktemp -d)/Pluk-$VERSION.dmg"
+curl -fsSL -o "$DMG_PATH" "$DMG_URL"
+
+TAG="v$VERSION"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "  ! tag $TAG already exists locally - reusing"
+else
+    git tag -a "$TAG" -m "Release $VERSION ($BUILD)"
+fi
+git push "https://github.com/$GITHUB_RELEASE_REPO.git" "$TAG"
+
+PRERELEASE_FLAG=()
+if [[ "$RELEASE_TYPE" != "stable" ]]; then
+    PRERELEASE_FLAG=(--prerelease)
+fi
+
+if gh release view "$TAG" --repo "$GITHUB_RELEASE_REPO" >/dev/null 2>&1; then
+    echo "  ! GitHub release $TAG exists - uploading DMG as new asset"
+    gh release upload "$TAG" "$DMG_PATH" --repo "$GITHUB_RELEASE_REPO" --clobber
+else
+    gh release create "$TAG" \
+        --repo "$GITHUB_RELEASE_REPO" \
+        --title "Pluk $VERSION" \
+        --notes "$NOTES" \
+        "${PRERELEASE_FLAG[@]}" \
+        "$DMG_PATH"
+fi
+
+echo
+echo "Released $VERSION ($BUILD)"
+echo "  GitHub: https://github.com/$GITHUB_RELEASE_REPO/releases/tag/$TAG"
+echo "  Amore:  $DMG_URL"
+echo "  Legacy: $LEGACY_STABLE_APPCAST_URL"

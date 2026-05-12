@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./scripts/build.sh --configuration Debug)",
       "Bash(git add:*)",
       "Bash(find:*)",
       "WebSearch",
