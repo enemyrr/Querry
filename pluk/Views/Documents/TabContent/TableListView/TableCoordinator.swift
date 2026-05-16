@@ -120,7 +120,7 @@ import AppKit
         NotificationCenter.default.addObserver(self, selector: #selector(columnDidResize(_:)), name: NSTableView.columnDidResizeNotification, object: tableView)
         NotificationCenter.default.addObserver(self, selector: #selector(columnDidMove(_:)), name: NSTableView.columnDidMoveNotification, object: tableView)
         NotificationCenter.default.addObserver(self, selector: #selector(handleDeleteKey(notification:)), name: .didRequestDelete, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleForeignKeyNavigation(notification:)), name: .foreignKeyNavigationRequested, object: tableView)
         NotificationCenter.default.addObserver(self, selector: #selector(handleTableReloadData(notification:)), name: .tableReloadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleQuickLookRequest(notification:)), name: .cellQuickLookRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCopyKey(notification:)), name: .didRequestCopy, object: nil)
