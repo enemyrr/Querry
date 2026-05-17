@@ -1,6 +1,6 @@
 ---
 name: changelog-maintenance
-description: Maintain a clear and informative changelog for software releases. Use when documenting version changes, tracking features, or communicating updates to users. Always identifies external contributors from git/GitHub and credits them with @username tags. Handles semantic versioning, changelog formats, and release notes.
+description: Maintain a clear and informative changelog for software releases. Use when documenting version changes, tracking features, or communicating updates to users. Checks GitHub PRs and issues for release context while keeping release notes focused on product changes. Handles semantic versioning, changelog formats, and release notes.
 metadata:
   tags: changelog, release-notes, versioning, semantic-versioning, documentation, contributors
   platforms: Claude, ChatGPT, Gemini
@@ -16,9 +16,9 @@ metadata:
 
 ## Instructions
 
-### Step 0: Identify contributors (REQUIRED — do this first)
+### Step 0: Check contributors and issue reporters (REQUIRED — do this first)
 
-**Always** check who contributed before drafting an entry. Skipping this step is a defect.
+**Always** check who contributed and which issues were closed before drafting an entry. Skipping this step is a defect because it can miss release-relevant changes and reporter context.
 
 1. Determine the previous-release tag/commit. Either parse it from `CHANGELOG.md` (the heading just below the new version) or ask the user.
 2. List commit authors and merged PR authors in the range:
@@ -33,11 +33,11 @@ metadata:
      --search "merged:>=<prev-merge-date>"
    ```
 
-3. Identify the maintainer(s) — usually the current `git config user.email` / repo owner — and treat everyone else as an **external contributor** that MUST be credited by GitHub `@username`.
-4. For PRs that close an issue authored by someone other than the PR author (e.g. `Closes #33`), inspect the issue with `gh issue view <n> --json author` and credit the **reporter** as well.
-5. Resolve every contributor's GitHub `login` (the `@handle`). If a commit author's email doesn't map to a GitHub login, look up the merged PR via `gh pr list --search "<commit-sha>"` and use `author.login` from there. Never invent a handle.
+3. Identify the maintainer(s) — usually the current `git config user.email` / repo owner — and note whether any external contributors or external reporters shaped the release.
+4. For PRs that close an issue authored by someone other than the PR author (e.g. `Closes #33`), inspect the issue with `gh issue view <n> --json author` so the changelog can reflect the issue accurately.
+5. Do not invent GitHub handles. If a handle is needed for PR text or an explicit contributor note, resolve it from GitHub data.
 
-If the result is "maintainer-only", omit the Contributors block. If there is at least one external contributor or external bug reporter, you MUST include the Contributors block from Step 1.
+For Pluk release notes, do **not** add a public "Contributors" or "Thanks to..." block by default. Keep the changelog focused on product changes and issue/PR links. Only add contributor thanks if the user explicitly asks for it.
 
 ### Step 1: Keep a Changelog format
 
@@ -100,13 +100,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated dependencies (fixes CVE-2024-12345)
 - Implemented CSRF protection
 - Added helmet.js security headers
-
-### Contributors
-
-Thanks to the external contributors who shipped in this release:
-
-- [@octocat](https://github.com/octocat) — webhook support for order events ([#142](https://github.com/username/repo/pull/142))
-- [@hubot](https://github.com/hubot) — reported the password-reset email bug ([#138](https://github.com/username/repo/issues/138))
 
 ## [1.1.2] - 2025-01-08
 
