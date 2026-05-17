@@ -14,7 +14,7 @@ struct GlassBackgroundStyle: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content
-                .glassEffect(.regular.tint(Color(.controlColor).opacity(0.15)), in: .rect(cornerRadius: cornerRadius))
+                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
         } else {
             content
                 .background {

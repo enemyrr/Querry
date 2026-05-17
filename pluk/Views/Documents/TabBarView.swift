@@ -55,6 +55,12 @@ final class TabBarView: NSView {
     private var newTabButtonBottomInset: CGFloat {
         if #available(macOS 26, *) { 6 } else { 8 }
     }
+    private var tabContentLeadingPadding: CGFloat {
+        if #available(macOS 26, *) { 15 } else { 10 }
+    }
+    private var tabScrollLeadingOffset: CGFloat {
+        6 - tabContentLeadingPadding
+    }
 
     init(instance: ConnectionInstance, appViewModel: AppViewModel) {
         self.instance = instance
@@ -176,7 +182,7 @@ final class TabBarView: NSView {
             nextButton.widthAnchor.constraint(equalToConstant: navButtonSize),
             nextButton.heightAnchor.constraint(equalToConstant: navButtonSize),
 
-            scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor, constant: tabScrollLeadingOffset),
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: scrollViewBottomOffset),
             scrollViewTrailingConstraint,
@@ -360,7 +366,7 @@ final class TabBarView: NSView {
         }
 
         let containerHeight = scrollView.bounds.height
-        var xOffset: CGFloat = 6 // Horizontal padding
+        var xOffset: CGFloat = tabContentLeadingPadding
 
         for (index, tab) in tabs.enumerated() {
             guard let draggable = tabViews[tab.id] else { continue }
