@@ -38,6 +38,9 @@ final class TabBarView: NSView {
     private let tabWidth: CGFloat = 182
     private let tabHeight: CGFloat = 38
     private let tabSpacing: CGFloat = 4
+    /// Lifts the tabs off the bottom edge of the bar so they sit slightly
+    /// higher within the tab bar chrome.
+    private let tabBottomInset: CGFloat = 3
     private let newTabButtonWidth: CGFloat = 36
     /// Leading inset for the tab bar content when the left sidebar is
     /// collapsed — shifts the chevrons/tabs right to clear the window traffic
@@ -116,6 +119,11 @@ final class TabBarView: NSView {
         scrollView.hasVerticalScroller = false
         scrollView.drawsBackground = false
         scrollView.contentView.postsBoundsChangedNotifications = true
+        // The tab bar lives in the `.fullSizeContentView` titlebar region.
+        // Left automatic, NSScrollView injects a titlebar-height top inset that
+        // shifts the tabs down the moment the content becomes scrollable.
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsetsZero
 
         tabsContainer = NonDraggingView()
         tabsContainer.wantsLayer = true
@@ -382,7 +390,7 @@ final class TabBarView: NSView {
                 draggable.alphaValue = 0
             } else {
                 let trailingSpace: CGFloat = isLastTab ? 0 : tabSpacing
-                let targetFrame = NSRect(x: xOffset, y: 0, width: tabWidth, height: tabHeight)
+                let targetFrame = NSRect(x: xOffset, y: tabBottomInset, width: tabWidth, height: tabHeight)
                 let targetAlpha: CGFloat = isDragged ? 0 : 1
 
                 if animated && !isDragged {
