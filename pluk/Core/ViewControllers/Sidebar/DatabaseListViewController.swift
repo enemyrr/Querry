@@ -12,8 +12,10 @@ final class DatabaseListViewController: NSViewController {
 
     // MARK: - Row Model
 
-    private enum Row: Hashable {
+    fileprivate enum Row: Hashable {
         case table(name: String, schema: String?, type: String)
+        case column(tableKey: String, name: String, type: String, icon: String)
+        case columnStatus(tableKey: String, title: String)
         case functionsGroup
         case function(name: String, schema: String?, type: String)
 
@@ -21,10 +23,33 @@ final class DatabaseListViewController: NSViewController {
             switch self {
             case .table(let name, _, _), .function(let name, _, _):
                 return name
+            case .column(_, let name, _, _), .columnStatus(_, let name):
+                return name
             case .functionsGroup:
                 return ""
             }
         }
+
+        var tableKey: String? {
+            switch self {
+            case .table(let name, let schema, _):
+                return Self.tableKey(name: name, schema: schema)
+            case .column(let tableKey, _, _, _), .columnStatus(let tableKey, _):
+                return tableKey
+            case .functionsGroup, .function:
+                return nil
+            }
+        }
+
+        static func tableKey(name: String, schema: String?) -> String {
+            "\(schema ?? ""):\(name)"
+        }
+    }
+
+    fileprivate enum SchemaLoadState: Equatable {
+        case loading
+        case loaded([DatabaseSchemaInfo])
+        case failed(String)
     }
 
     // MARK: - Dependencies
@@ -72,6 +97,7 @@ final class DatabaseListViewController: NSViewController {
 
     private var tables: [Row] = []
     private var functions: [Row] = []
+    private var schemaLoadStates: [String: SchemaLoadState] = [:]
     private var functionsExpanded = false
     private var renamingRow: Row?
 
@@ -303,6 +329,12 @@ final class DatabaseListViewController: NSViewController {
         outlineView.deselectAll(nil)
     }
 
+    private func isExpandableTable(_ row: Row) -> Bool {
+        guard case .table(_, _, let type) = row else { return false }
+        return instance.connection.databaseType != .mongodb
+            && !["function", "procedure"].contains(type)
+    }
+
     /// Scrolls the given row into view only when it's currently outside the
     /// visible rect — avoids jerky re-anchoring during ordinary selection
     /// updates on a row the user can already see.
@@ -327,7 +359,13 @@ final class DatabaseListViewController: NSViewController {
 
         switch item {
         case .table(let name, let schema, _):
+            if clickedInDisclosureArea(row: clickedRow) {
+                toggleTableExpansion(item)
+                return
+            }
             instance.createNewTab(name: name, databaseSchema: schema)
+        case .column, .columnStatus:
+            return
         case .functionsGroup:
             if outlineView.isItemExpanded(item) {
                 outlineView.collapseItem(item)
@@ -337,6 +375,59 @@ final class DatabaseListViewController: NSViewController {
         case .function(let name, let schema, _):
             openFunction(name: name, schema: schema)
         }
+    }
+
+    private func clickedInDisclosureArea(row: Int) -> Bool {
+        guard let event = NSApp.currentEvent else { return false }
+        let point = outlineView.convert(event.locationInWindow, from: nil)
+        let rowRect = outlineView.rect(ofRow: row)
+        // Disclosure chevron now lives on the trailing edge.
+        return point.x >= rowRect.maxX - 32
+    }
+
+    private func toggleTableExpansion(_ row: Row) {
+        if outlineView.isItemExpanded(row) {
+            outlineView.collapseItem(row)
+        } else {
+            outlineView.expandItem(row)
+            loadSchemaIfNeeded(for: row)
+        }
+    }
+
+    private func loadSchemaIfNeeded(for row: Row) {
+        guard case .table(let name, let schema, _) = row,
+              let key = row.tableKey,
+              schemaLoadStates[key] == nil
+        else { return }
+
+        schemaLoadStates[key] = .loading
+        outlineView.reloadItem(row, reloadChildren: true)
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let schemaResult = try await self.instance.databaseService.getSchema(
+                    for: name,
+                    databaseSchema: schema
+                )
+                self.schemaLoadStates[key] = .loaded(schemaResult?.columns ?? [])
+                self.outlineView.reloadItem(row, reloadChildren: true)
+            } catch {
+                self.schemaLoadStates[key] = .failed(error.localizedDescription)
+                self.outlineView.reloadItem(row, reloadChildren: true)
+                self.presentSchemaLoadError(error)
+            }
+        }
+    }
+
+    private func presentSchemaLoadError(_ error: Error) {
+        guard let window = view.window else { return }
+        let alert = NSAlert()
+        alert.messageText = "Column Load Error"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.beginSheetModal(for: window) { _ in }
     }
 
     private func openFunction(name: String, schema: String?) {
@@ -406,6 +497,24 @@ final class DatabaseListViewController: NSViewController {
                 action: #selector(contextDelete(_:)),
                 row: row
             )
+        case .column:
+            addItem(
+                to: menu,
+                title: "Copy Name",
+                symbol: "doc.on.clipboard",
+                action: #selector(contextCopyName(_:)),
+                row: row
+            )
+            menu.addItem(.separator())
+            addItem(
+                to: menu,
+                title: "Open Structure",
+                symbol: "square.stack.3d.up",
+                action: #selector(contextOpenStructure(_:)),
+                row: row
+            )
+        case .columnStatus:
+            return nil
         case .function(_, _, _):
             addItem(
                 to: menu,
@@ -471,11 +580,22 @@ final class DatabaseListViewController: NSViewController {
         openFunction(name: name, schema: schema)
     }
 
+    @objc private func contextOpenStructure(_ sender: NSMenuItem) {
+        guard let ref = sender.representedObject as? RowRef,
+              case .column(let tableKey, _, _, _) = ref.row,
+              let tableRow = tables.first(where: { $0.tableKey == tableKey }),
+              case .table(let name, let schema, _) = tableRow else { return }
+        instance.createNewTab(name: name, databaseSchema: schema)
+        instance.selectedTab?.viewMode = .schema
+    }
+
     @objc private func contextCopyName(_ sender: NSMenuItem) {
         guard let ref = sender.representedObject as? RowRef else { return }
         let name: String
         switch ref.row {
         case .table(let n, _, _), .function(let n, _, _):
+            name = n
+        case .column(_, let n, _, _), .columnStatus(_, let n):
             name = n
         case .functionsGroup:
             return
@@ -569,7 +689,7 @@ final class DatabaseListViewController: NSViewController {
         case .function(let name, _, _):
             alert.messageText = "Delete Function"
             alert.informativeText = "Are you sure you want to delete \"\(name)\"? This action cannot be undone."
-        case .functionsGroup:
+        case .column, .columnStatus, .functionsGroup:
             return
         }
 
@@ -599,7 +719,7 @@ final class DatabaseListViewController: NSViewController {
                     try await self.instance.loadCollectionsForCurrentDatabase(
                         schema: self.instance.databaseService.currentSchema
                     )
-                case .functionsGroup:
+                case .column, .columnStatus, .functionsGroup:
                     return
                 }
             } catch {
@@ -724,6 +844,16 @@ extension DatabaseListViewController: NSOutlineViewDataSource {
         if item == nil {
             return tables.count + (functions.isEmpty ? 0 : 1)
         }
+        if let row = item as? Row,
+           case .table = row,
+           let key = row.tableKey {
+            switch schemaLoadStates[key] {
+            case .loaded(let columns):
+                return max(columns.count, 1)
+            case .loading, .failed, nil:
+                return 1
+            }
+        }
         if case .functionsGroup = item as? Row {
             return functions.count
         }
@@ -737,6 +867,27 @@ extension DatabaseListViewController: NSOutlineViewDataSource {
             }
             return Row.functionsGroup
         }
+        if let row = item as? Row,
+           case .table = row,
+           let key = row.tableKey {
+            switch schemaLoadStates[key] {
+            case .loaded(let columns):
+                guard !columns.isEmpty else {
+                    return Row.columnStatus(tableKey: key, title: "No columns")
+                }
+                let column = columns[index]
+                return Row.column(
+                    tableKey: key,
+                    name: column.columnName,
+                    type: column.formatType.isEmpty ? column.dataType : column.formatType,
+                    icon: columnIconName(for: column)
+                )
+            case .failed:
+                return Row.columnStatus(tableKey: key, title: "Unable to load columns")
+            case .loading, nil:
+                return Row.columnStatus(tableKey: key, title: "Loading columns")
+            }
+        }
         if case .functionsGroup = item as? Row {
             return functions[index]
         }
@@ -745,7 +896,21 @@ extension DatabaseListViewController: NSOutlineViewDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
         if case .functionsGroup = item as? Row { return true }
+        if let row = item as? Row {
+            return isExpandableTable(row)
+        }
         return false
+    }
+
+    private func columnIconName(for column: DatabaseSchemaInfo) -> String {
+        if column.isPrimaryKey {
+            return "key.fill"
+        }
+        if column.hasForeignKey {
+            return ColumnTypeIcon.foreignKeySymbol
+        }
+        let type = column.formatType.isEmpty ? column.dataType : column.formatType
+        return ColumnTypeIcon.icon(forType: type).symbol
     }
 }
 
@@ -759,11 +924,32 @@ extension DatabaseListViewController: NSOutlineViewDelegate {
         }
         switch row {
         case .table(let name, _, let type):
-            return SidebarRowCell(
+            let cell = SidebarRowCell(
                 symbolName: type == "view" ? "eye.fill" : "table",
                 title: name,
                 isMuted: false,
-                isGroupHeader: false
+                isGroupHeader: false,
+                showsTrailingDisclosure: isExpandableTable(row)
+            )
+            cell.isExpanded = outlineView.isItemExpanded(row)
+            cell.showDisclosure = cell.isExpanded
+            return cell
+        case .column(_, let name, let type, let icon):
+            return SidebarRowCell(
+                symbolName: icon,
+                title: name,
+                detail: type,
+                isMuted: true,
+                isGroupHeader: false,
+                isColumnRow: true
+            )
+        case .columnStatus(_, let title):
+            return SidebarRowCell(
+                symbolName: nil,
+                title: title,
+                isMuted: true,
+                isGroupHeader: false,
+                isColumnRow: true
             )
         case .function(let name, _, let type):
             return SidebarRowCell(
@@ -789,6 +975,18 @@ extension DatabaseListViewController: NSOutlineViewDelegate {
         SidebarRowView()
     }
 
+    /// Schema-detail rows (columns) render in a tighter row so an expanded
+    /// table reads as a compact list rather than full-height entries.
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        guard let row = item as? Row else { return 34 }
+        switch row {
+        case .column, .columnStatus:
+            return 24
+        case .table, .function, .functionsGroup:
+            return 34
+        }
+    }
+
     func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
         guard let hoverTrackingView = outlineView as? HoverTrackingOutlineView,
               let sidebarRow = rowView as? SidebarRowView else { return }
@@ -797,22 +995,46 @@ extension DatabaseListViewController: NSOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
         guard let row = item as? Row else { return false }
-        if case .functionsGroup = row { return false }
+        switch row {
+        case .functionsGroup, .column, .columnStatus:
+            return false
+        case .table, .function:
+            return true
+        }
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
+        guard let row = item as? Row else { return true }
+        if case .table = row {
+            loadSchemaIfNeeded(for: row)
+        }
         return true
     }
 
     func outlineViewItemDidExpand(_ notification: Notification) {
-        functionsExpanded = true
-        if let item = notification.userInfo?["NSObject"] as? Row,
-           let rowIndex = outlineView.rowView(atRow: outlineView.row(forItem: item), makeIfNecessary: false) as? SidebarRowView {
-            _ = rowIndex
+        guard let item = notification.userInfo?["NSObject"] as? Row else { return }
+        switch item {
+        case .functionsGroup:
+            functionsExpanded = true
+            refreshFunctionsGroupDisclosure()
+        case .table:
+            refreshTableDisclosure(for: item)
+        case .column, .columnStatus, .function:
+            break
         }
-        refreshFunctionsGroupDisclosure()
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
-        functionsExpanded = false
-        refreshFunctionsGroupDisclosure()
+        guard let item = notification.userInfo?["NSObject"] as? Row else { return }
+        switch item {
+        case .functionsGroup:
+            functionsExpanded = false
+            refreshFunctionsGroupDisclosure()
+        case .table:
+            refreshTableDisclosure(for: item)
+        case .column, .columnStatus, .function:
+            break
+        }
     }
 
     private func refreshFunctionsGroupDisclosure() {
@@ -820,6 +1042,14 @@ extension DatabaseListViewController: NSOutlineViewDelegate {
         guard groupRow >= 0 else { return }
         if let cell = outlineView.view(atColumn: 0, row: groupRow, makeIfNecessary: false) as? SidebarRowCell {
             cell.isExpanded = outlineView.isItemExpanded(Row.functionsGroup)
+        }
+    }
+
+    private func refreshTableDisclosure(for row: Row) {
+        let tableRow = outlineView.row(forItem: row)
+        guard tableRow >= 0 else { return }
+        if let cell = outlineView.view(atColumn: 0, row: tableRow, makeIfNecessary: false) as? SidebarRowCell {
+            cell.isExpanded = outlineView.isItemExpanded(row)
         }
     }
 }
@@ -993,6 +1223,7 @@ final class HoverTrackingOutlineView: NSOutlineView {
     /// cursor position without waiting for the next mouse event.
     func applyHoverStateIfNeeded(to rowView: SidebarRowView, row: Int) {
         rowView.isRowHovered = row == hoveredRow
+        updateDisclosureVisibility(row: row, hovered: row == hoveredRow)
     }
 
     private func refreshHoveredRowFromCurrentMouse() {
@@ -1018,10 +1249,28 @@ final class HoverTrackingOutlineView: NSOutlineView {
         if previous >= 0,
            let view = rowView(atRow: previous, makeIfNecessary: false) as? SidebarRowView {
             view.isRowHovered = false
+            updateDisclosureVisibility(row: previous, hovered: false)
         }
         if row >= 0,
            let view = rowView(atRow: row, makeIfNecessary: false) as? SidebarRowView {
             view.isRowHovered = true
+            updateDisclosureVisibility(row: row, hovered: true)
+        }
+    }
+
+    private func updateDisclosureVisibility(row: Int, hovered: Bool) {
+        guard row >= 0,
+              let item = item(atRow: row) as? DatabaseListViewController.Row,
+              let cell = view(atColumn: 0, row: row, makeIfNecessary: false) as? SidebarRowCell
+        else { return }
+
+        switch item {
+        case .table:
+            cell.showDisclosure = hovered || isItemExpanded(item)
+        case .functionsGroup:
+            break
+        case .column, .columnStatus, .function:
+            cell.showDisclosure = false
         }
     }
 }
@@ -1032,7 +1281,9 @@ final class HoverTrackingOutlineView: NSOutlineView {
 private final class SidebarRowCell: NSView {
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
+    private let detailLabel = NSTextField(labelWithString: "")
     private let disclosureView = NSImageView()
+    private let showsTrailingDisclosure: Bool
 
     var showDisclosure: Bool = false {
         didSet { disclosureView.isHidden = !showDisclosure }
@@ -1042,7 +1293,16 @@ private final class SidebarRowCell: NSView {
         didSet { updateDisclosureRotation() }
     }
 
-    init(symbolName: String?, title: String, isMuted: Bool, isGroupHeader: Bool) {
+    init(
+        symbolName: String?,
+        title: String,
+        detail: String? = nil,
+        isMuted: Bool,
+        isGroupHeader: Bool,
+        isColumnRow: Bool = false,
+        showsTrailingDisclosure: Bool = false
+    ) {
+        self.showsTrailingDisclosure = showsTrailingDisclosure
         super.init(frame: .zero)
         // Cell's own frame is set by NSOutlineView's layout; subviews use
         // auto-layout relative to it. Leaving `translatesAutoresizingMask..`
@@ -1065,6 +1325,16 @@ private final class SidebarRowCell: NSView {
         titleLabel.textColor = isMuted ? .secondaryLabelColor : .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        detailLabel.translatesAutoresizingMaskIntoConstraints = false
+        detailLabel.stringValue = detail ?? ""
+        detailLabel.font = NSFont.preferredFont(forTextStyle: .caption2)
+        detailLabel.textColor = .tertiaryLabelColor
+        detailLabel.lineBreakMode = .byTruncatingMiddle
+        detailLabel.maximumNumberOfLines = 1
+        detailLabel.isHidden = detail == nil
+        detailLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         disclosureView.translatesAutoresizingMaskIntoConstraints = false
         let disclosureConfig = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
@@ -1076,6 +1346,7 @@ private final class SidebarRowCell: NSView {
 
         addSubview(iconView)
         addSubview(titleLabel)
+        addSubview(detailLabel)
         addSubview(disclosureView)
 
         if isGroupHeader {
@@ -1099,6 +1370,39 @@ private final class SidebarRowCell: NSView {
                 disclosureView.centerYAnchor.constraint(equalTo: centerYAnchor),
                 disclosureView.widthAnchor.constraint(equalToConstant: 12),
                 disclosureView.heightAnchor.constraint(equalToConstant: 12),
+            ])
+        } else if showsTrailingDisclosure {
+            // Table-row layout: [icon] [title]  ···  [chevron]
+            // The disclosure sits on the trailing edge and rotates when the
+            // table's columns are expanded.
+            NSLayoutConstraint.activate([
+                iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+                iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+                iconView.widthAnchor.constraint(equalToConstant: 18),
+                iconView.heightAnchor.constraint(equalToConstant: 18),
+
+                titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: disclosureView.leadingAnchor, constant: -4),
+                titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+                disclosureView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+                disclosureView.centerYAnchor.constraint(equalTo: centerYAnchor),
+                disclosureView.widthAnchor.constraint(equalToConstant: 12),
+                disclosureView.heightAnchor.constraint(equalToConstant: 12),
+            ])
+        } else if isColumnRow {
+            NSLayoutConstraint.activate([
+                iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
+                iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+                iconView.widthAnchor.constraint(equalToConstant: 14),
+                iconView.heightAnchor.constraint(equalToConstant: 14),
+
+                titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
+                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: detailLabel.leadingAnchor, constant: -6),
+                titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+                detailLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+                detailLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             ])
         } else {
             NSLayoutConstraint.activate([
@@ -1214,4 +1518,3 @@ struct InlineRenameView: View {
         onCommit(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
-

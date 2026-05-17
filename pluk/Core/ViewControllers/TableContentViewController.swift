@@ -276,7 +276,10 @@ final class TableContentViewController: NSViewController {
         }
         view.addSubview(contentArea)
 
-        showContentMode()
+        // Respect the tab's current mode at mount — a tab can be created
+        // already in `.schema` (e.g. "Open Structure" from the sidebar), and
+        // `observeViewMode()` only reacts to later changes.
+        switchToViewMode(tab.viewMode)
         layoutContentViews()
     }
 

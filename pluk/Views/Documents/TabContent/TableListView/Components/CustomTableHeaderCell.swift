@@ -102,64 +102,17 @@ class CustomTableHeaderCell: NSTableHeaderCell {
     
     private func getDataTypeIcon() -> (icon: NSImage, size: CGFloat)? {
         if isForeignKey {
-            let symbolName = "link"
             let customSize: CGFloat = 12
             let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
                 .applying(.init(hierarchicalColor: .tertiaryLabelColor))
-            guard let icon = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Foreign Key")?
+            guard let icon = NSImage(systemSymbolName: ColumnTypeIcon.foreignKeySymbol, accessibilityDescription: "Foreign Key")?
                 .withSymbolConfiguration(config) else { return nil }
             return (icon, customSize)
         }
         guard let fieldType = fieldType else { return nil }
-        
-        let symbolName: String
-        let customSize: CGFloat
-        
-        switch fieldType.lowercased() {
-        case let type where type.contains("text") || type.hasPrefix("char") || type.contains("varchar") || type.contains("var") ||  type.hasPrefix("string"):
-            symbolName = "textformat.alt"
-            customSize = 10
-        case let type where type.contains("int") || type.contains("short") || type.contains("tiny") || type.equals("id"):
-            symbolName = "number"
-            customSize = 12
-        case "numeric", "decimal", "real", "double precision", "float", "money", "double", "float64":
-            symbolName = "dollarsign"
-            customSize = 13
-        case "enum":
-            symbolName = "list.bullet"
-            customSize = 13
-        case let type where type.hasPrefix("unknown"):
-            symbolName = "tag"
-            customSize = 14
-        case "bool", "boolean":
-            symbolName = "switch.2"
-            customSize = 14
-        case "xml":
-            symbolName = "ellipsis.curlybraces"
-            customSize = 13
-        case let type where type.hasPrefix("timestamp") || type.hasPrefix("date") || type.equals("year"):
-            symbolName = "calendar"
-            customSize = 13
-        case let type where type.contains("time"):
-            symbolName = "clock"
-            customSize = 14
-        case "uuid":
-            symbolName = "barcode"
-            customSize = 12
-        case "json", "jsonb", "object", "record":
-            symbolName = "curlybraces"
-            customSize = 13
-        case "array":
-            symbolName = "square.stack"
-            customSize = 13
-        case "bytea", "bytes":
-            symbolName = "cpu"
-            customSize = 12
-        default:
-            symbolName = "questionmark.circle"
-            customSize = 14
-        }
-        
+
+        let (symbolName, customSize) = ColumnTypeIcon.icon(forType: fieldType)
+
         let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
             .applying(.init(hierarchicalColor: .tertiaryLabelColor))
         
