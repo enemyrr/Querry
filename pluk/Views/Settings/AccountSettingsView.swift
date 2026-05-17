@@ -127,7 +127,7 @@ private struct AccountSettingsContentView: View {
 
                 if authService.isLoading {
                     ProgressView()
-                        .controlSize(.small)
+                        .controlSize(.mini)
                         .padding(.top, 4)
                 }
 
@@ -303,7 +303,7 @@ private struct BillingPortalButtonLabel: View {
             Text(authService.subscriptionButtonLabel)
                 .opacity(authService.isBillingLoading ? 0 : 1)
             ProgressView()
-                .controlSize(.small)
+                .controlSize(.mini)
                 .opacity(authService.isBillingLoading ? 1 : 0)
         }
     }
