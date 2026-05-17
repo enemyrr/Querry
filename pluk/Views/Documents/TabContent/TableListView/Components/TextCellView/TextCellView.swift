@@ -682,6 +682,17 @@ class TextCellView: NSView, NSTextFieldDelegate, NSTextViewDelegate {
 }
 
 
+extension TextCellView: TableForeignKeyCell {
+    var isForeignKeyCell: Bool {
+        isForeignKey
+    }
+
+    func containsForeignKeyHit(point: NSPoint) -> Bool {
+        let iconArea = NSRect(x: bounds.width - 24, y: 0, width: 24, height: bounds.height)
+        return iconArea.contains(point)
+    }
+}
+
 extension TextCellView {
     func handleTabKeyInEditMode() {
         debugLog("🔄 Handling Tab key - navigating to next cell")

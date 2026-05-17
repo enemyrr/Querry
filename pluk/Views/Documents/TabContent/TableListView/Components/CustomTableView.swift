@@ -7,10 +7,18 @@
 import Foundation
 import AppKit
 
+@MainActor
+protocol CustomTableViewEditingDelegate: AnyObject {
+    func customTableView(_ tableView: CustomTableView, editCellAtRow row: Int, column: Int)
+    func customTableView(_ tableView: CustomTableView, foreignKeyClickedAtRow row: Int, column: Int)
+}
+
 // MARK: - Custom NSTableView using built-in selection mechanisms
+@MainActor
 class CustomTableView: NSTableView {
     // Handler for undo operations
     var undoHandler: (() -> Bool)?
+    weak var editingDelegate: CustomTableViewEditingDelegate?
 
     override var focusRingType: NSFocusRingType {
         get { .none }
@@ -391,20 +399,12 @@ class CustomTableView: NSTableView {
         
         // Check for foreign key click before handling normal selection
         if clickedRow >= 0 && clickedColumn >= 0 {
-            if let cellView = view(atColumn: clickedColumn, row: clickedRow, makeIfNecessary: false) as? TextCellView {
-                let cellBounds = cellView.bounds
+            if let cellView = view(atColumn: clickedColumn, row: clickedRow, makeIfNecessary: false) as? (NSView & TableForeignKeyCell) {
                 let cellClickPoint = convert(clickPoint, to: cellView)
-                
-                // Check if click is in foreign key icon area (right side of cell)
-                let iconArea = NSRect(x: cellBounds.width - 24, y: 0, width: 24, height: cellBounds.height)
-                
-                if iconArea.contains(cellClickPoint) {
-                    // Check if this cell has foreign key constraint
-                    if cellView.isForeignKey {
-                        debugLog("🔗 Foreign key icon clicked at (\(clickedRow), \(clickedColumn))")
-                        handleForeignKeyClick(cellView: cellView, row: clickedRow, column: clickedColumn)
-//                        return // Don't process normal click
-                    }
+
+                if cellView.isForeignKeyCell && cellView.containsForeignKeyHit(point: cellClickPoint) {
+                    debugLog("🔗 Foreign key icon clicked at (\(clickedRow), \(clickedColumn))")
+                    editingDelegate?.customTableView(self, foreignKeyClickedAtRow: clickedRow, column: clickedColumn)
                 }
             }
         }
@@ -424,32 +424,6 @@ class CustomTableView: NSTableView {
         if acceptsFirstResponder, event.clickCount == 1, !(window?.firstResponder is NSTextView) {
             window?.makeFirstResponder(self)
         }
-    }
-    
-    private func handleForeignKeyClick(cellView: TextCellView, row: Int, column: Int) {
-        guard let constraintInfo = cellView.constraintInfo,
-              constraintInfo.isForeignKey,
-              let referencedTable = constraintInfo.referencedTable else {
-            debugLog("❌ Invalid foreign key constraint info")
-            return
-        }
-        
-        let currentValue = cellView.textField.stringValue
-        
-        debugLog("🔗 Navigating to foreign table: \(referencedTable) with value: \(currentValue)")
-        
-        // Post notification for foreign key navigation
-        NotificationCenter.default.post(
-            name: .foreignKeyNavigationRequested,
-            object: self,
-            userInfo: [
-                "constraintInfo": constraintInfo,
-                "currentValue": currentValue,
-                "sourceTable": cellView.tableName,
-                "sourceColumn": cellView.columnName,
-                "referencedTable": referencedTable
-            ]
-        )
     }
     
     override func rightMouseDown(with event: NSEvent) {
@@ -508,8 +482,11 @@ class CustomTableView: NSTableView {
             return
         }
 
-        // Support both TextCellView (content mode) and SchemaEditableCellView (schema mode)
-        if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
+        if view(atColumn: column, row: row, makeIfNecessary: false) is TableDisplayCellView {
+            debugLog("✅ Entering lazy edit mode for TableDisplayCellView at (\(row), \(column))")
+            selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            editingDelegate?.customTableView(self, editCellAtRow: row, column: column)
+        } else if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
             debugLog("✅ Entering edit mode for TextCellView at (\(row), \(column))")
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             cellView.enterEditMode()
@@ -536,8 +513,11 @@ class CustomTableView: NSTableView {
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
         
-        // Try to use custom TextCellView
-        if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
+        if view(atColumn: column, row: row, makeIfNecessary: false) is TableDisplayCellView {
+            editingDelegate?.customTableView(self, editCellAtRow: row, column: column)
+            scrollRowToVisible(row)
+            scrollColumnToVisible(column)
+        } else if let cellView = view(atColumn: column, row: row, makeIfNecessary: false) as? TextCellView {
             cellView.enterEditMode()
             scrollRowToVisible(row)
             scrollColumnToVisible(column)

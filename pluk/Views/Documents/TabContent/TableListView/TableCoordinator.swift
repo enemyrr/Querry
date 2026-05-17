@@ -1,6 +1,6 @@
 import AppKit
 
-@MainActor class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, RowUndoDelegate, NSMenuDelegate {
+@MainActor class TableCoordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource, TableModificationUndoDelegate, RowUndoDelegate, NSMenuDelegate, CustomTableViewEditingDelegate, TableCellEditorOwner {
     var rows: [[String: Any?]]
     var schema: DatabaseSchemaResult?
     var totalCount: Int
@@ -25,6 +25,14 @@ import AppKit
 
     private var columnWidthCache: [String: CGFloat] = [:]
     private var knownColumns: Set<String> = []
+    private var queryColumnsByName: [String: QueryColumnInfo] = [:]
+    private var schemaColumnsByName: [String: DatabaseSchemaInfo] = [:]
+    private var displayPreviewCache: [String: String] = [:]
+    private lazy var cellEditor: TableCellEditor = {
+        let editor = TableCellEditor()
+        editor.owner = self
+        return editor
+    }()
 
     private var autosaveKey: String {
         "\(cacheNamespace.isEmpty ? "global" : cacheNamespace)_\(tableName)"
@@ -50,7 +58,7 @@ import AppKit
     
     private enum CellIdentifier {
         static let checkbox = NSUserInterfaceItemIdentifier("CheckboxCell")
-        static let textCell = NSUserInterfaceItemIdentifier("TextCell")
+        static let displayCell = NSUserInterfaceItemIdentifier("DisplayCell")
         static let rowView = NSUserInterfaceItemIdentifier("CustomRowView")
         static let forignKeyCell = NSUserInterfaceItemIdentifier("ForeignKeyCell")
         static let enumCell = NSUserInterfaceItemIdentifier("EnumCell")
@@ -114,6 +122,8 @@ import AppKit
 
         super.init()
 
+        rebuildLookupCaches()
+
         self.modificationTracker?.undoDelegate = self
         self.modificationTracker?.rowUndoDelegate = self
         
@@ -173,18 +183,6 @@ import AppKit
             }
         }
         
-        // Force all cells in the affected rows to update their appearance
-        for row in rows {
-            for columnIndex in 0..<tableView.numberOfColumns {
-                if let cellView = tableView.view(atColumn: columnIndex, row: row, makeIfNecessary: false) as? TextCellView {
-                    // Directly update the cell's deletion state
-                    cellView.isMarkedForDeletion = true
-                    cellView.needsDisplay = true
-                }
-            }
-        }
-        
-        // Also reload the rows to ensure proper state
         tableView.reloadData(forRowIndexes: rows, columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
     }
     
@@ -223,14 +221,7 @@ import AppKit
         Task { @MainActor [weak self] in
             guard let self else { return }
 
-            if let cellView = self.findCellView(rowIndex: rowIndex, columnName: columnName) {
-                debugLog("🔍 Updating cell view for undo - Row: \(rowIndex), Column: \(columnName), New Value: '\(newValue)'")
-                cellView.resetModificationState()
-                cellView.needsDisplay = true
-                cellView.needsLayout = true
-            } else {
-                debugLog("⚠️ Could not find cell view for Row: \(rowIndex), Column: \(columnName)")
-            }
+            self.invalidateDisplayPreview(row: rowIndex, column: columnName)
 
             if rowIndex < self.tableView.numberOfRows {
                 let rowIndexSet = IndexSet(integer: rowIndex)
@@ -247,18 +238,6 @@ import AppKit
 
     func didUndoRowDelete(rowIndex: Int, rowData: [String: Any]?) {
         debugLog("✅ Did undo row delete at index \(rowIndex)")
-    }
-    
-    private func findCellView(rowIndex: Int, columnName: String) -> TextCellView? {
-        guard rowIndex < tableView.numberOfRows else { return nil }
-        
-        for columnIndex in 0..<tableView.numberOfColumns {
-            let column = tableView.tableColumns[columnIndex]
-            if column.identifier.rawValue == columnName {
-                return tableView.view(atColumn: columnIndex, row: rowIndex, makeIfNecessary: false) as? TextCellView
-            }
-        }
-        return nil
     }
     
     @objc private func handleUndo() -> Bool {
@@ -298,6 +277,7 @@ import AppKit
 
         self.queryResult = newQueryResult
         self.schema = newSchema
+        rebuildLookupCaches()
 
         if let newQueryResult = newQueryResult {
             self.rows = newQueryResult.rawRows
@@ -409,6 +389,89 @@ import AppKit
         updateTableHeaders()
     }
 
+    private func rebuildLookupCaches() {
+        queryColumnsByName = Dictionary(
+            (queryResult?.columns ?? []).map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        schemaColumnsByName = Dictionary(
+            (schema?.columns ?? []).map { ($0.columnName, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        displayPreviewCache.removeAll(keepingCapacity: true)
+    }
+
+    private func displayCacheKey(row: Int, column: String) -> String {
+        "\(row)\u{1F}\(column)"
+    }
+
+    private func invalidateDisplayPreview(row: Int, column: String) {
+        displayPreviewCache.removeValue(forKey: displayCacheKey(row: row, column: column))
+    }
+
+    private func previewString(for value: DatabaseValue?) -> String {
+        guard let value else { return "" }
+
+        switch value {
+        case .null:
+            return ""
+        case .string(let string), .decimalString(let string), .objectID(let string):
+            return truncatedPreview(string)
+        case .uuid(let uuid):
+            return uuid.uuidString
+        case .bool(let bool):
+            return bool.description
+        case .int(let int):
+            return int.description
+        case .int64(let int64):
+            return int64.description
+        case .double(let double):
+            return double.description
+        case .date(let date):
+            return date.description
+        case .data(let data):
+            return truncatedPreview(data.base64EncodedString())
+        case .array:
+            return "[...]"
+        case .object:
+            return "{...}"
+        }
+    }
+
+    private func fullString(for value: DatabaseValue?) -> String {
+        guard let value else { return "" }
+        return value.description
+    }
+
+    private func truncatedPreview(_ string: String) -> String {
+        let nsString = string as NSString
+        guard nsString.length > 300 else { return string }
+        return nsString.substring(to: 300) + "\u{2026}"
+    }
+
+    private func currentFullValue(row: Int, columnName: String) -> String {
+        if let cellModification = modificationTracker?.getCellModification(rowIndex: row, columnName: columnName) {
+            return cellModification.newValue
+        }
+
+        return fullString(for: queryResult?.value(row: row, column: columnName)?.value)
+    }
+
+    private func currentPreviewValue(row: Int, columnName: String) -> String {
+        if let cellModification = modificationTracker?.getCellModification(rowIndex: row, columnName: columnName) {
+            return truncatedPreview(cellModification.newValue)
+        }
+
+        let key = displayCacheKey(row: row, column: columnName)
+        if let cached = displayPreviewCache[key] {
+            return cached
+        }
+
+        let preview = previewString(for: queryResult?.value(row: row, column: columnName)?.value)
+        displayPreviewCache[key] = preview
+        return preview
+    }
+
     private var usesSchemaLessSystemColumns: Bool {
         guard schema == nil, let queryResult else { return false }
         let columnNames = Set(queryResult.columns.map(\.name))
@@ -420,7 +483,7 @@ import AppKit
             return true
         }
 
-        if let schemaColumn = schema?.column(named: columnName) {
+        if let schemaColumn = schemaColumnsByName[columnName] {
             return schemaColumn.isReadOnly
         }
 
@@ -493,8 +556,8 @@ import AppKit
         for column in tableView.tableColumns {
             guard let headerCell = column.headerCell as? CustomTableHeaderCell else { continue }
             let identifier = column.identifier.rawValue
-            let dataType = queryResult?.column(named: identifier)?.dataType
-                ?? schema?.column(named: identifier)?.dataType
+            let dataType = queryColumnsByName[identifier]?.dataType
+                ?? schemaColumnsByName[identifier]?.dataType
             let (tooltip, isForeignKey) = resolveHeaderInfo(identifier: identifier, dataType: dataType)
             headerCell.configure(title: column.title, fieldType: dataType, tooltip: tooltip, isForeignKey: isForeignKey)
         }
@@ -602,6 +665,7 @@ import AppKit
 
             tableView.dataSource = self
             tableView.delegate = self
+            tableView.editingDelegate = self
         }
 
         let columnsToUse: [(name: String, dataType: String?)]
@@ -958,8 +1022,8 @@ import AppKit
         guard let value = value else { return "(NULL)" }
         
         if let stringValue = value as? String {
-            // 50-100 chars is usually enough for width calculation
-            return stringValue.count > 50 ? String(stringValue.prefix(50)) + "..." : stringValue
+            let nsString = stringValue as NSString
+            return nsString.length > 50 ? nsString.substring(to: 50) + "..." : stringValue
         }
         
         return String(describing: value)
@@ -990,6 +1054,12 @@ import AppKit
 
     // MARK: - NSTableViewDelegate
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        autoreleasepool {
+            viewForCell(tableView, tableColumn: tableColumn, row: row)
+        }
+    }
+
+    private func viewForCell(_ tableView: NSTableView, tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard let tableColumn = tableColumn else { return nil }
 
         // Return empty view for padding rows
@@ -1011,11 +1081,11 @@ import AppKit
             debugLog("💡 TableCoordinator: Rendering highlighted cell [\(row), \(columnName)] = \(queryRowInfo.value?.description ?? "nil")")
         }
 
-        guard let columnInfo = queryResult.column(named: columnName) else {
+        guard let columnInfo = queryColumnsByName[columnName] else {
             return nil
         }
 
-        let schemaColumn = schema?.column(named: columnName)
+        let schemaColumn = schemaColumnsByName[columnName]
         let isReadOnly = isColumnReadOnly(columnName)
         let isNullable = schemaColumn?.isNullable.uppercased() == "YES"
 
@@ -1034,13 +1104,11 @@ import AppKit
             )
         }
 
-        let cellIdentifier = getCellIdentifier(for: columnInfo.dataType)
-
-        var cellView = tableView.makeView(withIdentifier: cellIdentifier, owner: self) as? TextCellView
+        var cellView = tableView.makeView(withIdentifier: CellIdentifier.displayCell, owner: self) as? TableDisplayCellView
 
         if cellView == nil {
-            cellView = createCellView(for: columnInfo.dataType)
-            cellView?.identifier = cellIdentifier
+            cellView = TableDisplayCellView()
+            cellView?.identifier = CellIdentifier.displayCell
         } else {
             cellView?.prepareForReuse()
         }
@@ -1051,14 +1119,32 @@ import AppKit
         let isHighlightedRow = highlightedRows.contains(row)
         let shouldHighlight = isHighlightedField && isHighlightedRow
 
-        cellView?.configure(queryRowInfo: queryRowInfo,
-                            columnInfo: columnInfo,
-                            rowIndex: row,
-                            modificationTracker: modificationTracker,
-                            constraintInfo: foreignKeyConstraint,
-                            tableName: tableName,
-                            shouldHighlight: shouldHighlight,
-                            isReadOnly: isReadOnly
+        let rowModification = modificationTracker?.getRowModification(for: row)
+        let isInsertRow = rowModification?.type == .insert
+        let cellModification = modificationTracker?.getCellModification(rowIndex: row, columnName: columnName)
+        let isModified = isInsertRow || (cellModification?.hasChanged ?? false)
+        let isMarkedForDeletion = rowModification?.type == .delete
+        let displayText = currentPreviewValue(row: row, columnName: columnName)
+        let placeholder: String
+        if displayText.isEmpty, queryRowInfo.value != nil || cellModification != nil {
+            placeholder = "(EMPTY)"
+        } else if isReadOnly && queryRowInfo.value == nil {
+            placeholder = "(Auto-generated)"
+        } else {
+            placeholder = "(NULL)"
+        }
+
+        cellView?.configure(
+            displayText: displayText,
+            placeholder: placeholder,
+            hasValue: !displayText.isEmpty,
+            rowIndex: row,
+            columnName: columnName,
+            tableName: tableName,
+            constraintInfo: foreignKeyConstraint,
+            isModified: isModified,
+            isMarkedForDeletion: isMarkedForDeletion,
+            shouldHighlight: shouldHighlight
         )
 
         return cellView
@@ -1097,15 +1183,152 @@ import AppKit
 
         return cellView
     }
-    
-    private func getCellIdentifier(for dataType: String) -> NSUserInterfaceItemIdentifier {
-        CellIdentifier.textCell
+
+    // MARK: - CustomTableViewEditingDelegate
+
+    func customTableView(_ tableView: CustomTableView, editCellAtRow row: Int, column: Int) {
+        guard row >= 0,
+              row < totalCount,
+              column >= 0,
+              column < tableView.numberOfColumns else {
+            return
+        }
+
+        clearActiveDisplayCellEditingState()
+
+        let columnName = tableView.tableColumns[column].identifier.rawValue
+        guard !isColumnReadOnly(columnName),
+              let columnInfo = queryColumnsByName[columnName] else {
+            return
+        }
+
+        let currentValue = currentFullValue(row: row, columnName: columnName)
+        let originalValue = modificationTracker?
+            .getCellModification(rowIndex: row, columnName: columnName)?
+            .originalValue ?? currentValue
+
+        let context = TableCellEditor.Context(
+            row: row,
+            column: column,
+            columnName: columnName,
+            dataType: columnInfo.dataType,
+            originalValue: originalValue,
+            isReadOnly: false
+        )
+
+        tableView.selectCell(row: row, column: column)
+        activeDisplayCell(row: row, column: column)?.setEditing(true)
+        cellEditor.beginEditing(
+            in: tableView,
+            frame: tableView.frameOfCell(atColumn: column, row: row),
+            context: context,
+            value: currentValue
+        )
     }
 
-    private func createCellView(for dataType: String) -> TextCellView {
-        TextCellView()
+    func customTableView(_ tableView: CustomTableView, foreignKeyClickedAtRow row: Int, column: Int) {
+        guard row >= 0,
+              row < totalCount,
+              column >= 0,
+              column < tableView.numberOfColumns else {
+            return
+        }
+
+        let columnName = tableView.tableColumns[column].identifier.rawValue
+        guard let constraintInfo = schemaColumnsByName[columnName]?.constraints.first(where: { $0.type == .foreignKey }),
+              constraintInfo.isForeignKey,
+              let referencedTable = constraintInfo.referencedTable else {
+            debugLog("❌ Invalid foreign key constraint info")
+            return
+        }
+
+        NotificationCenter.default.post(
+            name: .foreignKeyNavigationRequested,
+            object: tableView,
+            userInfo: [
+                "constraintInfo": constraintInfo,
+                "currentValue": currentFullValue(row: row, columnName: columnName),
+                "sourceTable": tableName,
+                "sourceColumn": columnName,
+                "referencedTable": referencedTable
+            ]
+        )
     }
-    
+
+    // MARK: - TableCellEditorOwner
+
+    func tableCellEditorDidCommit(_ editor: TableCellEditor, context: TableCellEditor.Context, value: String) {
+        activeDisplayCell(row: context.row, column: context.column)?.setEditing(false)
+
+        if value != context.originalValue {
+            modificationTracker?.updateCell(
+                rowIndex: context.row,
+                columnName: context.columnName,
+                newValue: value,
+                originalValue: context.originalValue,
+                dataType: context.dataType
+            )
+        } else {
+            modificationTracker?.resetCell(rowIndex: context.row, columnName: context.columnName)
+        }
+
+        invalidateDisplayPreview(row: context.row, column: context.columnName)
+        reloadCell(row: context.row, column: context.column)
+    }
+
+    func tableCellEditorDidCancel(_ editor: TableCellEditor, context: TableCellEditor.Context) {
+        activeDisplayCell(row: context.row, column: context.column)?.setEditing(false)
+        reloadCell(row: context.row, column: context.column)
+    }
+
+    func tableCellEditorDidRequestNavigation(_ editor: TableCellEditor, context: TableCellEditor.Context, direction: TableCellEditor.NavigationDirection) {
+        let target: (row: Int, column: Int)?
+
+        switch direction {
+        case .next:
+            target = context.column + 1 < tableView.numberOfColumns ? (context.row, context.column + 1) : nil
+        case .previous:
+            target = context.column - 1 >= 0 ? (context.row, context.column - 1) : nil
+        case .down:
+            target = context.row + 1 < totalCount ? (context.row + 1, context.column) : nil
+        case .up:
+            target = context.row - 1 >= 0 ? (context.row - 1, context.column) : nil
+        }
+
+        guard let target else { return }
+
+        tableView.selectCell(row: target.row, column: target.column)
+        tableView.enterEditModeForCell(row: target.row, column: target.column)
+    }
+
+    private func reloadCell(row: Int, column: Int) {
+        guard row >= 0,
+              row < tableView.numberOfRows,
+              column >= 0,
+              column < tableView.numberOfColumns else {
+            return
+        }
+
+        tableView.reloadData(
+            forRowIndexes: IndexSet(integer: row),
+            columnIndexes: IndexSet(integer: column)
+        )
+    }
+
+    private func activeDisplayCell(row: Int, column: Int) -> TableDisplayCellView? {
+        tableView.view(atColumn: column, row: row, makeIfNecessary: false) as? TableDisplayCellView
+    }
+
+    private func clearActiveDisplayCellEditingState() {
+        let visibleRows = tableView.rows(in: tableView.visibleRect)
+        guard visibleRows.location != NSNotFound else { return }
+
+        for row in visibleRows.location..<(visibleRows.location + visibleRows.length) {
+            for column in 0..<tableView.numberOfColumns {
+                activeDisplayCell(row: row, column: column)?.setEditing(false)
+            }
+        }
+    }
     
     // MARK: - NSMenuDelegate
     
