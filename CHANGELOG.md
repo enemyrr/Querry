@@ -2,6 +2,20 @@
 
 # Pluk Release Notes
 
+## [0.0.43] – 2026-05-17
+
+This release makes large tables feel much faster, improves sidebar navigation, and polishes Pluk's macOS 26 window chrome.
+
+Here’s what’s new:
+
+- **Heavy tables feel much faster.** Pluk now uses lightweight AppKit display cells for table rendering and creates the heavier editor only when you start editing, making large text and JSON-heavy datasets noticeably smoother. ([#286](https://github.com/pluk-inc/app-pluk/pull/286))
+- **Browse columns directly from the sidebar.** Tables and views in the connection sidebar can now expand to show their columns, including matching type and foreign-key icons, plus column actions like Copy Name and Open Structure. ([#131](https://github.com/pluk-inc/Pluk/issues/131), [#290](https://github.com/pluk-inc/app-pluk/pull/290))
+- **Better schema editing polish.** Nullable and Unique checkboxes in the schema editor now use Pluk's rounded checkbox style, and schema-mode index data loads reliably even when you open schema view before the table finishes loading. ([#292](https://github.com/pluk-inc/app-pluk/pull/292), [#293](https://github.com/pluk-inc/app-pluk/pull/293))
+- **More native macOS 26 window chrome.** Tab bars, toolbar spacing, titlebar alignment, and Liquid Glass backgrounds have been tuned for macOS 26 while preserving older macOS behavior. ([#133](https://github.com/pluk-inc/Pluk/issues/133), [#287](https://github.com/pluk-inc/app-pluk/pull/287), [#291](https://github.com/pluk-inc/app-pluk/pull/291))
+- **Foreign-key navigation stays in the right window.** Clicking a foreign-key cell now routes only through the table view that originated the click, so multi-window workflows no longer open the referenced table in another window. ([#132](https://github.com/pluk-inc/Pluk/issues/132), [#285](https://github.com/pluk-inc/app-pluk/pull/285))
+- **Sidebar reveal fixes.** The left connection sidebar no longer clips after collapse and expand, and the row detail sidebar now reveals from the correct trailing edge. ([#134](https://github.com/pluk-inc/Pluk/issues/134), [#135](https://github.com/pluk-inc/Pluk/issues/135), [#288](https://github.com/pluk-inc/app-pluk/pull/288))
+- **Smaller Account loading indicators.** Account actions now use mini loading spinners so the controls feel better balanced. ([#136](https://github.com/pluk-inc/Pluk/issues/136), [#289](https://github.com/pluk-inc/app-pluk/pull/289))
+- 
 ## [0.0.42] – 2026-05-17
 
 This release makes large tables feel much faster, improves sidebar navigation, and polishes Pluk's macOS 26 window chrome.
