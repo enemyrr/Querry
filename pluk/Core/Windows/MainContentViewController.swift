@@ -412,6 +412,8 @@ final class BackgroundPanelView: NSView {
         guard notification.object as? NSWindow == window else { return }
         let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
         isSidebarVisible = !isCollapsing
-        updatePanelFrame(animated: true)
+        // Instant — matches the non-animated sidebar collapse so the
+        // background panel doesn't lag behind it.
+        updatePanelFrame(animated: false)
     }
 }

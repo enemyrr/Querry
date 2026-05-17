@@ -39,6 +39,10 @@ final class TabBarView: NSView {
     private let tabHeight: CGFloat = 38
     private let tabSpacing: CGFloat = 4
     private let newTabButtonWidth: CGFloat = 36
+    /// Leading inset for the tab bar content when the left sidebar is
+    /// collapsed — shifts the chevrons/tabs right to clear the window traffic
+    /// lights and the sidebar-reveal toolbar button.
+    private let sidebarCollapsedLeadingInset: CGFloat = 150
     private var newTabButtonGap: CGFloat {
         if #available(macOS 26, *) { 4 } else { 6 }
     }
@@ -563,20 +567,22 @@ final class TabBarView: NSView {
             object: nil
         )
 
+        // `queue: nil` runs the block synchronously on the posting thread;
+        // `.sidebarAnimationWillStart` is always posted from the main thread
+        // (`SidebarSplitViewController.setSidebar`). Updating the leading
+        // inset synchronously — rather than via `Task`/`queue: .main`, which
+        // defer to a later runloop pass — keeps the tab bar in lockstep with
+        // the instant sidebar collapse instead of shifting a frame later.
         sidebarObserver = NotificationCenter.default.addObserver(
             forName: .sidebarAnimationWillStart,
             object: nil,
-            queue: .main
+            queue: nil
         ) { [weak self] notification in
             let isCollapsing = notification.userInfo?["isCollapsing"] as? Bool ?? false
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 guard let self else { return }
                 self.isSidebarVisible = !isCollapsing
-                await NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.17
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    self.leadingConstraint.animator().constant = isCollapsing ? 120 : 8
-                }
+                self.leadingConstraint.constant = isCollapsing ? self.sidebarCollapsedLeadingInset : 8
             }
         }
     }
@@ -627,7 +633,7 @@ final class TabBarView: NSView {
         while let view = current {
             if let splitView = view as? HoverDividerSplitView {
                 isSidebarVisible = !splitView.isSidebarCollapsed
-                leadingConstraint.constant = isSidebarVisible ? 8 : 120
+                leadingConstraint.constant = isSidebarVisible ? 8 : sidebarCollapsedLeadingInset
                 return
             }
             current = view.superview

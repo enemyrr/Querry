@@ -113,8 +113,6 @@ final class SidebarSplitViewController: NSSplitViewController {
 
     private var sidebarItem: NSSplitViewItem!
     private var contentItem: NSSplitViewItem!
-    private var lastExpandedWidth: CGFloat = 330
-    private var isAnimating = false
     private var isProgrammaticCollapse = false
 
     var isCollapsed: Bool { sidebarItem.isCollapsed }
@@ -204,17 +202,11 @@ final class SidebarSplitViewController: NSSplitViewController {
     }
 
     @objc private func handleSplitViewDidResize(_ notification: Notification) {
-        guard !isAnimating else { return }
-
         let isVisible = !sidebarItem.isCollapsed
         postVisibilityChange(isVisible: isVisible)
 
         if let hoverSplitView = splitView as? HoverDividerSplitView {
             hoverSplitView.isSidebarCollapsed = !isVisible
-        }
-
-        if isVisible {
-            lastExpandedWidth = sidebarItem.viewController.view.frame.width
         }
     }
 
@@ -227,110 +219,40 @@ final class SidebarSplitViewController: NSSplitViewController {
     }
 
     func collapse() {
-        guard !isAnimating, !sidebarItem.isCollapsed else { return }
-        lastExpandedWidth = sidebarItem.viewController.view.frame.width
-        animateSidebar(collapsed: true)
+        guard !sidebarItem.isCollapsed else { return }
+        setSidebar(collapsed: true)
     }
 
     func expand() {
-        guard !isAnimating, sidebarItem.isCollapsed else { return }
-        animateSidebar(collapsed: false)
+        guard sidebarItem.isCollapsed else { return }
+        setSidebar(collapsed: false)
     }
 
-    private func animateSidebar(collapsed: Bool) {
-        isAnimating = true
+    /// Collapses/expands the sidebar with **no animation** — `NSSplitViewItem`'s
+    /// native instant collapse. Custom divider animation is intentionally
+    /// omitted for now: animating the pane width (via `setPosition` or the
+    /// native animator) corrupts the pane's Auto Layout subtree and clips the
+    /// sidebar's trailing edge. We'll reintroduce a layout-safe animation
+    /// separately.
+    private func setSidebar(collapsed: Bool) {
         isProgrammaticCollapse = collapsed
-
-        let sidebarView = sidebarItem.viewController.view
-
-        // Both the connection-details column AND the nav rail (home + "O" +
-        // feedback icons) live as direct subviews of `sidebarView`. Animate
-        // each explicitly so we don't rely on layer-backed alpha/transform
-        // cascading from the parent.
-        let animatedViews: [NSView] = sidebarView.subviews.isEmpty
-            ? [sidebarView]
-            : sidebarView.subviews
-        for view in animatedViews { view.wantsLayer = true }
 
         if let hoverSplitView = splitView as? HoverDividerSplitView {
             hoverSplitView.isSidebarCollapsed = collapsed
             hoverSplitView.needsDisplay = true
         }
 
-        let targetWidth: CGFloat = collapsed
-            ? 0
-            : max(lastExpandedWidth, configuration.minWidth)
-        let translationDistance: CGFloat = 12
-        let duration: CFTimeInterval = 0.1
+        NotificationCenter.default.post(
+            name: .sidebarAnimationWillStart,
+            object: view.window,
+            userInfo: ["isCollapsing": collapsed]
+        )
 
-        // Drive the divider ourselves so inner SwiftUI hosting views never
-        // lay out against the transient `automaticMaximumThickness`-driven
-        // width NSSplitView would pick on `isCollapsed = false`.
-        sidebarItem.minimumThickness = 0
-        if !collapsed {
-            sidebarItem.isCollapsed = false
-            splitView.setPosition(0, ofDividerAt: 0)
-            for view in animatedViews {
-                view.alphaValue = 0
-                view.layer?.transform = CATransform3DMakeTranslation(translationDistance, 0, 0)
-            }
-        } else {
-            for view in animatedViews {
-                view.alphaValue = 1
-                view.layer?.transform = CATransform3DIdentity
-            }
-        }
+        sidebarItem.isCollapsed = collapsed
+        isProgrammaticCollapse = false
 
-        // `transform.translation.x` isn't an NSView animator key, so animate it
-        // explicitly while keeping the model value in sync inside the same
-        // animation group.
-        let translateAnim = CABasicAnimation(keyPath: "transform.translation.x")
-        translateAnim.fromValue = collapsed ? 0 : translationDistance
-        translateAnim.toValue = collapsed ? translationDistance : 0
-        translateAnim.duration = duration
-        translateAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = duration
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            context.allowsImplicitAnimation = true
-
-            NotificationCenter.default.post(
-                name: .sidebarAnimationWillStart,
-                object: self.view.window,
-                userInfo: ["isCollapsing": collapsed]
-            )
-
-            splitView.animator().setPosition(targetWidth, ofDividerAt: 0)
-            for view in animatedViews {
-                view.animator().alphaValue = collapsed ? 0 : 1
-                view.layer?.transform = collapsed
-                    ? CATransform3DMakeTranslation(translationDistance, 0, 0)
-                    : CATransform3DIdentity
-                view.layer?.add(translateAnim, forKey: "sidebarTranslateX")
-            }
-        } completionHandler: { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.isAnimating = false
-                self.isProgrammaticCollapse = false
-
-                if collapsed {
-                    self.sidebarItem.isCollapsed = true
-                }
-                self.sidebarItem.minimumThickness = self.configuration.minWidth
-
-                // Reset to a clean baseline so the next animation starts fresh.
-                for view in animatedViews {
-                    view.layer?.removeAnimation(forKey: "sidebarTranslateX")
-                    view.layer?.transform = CATransform3DIdentity
-                    view.alphaValue = 1
-                }
-
-                self.postVisibilityChange(isVisible: !collapsed)
-                NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: self.view.window)
-            }
-        }
+        postVisibilityChange(isVisible: !collapsed)
+        NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: view.window)
     }
 
     private func postVisibilityChange(isVisible: Bool) {

@@ -3,6 +3,27 @@ import Observation
 import SwiftData
 import SwiftUI
 
+private final class RightSidebarClipView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override var wantsDefaultClipping: Bool {
+        true
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.masksToBounds = true
+    }
+}
+
 final class DocumentViewController: NSViewController {
 
     private let instance: ConnectionInstance
@@ -31,6 +52,8 @@ final class DocumentViewController: NSViewController {
 
     private var contentLeadingConstraint: NSLayoutConstraint?
     private var rightSidebarWidthConstraint: NSLayoutConstraint?
+    private var rightSidebarContentWidthConstraint: NSLayoutConstraint?
+    private var rightSidebarClipView: RightSidebarClipView?
     private var tabViewTrailingToSidebar: NSLayoutConstraint?
     private var tabViewTrailingToContainer: NSLayoutConstraint?
 
@@ -202,6 +225,9 @@ final class DocumentViewController: NSViewController {
         rightSidebarViewController = nil
         tabViewTrailingToContainer = nil
         tabViewTrailingToSidebar = nil
+        rightSidebarWidthConstraint = nil
+        rightSidebarContentWidthConstraint = nil
+        rightSidebarClipView = nil
 
         for vc in tabContentControllers.values {
             vc.removeFromParent()
@@ -239,10 +265,14 @@ final class DocumentViewController: NSViewController {
         }
     }
 
-    private func showRightSidebar(initialWidth: CGFloat? = nil, loadContentImmediately: Bool = true) {
+    private func showRightSidebar(initialWidth: CGFloat? = nil) {
         guard rightSidebarViewController == nil,
               let contentContainer,
               let tabViewContainer else { return }
+
+        let targetWidth = appViewModel.rightSidebarWidth
+        let clipView = RightSidebarClipView()
+        clipView.translatesAutoresizingMaskIntoConstraints = false
 
         let sidebarViewController = RowDetailSidebarViewController(
             instance: instance,
@@ -256,27 +286,34 @@ final class DocumentViewController: NSViewController {
         let sidebarView = sidebarViewController.view
         sidebarView.translatesAutoresizingMaskIntoConstraints = false
         rightSidebarViewController = sidebarViewController
+        rightSidebarClipView = clipView
 
-        contentContainer.addSubview(sidebarView)
+        clipView.addSubview(sidebarView)
+        contentContainer.addSubview(clipView)
 
         tabViewTrailingToContainer?.isActive = false
 
-        let trailingToSidebar = tabViewContainer.trailingAnchor.constraint(equalTo: sidebarView.leadingAnchor)
-        let widthConstraint = sidebarView.widthAnchor.constraint(equalToConstant: initialWidth ?? appViewModel.rightSidebarWidth)
+        let trailingToSidebar = tabViewContainer.trailingAnchor.constraint(equalTo: clipView.leadingAnchor)
+        let widthConstraint = clipView.widthAnchor.constraint(equalToConstant: initialWidth ?? targetWidth)
+        let contentWidthConstraint = sidebarView.widthAnchor.constraint(equalToConstant: targetWidth)
         tabViewTrailingToSidebar = trailingToSidebar
         rightSidebarWidthConstraint = widthConstraint
+        rightSidebarContentWidthConstraint = contentWidthConstraint
 
         NSLayoutConstraint.activate([
-            sidebarView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            sidebarView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            sidebarView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
+            clipView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            clipView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            clipView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
             widthConstraint,
             trailingToSidebar,
+
+            sidebarView.topAnchor.constraint(equalTo: clipView.topAnchor),
+            sidebarView.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
+            sidebarView.bottomAnchor.constraint(equalTo: clipView.bottomAnchor),
+            contentWidthConstraint,
         ])
 
-        if loadContentImmediately {
-            sidebarViewController.loadInitialContent()
-        }
+        sidebarViewController.loadInitialContent()
     }
 
     private func hideRightSidebar() {
@@ -285,10 +322,12 @@ final class DocumentViewController: NSViewController {
         tabViewTrailingToSidebar?.isActive = false
         tabViewTrailingToSidebar = nil
         rightSidebarWidthConstraint = nil
+        rightSidebarContentWidthConstraint = nil
 
-        rightSidebarViewController?.view.removeFromSuperview()
+        rightSidebarClipView?.removeFromSuperview()
         rightSidebarViewController?.removeFromParent()
         rightSidebarViewController = nil
+        rightSidebarClipView = nil
 
         tabViewTrailingToContainer?.isActive = true
     }
@@ -300,9 +339,11 @@ final class DocumentViewController: NSViewController {
         else { return }
 
         let targetWidth = appViewModel.rightSidebarWidth
-        guard widthConstraint.constant != targetWidth else { return }
+        let contentWidthConstraint = rightSidebarContentWidthConstraint
+        guard widthConstraint.constant != targetWidth || contentWidthConstraint?.constant != targetWidth else { return }
 
         widthConstraint.constant = targetWidth
+        contentWidthConstraint?.constant = targetWidth
         contentContainer.layoutSubtreeIfNeeded()
         rightSidebarViewController?.view.layoutSubtreeIfNeeded()
     }
@@ -487,22 +528,18 @@ final class DocumentViewController: NSViewController {
 
     private func showRightSidebarAnimated() {
         isAnimatingRightSidebar = true
-        showRightSidebar(initialWidth: 0, loadContentImmediately: false)
+        showRightSidebar(initialWidth: 0)
         contentContainer?.layoutSubtreeIfNeeded()
-
-        rightSidebarViewController?.view.alphaValue = 0
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             context.allowsImplicitAnimation = true
             self.rightSidebarWidthConstraint?.constant = self.appViewModel.rightSidebarWidth
-            self.rightSidebarViewController?.view.animator().alphaValue = 1
             self.contentContainer?.layoutSubtreeIfNeeded()
         } completionHandler: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.rightSidebarViewController?.loadInitialContent()
                 self.isAnimatingRightSidebar = false
             }
         }
