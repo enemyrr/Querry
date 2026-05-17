@@ -10,7 +10,7 @@ import AppKit
 
 class IndexCheckboxCellView: NSTableCellView {
     // UI
-    private var button: NSButton!
+    private var button: RoundedCheckboxButton!
     private var rightBorderView: NSView?
     private var bottomBorderView: NSView?
 
@@ -46,11 +46,7 @@ class IndexCheckboxCellView: NSTableCellView {
     }
 
     private func setupButton() {
-        button = NSButton(frame: .zero)
-        button.setButtonType(.momentaryChange)
-        button.isBordered = false
-        button.imagePosition = .imageOnly
-        button.imageScaling = .scaleNone
+        button = RoundedCheckboxButton(frame: .zero)
         button.target = self
         button.action = #selector(buttonClicked(_:))
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -130,11 +126,8 @@ class IndexCheckboxCellView: NSTableCellView {
     // MARK: - Icon Updates
 
     private func updateIcon() {
-        let symbolName = currentValue ? "checkmark.square.fill" : "square"
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: currentValue ? "Unique" : "Not unique")?.withSymbolConfiguration(config)
-        button.image = image
-        button.contentTintColor = .controlTextColor
+        button.isOn = currentValue
+        button.setAccessibilityLabel(currentValue ? "Unique" : "Not unique")
     }
 
     // MARK: - Click Handling
