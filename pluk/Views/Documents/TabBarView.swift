@@ -38,9 +38,19 @@ final class TabBarView: NSView {
     private let tabWidth: CGFloat = 182
     private let tabHeight: CGFloat = 38
     private let tabSpacing: CGFloat = 4
-    private let navButtonSize: CGFloat = 26
     private let newTabButtonWidth: CGFloat = 36
-    private let newTabButtonGap: CGFloat = 6
+    private var newTabButtonGap: CGFloat {
+        if #available(macOS 26, *) { 4 } else { 6 }
+    }
+    private var navButtonSize: CGFloat {
+        if #available(macOS 26, *) { 28 } else { 26 }
+    }
+    private var scrollViewBottomOffset: CGFloat {
+        if #available(macOS 26, *) { 3 } else { 0 }
+    }
+    private var newTabButtonBottomInset: CGFloat {
+        if #available(macOS 26, *) { 6 } else { 8 }
+    }
 
     init(instance: ConnectionInstance, appViewModel: AppViewModel) {
         self.instance = instance
@@ -164,7 +174,7 @@ final class TabBarView: NSView {
 
             scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: scrollViewBottomOffset),
             scrollViewTrailingConstraint,
 
             sidebarToggleButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
@@ -172,7 +182,7 @@ final class TabBarView: NSView {
             sidebarToggleButton.widthAnchor.constraint(equalToConstant: 34),
             sidebarToggleButton.heightAnchor.constraint(equalToConstant: navButtonSize),
 
-            newTabButton.centerYAnchor.constraint(equalTo: prevButton.centerYAnchor),
+            newTabButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -newTabButtonBottomInset),
             newTabButton.widthAnchor.constraint(equalToConstant: newTabButtonWidth),
             newTabButton.heightAnchor.constraint(equalToConstant: navButtonSize),
         ])
@@ -182,6 +192,10 @@ final class TabBarView: NSView {
 
     // MARK: - Factory Methods
 
+    private var navButtonCornerRadius: CGFloat {
+        if #available(macOS 26, *) { 10 } else { 6 }
+    }
+
     private func makeNavButton(symbolName: String, fontSize: CGFloat = 14) -> NSButton {
         let button = NSButton(frame: .zero)
         button.bezelStyle = .inline
@@ -190,14 +204,14 @@ final class TabBarView: NSView {
         button.imagePosition = .imageOnly
         button.symbolConfiguration = .init(pointSize: fontSize, weight: .regular)
         button.wantsLayer = true
-        button.layer?.cornerRadius = 6
+        button.layer?.cornerRadius = navButtonCornerRadius
         button.contentTintColor = .secondaryLabelColor
         return button
     }
 
     private func makeHoverLayer() -> CALayer {
         let layer = CALayer()
-        layer.cornerRadius = 6
+        layer.cornerRadius = navButtonCornerRadius
         layer.opacity = 0
         return layer
     }
@@ -769,6 +783,9 @@ final class TabButtonView: NSView {
 
     private var isHovering = false
     private var trackingArea: NSTrackingArea?
+    private var tabCornerRadius: CGFloat {
+        if #available(macOS 26, *) { 12 } else { 10 }
+    }
 
     init(tab: DatabaseTab, isSelected: Bool, databaseType: DatabaseType, onClose: @escaping () -> Void) {
         self.tab = tab
@@ -840,7 +857,7 @@ final class TabButtonView: NSView {
         layer?.addSublayer(tabShapeLayer)
 
         hoverBackgroundLayer = CALayer()
-        hoverBackgroundLayer.cornerRadius = 8
+        hoverBackgroundLayer.cornerRadius = tabCornerRadius
         hoverBackgroundLayer.opacity = 0
         hoverBackgroundLayer.shadowColor = NSColor.black.cgColor
         hoverBackgroundLayer.shadowOpacity = 0.10
@@ -975,8 +992,8 @@ final class TabButtonView: NSView {
 
     private func makeTabShapePath(in rect: CGRect) -> CGPath {
         let path = CGMutablePath()
-        let radius: CGFloat = 10
-        let curveRadius: CGFloat = 10
+        let radius = tabCornerRadius
+        let curveRadius = if #available(macOS 26, *) { tabCornerRadius + 3 } else { tabCornerRadius }
         let smoothness: CGFloat = 1
         let h = rect.height
 

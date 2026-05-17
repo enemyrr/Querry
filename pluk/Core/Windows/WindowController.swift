@@ -223,7 +223,11 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             windowMenu.items.first(where: { $0.action == #selector(NSWindow.toggleTabBar(_:)) })?.isHidden = true
         }
 
-        window.toolbarStyle = .unifiedCompact
+        if #available(macOS 26, *) {
+            window.toolbarStyle = .unified
+        } else {
+            window.toolbarStyle = .unifiedCompact
+        }
         window.isMovableByWindowBackground = true
         restoreWindowFrame(window)
 
@@ -328,7 +332,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     }
 
     private var toolbarItemTopPadding: CGFloat {
-        if #available(macOS 26, *) { 9 } else { 8 }
+        if #available(macOS 26, *) { -6 } else { 8 }
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
@@ -821,13 +825,17 @@ private struct SidebarToggleButtonView: View {
     @State private var isHovering = false
     @Environment(\.colorScheme) private var colorScheme
 
+    private var cornerRadius: CGFloat {
+        if #available(macOS 26, *) { 10 } else { 6 }
+    }
+
     var body: some View {
         Button(action: action) {
             Image(systemName: "sidebar.left")
                 .font(.system(size: 16))
                 .frame(width: 28, height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(isHovering ? hoverColor : .clear)
                 )
         }

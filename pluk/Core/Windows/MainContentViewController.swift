@@ -373,7 +373,11 @@ final class BackgroundPanelView: NSView {
     }
 
     private func updatePanelFrame(animated: Bool) {
-        let safeTop = safeAreaInsets.top
+        let safeTop = if #available(macOS 26, *) {
+            safeAreaInsets.top - 12
+        } else {
+            safeAreaInsets.top
+        }
         let insets = NSEdgeInsets(top: 6 + safeTop, left: leadingPadding + 6, bottom: 6, right: 6)
         let panelRect = NSRect(
             x: insets.left,
