@@ -592,11 +592,17 @@ final class TableContentViewController: NSViewController {
             _ = self.dataController.viewState
             _ = self.dataController.cachedDocuments
             _ = self.dataController.cachedSchema
+            _ = self.dataController.cachedIndexes
             _ = self.dataController.needsToSelectLastRow
         } onChange: { [weak self] in
             Task { @MainActor in
-                self?.updateTableFromData()
-                self?.observeViewState()
+                guard let self else { return }
+                if self.tab.viewMode == .schema {
+                    self.showSchemaMode()
+                } else {
+                    self.updateTableFromData()
+                }
+                self.observeViewState()
             }
         }
     }

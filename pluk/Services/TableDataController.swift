@@ -64,6 +64,7 @@ class TableDataController {
     private var lastTabFilterValue: String?
 
     private var isFetchingSchema = false
+    private var isFetchingIndexes = false
     var isSubscribedToRealTime = false
     var receivedFirstRealtimeEvent = false
     var skipNextRealtimeEvent = false
@@ -192,14 +193,17 @@ class TableDataController {
     /// `SchemaModeView`, so we keep them off the table-open hot path.
     func loadIndexesIfNeeded(force: Bool = false) {
         if !force, cachedIndexes != nil { return }
+        if isFetchingIndexes && !force { return }
         guard instance.isReady else { return }
         let tabName = tab.name
         let databaseSchema = tab.databaseSchema
+        isFetchingIndexes = true
         Task { [weak self] in
             guard let self else { return }
+            defer { self.isFetchingIndexes = false }
             do {
                 let indexes = try await instance.databaseService.getIndexes(for: tabName, databaseSchema: databaseSchema, forceFetch: force)
-                guard self.cachedTabName == tabName else { return }
+                guard self.tab.name == tabName else { return }
                 self.cachedIndexes = indexes
             } catch {
                 debugLog("Failed to fetch indexes for \(tabName): \(error.localizedDescription)")
@@ -513,6 +517,8 @@ class TableDataController {
         cancelLoadingTask()
         cancelRealTimeSubscription()
         cachedSchema = nil
+        cachedIndexes = nil
+        isFetchingIndexes = false
         cachedDocuments = nil
         cachedTabName = nil
         cachedConnectionGeneration = nil
