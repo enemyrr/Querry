@@ -26,6 +26,7 @@ final class TabBarView: NSView {
 
     private var newTabInlineConstraint: NSLayoutConstraint!
     private var newTabFixedConstraint: NSLayoutConstraint!
+    private var scrollViewLeadingConstraint: NSLayoutConstraint!
     private var scrollViewTrailingConstraint: NSLayoutConstraint!
 
     private var leadingConstraint: NSLayoutConstraint!
@@ -37,6 +38,7 @@ final class TabBarView: NSView {
 
     private let tabWidth: CGFloat = 182
     private let tabHeight: CGFloat = 38
+    private let selectedTabHeight: CGFloat = 40
     private let tabSpacing: CGFloat = 4
     /// Lifts the tabs off the bottom edge of the bar so they sit slightly
     /// higher within the tab bar chrome.
@@ -63,6 +65,12 @@ final class TabBarView: NSView {
     }
     private var tabScrollLeadingOffset: CGFloat {
         6 - tabContentLeadingPadding
+    }
+    private var scrollableTabScrollLeadingOffset: CGFloat {
+        6
+    }
+    private var scrollableTabScrollTrailingOffset: CGFloat {
+        6
     }
 
     init(instance: ConnectionInstance, appViewModel: AppViewModel) {
@@ -174,6 +182,7 @@ final class TabBarView: NSView {
         sidebarToggleButton.translatesAutoresizingMaskIntoConstraints = false
 
         leadingConstraint = prevButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
+        scrollViewLeadingConstraint = scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor, constant: tabScrollLeadingOffset)
         scrollViewTrailingConstraint = scrollView.trailingAnchor.constraint(equalTo: sidebarToggleButton.leadingAnchor, constant: -4)
 
         newTabInlineConstraint = newTabButton.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 0)
@@ -190,7 +199,7 @@ final class TabBarView: NSView {
             nextButton.widthAnchor.constraint(equalToConstant: navButtonSize),
             nextButton.heightAnchor.constraint(equalToConstant: navButtonSize),
 
-            scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor, constant: tabScrollLeadingOffset),
+            scrollViewLeadingConstraint,
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: scrollViewBottomOffset),
             scrollViewTrailingConstraint,
@@ -390,8 +399,11 @@ final class TabBarView: NSView {
                 draggable.alphaValue = 0
             } else {
                 let trailingSpace: CGFloat = isLastTab ? 0 : tabSpacing
-                let targetFrame = NSRect(x: xOffset, y: tabBottomInset, width: tabWidth, height: tabHeight)
+                let targetHeight = tabHeight(for: tab)
+                let targetFrame = NSRect(x: xOffset, y: tabBottomInset, width: tabWidth, height: targetHeight)
                 let targetAlpha: CGFloat = isDragged ? 0 : 1
+
+                draggable.hostedView?.frame = NSRect(x: 0, y: 0, width: tabWidth, height: tabHeight)
 
                 if animated && !isDragged {
                     NSAnimationContext.runAnimationGroup { context in
@@ -425,6 +437,10 @@ final class TabBarView: NSView {
         if tabsContainer.frame.size != newSize {
             tabsContainer.setFrameSize(newSize)
         }
+    }
+
+    private func tabHeight(for tab: DatabaseTab) -> CGFloat {
+        tab.id == instance.selectedTab?.id ? selectedTabHeight : tabHeight
     }
 
     private func gapWidth(forDraggedIndex dragged: Int) -> CGFloat {
@@ -479,12 +495,15 @@ final class TabBarView: NSView {
         isScrollable = contentWidth > viewWidth
 
         newTabButton.isHidden = false
+        updateScrollEdgeSpacing()
+        scrollViewTrailingConstraint.constant = isScrollable
+            ? -(newTabButtonWidth + newTabButtonGap + scrollableTabScrollTrailingOffset)
+            : -4
 
         if isScrollable {
             guard !newTabFixedConstraint.isActive else { return }
             newTabInlineConstraint.isActive = false
             newTabFixedConstraint.isActive = true
-            scrollViewTrailingConstraint.constant = -(newTabButtonWidth + newTabButtonGap)
         } else {
             guard !newTabInlineConstraint.isActive else { return }
             newTabFixedConstraint.isActive = false
@@ -496,6 +515,13 @@ final class TabBarView: NSView {
         }
 
         needsLayout = true
+    }
+
+    private func updateScrollEdgeSpacing() {
+        let isScrolledFromLeadingEdge = scrollView.contentView.bounds.minX > 0.5
+        scrollViewLeadingConstraint.constant = isScrollable && isScrolledFromLeadingEdge
+            ? scrollableTabScrollLeadingOffset
+            : tabScrollLeadingOffset
     }
 
     private func scrollToSelectedTab(animated: Bool) {
@@ -581,6 +607,13 @@ final class TabBarView: NSView {
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleScrollBoundsChange),
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+
         // `queue: nil` runs the block synchronously on the posting thread;
         // `.sidebarAnimationWillStart` is always posted from the main thread
         // (`SidebarSplitViewController.setSidebar`). Updating the leading
@@ -599,6 +632,10 @@ final class TabBarView: NSView {
                 self.leadingConstraint.constant = isCollapsing ? self.sidebarCollapsedLeadingInset : 8
             }
         }
+    }
+
+    @objc private func handleScrollBoundsChange() {
+        updateScrollEdgeSpacing()
     }
 
     private func observeTabs() {
@@ -803,6 +840,7 @@ final class TabButtonView: NSView {
 
     private var isHovering = false
     private var trackingArea: NSTrackingArea?
+    private let selectedShapeExtraHeight: CGFloat = 1.5
     private var tabCornerRadius: CGFloat {
         if #available(macOS 26, *) { 12 } else { 10 }
     }
@@ -983,10 +1021,10 @@ final class TabButtonView: NSView {
     override func layout() {
         super.layout()
 
-        let rect = bounds
+        let rect = selectedShapeRect
         tabShapeLayer.frame = rect
         if isSelected {
-            tabShapeLayer.path = makeTabShapePath(in: rect)
+            tabShapeLayer.path = makeTabShapePath(in: tabShapeLayer.bounds)
 
             let shadowPadding: CGFloat = 10
             let maskLayer = CAShapeLayer()
@@ -1010,22 +1048,40 @@ final class TabButtonView: NSView {
         )
     }
 
+    private var selectedShapeRect: CGRect {
+        CGRect(
+            x: 0,
+            y: 0,
+            width: bounds.width,
+            height: bounds.height + (isSelected ? selectedShapeExtraHeight : 0)
+        )
+    }
+
     private func makeTabShapePath(in rect: CGRect) -> CGPath {
         let path = CGMutablePath()
         let radius = tabCornerRadius
         let curveRadius = if #available(macOS 26, *) { tabCornerRadius + 3 } else { tabCornerRadius }
-        let smoothness: CGFloat = 1
+        let flare = curveRadius
+        let handle = flare * 0.55
         let h = rect.height
 
-        path.move(to: CGPoint(x: -curveRadius, y: 0))
-        path.addQuadCurve(to: CGPoint(x: 0, y: curveRadius), control: CGPoint(x: -2 * smoothness, y: 0))
+        path.move(to: CGPoint(x: -flare, y: 0))
+        path.addCurve(
+            to: CGPoint(x: 0, y: flare),
+            control1: CGPoint(x: -flare * 0.35, y: 0),
+            control2: CGPoint(x: 0, y: flare - handle)
+        )
         path.addLine(to: CGPoint(x: 0, y: h - radius))
         path.addQuadCurve(to: CGPoint(x: radius, y: h), control: CGPoint(x: 0, y: h))
         path.addLine(to: CGPoint(x: rect.width - radius, y: h))
         path.addQuadCurve(to: CGPoint(x: rect.width, y: h - radius), control: CGPoint(x: rect.width, y: h))
-        path.addLine(to: CGPoint(x: rect.width, y: curveRadius))
-        path.addQuadCurve(to: CGPoint(x: rect.width + curveRadius, y: 0), control: CGPoint(x: rect.width + 2 * smoothness, y: 0))
-        path.addLine(to: CGPoint(x: -curveRadius, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: flare))
+        path.addCurve(
+            to: CGPoint(x: rect.width + flare, y: 0),
+            control1: CGPoint(x: rect.width, y: flare - handle),
+            control2: CGPoint(x: rect.width + flare * 0.35, y: 0)
+        )
+        path.addLine(to: CGPoint(x: -flare, y: 0))
 
         return path
     }

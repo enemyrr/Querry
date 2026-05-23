@@ -332,7 +332,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     }
 
     private var toolbarItemTopPadding: CGFloat {
-        if #available(macOS 26, *) { -6 } else { 8 }
+        if #available(macOS 26, *) { 0 } else { 8 }
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
