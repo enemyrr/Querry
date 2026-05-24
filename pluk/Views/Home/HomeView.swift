@@ -102,8 +102,8 @@ struct HomeView: View {
             Button("Continue Current Tab") {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
-                    connection.lastOpenedAt = Date()
                     viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
+                    connection.lastOpenedAt = Date()
                     Task { @MainActor in
                         AnalyticsService.shared.trackConnectionOpened(
                             databaseType: connection.databaseType,
@@ -119,7 +119,6 @@ struct HomeView: View {
                         pendingConnection = nil
                         return
                     }
-                    connection.lastOpenedAt = Date()
                     let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
                     if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
@@ -127,6 +126,7 @@ struct HomeView: View {
                             tabType: .connection(instanceId),
                             connectionInstance: connectionInstance
                         )
+                        connection.lastOpenedAt = Date()
                         Task { @MainActor in
                             AnalyticsService.shared.trackConnectionOpened(
                                 databaseType: connection.databaseType,
@@ -196,7 +196,6 @@ struct HomeView: View {
             showConnectionAlert = true
         } else {
             if ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
-            connection.lastOpenedAt = Date()
             let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
             if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
@@ -204,6 +203,7 @@ struct HomeView: View {
                     tabType: .connection(instanceId),
                     connectionInstance: connectionInstance
                 )
+                connection.lastOpenedAt = Date()
 
                 Task { @MainActor in
                     AnalyticsService.shared.trackConnectionOpened(
