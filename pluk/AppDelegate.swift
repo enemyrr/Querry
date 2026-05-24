@@ -35,7 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return appearance(for: value)
     }
 
-    var sharedModelContainer: ModelContainer = {
+    lazy var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Connection.self,
             QueryHistoryEntry.self,
@@ -45,7 +45,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             AgentMessage.self,
             RecentTableEntry.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            url: SandboxStoreMigrator.destinationStoreURL
+        )
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -56,6 +59,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        do {
+            try SandboxStoreMigrator.migrateIfNeeded()
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.messageText = "Pluk could not migrate your existing data"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.appearance = Self.userPreferredAppearance()
 
         let _ = SparkleUpdaterManager.shared
