@@ -7,9 +7,9 @@
 import SwiftUI
 
 private enum EnvironmentMenuLabelMetrics {
-    static let cornerRadius = ToolbarIslandMetrics.cornerRadius
     static let minHeight: CGFloat = 32
-    static let horizontalPadding: CGFloat = 14
+    static let cornerRadius: CGFloat = 12
+    static let horizontalPadding: CGFloat = 10
     static let hoverAnimation = Animation.timingCurve(0.2, 0.8, 0.2, 1.0, duration: 0.2)
 }
 
@@ -45,55 +45,36 @@ struct EnvironmentMenuLabel: View {
     @State private var isHovering: Bool = false
 
     var body: some View {
-        if #available(macOS 26, *) {
-            HStack(spacing: 6) {
-                Text(title)
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                }
+        HStack(spacing: 2) {
+            Text(title)
+            if isLoading {
+                ProgressView()
+                    .controlSize(.mini)
+            } else {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
             }
-            .font(.callout)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .glassEffect()
-            .accessibilityLabel(Text(title))
-            .accessibilityAddTraits(.isButton)
-        } else {
-            HStack(spacing: 6) {
-                Text(title)
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-            }
-            .font(.callout)
-            .padding(.horizontal, EnvironmentMenuLabelMetrics.horizontalPadding)
-            .frame(minHeight: EnvironmentMenuLabelMetrics.minHeight)
-            .background(
-                RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous)
-                    .fill(hoverFillColor)
-                    .opacity(isHovering ? 1 : 0)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous))
-            .onHover { hovering in
-                withAnimation(EnvironmentMenuLabelMetrics.hoverAnimation) {
-                    isHovering = hovering
-                }
-            }
-            .accessibilityLabel(Text(title))
-            .accessibilityAddTraits(.isButton)
         }
+        .font(.callout)
+        .padding(.horizontal, EnvironmentMenuLabelMetrics.horizontalPadding)
+        .frame(minHeight: EnvironmentMenuLabelMetrics.minHeight)
+        .background(
+            RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous)
+                .fill(hoverFillColor)
+                .opacity(isHovering ? 1 : 0)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(borderColor, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous))
+        .onHover { hovering in
+            withAnimation(EnvironmentMenuLabelMetrics.hoverAnimation) {
+                isHovering = hovering
+            }
+        }
+        .accessibilityLabel(Text(title))
+        .accessibilityAddTraits(.isButton)
     }
 
     private var hoverFillColor: Color {

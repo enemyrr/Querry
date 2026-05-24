@@ -357,8 +357,8 @@ private final class SidebarIconButton: NSButton {
         needsDisplay = true
     }
 
-    override func mouseEntered(with event: NSEvent) { isHovering = true; NSCursor.pointingHand.push() }
-    override func mouseExited(with event: NSEvent) { isHovering = false; NSCursor.pop() }
+    override func mouseEntered(with event: NSEvent) { isHovering = true }
+    override func mouseExited(with event: NSEvent) { isHovering = false }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
@@ -451,8 +451,8 @@ final class SidebarItemButton: NSControl {
         needsDisplay = true
     }
 
-    override func mouseEntered(with event: NSEvent) { isHovering = true; NSCursor.pointingHand.push() }
-    override func mouseExited(with event: NSEvent) { isHovering = false; NSCursor.pop() }
+    override func mouseEntered(with event: NSEvent) { isHovering = true }
+    override func mouseExited(with event: NSEvent) { isHovering = false }
 
     override func mouseDown(with event: NSEvent) {
         sendAction(action, to: target)

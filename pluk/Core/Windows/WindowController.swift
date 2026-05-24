@@ -601,11 +601,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         .menuStyle(.button)
         .buttonStyle(.plain)
 
-        if #available(macOS 26.0, *) {
-            return AnyView(menuView.glassEffect())
-        } else {
-            return AnyView(menuView)
-        }
+        return menuView
     }
 
     private func refreshDeployments(for instance: ConnectionInstance) async {
@@ -825,17 +821,26 @@ private struct SidebarToggleButtonView: View {
     @State private var isHovering = false
     @Environment(\.colorScheme) private var colorScheme
 
+    private var buttonSize: CGFloat {
+        if #available(macOS 26, *) { 32 } else { 28 }
+    }
+
+    private var symbolSize: CGFloat {
+        if #available(macOS 26, *) { 17 } else { 16 }
+    }
+
     private var cornerRadius: CGFloat {
-        if #available(macOS 26, *) { 10 } else { 6 }
+        12
     }
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "sidebar.left")
-                .font(.system(size: 16))
-                .frame(width: 28, height: 28)
+                .font(.system(size: symbolSize))
+                .foregroundStyle(.primary)
+                .frame(width: buttonSize, height: buttonSize)
                 .background(
-                    RoundedRectangle(cornerRadius: cornerRadius)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(isHovering ? hoverColor : .clear)
                 )
         }

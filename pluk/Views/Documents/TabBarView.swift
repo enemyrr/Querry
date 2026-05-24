@@ -51,6 +51,9 @@ final class TabBarView: NSView {
     private var newTabButtonGap: CGFloat {
         if #available(macOS 26, *) { 4 } else { 6 }
     }
+    private var newTabButtonLeadingGap: CGFloat {
+        if #available(macOS 26, *) { newTabButtonGap + 2 } else { newTabButtonGap }
+    }
     private var navButtonSize: CGFloat {
         if #available(macOS 26, *) { 28 } else { 26 }
     }
@@ -58,7 +61,7 @@ final class TabBarView: NSView {
         if #available(macOS 26, *) { 3 } else { 0 }
     }
     private var newTabButtonBottomInset: CGFloat {
-        if #available(macOS 26, *) { 6 } else { 8 }
+        if #available(macOS 26, *) { 8 } else { 8 }
     }
     private var tabContentLeadingPadding: CGFloat {
         if #available(macOS 26, *) { 15 } else { 10 }
@@ -425,9 +428,9 @@ final class TabBarView: NSView {
         }
 
         // Always keep inline constraint constant up to date
-        newTabInlineConstraint?.constant = xOffset + newTabButtonGap
+        newTabInlineConstraint?.constant = xOffset + newTabButtonLeadingGap
         if !isScrollable {
-            xOffset += newTabButtonGap + newTabButtonWidth + newTabButtonGap
+            xOffset += newTabButtonLeadingGap + newTabButtonWidth + newTabButtonGap
         }
 
         xOffset += 6 // Trailing padding

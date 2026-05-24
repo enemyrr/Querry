@@ -95,18 +95,22 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     @objc func windowWillEnterFullScreen(_ notification: Notification) {
         updateFullscreenTitlebarTransparency()
+        scheduleTitlebarChromeCleanup()
     }
 
     @objc func windowDidEnterFullScreen(_ notification: Notification) {
         updateFullscreenTitlebarTransparency()
+        scheduleTitlebarChromeCleanup()
     }
 
     @objc func windowWillExitFullScreen(_ notification: Notification) {
         updateTitlebarVisibility()
+        scheduleTitlebarChromeCleanup()
     }
 
     @objc func windowDidExitFullScreen(_ notification: Notification) {
         updateTitlebarVisibility()
+        scheduleTitlebarChromeCleanup()
     }
 
     private func updateFullscreenTitlebarTransparency() {
@@ -167,19 +171,47 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
     }
 
+    private func scheduleTitlebarChromeCleanup() {
+        guard #available(macOS 26, *) else { return }
+
+        hideTabBarAccessoryClipViews()
+
+        Task { @MainActor [weak self] in
+            self?.hideTabBarAccessoryClipViews()
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            self?.hideTabBarAccessoryClipViews()
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            self?.hideTabBarAccessoryClipViews()
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(800))
+            self?.hideTabBarAccessoryClipViews()
+        }
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(1_500))
+            self?.hideTabBarAccessoryClipViews()
+        }
+    }
+
     @available(macOS 26, *)
     private func hideTabBarAccessoryClipViews() {
         guard let titlebarContainer = titlebarContainer else { return }
 
+        hideTitlebarBackgroundViews(in: titlebarContainer)
+
         for clipView in titlebarContainer.descendants(withClassName: "NSTitlebarAccessoryClipView") {
             if clipView.firstDescendant(withClassName: "NSTabBar") != nil {
-                // Don't force `clipView.frame = .zero` — the system clip
-                // view's children carry autoresizing constraints (minY == 0
-                // AND V:|-(40)-[child]) that can't be satisfied when its
-                // height collapses to 0, which spams the console with
-                // conflicting-constraint warnings on every show. Hidden +
-                // transparent is sufficient for visibility; the accessory
-                // view's own frame below reclaims the layout space.
+                // Don't force `clipView.frame = .zero` — the system clip view's
+                // children carry autoresizing constraints that can conflict during
+                // fullscreen transitions. Hidden + transparent is sufficient.
                 clipView.isHidden = true
                 clipView.alphaValue = 0
             }
@@ -199,6 +231,63 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             }
         }
     }
+
+    @available(macOS 26, *)
+    private func hideTitlebarBackgroundViews(in titlebarContainer: NSView) {
+        #if DEBUG
+        logTitlebarHierarchy(titlebarContainer, phase: "before")
+        #endif
+
+        titlebarContainer.layer?.backgroundColor = NSColor.clear.cgColor
+
+        for effectView in titlebarContainer.descendants(withClassName: "NSVisualEffectView") {
+            effectView.isHidden = true
+            effectView.alphaValue = 0
+        }
+
+        for backgroundView in titlebarContainer.descendants(withClassName: "NSTitlebarBackgroundView") {
+            backgroundView.isHidden = true
+            backgroundView.alphaValue = 0
+            backgroundView.frame = .zero
+        }
+
+        for glassContainer in titlebarContainer.descendants(withClassName: "NSGlassContainerView") {
+            glassContainer.isHidden = true
+            glassContainer.alphaValue = 0
+            glassContainer.frame = .zero
+        }
+
+        #if DEBUG
+        logTitlebarHierarchy(titlebarContainer, phase: "after")
+        #endif
+    }
+
+    #if DEBUG
+    @available(macOS 26, *)
+    private func logTitlebarHierarchy(_ titlebarContainer: NSView, phase: String) {
+        let interestingClassFragments = [
+            "Titlebar", "Toolbar", "Tab", "Glass", "VisualEffect", "Accessory", "Background", "Clip", "Decoration"
+        ]
+
+        func walk(_ view: NSView, depth: Int) {
+            let className = NSStringFromClass(type(of: view))
+            let shouldLog = interestingClassFragments.contains { className.contains($0) }
+
+            if shouldLog {
+                let indent = String(repeating: "  ", count: depth)
+                print(
+                    "[PlukTitlebarDebug:\(phase)] \(indent)\(className) hidden=\(view.isHidden) alpha=\(view.alphaValue) frame=\(view.frame)"
+                )
+            }
+
+            for subview in view.subviews {
+                walk(subview, depth: depth + 1)
+            }
+        }
+
+        walk(titlebarContainer, depth: 0)
+    }
+    #endif
 
     // MARK: Tab Bar
 
