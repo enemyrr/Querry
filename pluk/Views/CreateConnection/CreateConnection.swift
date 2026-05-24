@@ -160,7 +160,6 @@ struct CreateConnection: View {
 
 }
 
-// MARK: - Enhanced CreateConnectionForm
 struct CreateConnectionForm: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -864,7 +863,7 @@ struct CreateConnectionForm: View {
             existing.defaultDatabase = defaultDatabase
 
             // For PostgreSQL databases using field-based input, update individual fields
-            if (databaseType == .postgres || databaseType == .mysql)
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
                 && useFieldBasedInput
             {
                 existing.hostname = hostname
@@ -900,7 +899,7 @@ struct CreateConnectionForm: View {
             let newConnection: Connection
 
             // For PostgreSQL databases using field-based input, use the new initializer
-            if (databaseType == .postgres || databaseType == .mysql)
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
                 && useFieldBasedInput
             {
                 newConnection = Connection(
@@ -911,7 +910,6 @@ struct CreateConnectionForm: View {
                     hostname: hostname,
                     port: port,
                     username: username,
-                    password: password.isEmpty ? nil : password,
                     database: defaultDatabase,
                     sslMode: sslMode
                 )
@@ -940,7 +938,7 @@ struct CreateConnectionForm: View {
             try? modelContext.save()
 
             // For field-based connections, store password in keychain after getting persistentModelID
-            if (databaseType == .postgres || databaseType == .supabase)
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
                 && useFieldBasedInput
             {
                 if !password.isEmpty {
@@ -1061,4 +1059,3 @@ struct InlineColorPicker: View {
         }
     }
 }
-

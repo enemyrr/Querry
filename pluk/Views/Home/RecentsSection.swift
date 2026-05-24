@@ -9,6 +9,8 @@ import SwiftUI
 
 struct RecentsSection: View {
     let items: [WorkspaceItem]
+    var containerBackedConnectionIds: Set<String> = []
+    var stoppedContainerConnectionIds: Set<String> = []
     let onOpen: (WorkspaceItem) -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -71,8 +73,15 @@ struct RecentsSection: View {
     private func cardForItem(_ item: WorkspaceItem) -> some View {
         switch item {
         case .connection(let connection):
-            RecentConnectionCard(connection: connection) {
-                onOpen(item)
+            let isContainerStopped = stoppedContainerConnectionIds.contains(connection.keychainId)
+            RecentConnectionCard(
+                connection: connection,
+                isContainerBacked: containerBackedConnectionIds.contains(connection.keychainId),
+                isContainerStopped: isContainerStopped
+            ) {
+                if !isContainerStopped {
+                    onOpen(item)
+                }
             }
         case .notebook(let notebook):
             RecentNotebookCard(
@@ -89,6 +98,8 @@ struct RecentsSection: View {
 
 struct RecentCard<ContextMenu: View>: View {
     let item: WorkspaceItem
+    var isContainerBacked: Bool = false
+    var isContainerStopped: Bool = false
     let onTap: () -> Void
     @ViewBuilder let contextMenu: ContextMenu
 
@@ -155,6 +166,7 @@ struct RecentCard<ContextMenu: View>: View {
         switch item {
         case .connection(let connection):
             DatabaseTypeIcon(databaseType: connection.databaseType)
+                .grayscale(isContainerStopped ? 1 : 0)
         case .notebook:
             NotebookIcon()
         }
@@ -164,7 +176,11 @@ struct RecentCard<ContextMenu: View>: View {
     private var statusTag: some View {
         switch item {
         case .connection(let connection):
-            if let env = connection.environment {
+            if isContainerStopped {
+                StoppedContainerStatusTag()
+            } else if isContainerBacked {
+                ContainerStatusTag()
+            } else if let env = connection.environment {
                 EnvironmentTag(environment: env)
             }
         case .notebook(let notebook):
@@ -208,6 +224,8 @@ struct RecentCard<ContextMenu: View>: View {
 
 struct RecentConnectionCard: View {
     let connection: Connection
+    var isContainerBacked: Bool = false
+    var isContainerStopped: Bool = false
     let onOpen: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -215,12 +233,18 @@ struct RecentConnectionCard: View {
     @State private var showDeleteConfirmation = false
 
     var body: some View {
-        RecentCard(item: .connection(connection), onTap: onOpen) {
+        RecentCard(
+            item: .connection(connection),
+            isContainerBacked: isContainerBacked,
+            isContainerStopped: isContainerStopped,
+            onTap: onOpen
+        ) {
             Button {
                 onOpen()
             } label: {
                 Label("Connect", systemImage: "arrow.up.forward.square")
             }
+            .disabled(isContainerStopped)
 
             Divider()
 

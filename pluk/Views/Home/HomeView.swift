@@ -20,12 +20,82 @@ struct HomeView: View {
     @State private var showCreateSheet = false
     @State private var showConnectionAlert = false
     @State private var pendingConnection: Connection?
+    @State private var dockerCandidates: [DockerDatabaseCandidate] = []
+    @State private var isLoadingDockerCandidates = false
+    @State private var isDockerUnavailable = false
+    @State private var dockerDiscoveryTask: Task<Void, Never>?
+    @AppStorage("containerSyncEnabled") private var containerSyncEnabled = true
 
     private var allItems: [WorkspaceItem] {
         let items: [WorkspaceItem] =
             connections.map { .connection($0) } +
             notebooks.map { .notebook($0) }
         return items.sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+    }
+
+    private var containerBackedConnectionIds: Set<String> {
+        guard containerSyncEnabled else { return [] }
+        var ids = Set(connections.filter(isContainerConnection).map(\.keychainId))
+        ids.formUnion(linkedConnectionIds(for: dockerCandidates))
+        return ids
+    }
+
+    private var stoppedContainerConnectionIds: Set<String> {
+        guard containerSyncEnabled else { return [] }
+        if isDockerUnavailable {
+            return Set(connections.filter(isContainerConnection).map(\.keychainId))
+        }
+        return linkedConnectionIds(for: dockerCandidates.filter { !$0.isRunning })
+    }
+
+    private var connectionsByContainerId: [String: [Connection]] {
+        connections.reduce(into: [:]) { result, connection in
+            guard isContainerConnection(connection),
+                  let containerId = connection.containerId,
+                  !containerId.isEmpty else { return }
+            result[containerId, default: []].append(connection)
+        }
+    }
+
+    private func isContainerConnection(_ connection: Connection) -> Bool {
+        if let containerId = connection.containerId, !containerId.isEmpty {
+            return true
+        }
+        if let containerName = connection.containerName, !containerName.isEmpty {
+            return true
+        }
+        return false
+    }
+
+    private func linkedConnectionIds(for candidates: [DockerDatabaseCandidate]) -> Set<String> {
+        return Set(
+            candidates.flatMap { candidate in
+                connectionsLinkedToContainer(for: candidate).map(\.keychainId)
+            }
+        )
+    }
+
+    private func connectionLinkedToContainer(for candidate: DockerDatabaseCandidate) -> Connection? {
+        connectionsLinkedToContainer(for: candidate).first
+    }
+
+    private func connectionsLinkedToContainer(for candidate: DockerDatabaseCandidate) -> [Connection] {
+        if let idMatches = connectionsByContainerId[candidate.id], !idMatches.isEmpty {
+            return idMatches
+        }
+
+        guard !candidate.containerName.isEmpty else { return [] }
+        return connections.filter { connection in
+            guard isContainerConnection(connection),
+                  connection.containerId == nil,
+                  connection.containerName == candidate.containerName,
+                  connection.databaseType == candidate.databaseType,
+                  connection.hostname == candidate.host,
+                  connection.port == candidate.port else {
+                return false
+            }
+            return true
+        }
     }
 
     private var recentItems: [WorkspaceItem] {
@@ -69,12 +139,16 @@ struct HomeView: View {
                     if !recentItems.isEmpty {
                         RecentsSection(
                             items: recentItems,
+                            containerBackedConnectionIds: containerBackedConnectionIds,
+                            stoppedContainerConnectionIds: stoppedContainerConnectionIds,
                             onOpen: handleItemOpen
                         )
                     }
 
                     WorkspaceList(
                         items: allItems,
+                        containerBackedConnectionIds: containerBackedConnectionIds,
+                        stoppedContainerConnectionIds: stoppedContainerConnectionIds,
                         onOpenConnection: handleConnectionOpen,
                         onOpenNotebook: handleNotebookOpen,
                         onCreateConnection: { showCreateSheet = true },
@@ -94,6 +168,24 @@ struct HomeView: View {
             alignment: .leading
         )
         .postHogScreenView("HomeView")
+        .task {
+            if containerSyncEnabled {
+                await loadDockerCandidates()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            scheduleDockerCandidateLoad()
+        }
+        .onChange(of: containerSyncEnabled) { _, isEnabled in
+            if isEnabled {
+                scheduleDockerCandidateLoad()
+            } else {
+                stopContainerSync()
+            }
+        }
+        .onDisappear {
+            stopContainerSync()
+        }
         .sheet(isPresented: $showCreateSheet) {
             CreateConnectionForm()
                 .frame(width: 480)
@@ -102,8 +194,8 @@ struct HomeView: View {
             Button("Continue Current Tab") {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
-                    viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
                     connection.lastOpenedAt = Date()
+                    viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
                     Task { @MainActor in
                         AnalyticsService.shared.trackConnectionOpened(
                             databaseType: connection.databaseType,
@@ -119,21 +211,7 @@ struct HomeView: View {
                         pendingConnection = nil
                         return
                     }
-                    let instanceId = viewModel.createNewConnectionInstance(for: connection)
-
-                    if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
-                        WindowController.newTab(
-                            tabType: .connection(instanceId),
-                            connectionInstance: connectionInstance
-                        )
-                        connection.lastOpenedAt = Date()
-                        Task { @MainActor in
-                            AnalyticsService.shared.trackConnectionOpened(
-                                databaseType: connection.databaseType,
-                                isFirstConnection: false
-                            )
-                        }
-                    }
+                    openNewConnectionTab(connection, isFirstConnection: false)
                 }
                 pendingConnection = nil
             }
@@ -155,6 +233,143 @@ struct HomeView: View {
             handleConnectionOpen(connection)
         case .notebook(let notebook):
             handleNotebookOpen(notebook)
+        }
+    }
+
+    private func scheduleDockerCandidateLoad() {
+        guard containerSyncEnabled else {
+            stopContainerSync()
+            return
+        }
+        dockerDiscoveryTask?.cancel()
+        dockerDiscoveryTask = Task {
+            await loadDockerCandidates()
+        }
+    }
+
+    private func loadDockerCandidates() async {
+        guard containerSyncEnabled else {
+            stopContainerSync()
+            return
+        }
+        guard !isLoadingDockerCandidates else {
+            debugLog("[HomeDocker] Discovery already running; skipping duplicate request")
+            return
+        }
+        debugLog("[HomeDocker] Loading Docker candidates for Home")
+        isLoadingDockerCandidates = true
+        defer { isLoadingDockerCandidates = false }
+
+        do {
+            let discoveredCandidates = try await DockerContainerDiscoveryService().discoverDatabaseContainers()
+            let readyCandidates = discoveredCandidates.filter(\.isReadyToConnect)
+            isDockerUnavailable = false
+            dockerCandidates = readyCandidates
+            upsertDockerConnections(for: readyCandidates)
+
+            let runningCount = readyCandidates.filter(\.isRunning).count
+            let stoppedCount = readyCandidates.count - runningCount
+            debugLog("[HomeDocker] Home workspace list updated: \(readyCandidates.count) ready candidate(s) (\(runningCount) running, \(stoppedCount) stopped); matched stopped connections=\(stoppedContainerConnectionIds.count)")
+        } catch {
+            if let discoveryError = error as? DockerContainerDiscoveryError {
+                switch discoveryError {
+                case .dockerUnavailable:
+                    isDockerUnavailable = true
+                    dockerCandidates = []
+                case .sandboxPermissionDenied:
+                    break
+                }
+            }
+            debugLog("[HomeDocker] Docker discovery failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func stopContainerSync() {
+        dockerDiscoveryTask?.cancel()
+        dockerDiscoveryTask = nil
+        dockerCandidates = []
+        isDockerUnavailable = false
+    }
+
+    private func upsertDockerConnections(for candidates: [DockerDatabaseCandidate]) {
+        var insertedCount = 0
+        var updatedCount = 0
+        for candidate in candidates {
+            guard candidate.isReadyToConnect, !candidate.containerName.isEmpty else {
+                continue
+            }
+
+            if let existingConnection = connectionLinkedToContainer(for: candidate) {
+                existingConnection.containerName = candidate.containerName
+                existingConnection.containerId = candidate.id
+                updatedCount += 1
+                continue
+            }
+
+            let connection = makeConnection(from: candidate)
+            connection.containerName = candidate.containerName
+            connection.containerId = candidate.id
+            connection.lastOpenedAt = candidate.startedAt ?? candidate.createdAt ?? .distantPast
+            modelContext.insert(connection)
+
+            if let password = candidate.password, !password.isEmpty {
+                connection.password = password
+            }
+            insertedCount += 1
+        }
+
+        guard insertedCount > 0 || updatedCount > 0 else { return }
+        do {
+            try modelContext.save()
+            debugLog("[HomeDocker] Auto-added \(insertedCount) Docker connection(s), updated \(updatedCount)")
+        } catch {
+            debugLog("[HomeDocker] Failed to save auto-added Docker connections: \(error.localizedDescription)")
+        }
+    }
+
+    private func makeConnection(from candidate: DockerDatabaseCandidate) -> Connection {
+        switch candidate.databaseType {
+        case .postgres, .mysql:
+            return Connection(
+                databaseType: candidate.databaseType,
+                name: candidate.connectionName,
+                color: .blue,
+                environment: .local,
+                hostname: candidate.host,
+                port: candidate.port,
+                username: candidate.username ?? "",
+                database: candidate.databaseName,
+                sslMode: "disable"
+            )
+        case .mongodb:
+            if let username = candidate.username, !username.isEmpty {
+                return Connection(
+                    databaseType: candidate.databaseType,
+                    name: candidate.connectionName,
+                    color: .blue,
+                    environment: .local,
+                    hostname: candidate.host,
+                    port: candidate.port,
+                    username: username,
+                    database: nil,
+                    sslMode: nil
+                )
+            }
+            return Connection(
+                databaseType: candidate.databaseType,
+                url: candidate.connectionURI,
+                name: candidate.connectionName,
+                color: .blue,
+                environment: .local
+            )
+        case .convex, .supabase, .sqlite:
+            return Connection(
+                databaseType: candidate.databaseType,
+                url: candidate.connectionURI,
+                name: candidate.connectionName,
+                color: .blue,
+                environment: .local
+            )
         }
     }
 
@@ -196,22 +411,24 @@ struct HomeView: View {
             showConnectionAlert = true
         } else {
             if ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
-            let instanceId = viewModel.createNewConnectionInstance(for: connection)
+            openNewConnectionTab(connection, isFirstConnection: isFirstConnection)
+        }
+    }
 
-            if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
-                WindowController.newTab(
-                    tabType: .connection(instanceId),
-                    connectionInstance: connectionInstance
-                )
-                connection.lastOpenedAt = Date()
+    private func openNewConnectionTab(_ connection: Connection, isFirstConnection: Bool) {
+        connection.lastOpenedAt = Date()
+        let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
-                Task { @MainActor in
-                    AnalyticsService.shared.trackConnectionOpened(
-                        databaseType: connection.databaseType,
-                        isFirstConnection: isFirstConnection
-                    )
-                }
-            }
+        guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
+        WindowController.newTab(
+            tabType: .connection(instanceId),
+            connectionInstance: connectionInstance
+        )
+        Task { @MainActor in
+            AnalyticsService.shared.trackConnectionOpened(
+                databaseType: connection.databaseType,
+                isFirstConnection: isFirstConnection
+            )
         }
     }
 

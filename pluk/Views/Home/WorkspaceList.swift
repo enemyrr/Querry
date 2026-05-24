@@ -50,6 +50,8 @@ private enum WorkspaceSortDirection: String {
 
 struct WorkspaceList: View {
     let items: [WorkspaceItem]
+    var containerBackedConnectionIds: Set<String> = []
+    var stoppedContainerConnectionIds: Set<String> = []
     let onOpenConnection: (Connection) -> Void
     let onOpenNotebook: (Notebook) -> Void
     let onCreateConnection: () -> Void
@@ -332,6 +334,8 @@ struct WorkspaceList: View {
                     case .connection(let connection):
                         WorkspaceConnectionRow(
                             connection: connection,
+                            isContainerBacked: containerBackedConnectionIds.contains(connection.keychainId),
+                            isContainerStopped: stoppedContainerConnectionIds.contains(connection.keychainId),
                             onOpen: onOpenConnection
                         )
                     case .notebook(let notebook):
@@ -457,14 +461,20 @@ private func relativeTimeText(for date: Date) -> String {
         : date.formatted(.relative(presentation: .named))
 }
 
+private func relativeTimeText(for date: Date?) -> String {
+    guard let date else { return "" }
+    return relativeTimeText(for: date)
+}
+
 private struct WorkspaceRow<Icon: View, ContextMenu: View>: View {
     let icon: Icon
     let title: String
     let subtitle: String?
     let statusTag: AnyView?
     let kind: String
-    let lastOpenedAt: Date
-    let createdAt: Date
+    let lastOpenedAt: Date?
+    let createdAt: Date?
+    var textOpacity: Double = 1.0
     let onDoubleClick: () -> Void
     @ViewBuilder let contextMenu: ContextMenu
 
@@ -492,21 +502,25 @@ private struct WorkspaceRow<Icon: View, ContextMenu: View>: View {
                             .lineLimit(1)
                     }
                 }
+                .opacity(textOpacity)
             }
 
             Spacer()
 
-            Text(kind)
-                .foregroundStyle(.secondary)
-                .frame(width: 100, alignment: .leading)
+            Group {
+                Text(kind)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
 
-            Text(relativeTimeText(for: lastOpenedAt))
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
+                Text(relativeTimeText(for: lastOpenedAt))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 120, alignment: .leading)
 
-            Text(createdAt.formatted(date: .abbreviated, time: .omitted))
-                .foregroundStyle(.secondary)
-                .frame(width: 120, alignment: .leading)
+                Text(createdAt?.formatted(date: .abbreviated, time: .omitted) ?? "")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 120, alignment: .leading)
+            }
+            .opacity(textOpacity)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
@@ -562,8 +576,38 @@ struct WorkspaceNotebookRow: View {
     }
 }
 
+struct ContainerStatusTag: View {
+    var body: some View {
+        Text("Docker")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.primaryButton)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(Color.primaryButton.opacity(0.82), lineWidth: 1)
+            )
+    }
+}
+
+struct StoppedContainerStatusTag: View {
+    var body: some View {
+        Text("Stopped")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+            )
+    }
+}
+
 struct WorkspaceConnectionRow: View {
     let connection: Connection
+    var isContainerBacked: Bool = false
+    var isContainerStopped: Bool = false
     let onOpen: (Connection) -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -579,20 +623,31 @@ struct WorkspaceConnectionRow: View {
 
     var body: some View {
         WorkspaceRow(
-            icon: DatabaseTypeIcon(databaseType: connection.databaseType),
+            icon: DatabaseTypeIcon(databaseType: connection.databaseType)
+                .grayscale(isContainerStopped ? 1 : 0),
             title: connection.name,
             subtitle: subtitle,
-            statusTag: connection.environment.map { AnyView(EnvironmentTag(environment: $0)) },
-            kind: "Connection",
+            statusTag: isContainerStopped
+                ? AnyView(StoppedContainerStatusTag())
+                : isContainerBacked
+                    ? AnyView(ContainerStatusTag())
+                    : connection.environment.map { AnyView(EnvironmentTag(environment: $0)) },
+            kind: isContainerStopped ? "Stopped" : (isContainerBacked ? "Container" : "Connection"),
             lastOpenedAt: connection.lastOpenedAt,
             createdAt: connection.createdAt,
-            onDoubleClick: { onOpen(connection) }
+            textOpacity: isContainerStopped ? 0.6 : 1.0,
+            onDoubleClick: {
+                if !isContainerStopped {
+                    onOpen(connection)
+                }
+            }
         ) {
             Button {
                 onOpen(connection)
             } label: {
                 Label("Connect", systemImage: "arrow.up.forward.square")
             }
+            .disabled(isContainerStopped)
 
             Divider()
 

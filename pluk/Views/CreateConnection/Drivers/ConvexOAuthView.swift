@@ -444,7 +444,6 @@ struct ConvexOAuthView: View {
             hostname: convexProjectWithId,
             port: "8080",
             username: convexTeamName,
-            password: nil,
             database: convexProjectName,
             sslMode: nil
         )
@@ -730,4 +729,3 @@ struct ConvexOAuthView: View {
         }
     }
 }
-

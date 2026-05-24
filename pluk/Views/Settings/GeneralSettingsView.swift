@@ -13,6 +13,7 @@ struct GeneralSettingsView: View {
     @AppStorage("autoCheckForUpdates") private var autoCheckForUpdates = true
     @AppStorage("reportCrashes") private var reportCrashes = true
     @AppStorage("sendAnalytics") private var sendAnalytics = true
+    @AppStorage("containerSyncEnabled") private var containerSyncEnabled = true
 
     // MARK: - Future Settings Storage (DO NOT REMOVE - enable when needed)
     // These @AppStorage properties are for future settings sections.
@@ -48,6 +49,7 @@ struct GeneralSettingsView: View {
         Form {
             appearanceSection
             applicationSection
+            containersSection
             tableSection
 
             // MARK: - Future Settings Sections (DO NOT REMOVE - uncomment to enable)
@@ -151,6 +153,12 @@ struct GeneralSettingsView: View {
             // MARK: Future Application toggles (DO NOT REMOVE - uncomment to enable)
             // Toggle("Receive Beta Updates", isOn: $receiveBetaUpdates)
             // Toggle("Reopen last workspace at startup", isOn: $reopenLastWorkspace)
+        }
+    }
+
+    private var containersSection: some View {
+        Section("Containers") {
+            Toggle("Sync local containers", isOn: $containerSyncEnabled)
         }
     }
 

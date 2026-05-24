@@ -190,6 +190,9 @@ final class Connection {
     
     // Stable identifier for keychain storage (persists across app restarts)
     var keychainId: String = UUID().uuidString
+
+    var containerName: String?
+    var containerId: String?
     
     // Password is stored in keychain, not in database
     var password: String? {
@@ -214,31 +217,17 @@ final class Connection {
         self.defaultDatabase = defaultDatabase
     }
     
-    // New initializer for field-based connections
-    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment?, hostname: String, port: String, username: String, password: String? = nil, database: String? = nil, sslMode: String? = "prefer") {
+    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment?, hostname: String, port: String, username: String, database: String? = nil, sslMode: String? = "prefer") {
         self.name = name
         self.databaseType = databaseType
         self.color = color
         self.environment = environment
         self.defaultDatabase = database
-        
-        // Store individual fields
         self.hostname = hostname
         self.port = port
         self.username = username
         self.sslMode = sslMode
-        
-        // Set URL to nil for field-based connections (moving away from URL storage)
         self.url = nil
-        
-        // Note: Password will be stored in keychain after model is saved and persistentModelID is available
-        if let password = password, !password.isEmpty {
-            // Store password temporarily to be moved to keychain after save
-            nonisolated(unsafe) let unsafeSelf = self
-            Task { @MainActor in
-                unsafeSelf.password = password
-            }
-        }
     }
     
     var connectionUri: String {
