@@ -430,7 +430,7 @@ final class WorkOSAuthService {
     /// Refresh the access token if it's missing, expired, or about to expire.
     /// Multiple concurrent callers share the same in-flight Task so we do at
     /// most one refresh HTTP request at a time.
-    private func refreshAccessTokenIfNeeded() async -> Bool {
+    private func refreshAccessTokenIfNeeded(force: Bool = false) async -> Bool {
         if let task = inFlightRefresh {
             return await task.value
         }
@@ -442,12 +442,17 @@ final class WorkOSAuthService {
         // Skip refresh if the token still has >60s of life. The 60s buffer
         // absorbs clock skew + the ~ few hundred ms the retry round-trip would
         // have taken.
-        if let exp = Self.expiry(fromJWT: token),
+        if !force,
+           let exp = Self.expiry(fromJWT: token),
            exp.timeIntervalSinceNow > 60 {
             return true
         }
 
-        NSLog("[WorkOS] access token expired/near-expiry — refreshing proactively")
+        if force {
+            NSLog("[WorkOS] access token rejected — refreshing")
+        } else {
+            NSLog("[WorkOS] access token expired/near-expiry — refreshing proactively")
+        }
         let task = Task<Bool, Never> { [weak self] in
             let ok = await self?.refreshAccessToken() ?? false
             await MainActor.run { self?.inFlightRefresh = nil }
@@ -475,7 +480,7 @@ final class WorkOSAuthService {
         }
 
         NSLog("[WorkOS] Access token rejected (401) — attempting refresh")
-        guard await refreshAccessTokenIfNeeded(),
+        guard await refreshAccessTokenIfNeeded(force: true),
               let refreshed = KeychainHelper.shared.retrieve(for: WorkOSConfig.accessTokenKeychainKey) else {
             throw AuthorizedRequestError.refreshFailed
         }
