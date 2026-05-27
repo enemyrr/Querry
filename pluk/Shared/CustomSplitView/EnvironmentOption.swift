@@ -65,7 +65,7 @@ struct EnvironmentMenuLabel: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous)
-                .strokeBorder(borderColor, lineWidth: 1)
+                .strokeBorder(.separator, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: EnvironmentMenuLabelMetrics.cornerRadius, style: .continuous))
         .onHover { hovering in
@@ -81,11 +81,5 @@ struct EnvironmentMenuLabel: View {
         colorScheme == .dark
             ? Color.white.opacity(0.12)
             : Color(nsColor: .controlColor).opacity(0.8)
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.06)
-            : Color.black.opacity(0.08)
     }
 }

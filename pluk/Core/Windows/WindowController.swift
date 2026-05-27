@@ -9,7 +9,10 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     private static let defaultWindowSize = NSSize(width: 1200, height: 800)
 
     override var windowNibName: NSNib.Name? {
-        "TerminalTabsTitlebarVentura"
+        if #available(macOS 26, *) {
+            return "TerminalTabsTitlebarTahoe"
+        }
+        return "TerminalTabsTitlebarVentura"
     }
     
     // MARK: - Static Registry
@@ -190,7 +193,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     init(tabType: TabType, connectionInstance: ConnectionInstance? = nil) {
         self.tabType = tabType
         self.connectionInstance = connectionInstance
-        
+
         super.init(window: nil)
     }
     

@@ -2,21 +2,16 @@ import AppKit
 import SwiftUI
 
 final class TabBarView: NSView {
-
     private let instance: ConnectionInstance
     private let appViewModel: AppViewModel
 
-    private var prevButton: NSButton!
-    private var nextButton: NSButton!
+    private var prevButton: HoverNavButton!
+    private var nextButton: HoverNavButton!
     private var scrollView: NSScrollView!
+    private let scrollFadeMask = CAGradientLayer()
     private var tabsContainer: NSView!
-    private var newTabButton: NSButton!
-    private var sidebarToggleButton: NSButton!
-
-    private var prevHoverLayer: CALayer!
-    private var nextHoverLayer: CALayer!
-    private var newTabHoverLayer: CALayer!
-    private var sidebarHoverLayer: CALayer!
+    private var newTabButton: HoverNavButton!
+    private var sidebarToggleButton: HoverNavButton!
 
     private var tabViews: [UUID: DraggableTabNSView] = [:]
     private var draggedIndex: Int?
@@ -61,7 +56,7 @@ final class TabBarView: NSView {
         if #available(macOS 26, *) { 3 } else { 0 }
     }
     private var newTabButtonBottomInset: CGFloat {
-        if #available(macOS 26, *) { 8 } else { 8 }
+        if #available(macOS 26, *) { 7 } else { 7 }
     }
     private var tabContentLeadingPadding: CGFloat {
         if #available(macOS 26, *) { 15 } else { 10 }
@@ -74,6 +69,10 @@ final class TabBarView: NSView {
     }
     private var scrollableTabScrollTrailingOffset: CGFloat {
         6
+    }
+    private let selectedTabRevealPadding: CGFloat = 12
+    private var scrollableTabReservedWidth: CGFloat {
+        isScrollable ? newTabButtonGap + scrollableTabScrollTrailingOffset : 0
     }
 
     init(instance: ConnectionInstance, appViewModel: AppViewModel) {
@@ -105,6 +104,7 @@ final class TabBarView: NSView {
         super.viewDidMoveToWindow()
         if window != nil {
             syncInitialSidebarState()
+            refreshNavigationHoverStates()
         }
     }
 
@@ -114,13 +114,13 @@ final class TabBarView: NSView {
         prevButton = makeNavButton(symbolName: "chevron.left")
         prevButton.target = self
         prevButton.action = #selector(prevTabAction)
-        prevButton.installCustomTooltip("Previous Tab (also ⌘⇧[)", shortcut: .init(modifiers: [.command, .option], key: "←"))
+        prevButton.installCustomTooltip("Previous Tab", shortcut: .init(modifiers: [.command, .option], key: "←"))
         addSubview(prevButton)
 
         nextButton = makeNavButton(symbolName: "chevron.right")
         nextButton.target = self
         nextButton.action = #selector(nextTabAction)
-        nextButton.installCustomTooltip("Next Tab (also ⌘⇧])", shortcut: .init(modifiers: [.command, .option], key: "→"))
+        nextButton.installCustomTooltip("Next Tab", shortcut: .init(modifiers: [.command, .option], key: "→"))
         addSubview(nextButton)
 
         scrollView = NonDraggingScrollView()
@@ -143,7 +143,9 @@ final class TabBarView: NSView {
 
         scrollView.horizontalScrollElasticity = .none
         scrollView.verticalScrollElasticity = .none
+        scrollView.wantsLayer = true
         addSubview(scrollView)
+        setupScrollFadeMask()
 
         newTabButton = makeNavButton(symbolName: "plus", fontSize: 12)
         newTabButton.target = self
@@ -158,23 +160,6 @@ final class TabBarView: NSView {
         sidebarToggleButton.installCustomTooltip("Toggle Row Details", shortcut: .init(modifiers: [.command], key: "]"))
         addSubview(sidebarToggleButton)
 
-        prevHoverLayer = makeHoverLayer()
-        prevButton.layer?.addSublayer(prevHoverLayer)
-
-        nextHoverLayer = makeHoverLayer()
-        nextButton.layer?.addSublayer(nextHoverLayer)
-
-        newTabHoverLayer = makeHoverLayer()
-        newTabButton.layer?.addSublayer(newTabHoverLayer)
-
-        sidebarHoverLayer = makeHoverLayer()
-        sidebarToggleButton.layer?.addSublayer(sidebarHoverLayer)
-
-        setupTrackingArea(for: prevButton, hoverLayer: prevHoverLayer)
-        setupTrackingArea(for: nextButton, hoverLayer: nextHoverLayer)
-        setupTrackingArea(for: newTabButton, hoverLayer: newTabHoverLayer)
-        setupTrackingArea(for: sidebarToggleButton, hoverLayer: sidebarHoverLayer)
-
         setupConstraints()
     }
 
@@ -184,16 +169,17 @@ final class TabBarView: NSView {
         newTabButton.translatesAutoresizingMaskIntoConstraints = false
         sidebarToggleButton.translatesAutoresizingMaskIntoConstraints = false
 
-        leadingConstraint = prevButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
-        scrollViewLeadingConstraint = scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor, constant: tabScrollLeadingOffset)
+        let leadingConstraint = prevButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
+        self.leadingConstraint = leadingConstraint
+        scrollViewLeadingConstraint = scrollView.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor, constant: tabScrollLeadingOffset + 1)
         scrollViewTrailingConstraint = scrollView.trailingAnchor.constraint(equalTo: sidebarToggleButton.leadingAnchor, constant: -4)
 
         newTabInlineConstraint = newTabButton.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 0)
         newTabFixedConstraint = newTabButton.trailingAnchor.constraint(equalTo: sidebarToggleButton.leadingAnchor, constant: -4)
 
-        NSLayoutConstraint.activate([
+        let constraints: [NSLayoutConstraint] = [
             leadingConstraint,
-            prevButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            prevButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -7),
             prevButton.widthAnchor.constraint(equalToConstant: navButtonSize),
             prevButton.heightAnchor.constraint(equalToConstant: navButtonSize),
 
@@ -215,7 +201,9 @@ final class TabBarView: NSView {
             newTabButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -newTabButtonBottomInset),
             newTabButton.widthAnchor.constraint(equalToConstant: newTabButtonWidth),
             newTabButton.heightAnchor.constraint(equalToConstant: navButtonSize),
-        ])
+        ]
+
+        NSLayoutConstraint.activate(constraints)
 
         newTabInlineConstraint.isActive = true
     }
@@ -226,35 +214,15 @@ final class TabBarView: NSView {
         if #available(macOS 26, *) { 10 } else { 6 }
     }
 
-    private func makeNavButton(symbolName: String, fontSize: CGFloat = 14) -> NSButton {
-        let button = NSButton(frame: .zero)
+    private func makeNavButton(symbolName: String, fontSize: CGFloat = 14) -> HoverNavButton {
+        let button = HoverNavButton(cornerRadius: navButtonCornerRadius)
         button.bezelStyle = .inline
         button.isBordered = false
         button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
         button.imagePosition = .imageOnly
         button.symbolConfiguration = .init(pointSize: fontSize, weight: .regular)
-        button.wantsLayer = true
-        button.layer?.cornerRadius = navButtonCornerRadius
         button.contentTintColor = .secondaryLabelColor
         return button
-    }
-
-    private func makeHoverLayer() -> CALayer {
-        let layer = CALayer()
-        layer.cornerRadius = navButtonCornerRadius
-        layer.opacity = 0
-        return layer
-    }
-
-    private func setupTrackingArea(for button: NSButton, hoverLayer: CALayer) {
-        let tracker = HoverTracker(hoverLayer: hoverLayer, owner: button)
-        button.addTrackingArea(NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: tracker,
-            userInfo: nil
-        ))
-        objc_setAssociatedObject(button, &HoverTracker.associatedKey, tracker, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 
     // MARK: - Tab Syncing
@@ -263,10 +231,7 @@ final class TabBarView: NSView {
         if isDragActive { return }
         draggedIndex = nil
         dropInsertionIndex = nil
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        newTabHoverLayer.opacity = 0
-        CATransaction.commit()
+        newTabButton.resetHover()
         let currentTabs = instance.tabs
         let currentIds = Set(currentTabs.map(\.id))
         let existingIds = Set(tabViews.keys)
@@ -299,6 +264,10 @@ final class TabBarView: NSView {
         updateNavigationButtons()
         updateSidebarToggleAppearance()
         scrollToSelectedTab(animated: true)
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.scrollToSelectedTab(animated: false)
+        }
     }
 
     private func makeDraggableTab(for tab: DatabaseTab, at index: Int) -> DraggableTabNSView {
@@ -433,7 +402,7 @@ final class TabBarView: NSView {
             xOffset += newTabButtonLeadingGap + newTabButtonWidth + newTabButtonGap
         }
 
-        xOffset += 6 // Trailing padding
+        xOffset += selectedTabRevealPadding + scrollableTabReservedWidth // Trailing padding
 
         let containerWidth = max(xOffset, scrollView.bounds.width)
         let newSize = NSSize(width: containerWidth, height: containerHeight)
@@ -517,6 +486,7 @@ final class TabBarView: NSView {
             layoutTabs(animated: false)
         }
 
+        updateScrollFadeMask()
         needsLayout = true
     }
 
@@ -531,12 +501,24 @@ final class TabBarView: NSView {
         guard let selectedTab = instance.selectedTab,
               let draggable = tabViews[selectedTab.id] else { return }
 
+        layoutSubtreeIfNeeded()
+        scrollView.layoutSubtreeIfNeeded()
+
         let tabFrame = draggable.frame
         let visibleRect = scrollView.contentView.bounds
+        let effectiveVisibleWidth = max(1, visibleRect.width - scrollableTabReservedWidth)
+        let effectiveVisibleMaxX = visibleRect.minX + effectiveVisibleWidth
+        let targetMinX = max(0, tabFrame.minX - selectedTabRevealPadding)
+        let targetMaxX = tabFrame.maxX + selectedTabRevealPadding
 
-        if tabFrame.minX < visibleRect.minX || tabFrame.maxX > visibleRect.maxX {
-            let targetX = tabFrame.midX - visibleRect.width / 2
-            let clampedX = max(0, min(targetX, tabsContainer.frame.width - visibleRect.width))
+        if targetMinX < visibleRect.minX || targetMaxX > effectiveVisibleMaxX {
+            let targetX = if targetMaxX > effectiveVisibleMaxX {
+                targetMaxX - effectiveVisibleWidth
+            } else {
+                targetMinX
+            }
+            let maxX = max(0, tabsContainer.frame.width - visibleRect.width)
+            let clampedX = max(0, min(targetX, maxX))
             let targetPoint = NSPoint(x: clampedX, y: 0)
 
             if animated {
@@ -565,15 +547,7 @@ final class TabBarView: NSView {
     private func updateSidebarToggleAppearance() {
         let isActive = appViewModel.isRightSidebarVisible
         sidebarToggleButton.contentTintColor = isActive ? .labelColor : .secondaryLabelColor
-
-        guard let tracker = objc_getAssociatedObject(sidebarToggleButton!, &HoverTracker.associatedKey) as? HoverTracker else { return }
-        tracker.isActive = isActive
-
-        if isActive {
-            tracker.showHover()
-        } else {
-            tracker.hideHover()
-        }
+        sidebarToggleButton.keepsHoverVisible = isActive
     }
 
     // MARK: - Actions
@@ -639,6 +613,7 @@ final class TabBarView: NSView {
 
     @objc private func handleScrollBoundsChange() {
         updateScrollEdgeSpacing()
+        updateScrollFadeMask()
     }
 
     private func observeTabs() {
@@ -763,64 +738,183 @@ final class TabBarView: NSView {
                 tabButton.updateAppearance()
             }
         }
+        refreshNavigationHoverStates()
         updateSidebarToggleAppearance()
+    }
+
+    func hitTarget(atWindowPoint locationInWindow: NSPoint) -> NSView? {
+        for button in [prevButton, nextButton, newTabButton, sidebarToggleButton] {
+            guard let button, !button.isHidden, button.alphaValue > 0 else { continue }
+            let localPoint = button.convert(locationInWindow, from: nil)
+            if button.bounds.contains(localPoint) {
+                return button
+            }
+        }
+        return nil
+    }
+
+    func refreshNavigationHoverStates() {
+        prevButton?.refreshHoverState()
+        nextButton?.refreshHoverState()
+        newTabButton?.refreshHoverState()
+        sidebarToggleButton?.refreshHoverState()
+    }
+
+    private func setupScrollFadeMask() {
+        scrollFadeMask.startPoint = CGPoint(x: 0, y: 0.5)
+        scrollFadeMask.endPoint = CGPoint(x: 1, y: 0.5)
+        scrollFadeMask.colors = [
+            NSColor.clear.cgColor,
+            NSColor.black.cgColor,
+            NSColor.black.cgColor,
+            NSColor.clear.cgColor,
+        ]
+        scrollFadeMask.locations = [0, 0.08, 0.92, 1]
+    }
+
+    private func updateScrollFadeMask() {
+        guard isScrollable else {
+            scrollView.layer?.mask = nil
+            return
+        }
+
+        scrollFadeMask.frame = scrollView.bounds
+        let visibleRect = scrollView.contentView.bounds
+        let fadeWidth: CGFloat = 10
+        let width = max(scrollView.bounds.width, 1)
+        let fadeStop = min(0.5, fadeWidth / width)
+        let leadingStop: CGFloat = visibleRect.minX <= 0.5 ? 0 : fadeStop
+        let trailingStart: CGFloat = visibleRect.maxX >= tabsContainer.frame.width - 0.5 ? 1 : 1 - fadeStop
+        scrollFadeMask.locations = [
+            0,
+            NSNumber(value: leadingStop),
+            NSNumber(value: trailingStart),
+            1,
+        ]
+        scrollView.layer?.mask = scrollFadeMask
     }
 
     override func layout() {
         super.layout()
         guard bounds.height > 0, !isLayoutingTabs else { return }
         isLayoutingTabs = true
-        prevHoverLayer.frame = prevButton.bounds
-        nextHoverLayer.frame = nextButton.bounds
-        newTabHoverLayer.frame = newTabButton.bounds
-        sidebarHoverLayer.frame = sidebarToggleButton.bounds
         layoutTabs(animated: false)
         updateScrollability()
+        refreshNavigationHoverStates()
+        updateScrollFadeMask()
         isLayoutingTabs = false
     }
 }
 
-// MARK: - Hover Tracker
+// MARK: - Hover Nav Button
 
-private class HoverTracker: NSResponder {
-    static var associatedKey: UInt8 = 0
+private final class HoverNavButton: NSButton {
+    private let hoverLayer = CALayer()
+    private var trackingArea: NSTrackingArea?
+    private var isPointerInside = false
 
-    let hoverLayer: CALayer
-    weak var owner: NSButton?
-    var isActive = false
-
-    init(hoverLayer: CALayer, owner: NSButton) {
-        self.hoverLayer = hoverLayer
-        self.owner = owner
-        super.init()
+    var keepsHoverVisible = false {
+        didSet {
+            updateHover()
+        }
+    }
+    init(cornerRadius: CGFloat) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = cornerRadius
+        hoverLayer.cornerRadius = cornerRadius
+        hoverLayer.opacity = 0
+        layer?.addSublayer(hoverLayer)
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
     }
 
-    func showHover() {
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let isDark = NSAppearance.currentDrawing().isDarkMode
-            hoverLayer.backgroundColor = isDark
-                ? NSColor.white.withAlphaComponent(0.12).cgColor
-                : NSColor.controlColor.withAlphaComponent(0.8).cgColor
-            hoverLayer.opacity = 1
-        }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
     }
 
-    func hideHover() {
-        hoverLayer.opacity = 0
+    override func layout() {
+        super.layout()
+        hoverLayer.frame = bounds
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateTrackingAreas()
+        refreshHoverState()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+        refreshHoverState()
+    }
+
+    func refreshHoverState() {
+        guard let window, !isHidden, bounds.width > 0, bounds.height > 0 else {
+            if isPointerInside {
+                isPointerInside = false
+                updateHover()
+            }
+            return
+        }
+
+        let localPoint = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let isInside = bounds.contains(localPoint)
+        guard isInside != isPointerInside else {
+            updateHover()
+            return
+        }
+        isPointerInside = isInside
+        updateHover()
+    }
+
+    func resetHover() {
+        isPointerInside = false
+        updateHover()
     }
 
     override func mouseEntered(with event: NSEvent) {
-        guard !isActive else { return }
-        showHover()
+        isPointerInside = true
+        updateHover()
     }
 
     override func mouseExited(with event: NSEvent) {
-        guard !isActive else { return }
-        hideHover()
+        isPointerInside = false
+        updateHover()
+    }
+
+    private func updateHover() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        if isPointerInside || keepsHoverVisible {
+            NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+                let isDark = NSAppearance.currentDrawing().isDarkMode
+                hoverLayer.backgroundColor = isDark
+                    ? NSColor.white.withAlphaComponent(0.12).cgColor
+                    : NSColor.controlColor.withAlphaComponent(0.8).cgColor
+                hoverLayer.opacity = 1
+            }
+        } else {
+            hoverLayer.opacity = 0
+        }
     }
 }
 

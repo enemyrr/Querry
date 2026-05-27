@@ -1,15 +1,28 @@
 import AppKit
 
+/// macOS 26 (Tahoe) variant of the titlebar-tabs window.
+///
+/// Cloned from `TitlebarTabsVenturaTerminalWindow` with two changes:
+///
+/// 1. **`addTitlebarAccessoryViewController` is NOT overridden.** On Tahoe,
+///    overriding that method — even with just a `super` call — flips AppKit
+///    to a chrome path that paints a white toolbar strip. The Ventura class
+///    needs the override (to re-route accessories to `.right` pre-26), so
+///    we use a separate XIB + class on Tahoe to skip it.
+///
+/// 2. **`titlebarAppearsTransparent = false`** everywhere it was `true` in
+///    Ventura. On Tahoe, `true` triggers the Liquid Glass backdrop paint;
+///    the default (`false`) plus the existing chrome scrub is what actually
+///    produces a transparent titlebar.
+///
+/// Everything else mirrors Ventura: same KVO, same fullscreen handlers,
+/// same `scheduleTitlebarChromeCleanup` timer cascade, same tab-bar mouse
+/// routing — proven working machinery, no reinvention.
+@available(macOS 26, *)
 @MainActor
-class TitlebarTabsVenturaTerminalWindow: NSWindow {
+class TitlebarTabsTahoeTerminalWindow: NSWindow {
     private weak var tabBarMouseTarget: NSView?
 
-    // KVO on the tab group — the system resets the titlebar appearance on tab
-    // group changes (including the implicit one that happens during fullscreen
-    // exit), and that reset is what brings the white toolbar bg back. Re-running
-    // our scrub from these observers is what Ghostty does in their equivalent
-    // `TransparentTitlebarTerminalWindow` and is the missing piece our existing
-    // fullscreen-notification cleanup doesn't cover.
     private var tabGroupWindowsObservation: NSKeyValueObservation?
     private var tabBarVisibleObservation: NSKeyValueObservation?
 
@@ -20,6 +33,7 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         acceptsMouseMovedEvents = true
         setupFullscreenNotifications()
     }
+
     var titlebarContainer: NSView? {
         if !styleMask.contains(.fullScreen) {
             return contentView?.firstViewFromRoot(withClassName: "NSTitlebarContainerView")
@@ -40,10 +54,48 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
     override func awakeFromNib() {
         super.awakeFromNib()
         MainActor.assumeIsolated {
-            titlebarAppearsTransparent = true
+            titlebarAppearsTransparent = false
             acceptsMouseMovedEvents = true
             setupFullscreenNotifications()
             updateTitlebarVisibility()
+            setupTabGroupKVO()
+        }
+    }
+
+    override func becomeMain() {
+        super.becomeMain()
+        scheduleTitlebarChromeCleanup()
+        setupTabGroupKVO()
+
+        // Going from 2 tabs to 1, AppKit replaces the tab views asynchronously
+        // AFTER our KVO fires — re-apply a tick later to catch the swap.
+        // Documented edge case in Ghostty's `TransparentTitlebarTerminalWindow`.
+        if tabGroup?.windows.count == 2 {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(50))
+                self?.hideTabBarAccessoryClipViews()
+            }
+        }
+    }
+
+    private func setupTabGroupKVO() {
+        tabGroupWindowsObservation?.invalidate()
+        tabBarVisibleObservation?.invalidate()
+        tabGroupWindowsObservation = nil
+        tabBarVisibleObservation = nil
+
+        guard let tabGroup else { return }
+
+        tabGroupWindowsObservation = tabGroup.observe(\.windows, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.hideTabBarAccessoryClipViews()
+            }
+        }
+
+        tabBarVisibleObservation = tabGroup.observe(\.isTabBarVisible, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.hideTabBarAccessoryClipViews()
+            }
         }
     }
 
@@ -89,19 +141,19 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
     // MARK: - Titlebar Tabs
 
     private func updateTitlebarVisibility() {
-//        titleVisibility = .hidden
-//        titlebarAppearsTransparent = true
-//        titlebarSeparatorStyle = .none
-//        if let contentView = contentView {
-//            let windowFrame = frame
-//            let newContentFrame = NSRect(
-//                x: 0,
-//                y: 0,
-//                width: windowFrame.width,
-//                height: windowFrame.height
-//            )
-//            contentView.frame = newContentFrame
-//        }
+        titleVisibility = .hidden
+        titlebarAppearsTransparent = false
+        titlebarSeparatorStyle = .none
+        if let contentView = contentView {
+            let windowFrame = frame
+            let newContentFrame = NSRect(
+                x: 0,
+                y: 0,
+                width: windowFrame.width,
+                height: windowFrame.height
+            )
+            contentView.frame = newContentFrame
+        }
     }
 
     @objc func windowWillEnterFullScreen(_ notification: Notification) {
@@ -126,7 +178,7 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     private func updateFullscreenTitlebarTransparency() {
         if styleMask.contains(.fullScreen) {
-            titlebarAppearsTransparent = true
+            titlebarAppearsTransparent = false
             backgroundColor = NSColor.clear
             isOpaque = false
 
@@ -134,12 +186,41 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
     }
 
+    override func addTitlebarAccessoryViewController(_ childViewController: NSTitlebarAccessoryViewController) {
+        // Configure BEFORE super so AppKit installs the accessory inline
+        // (`.right`) instead of as a bottom strip — that's what prevents the
+        // brief flash where the tab bar is visible before our KVO catches it.
+        // The original "override triggers white stripe" finding was with
+        // `titlebarAppearsTransparent = true`; with `false` everywhere now,
+        // this override should be safe. If the strip returns, remove this.
+        if isTabBar(childViewController) {
+            childViewController.layoutAttribute = .right
+        }
+
+        super.addTitlebarAccessoryViewController(childViewController)
+
+        // Run the existing cleanup right away to hide the views.
+        scheduleTitlebarChromeCleanup()
+    }
+
+    private func isTabBar(_ vc: NSTitlebarAccessoryViewController) -> Bool {
+        if vc.view.firstDescendant(withClassName: "NSTabBar") != nil { return true }
+        // Default-style accessory with no children is also a tab-bar placeholder
+        // (AppKit's first add for window tabbing).
+        if vc.layoutAttribute == .bottom,
+           vc.view.className == "NSView",
+           vc.view.subviews.isEmpty {
+            return true
+        }
+        return false
+    }
+
     private func setFullscreenTitlebarTransparent() {
         for window in NSApplication.shared.windows {
             guard window.className == "NSToolbarFullScreenWindow" else { continue }
             guard window.parent == self else { continue }
 
-            window.titlebarAppearsTransparent = true
+            window.titlebarAppearsTransparent = false
             window.backgroundColor = NSColor.clear
             window.isOpaque = false
 
@@ -152,67 +233,15 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
         }
     }
 
-    override func addTitlebarAccessoryViewController(_ childViewController: NSTitlebarAccessoryViewController) {
-        let isTabBar = isTabBar(childViewController)
-
-        if isTabBar {
-            childViewController.layoutAttribute = .right
-            updateTitlebarVisibility()
-            childViewController.identifier = Self.tabBarIdentifier
-        }
-
-        super.addTitlebarAccessoryViewController(childViewController)
-
-//        if #available(macOS 26, *), isTabBar {
-//            hideTabBarAccessoryClipViews()
-//
-//            Task { @MainActor [weak self] in
-//                self?.hideTabBarAccessoryClipViews()
-//            }
-//
-//            Task { @MainActor [weak self] in
-//                try? await Task.sleep(for: .milliseconds(100))
-//                self?.hideTabBarAccessoryClipViews()
-//            }
-//
-//            Task { @MainActor [weak self] in
-//                try? await Task.sleep(for: .milliseconds(300))
-//                self?.hideTabBarAccessoryClipViews()
-//            }
-//        }
-    }
-
+    /// Single-call chrome cleanup. Replaces Ventura's 5-stage timer cascade —
+    /// our trigger set (`addTitlebarAccessoryViewController` override + tab-group
+    /// KVO + `becomeMain` + fullscreen notifications) already fires at every
+    /// point AppKit mutates chrome, so polling on a timer is redundant.
+    /// Pattern matches Ghostty's `TransparentTitlebarTerminalWindow`.
     private func scheduleTitlebarChromeCleanup() {
-        guard #available(macOS 26, *) else { return }
-
         hideTabBarAccessoryClipViews()
-
-        Task { @MainActor [weak self] in
-            self?.hideTabBarAccessoryClipViews()
-        }
-
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(100))
-            self?.hideTabBarAccessoryClipViews()
-        }
-
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            self?.hideTabBarAccessoryClipViews()
-        }
-
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(800))
-            self?.hideTabBarAccessoryClipViews()
-        }
-
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(1_500))
-            self?.hideTabBarAccessoryClipViews()
-        }
     }
 
-    @available(macOS 26, *)
     private func hideTabBarAccessoryClipViews() {
         guard let titlebarContainer = titlebarContainer else { return }
 
@@ -234,21 +263,19 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             tabBar.alphaValue = 0
         }
 
-        for accessoryView in titlebarAccessoryViewControllers {
-            if accessoryView.identifier == Self.tabBarIdentifier {
+        // `titlebarAccessoryViewControllers` only works on titled windows; the
+        // fullscreen chrome window (NSToolbarFullScreenWindow) lacks `.titled`
+        // and throws if accessed.
+        if styleMask.contains(.titled) {
+            for accessoryView in titlebarAccessoryViewControllers {
+                guard accessoryView.view.firstDescendant(withClassName: "NSTabBar") != nil else { continue }
                 accessoryView.view.isHidden = true
-                accessoryView.view.frame = .zero
                 accessoryView.view.alphaValue = 0
             }
         }
     }
 
-    @available(macOS 26, *)
     private func hideTitlebarBackgroundViews(in titlebarContainer: NSView) {
-        #if DEBUG
-        logTitlebarHierarchy(titlebarContainer, phase: "before")
-        #endif
-
         titlebarContainer.layer?.backgroundColor = NSColor.clear.cgColor
 
         for effectView in titlebarContainer.descendants(withClassName: "NSVisualEffectView") {
@@ -267,63 +294,12 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
             glassContainer.alphaValue = 0
             glassContainer.frame = .zero
         }
-
-        #if DEBUG
-        logTitlebarHierarchy(titlebarContainer, phase: "after")
-        #endif
     }
-
-    #if DEBUG
-    @available(macOS 26, *)
-    private func logTitlebarHierarchy(_ titlebarContainer: NSView, phase: String) {
-        let interestingClassFragments = [
-            "Titlebar", "Toolbar", "Tab", "Glass", "VisualEffect", "Accessory", "Background", "Clip", "Decoration"
-        ]
-
-        func walk(_ view: NSView, depth: Int) {
-            let className = NSStringFromClass(type(of: view))
-            let shouldLog = interestingClassFragments.contains { className.contains($0) }
-
-            if shouldLog {
-                let indent = String(repeating: "  ", count: depth)
-                print(
-                    "[PlukTitlebarDebug:\(phase)] \(indent)\(className) hidden=\(view.isHidden) alpha=\(view.alphaValue) frame=\(view.frame)"
-                )
-            }
-
-            for subview in view.subviews {
-                walk(subview, depth: depth + 1)
-            }
-        }
-
-        walk(titlebarContainer, depth: 0)
-    }
-    #endif
 
     // MARK: Tab Bar
 
-    static let tabBarIdentifier: NSUserInterfaceItemIdentifier = .init("_plukTabBar")
-
     var hasTabBar: Bool {
         contentView?.firstViewFromRoot(withClassName: "NSTabBar") != nil
-    }
-
-    func isTabBar(_ childViewController: NSTitlebarAccessoryViewController) -> Bool {
-        if childViewController.identifier == nil {
-            if childViewController.view.contains(className: "NSTabBar") {
-                return true
-            }
-
-            if childViewController.layoutAttribute == .bottom,
-               childViewController.view.className == "NSView",
-               childViewController.view.subviews.isEmpty {
-                return true
-            }
-
-            return false
-        }
-
-        return childViewController.identifier == Self.tabBarIdentifier
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -521,8 +497,5 @@ class TitlebarTabsVenturaTerminalWindow: NSWindow {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        // tabGroupWindowsObservation/tabBarVisibleObservation are cleaned up
-        // automatically when the window deallocates; we can't touch them from
-        // a nonisolated deinit while they live on @MainActor self.
     }
 }

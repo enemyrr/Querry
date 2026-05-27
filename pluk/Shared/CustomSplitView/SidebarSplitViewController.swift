@@ -107,17 +107,27 @@ final class SidebarSplitViewController: NSSplitViewController {
 
     struct Configuration {
         var minWidth: CGFloat = 330
-        var autosaveName: String? = "PlukSidebarSplitView"
+        var autosaveName: String? = nil
         var startsCollapsed: Bool = false
+        var widthPersistenceKey: String? = "PlukSidebarWidth"
     }
 
     private var sidebarItem: NSSplitViewItem!
     private var contentItem: NSSplitViewItem!
     private var isProgrammaticCollapse = false
+    private var isManuallyCollapsed = false
+    private var hasAppliedInitialSidebarWidth = false
+    private var lastExpandedSidebarWidth: CGFloat?
 
-    var isCollapsed: Bool { sidebarItem.isCollapsed }
+    var isCollapsed: Bool {
+        usesManualCollapse ? isManuallyCollapsed : sidebarItem.isCollapsed
+    }
 
     private let configuration: Configuration
+    private var usesManualCollapse: Bool { configuration.autosaveName == nil }
+    private var isSidebarItemInstalled: Bool {
+        splitViewItems.contains { $0 === sidebarItem }
+    }
 
     init(
         sidebarController: NSViewController,
@@ -177,7 +187,10 @@ final class SidebarSplitViewController: NSSplitViewController {
             object: splitView
         )
 
-        if configuration.startsCollapsed {
+        if usesManualCollapse, configuration.startsCollapsed {
+            isManuallyCollapsed = true
+            applyManualCollapsedLayout()
+        } else if configuration.startsCollapsed {
             sidebarItem.isCollapsed = true
         } else if sidebarItem.isCollapsed {
             sidebarItem.isCollapsed = false
@@ -187,12 +200,95 @@ final class SidebarSplitViewController: NSSplitViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         // Post initial visibility state so UI can sync
-        let isVisible = !sidebarItem.isCollapsed
+        let isVisible = !isCollapsed
         postVisibilityChange(isVisible: isVisible)
+        applyInitialManualLayoutIfNeeded()
 
-        if let hoverSplitView = splitView as? HoverDividerSplitView {
-            hoverSplitView.isSidebarCollapsed = !isVisible
+        updateHoverDividerState(collapsed: !isVisible)
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        applyInitialManualLayoutIfNeeded()
+    }
+
+    private func persistedSidebarWidth() -> CGFloat? {
+        guard usesManualCollapse else { return nil }
+        guard let key = configuration.widthPersistenceKey else { return nil }
+        let saved = UserDefaults.standard.double(forKey: key)
+        guard saved >= configuration.minWidth else { return nil }
+        return CGFloat(saved)
+    }
+
+    private func rememberExpandedSidebarWidth() {
+        guard usesManualCollapse, !isManuallyCollapsed else { return }
+        guard isSidebarItemInstalled else { return }
+        guard isExpandedLayoutSettled else { return }
+
+        let width = sidebarItem.viewController.view.frame.width
+        guard width >= configuration.minWidth else { return }
+        lastExpandedSidebarWidth = width
+
+        guard let key = configuration.widthPersistenceKey else { return }
+        UserDefaults.standard.set(Double(width), forKey: key)
+    }
+
+    private var isExpandedLayoutSettled: Bool {
+        guard isSidebarItemInstalled else { return false }
+        guard splitView.bounds.width > 0 else { return false }
+        let sidebarWidth = sidebarItem.viewController.view.frame.width
+        let contentWidth = contentItem.viewController.view.frame.width
+        let totalWidth = sidebarWidth + contentWidth + splitView.dividerThickness
+        return abs(totalWidth - splitView.bounds.width) <= 1 && contentWidth >= contentItem.minimumThickness
+    }
+
+    private func applyInitialManualLayoutIfNeeded() {
+        guard usesManualCollapse, !hasAppliedInitialSidebarWidth, splitView.bounds.width > 0 else { return }
+        hasAppliedInitialSidebarWidth = true
+
+        if isManuallyCollapsed {
+            applyManualCollapsedLayout()
+        } else {
+            restoreManualExpandedWidth()
         }
+    }
+
+    private func restoreManualExpandedWidth() {
+        guard usesManualCollapse, !isManuallyCollapsed, splitView.bounds.width > 0 else { return }
+        if !isSidebarItemInstalled {
+            insertSplitViewItem(sidebarItem, at: 0)
+        }
+        sidebarItem.viewController.view.isHidden = false
+        sidebarItem.minimumThickness = configuration.minWidth
+        updateHoverDividerState(collapsed: false)
+
+        let width = lastExpandedSidebarWidth ?? persistedSidebarWidth() ?? configuration.minWidth
+        splitView.setPosition(clampedSidebarWidth(width), ofDividerAt: 0)
+        splitView.layoutSubtreeIfNeeded()
+    }
+
+    private func applyManualCollapsedLayout() {
+        guard usesManualCollapse else { return }
+        sidebarItem.viewController.view.isHidden = true
+        if isSidebarItemInstalled {
+            removeSplitViewItem(sidebarItem)
+        }
+        updateHoverDividerState(collapsed: true)
+        splitView.layoutSubtreeIfNeeded()
+    }
+
+    private func clampedSidebarWidth(_ width: CGFloat) -> CGFloat {
+        let maxWidth = max(
+            configuration.minWidth,
+            splitView.bounds.width - contentItem.minimumThickness - splitView.dividerThickness
+        )
+        return min(max(width, configuration.minWidth), maxWidth)
+    }
+
+    private func updateHoverDividerState(collapsed: Bool) {
+        guard let hoverSplitView = splitView as? HoverDividerSplitView else { return }
+        hoverSplitView.isSidebarCollapsed = collapsed
+        hoverSplitView.needsDisplay = true
     }
 
     @objc private func handleToggle(_ notification: Notification) {
@@ -202,12 +298,11 @@ final class SidebarSplitViewController: NSSplitViewController {
     }
 
     @objc private func handleSplitViewDidResize(_ notification: Notification) {
-        let isVisible = !sidebarItem.isCollapsed
+        let isVisible = !isCollapsed
         postVisibilityChange(isVisible: isVisible)
+        rememberExpandedSidebarWidth()
 
-        if let hoverSplitView = splitView as? HoverDividerSplitView {
-            hoverSplitView.isSidebarCollapsed = !isVisible
-        }
+        updateHoverDividerState(collapsed: !isVisible)
     }
 
     func toggle() {
@@ -219,28 +314,24 @@ final class SidebarSplitViewController: NSSplitViewController {
     }
 
     func collapse() {
-        guard !sidebarItem.isCollapsed else { return }
+        guard !isCollapsed else { return }
         setSidebar(collapsed: true)
     }
 
     func expand() {
-        guard sidebarItem.isCollapsed else { return }
+        guard isCollapsed else { return }
         setSidebar(collapsed: false)
     }
 
-    /// Collapses/expands the sidebar with **no animation** — `NSSplitViewItem`'s
-    /// native instant collapse. Custom divider animation is intentionally
-    /// omitted for now: animating the pane width (via `setPosition` or the
-    /// native animator) corrupts the pane's Auto Layout subtree and clips the
-    /// sidebar's trailing edge. We'll reintroduce a layout-safe animation
-    /// separately.
     private func setSidebar(collapsed: Bool) {
+        if usesManualCollapse {
+            setSidebarManually(collapsed: collapsed)
+            return
+        }
+
         isProgrammaticCollapse = collapsed
 
-        if let hoverSplitView = splitView as? HoverDividerSplitView {
-            hoverSplitView.isSidebarCollapsed = collapsed
-            hoverSplitView.needsDisplay = true
-        }
+        updateHoverDividerState(collapsed: collapsed)
 
         NotificationCenter.default.post(
             name: .sidebarAnimationWillStart,
@@ -250,6 +341,28 @@ final class SidebarSplitViewController: NSSplitViewController {
 
         sidebarItem.isCollapsed = collapsed
         isProgrammaticCollapse = false
+
+        postVisibilityChange(isVisible: !collapsed)
+        NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: view.window)
+    }
+
+    private func setSidebarManually(collapsed: Bool) {
+        if collapsed {
+            rememberExpandedSidebarWidth()
+        }
+
+        NotificationCenter.default.post(
+            name: .sidebarAnimationWillStart,
+            object: view.window,
+            userInfo: ["isCollapsing": collapsed]
+        )
+
+        isManuallyCollapsed = collapsed
+        if collapsed {
+            applyManualCollapsedLayout()
+        } else {
+            restoreManualExpandedWidth()
+        }
 
         postVisibilityChange(isVisible: !collapsed)
         NotificationCenter.default.post(name: .sidebarAnimationDidEnd, object: view.window)
