@@ -98,16 +98,14 @@ final class MainContentViewController: NSViewController {
             }
             layer.addSublayer(baseTint)
 
-            if isDark && tabType == .home {
-                let homeDarken = makeFullSizeLayer()
-                homeDarken.backgroundColor = NSColor.black.withAlphaComponent(0.25).cgColor
-                layer.addSublayer(homeDarken)
-            }
+            let homeDarken = makeFullSizeLayer()
+            homeDarken.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+            layer.addSublayer(homeDarken)
 
             if let connectionInstance {
                 let colorLayer = makeFullSizeLayer()
                 colorLayer.backgroundColor = NSColor(connectionInstance.connection.color.color)
-                    .withAlphaComponent(0.08).cgColor
+                    .withAlphaComponent(isDark ? 0.10 : 0.08).cgColor
                 colorLayer.compositingFilter = "multiplyBlendMode"
                 layer.addSublayer(colorLayer)
             }

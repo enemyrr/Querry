@@ -107,14 +107,6 @@ final class TableContentViewController: NSViewController {
         setupLayout()
         setupNotifications()
         startObserving()
-        updateBackgroundColor()
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAppearanceChange),
-            name: .appAppearanceDidChange,
-            object: nil
-        )
 
         // Prime the UI from any data the prewarmed controller already loaded
         // before this VC mounted. observeViewState only fires onChange, so
@@ -122,19 +114,6 @@ final class TableContentViewController: NSViewController {
         // mutation.
         updateFilterBarFromData()
         updateTableFromData()
-    }
-
-    @objc private func handleAppearanceChange() {
-        updateBackgroundColor()
-    }
-
-    private func updateBackgroundColor() {
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let isDark = NSAppearance.currentDrawing().isDarkMode
-            view.layer?.backgroundColor = isDark
-                ? NSColor.black.withAlphaComponent(0.25).cgColor
-                : NSColor.white.cgColor
-        }
     }
 
     override func viewDidAppear() {
