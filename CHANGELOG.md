@@ -2,6 +2,19 @@
 
 # Pluk Release Notes
 
+## [0.0.44] – 2026-05-28
+
+This release improves Docker connection setup, fixes token refresh recovery, and continues the macOS 26 window chrome polish.
+
+Here’s what’s new:
+
+- **Docker databases appear on Home.** Pluk now discovers local PostgreSQL, MySQL, and MongoDB containers and shows them on Home, with one-click setup from the Create Connection sheet. Stopped containers stay visible but disabled until they are running again. ([#298](https://github.com/pluk-inc/app-pluk/pull/298))
+- **Existing sessions recover after server-side token rejection.** If WorkOS rejects an access token with a 401, Pluk now forces a token refresh before retrying instead of retrying with the same rejected token. ([#302](https://github.com/pluk-inc/app-pluk/pull/302))
+- **Recents update only after a connection opens.** Opening or focusing a connection tab now updates Recents at the right time, while failed open attempts no longer move a connection to the top. ([#299](https://github.com/pluk-inc/app-pluk/pull/299))
+- **App data moves out of the sandbox.** Pluk now runs without the App Sandbox and includes a one-time migration for the existing SwiftData store, preferences, and external-storage support files. ([#297](https://github.com/pluk-inc/app-pluk/pull/297))
+- **Tab bars stay aligned when they become scrollable.** Opening enough tabs to make the tab bar scroll no longer shifts the tabs downward or clips the bottom edge. ([#295](https://github.com/pluk-inc/app-pluk/pull/295))
+- **More polished macOS 26 chrome.** Tab bars, titlebar handling, sidebar persistence, fullscreen behavior, floating action bar glass, table tinting, and hover states have all been refined for macOS 26 while preserving older macOS behavior. ([#296](https://github.com/pluk-inc/app-pluk/pull/296), [#300](https://github.com/pluk-inc/app-pluk/pull/300), [#301](https://github.com/pluk-inc/app-pluk/pull/301), [#303](https://github.com/pluk-inc/app-pluk/pull/303), [#304](https://github.com/pluk-inc/app-pluk/pull/304))
+
 ## [0.0.43] – 2026-05-17
 
 This release makes large tables feel much faster, improves sidebar navigation, and polishes Pluk's macOS 26 window chrome.
@@ -15,7 +28,7 @@ Here’s what’s new:
 - **Foreign-key navigation stays in the right window.** Clicking a foreign-key cell now routes only through the table view that originated the click, so multi-window workflows no longer open the referenced table in another window. ([#132](https://github.com/pluk-inc/Pluk/issues/132), [#285](https://github.com/pluk-inc/app-pluk/pull/285))
 - **Sidebar reveal fixes.** The left connection sidebar no longer clips after collapse and expand, and the row detail sidebar now reveals from the correct trailing edge. ([#134](https://github.com/pluk-inc/Pluk/issues/134), [#135](https://github.com/pluk-inc/Pluk/issues/135), [#288](https://github.com/pluk-inc/app-pluk/pull/288))
 - **Smaller Account loading indicators.** Account actions now use mini loading spinners so the controls feel better balanced. ([#136](https://github.com/pluk-inc/Pluk/issues/136), [#289](https://github.com/pluk-inc/app-pluk/pull/289))
-- 
+
 ## [0.0.42] – 2026-05-17
 
 This release makes large tables feel much faster, improves sidebar navigation, and polishes Pluk's macOS 26 window chrome.
