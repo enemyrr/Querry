@@ -318,9 +318,9 @@ struct FloatingActionBar: View {
                     }
                 }
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: actionBarCornerRadius)
-                    .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
+            .glassFallbackBorder(
+                RoundedRectangle(cornerRadius: actionBarCornerRadius),
+                lineWidth: colorScheme == .dark ? 1 : 0.5
             )
 //            .background(alignment: .center) {
 //                if case .error = viewState {
@@ -633,10 +633,9 @@ struct FloatingActionBar: View {
                 }
             }
         )
-        .overlay(
-            RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0)
-                .stroke(.separator, lineWidth: colorScheme == .dark ? 1 : 0.5)
-                .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
+        .glassFallbackBorder(
+            RoundedCornersTop(tl: 10, tr: 10, bl: 0, br: 0),
+            lineWidth: colorScheme == .dark ? 1 : 0.5
         )
         .scaleEffect(isHoveringTopRectangle ? 1.02 : 1.0)
         .contentShape(Rectangle())
@@ -677,10 +676,7 @@ struct FloatingActionBar: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 6)
         .modifier(GlassBackgroundStyle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator)
-        )
+        .glassFallbackBorder(RoundedRectangle(cornerRadius: 8))
         .shadow(color: Color(.sRGBLinear, white: 0, opacity: 0.05), radius: 2)
         .onReceive(NotificationCenter.default.publisher(for: .toggleFilterBuilder)) { notification in
             guard let sourceWindow = notification.object as? NSWindow,

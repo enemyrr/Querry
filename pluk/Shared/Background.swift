@@ -80,6 +80,22 @@ struct GlassBackgroundStyleRoundedTop: ViewModifier {
     }
 }
 
+struct GlassFallbackBorder<BorderShape: Shape>: ViewModifier {
+    let shape: BorderShape
+    let color: Color
+    let lineWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+        } else {
+            content.overlay(
+                shape.stroke(color, lineWidth: lineWidth)
+            )
+        }
+    }
+}
+
 // MARK: - View Extension
 extension View {
     func glassBackground(cornerRadius: CGFloat = 6) -> some View {
@@ -88,5 +104,13 @@ extension View {
     
     func glassBackgroundRoundedTop() -> some View {
         modifier(GlassBackgroundStyleRoundedTop())
+    }
+
+    func glassFallbackBorder<BorderShape: Shape>(
+        _ shape: BorderShape,
+        color: Color = .separator,
+        lineWidth: CGFloat = 1
+    ) -> some View {
+        modifier(GlassFallbackBorder(shape: shape, color: color, lineWidth: lineWidth))
     }
 }

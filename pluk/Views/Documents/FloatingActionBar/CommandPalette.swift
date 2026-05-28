@@ -135,7 +135,7 @@ struct CommandPalette: View {
                                         .padding(.vertical, 4)
                                         .padding(.horizontal, 4)
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 4)
+                                            RoundedRectangle(cornerRadius: 6)
                                                 .stroke(.separator, lineWidth: 1)
                                         )
                                     }
@@ -169,10 +169,7 @@ struct CommandPalette: View {
                     hostingWindow = window
                 })
                 .modifier(GlassBackgroundStyle(cornerRadius: 16))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(.separator)
-                )
+                .glassFallbackBorder(RoundedRectangle(cornerRadius: 16))
                 .frame(maxWidth: 500)
                 .padding(.bottom, 8)
                 .onAppear {

@@ -55,7 +55,7 @@ struct ViewModeToggle: View {
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(
-                    colorScheme == .dark ? Color(.black).opacity(0.70) :
+                    colorScheme == .dark ? Color(.controlColor).opacity(0.24) :
                     Color(.separatorColor).opacity(0.70)
                 )
         )

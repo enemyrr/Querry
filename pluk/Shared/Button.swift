@@ -48,7 +48,7 @@ struct ActionButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
     var padding: EdgeInsets = EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6)
-    var cornerRadius: CGFloat = 6
+    var cornerRadius: CGFloat = 8
     var disableScaleEffect: Bool = false
     var isActive: Bool = false
     
@@ -62,7 +62,7 @@ struct ActionButtonStyle: ButtonStyle {
                 .fill(
                     (isHovering || isActive)
                     ? (colorScheme == .dark
-                       ? Color.black.opacity(0.3)
+                       ? Color(.controlColor).opacity(0.3)
                        : Color(.separatorColor).opacity(0.4))
                     : Color.clear
                 )
