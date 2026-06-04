@@ -2,6 +2,14 @@
 
 # Pluk Release Notes
 
+## [0.0.45] – 2026-06-04
+
+This release fixes Docker container discovery for users running OrbStack or other non-default Docker contexts.
+
+Here’s what’s new:
+
+- **Docker containers appear when OrbStack is the active context.** Pluk now resolves the active Docker context endpoint before falling back to `/var/run/docker.sock`, so containers are discovered correctly when the Docker CLI is pointed at OrbStack, Docker Desktop, or another configured context. Production diagnostics now also capture endpoint selection, command failures, container counts, and candidate skip reasons without logging secrets. ([#306](https://github.com/pluk-inc/app-pluk/pull/306))
+
 ## [0.0.44] – 2026-05-28
 
 This release improves Docker connection setup, fixes token refresh recovery, and continues the macOS 26 window chrome polish.
