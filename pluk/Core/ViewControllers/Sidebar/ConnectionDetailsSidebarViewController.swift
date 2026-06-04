@@ -176,7 +176,10 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
     private func makePromoCard() -> some View {
         SidebarProPromoCardView(
             databaseType: instance.connection.databaseType,
-            sidebarViewModeAnalyticsValue: viewModel.sidebarViewMode == .tables ? "tables" : "history"
+            sidebarViewModeAnalyticsValue: viewModel.sidebarViewMode == .tables ? "tables" : "history",
+            onDismissed: { [weak self] in
+                self?.refreshPromoCard()
+            }
         )
         .padding(.trailing, 2)
         .padding(.bottom, 8)
@@ -481,9 +484,9 @@ private struct DatabaseControlsRow: View {
 // MARK: - Pro Promo Card Wrapper
 
 private struct SidebarProPromoCardView: View {
-    @AppStorage("sidebarProPromoDismissedAt") private var dismissedAt: Double = 0
     let databaseType: DatabaseType
     let sidebarViewModeAnalyticsValue: String
+    let onDismissed: () -> Void
 
     var body: some View {
         SidebarProPromoCardBody(
@@ -501,7 +504,8 @@ private struct SidebarProPromoCardView: View {
                     databaseType: databaseType,
                     sidebarViewMode: sidebarViewModeAnalyticsValue
                 )
-                dismissedAt = Date().timeIntervalSince1970
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "sidebarProPromoDismissedAt")
+                onDismissed()
             },
             onAppear: {
                 AnalyticsService.shared.trackSidebarProPromo(

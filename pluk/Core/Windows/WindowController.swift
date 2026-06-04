@@ -267,23 +267,22 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         window.setFrameAutosaveName(Self.windowFrameAutosaveName)
 
         if restoredFrame {
-            let clampedFrame = clampedWindowFrame(window.frame)
-            if clampedFrame != window.frame {
-                window.setFrame(clampedFrame, display: true)
+            let normalizedFrame = normalizedWindowFrame(window.frame)
+            if normalizedFrame != window.frame {
+                window.setFrame(normalizedFrame, display: true)
             }
             persistWindowFrame(window)
             return
         }
 
         if let legacyFrame = legacyWindowFrame() {
-            window.setFrame(clampedWindowFrame(legacyFrame), display: true)
+            window.setFrame(normalizedWindowFrame(legacyFrame), display: true)
             UserDefaults.standard.removeObject(forKey: Self.legacyWindowFrameDefaultsKey)
             persistWindowFrame(window)
             return
         }
 
-        window.setContentSize(Self.defaultWindowSize)
-        window.center()
+        window.setFrame(defaultWindowFrame(), display: true)
         persistWindowFrame(window)
     }
 
@@ -297,13 +296,54 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         return frame
     }
 
-    private func clampedWindowFrame(_ frame: NSRect) -> NSRect {
-        NSRect(
-            x: frame.origin.x,
-            y: frame.origin.y,
-            width: max(frame.width, Self.minimumWindowSize.width),
-            height: max(frame.height, Self.minimumWindowSize.height)
+    private func normalizedWindowFrame(_ frame: NSRect) -> NSRect {
+        let targetScreen = bestScreen(for: frame) ?? NSScreen.main
+        guard let visibleFrame = targetScreen?.visibleFrame else {
+            return NSRect(
+                x: frame.origin.x,
+                y: frame.origin.y,
+                width: max(frame.width, Self.minimumWindowSize.width),
+                height: max(frame.height, Self.minimumWindowSize.height)
+            )
+        }
+
+        let width = min(max(frame.width, Self.minimumWindowSize.width), visibleFrame.width)
+        let height = min(max(frame.height, Self.minimumWindowSize.height), visibleFrame.height)
+        let minX = visibleFrame.minX
+        let maxX = visibleFrame.maxX - width
+        let minY = visibleFrame.minY
+        let maxY = visibleFrame.maxY - height
+
+        return NSRect(
+            x: min(max(frame.origin.x, minX), maxX),
+            y: min(max(frame.origin.y, minY), maxY),
+            width: width,
+            height: height
         )
+    }
+
+    private func defaultWindowFrame() -> NSRect {
+        guard let visibleFrame = NSScreen.main?.visibleFrame else {
+            return NSRect(origin: .zero, size: Self.defaultWindowSize)
+        }
+
+        let width = min(Self.defaultWindowSize.width, visibleFrame.width)
+        let height = min(Self.defaultWindowSize.height, visibleFrame.height)
+
+        return NSRect(
+            x: visibleFrame.midX - (width / 2),
+            y: visibleFrame.midY - (height / 2),
+            width: width,
+            height: height
+        )
+    }
+
+    private func bestScreen(for frame: NSRect) -> NSScreen? {
+        let screen = NSScreen.screens.max { lhs, rhs in
+            lhs.visibleFrame.intersection(frame).area < rhs.visibleFrame.intersection(frame).area
+        }
+        guard let screen, screen.visibleFrame.intersection(frame).area > 0 else { return nil }
+        return screen
     }
 
     private func persistWindowFrame(_ window: NSWindow) {
@@ -717,6 +757,13 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
             hideTabBarInView(subview)
         }
+    }
+}
+
+private extension NSRect {
+    var area: CGFloat {
+        guard !isNull, !isEmpty else { return 0 }
+        return width * height
     }
 }
 
