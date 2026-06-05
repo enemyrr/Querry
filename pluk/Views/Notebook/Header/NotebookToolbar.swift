@@ -207,48 +207,25 @@ final class NotebookToolbarController: NSViewController {
 
     private func setupTrailingButtons() {
         if #available(macOS 26, *) {
-            let glass = makeGlassCapsule()
-
-            let content = NSView()
-            content.translatesAutoresizingMaskIntoConstraints = false
-
+            let runAllGlass = makeGlassCapsule()
             let runAll = makeGlassRunAllIcon(action: #selector(runAllTapped))
-            content.addSubview(runAll.click)
+            runAllGlass.contentView = runAll.click
             runAllButton = runAll.click
             runAllIcon = runAll.icon
             runAllSpinner = runAll.spinner
 
-            let publishClick = ToolbarClickView(target: self, action: #selector(publishTapped))
-            publishClick.translatesAutoresizingMaskIntoConstraints = false
-            let publishImage = NSImageView()
-            publishImage.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: "Publish")
-            publishImage.symbolConfiguration = .init(pointSize: 16, weight: .regular)
-            publishImage.contentTintColor = .labelColor
-            publishImage.translatesAutoresizingMaskIntoConstraints = false
-            publishClick.addSubview(publishImage)
-            publishClick.installCustomTooltip("Publish")
-            content.addSubview(publishClick)
-            publishButton = publishClick
-
             NSLayoutConstraint.activate([
-                runAll.click.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-                runAll.click.topAnchor.constraint(equalTo: content.topAnchor),
-                runAll.click.bottomAnchor.constraint(equalTo: content.bottomAnchor),
                 runAll.click.widthAnchor.constraint(equalToConstant: 36),
-
-                publishImage.centerXAnchor.constraint(equalTo: publishClick.centerXAnchor),
-                publishImage.centerYAnchor.constraint(equalTo: publishClick.centerYAnchor),
-                publishClick.leadingAnchor.constraint(equalTo: runAll.click.trailingAnchor),
-                publishClick.topAnchor.constraint(equalTo: content.topAnchor),
-                publishClick.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-                publishClick.widthAnchor.constraint(equalToConstant: 36),
-                publishClick.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-
-                content.heightAnchor.constraint(equalToConstant: 36),
+                runAll.click.heightAnchor.constraint(equalToConstant: 36),
             ])
 
-            glass.contentView = content
-            runAllPublishGroup = glass
+            publishButton = makeGlassIconLabelButton(icon: "paperplane.fill", label: "Publish", action: #selector(publishTapped))
+
+            let stack = NSStackView(views: [runAllGlass, publishButton])
+            stack.orientation = .horizontal
+            stack.spacing = 8
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            runAllPublishGroup = stack
         } else {
             let runAll = makeRunAllButton(action: #selector(runAllTapped))
             runAllButton = runAll.button
@@ -569,6 +546,7 @@ final class NotebookToolbarController: NSViewController {
             if #available(macOS 26, *) {
                 constraints += [
                     chatButton.heightAnchor.constraint(equalTo: segmentView.heightAnchor),
+                    publishButton.heightAnchor.constraint(equalTo: chatButton.heightAnchor),
                 ]
             }
         } else {
@@ -1114,13 +1092,7 @@ private final class GlassToolbarButton: NSGlassEffectView {
             }
         }
         innerView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(innerView)
-        NSLayoutConstraint.activate([
-            innerView.topAnchor.constraint(equalTo: topAnchor),
-            innerView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            innerView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            innerView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+        contentView = innerView
     }
 
     required init?(coder: NSCoder) {
