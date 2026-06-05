@@ -48,15 +48,6 @@ struct HomeView: View {
         return linkedConnectionIds(for: dockerCandidates.filter { !$0.isRunning })
     }
 
-    private var connectionsByContainerId: [String: [Connection]] {
-        connections.reduce(into: [:]) { result, connection in
-            guard isContainerConnection(connection),
-                  let containerId = connection.containerId,
-                  !containerId.isEmpty else { return }
-            result[containerId, default: []].append(connection)
-        }
-    }
-
     private func isContainerConnection(_ connection: Connection) -> Bool {
         if let containerId = connection.containerId, !containerId.isEmpty {
             return true
@@ -76,26 +67,35 @@ struct HomeView: View {
     }
 
     private func connectionLinkedToContainer(for candidate: DockerDatabaseCandidate) -> Connection? {
-        connectionsLinkedToContainer(for: candidate).first
+        preferredConnection(from: connectionsLinkedToContainer(for: candidate), candidate: candidate)
     }
 
     private func connectionsLinkedToContainer(for candidate: DockerDatabaseCandidate) -> [Connection] {
-        if let idMatches = connectionsByContainerId[candidate.id], !idMatches.isEmpty {
-            return idMatches
-        }
-
         guard !candidate.containerName.isEmpty else { return [] }
         return connections.filter { connection in
             guard isContainerConnection(connection),
-                  connection.containerId == nil,
-                  connection.containerName == candidate.containerName,
-                  connection.databaseType == candidate.databaseType,
-                  connection.hostname == candidate.host,
-                  connection.port == candidate.port else {
+                  connection.databaseType == candidate.databaseType else {
                 return false
             }
-            return true
+
+            if connection.containerId == candidate.id {
+                return true
+            }
+
+            return connection.containerName == candidate.containerName
         }
+    }
+
+    private func preferredConnection(from connections: [Connection], candidate: DockerDatabaseCandidate) -> Connection? {
+        connections.sorted { lhs, rhs in
+            let lhsHasCurrentContainerId = lhs.containerId == candidate.id
+            let rhsHasCurrentContainerId = rhs.containerId == candidate.id
+            if lhsHasCurrentContainerId != rhsHasCurrentContainerId {
+                return lhsHasCurrentContainerId
+            }
+            return lhs.lastOpenedAt > rhs.lastOpenedAt
+        }
+        .first
     }
 
     private var recentItems: [WorkspaceItem] {
@@ -268,6 +268,7 @@ struct HomeView: View {
             isDockerUnavailable = false
             dockerCandidates = readyCandidates
             upsertDockerConnections(for: readyCandidates)
+            pruneDockerConnections(discoveredCandidates: discoveredCandidates)
 
             let runningCount = readyCandidates.filter(\.isRunning).count
             let stoppedCount = readyCandidates.count - runningCount
@@ -302,21 +303,16 @@ struct HomeView: View {
             }
 
             if let existingConnection = connectionLinkedToContainer(for: candidate) {
-                existingConnection.containerName = candidate.containerName
-                existingConnection.containerId = candidate.id
+                update(existingConnection, from: candidate)
                 updatedCount += 1
                 continue
             }
 
             let connection = makeConnection(from: candidate)
-            connection.containerName = candidate.containerName
-            connection.containerId = candidate.id
+            update(connection, from: candidate)
             connection.lastOpenedAt = candidate.startedAt ?? candidate.createdAt ?? .distantPast
             modelContext.insert(connection)
 
-            if let password = candidate.password, !password.isEmpty {
-                connection.password = password
-            }
             insertedCount += 1
         }
 
@@ -326,6 +322,85 @@ struct HomeView: View {
             debugLog("[HomeDocker] Auto-added \(insertedCount) Docker connection(s), updated \(updatedCount)")
         } catch {
             debugLog("[HomeDocker] Failed to save auto-added Docker connections: \(error.localizedDescription)")
+        }
+    }
+
+    private func pruneDockerConnections(discoveredCandidates: [DockerDatabaseCandidate]) {
+        let candidatesByKey = Dictionary(
+            uniqueKeysWithValues: discoveredCandidates.map {
+                (containerKey(name: $0.containerName, databaseType: $0.databaseType), $0)
+            }
+        )
+        let containerConnectionsByKey = Dictionary(grouping: connections.filter { connection in
+            guard isContainerConnection(connection),
+                  let containerName = connection.containerName,
+                  !containerName.isEmpty else {
+                return false
+            }
+            return true
+        }) { connection in
+            containerKey(name: connection.containerName ?? "", databaseType: connection.databaseType)
+        }
+
+        var connectionsToDelete: [Connection] = []
+        for (key, groupedConnections) in containerConnectionsByKey {
+            guard let candidate = candidatesByKey[key] else {
+                connectionsToDelete.append(contentsOf: groupedConnections)
+                continue
+            }
+
+            guard groupedConnections.count > 1,
+                  let connectionToKeep = preferredConnection(from: groupedConnections, candidate: candidate) else {
+                continue
+            }
+            connectionsToDelete.append(contentsOf: groupedConnections.filter { $0.keychainId != connectionToKeep.keychainId })
+        }
+
+        guard !connectionsToDelete.isEmpty else { return }
+
+        for connection in connectionsToDelete {
+            QueryHistoryService.deleteHistoryForConnection(
+                modelContext: modelContext,
+                connectionKeychainId: connection.keychainId
+            )
+            connection.cleanupKeychain()
+            modelContext.delete(connection)
+        }
+
+        do {
+            try modelContext.save()
+            debugLog("[HomeDocker] Removed \(connectionsToDelete.count) stale Docker connection(s)")
+        } catch {
+            debugLog("[HomeDocker] Failed to remove stale Docker connections: \(error.localizedDescription)")
+        }
+    }
+
+    private func containerKey(name: String, databaseType: DatabaseType) -> String {
+        "\(databaseType.rawValue):\(name)"
+    }
+
+    private func update(_ connection: Connection, from candidate: DockerDatabaseCandidate) {
+        connection.containerName = candidate.containerName
+        connection.containerId = candidate.id
+        connection.hostname = candidate.host
+        connection.port = candidate.port
+        connection.username = candidate.username
+        connection.defaultDatabase = candidate.databaseName
+        connection.updatedAt = Date()
+
+        switch candidate.databaseType {
+        case .postgres, .mysql:
+            connection.url = nil
+            connection.sslMode = "disable"
+        case .mongodb:
+            connection.url = candidate.connectionURI
+            connection.sslMode = nil
+        case .convex, .supabase, .sqlite:
+            break
+        }
+
+        if let password = candidate.password, !password.isEmpty {
+            connection.password = password
         }
     }
 

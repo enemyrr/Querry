@@ -2,6 +2,14 @@
 
 # Pluk Release Notes
 
+## [0.0.47] – 2026-06-05
+
+This release fixes Docker-backed connections on Home so rebuilding or removing local containers no longer leaves duplicate or stale connections behind.
+
+Here’s what’s new:
+
+- **Docker connections stay in sync.** Rebuilding a local database container now updates the existing Pluk connection instead of creating another one, even when Docker assigns the rebuilt container a new ID. When a synced container is removed, Pluk now removes its stale saved connection and cleans up related keychain credentials and query history. Existing duplicate Docker connections are also pruned the next time Docker discovery succeeds.
+
 ## [0.0.46] – 2026-06-05
 
 This release improves Docker setup, makes the notebook agent faster and smoother, and fixes several stability and polish issues across notebooks, tables, and connection editing.

@@ -1,8 +1,8 @@
 // Pluk Version Configuration
 // This file contains the version and build number for the app
 
-MARKETING_VERSION = 0.0.46
-CURRENT_PROJECT_VERSION = 307
+MARKETING_VERSION = 0.0.47
+CURRENT_PROJECT_VERSION = 308
 
 // Domain and GitHub configuration
 APP_DOMAIN = pluk.sh
