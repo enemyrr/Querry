@@ -10,11 +10,16 @@ import Foundation
 /// `subscriptionStatus` directly — this keeps tier logic in one place so
 /// adding the Team tier later is a localized change.
 struct Entitlements: Sendable, Equatable {
+    private static let freeMonthlyLLMCreditBudgetCents = 500
+    private static let proMonthlyLLMCreditBudgetCents = 5_000
+
     /// Maximum number of concurrent open connection instances (tabs).
     /// Free = 4, Pro = unlimited. Matches the "4 connections at a time"
     /// promise on pluk.sh/pricing.
     let maxConnections: Int?
     let maxDashboardShares: Int?
+    /// Internal monthly notebook agent credit allocation in cents. `nil` means unlimited.
+    let monthlyLLMCreditBudgetCents: Int?
     let hasExpandedAI: Bool
     let hasNotebookAgent: Bool
     let hasPrioritySupport: Bool
@@ -22,6 +27,7 @@ struct Entitlements: Sendable, Equatable {
     static let free = Entitlements(
         maxConnections: 4,
         maxDashboardShares: 2,
+        monthlyLLMCreditBudgetCents: freeMonthlyLLMCreditBudgetCents,
         hasExpandedAI: false,
         hasNotebookAgent: false,
         hasPrioritySupport: false
@@ -30,6 +36,7 @@ struct Entitlements: Sendable, Equatable {
     static let pro = Entitlements(
         maxConnections: nil,
         maxDashboardShares: nil,
+        monthlyLLMCreditBudgetCents: proMonthlyLLMCreditBudgetCents,
         hasExpandedAI: true,
         hasNotebookAgent: true,
         hasPrioritySupport: true

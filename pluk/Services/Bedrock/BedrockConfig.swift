@@ -6,6 +6,7 @@ enum BedrockConfig {
     static let roleArn = "arn:aws:iam::416783822214:role/PlukBedrockUnauthRole"
     static let modelId = haikuModelId
     static let haikuModelId = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    static let sonnet46ModelId = "global.anthropic.claude-sonnet-4-6"
     static let glm47ModelId = "zai.glm-4.7"
     static let glm5ModelId = "zai.glm-5"
     static let anthropicVersion = "bedrock-2023-05-31"

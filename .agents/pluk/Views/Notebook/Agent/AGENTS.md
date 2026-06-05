@@ -107,7 +107,7 @@ An `actor` that manages database connections for the agent:
 
 ## Invariants
 
-- Uses AWS Bedrock via `BedrockGLMService.shared` with Zhipu GLM-5 (`zai.glm-5`, see `pluk/Services/Bedrock/BedrockConfig.swift`). `BedrockGLMChatMessage` / `BedrockGLMToolDefinition` are the wire types for the whole agent path — do not confuse "GLM" with any Anthropic/OpenAI type.
+- Uses AWS Bedrock via `BedrockService.shared.notebookChatCompletionStream` with Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`, see `pluk/Services/Bedrock/BedrockConfig.swift`). The agent loop still uses `BedrockGLMChatMessage` / `BedrockGLMToolDefinition` internally, and `BedrockService` adapts those to Anthropic Messages API types at the service boundary.
 - Conversation continuity is maintained by appending to a `[BedrockGLMChatMessage]` array (`glmMessages` in `AgentChatController.performAgentLoop`), not by a session id. Every round: prior messages + new assistant message + tool-role results → next call.
 - Tool-role messages must carry `toolCallId` and `name` matching the call so GLM can pair them.
 - Streaming exposes two channels: `onToken` for assistant text and `onThinking` for reasoning deltas. Reasoning is re-serialized into `<thinking>` tags by `serializeThinking(from:)` before being persisted to `AgentMessage.content`.
@@ -122,4 +122,4 @@ An `actor` that manages database connections for the agent:
 - Do NOT feed XML tags (`<thinking>`, `<tool_call>`) back to the LLM — `buildBedrockGLMMessages()` strips them from prior assistant turns before resending.
 - Do NOT create blocks, mutate notebook info, or reorder the dashboard directly from tool handlers — enqueue via `pendingBlockCreations` / `pendingNotebookInfoUpdate` / `pendingDashboardArrangement` so `AgentChatController` owns the lifecycle.
 - Do NOT introduce a "session id" or "previous response id" chaining scheme — GLM on Bedrock is stateless; the full `glmMessages` array is the source of truth for continuity.
-- Do NOT reach for the Anthropic `BedrockService` path (`BedrockConfig.haikuModelId`) from the notebook agent — that service is used elsewhere in the app; the notebook agent is GLM-only.
+- Do NOT route the notebook agent through `BedrockGLMService`; it uses the Anthropic `BedrockService` notebook adapter so tool calls and tool results stay compatible with Claude Sonnet.

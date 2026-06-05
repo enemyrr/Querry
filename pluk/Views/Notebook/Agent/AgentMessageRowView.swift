@@ -6,12 +6,14 @@ final class AgentMessageRowView: NSView {
     var onFeedbackChanged: ((AgentMessageFeedback?) -> Void)?
 
     private let role: AgentMessageRole
+    private let showsTokenBudgetNotice: Bool
     private let textView: NSTextView
     private var containerView: NSView?
     private var textViewHeightConstraint: NSLayoutConstraint?
     private var textViewWidthConstraint: NSLayoutConstraint?
     private var markdownContentView: MarkdownContentView?
     private var streamingPartsView: StreamingPartsView?
+    private var tokenBudgetNoticeView: AgentTokenBudgetBannerView?
 
     private var userActionBar: UserMessageActionBar?
     private var assistantActionBar: AssistantMessageActionBar?
@@ -36,8 +38,16 @@ final class AgentMessageRowView: NSView {
         return style
     }()
 
-    init(role: AgentMessageRole, content: String, createdAt: Date = Date(), feedback: AgentMessageFeedback? = nil, isStreaming: Bool = false) {
+    init(
+        role: AgentMessageRole,
+        content: String,
+        createdAt: Date = Date(),
+        feedback: AgentMessageFeedback? = nil,
+        isStreaming: Bool = false,
+        showsTokenBudgetNotice: Bool = false
+    ) {
         self.role = role
+        self.showsTokenBudgetNotice = showsTokenBudgetNotice
         self.isStreamingRow = isStreaming
         self.textView = NSTextView()
         super.init(frame: .zero)
@@ -54,6 +64,9 @@ final class AgentMessageRowView: NSView {
 
         if !isStreaming {
             setupActionBar(createdAt: createdAt, feedback: feedback)
+        }
+        if showsTokenBudgetNotice {
+            setupTokenBudgetNotice()
         }
 
         NotificationCenter.default.addObserver(
@@ -250,6 +263,26 @@ final class AgentMessageRowView: NSView {
         textView.textStorage?.setAttributedString(attributed)
         invalidateIntrinsicContentSize()
         recalculateTextSize()
+    }
+
+    private func setupTokenBudgetNotice() {
+        guard role == .user, tokenBudgetNoticeView == nil, let containerView else { return }
+
+        let noticeView = AgentTokenBudgetBannerView()
+        noticeView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(noticeView)
+
+        containerBottomConstraint?.isActive = false
+
+        NSLayoutConstraint.activate([
+            noticeView.topAnchor.constraint(equalTo: containerView.bottomAnchor, constant: 8),
+            noticeView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            noticeView.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12),
+            noticeView.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.88),
+            noticeView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: userActionBar == nil ? 0 : -28),
+        ])
+
+        tokenBudgetNoticeView = noticeView
     }
 
     private func recalculateTextSize() {

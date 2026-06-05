@@ -9,6 +9,7 @@ final class AgentMessageListController: NSViewController {
     private var streamingRow: AgentMessageRowView?
     private var errorBanner: NSView?
     private var renderedMessageIds: [UUID] = []
+    private var renderedTokenBudgetNoticeMessageIds: Set<UUID> = []
     private weak var lastAssistantRow: AgentMessageRowView?
     private var userScrolledAway = false
     private var suppressScrollTracking = false
@@ -99,6 +100,7 @@ final class AgentMessageListController: NSViewController {
         withObservationTracking {
             _ = self.chatController.messages.count
             _ = self.chatController.isStreaming
+            _ = self.chatController.tokenBudgetNoticeMessageIds
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -138,9 +140,11 @@ final class AgentMessageListController: NSViewController {
         suppressScrollTracking = true
         let messages = chatController.messages
         let currentIds = messages.map(\.id)
+        let currentTokenBudgetNoticeIds = chatController.tokenBudgetNoticeMessageIds
 
         let needsFullRebuild = currentIds.count < renderedMessageIds.count
             || (!currentIds.isEmpty && !renderedMessageIds.isEmpty && currentIds.first != renderedMessageIds.first)
+            || currentTokenBudgetNoticeIds != renderedTokenBudgetNoticeMessageIds
 
         if needsFullRebuild {
             removeStreamingRow()
@@ -149,6 +153,7 @@ final class AgentMessageListController: NSViewController {
                 v.removeFromSuperview()
             }
             renderedMessageIds = []
+            renderedTokenBudgetNoticeMessageIds = []
             lastAssistantRow = nil
 
             for message in messages {
@@ -160,6 +165,7 @@ final class AgentMessageListController: NSViewController {
                 addRow(row)
                 renderedMessageIds.append(message.id)
             }
+            renderedTokenBudgetNoticeMessageIds = currentTokenBudgetNoticeIds
             lastAssistantRow?.setActionBarAlwaysVisible(true)
         } else {
             let newMessages = messages.dropFirst(renderedMessageIds.count)
@@ -184,6 +190,7 @@ final class AgentMessageListController: NSViewController {
                 }
                 renderedMessageIds.append(message.id)
             }
+            renderedTokenBudgetNoticeMessageIds = currentTokenBudgetNoticeIds
         }
 
         if chatController.isStreaming && streamingRow == nil {
@@ -219,7 +226,8 @@ final class AgentMessageListController: NSViewController {
             role: message.role,
             content: message.content,
             createdAt: message.createdAt,
-            feedback: message.feedback
+            feedback: message.feedback,
+            showsTokenBudgetNotice: chatController.tokenBudgetNoticeMessageIds.contains(message.id)
         )
         wireCallbacks(on: row, message: message)
         return row

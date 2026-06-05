@@ -204,6 +204,49 @@ final class BedrockService: Sendable {
         )
     }
 
+    func notebookChatCompletionStream(
+        messages: [BedrockGLMChatMessage],
+        systemPrompt: String? = nil,
+        tools: [BedrockGLMToolDefinition] = [],
+        maxTokens: Int = 64_000,
+        model: String = BedrockConfig.sonnet46ModelId,
+        thinkingMode: BedrockThinkingMode = .enabled,
+        onTextDelta: @MainActor @Sendable (String) -> Void,
+        onThinkingDelta: @MainActor @Sendable (String) -> Void = { _ in }
+    ) async throws -> BedrockGLMChatResult {
+        let response = try await messageRequestStream(
+            messages: messages.map(toAnthropicMessage),
+            system: systemPrompt.map { [SystemContentBlock(text: $0)] } ?? [],
+            tools: tools.map(toAnthropicTool),
+            maxTokens: maxTokens,
+            thinking: thinkingMode == .enabled ? .adaptive : nil,
+            modelId: model,
+            onTextDelta: onTextDelta,
+            onThinkingDelta: onThinkingDelta
+        )
+
+        return toBedrockGLMChatResult(response)
+    }
+
+    func notebookChatCompletion(
+        messages: [BedrockGLMChatMessage],
+        systemPrompt: String? = nil,
+        tools: [BedrockGLMToolDefinition] = [],
+        maxTokens: Int = 16_000,
+        model: String = BedrockConfig.sonnet46ModelId,
+        thinkingMode: BedrockThinkingMode = .enabled
+    ) async throws -> BedrockGLMChatResult {
+        let response = try await messageRequest(
+            messages: messages.map(toAnthropicMessage),
+            system: systemPrompt.map { [SystemContentBlock(text: $0)] } ?? [],
+            tools: tools.map(toAnthropicTool),
+            maxTokens: maxTokens,
+            modelId: model
+        )
+
+        return toBedrockGLMChatResult(response)
+    }
+
     // MARK: - Request Building
 
     private func buildSignedRequest(
@@ -235,7 +278,7 @@ final class BedrockService: Sendable {
         for (field, value) in additionalHeaders {
             request.setValue(value, forHTTPHeaderField: field)
         }
-        request.timeoutInterval = 120
+        request.timeoutInterval = 300
 
         AWSSignatureV4.sign(
             request: &request,
@@ -257,6 +300,91 @@ final class BedrockService: Sendable {
             print("[BedrockService] HTTP \(httpResponse.statusCode): \(errorBody)")
             throw BedrockError.httpError(statusCode: httpResponse.statusCode, body: errorBody)
         }
+    }
+
+    private func toAnthropicTool(_ tool: BedrockGLMToolDefinition) -> AnthropicToolDefinition {
+        AnthropicToolDefinition(name: tool.name, description: tool.description, inputSchema: tool.inputSchema)
+    }
+
+    private func toAnthropicMessage(_ message: BedrockGLMChatMessage) -> AnthropicMessage {
+        switch message.role {
+        case .system:
+            return AnthropicMessage(role: .user, content: .text(message.content ?? ""))
+        case .user:
+            return AnthropicMessage(role: .user, content: .text(message.content ?? ""))
+        case .tool:
+            return AnthropicMessage(role: .user, content: .blocks([
+                .toolResult(toolUseId: message.toolCallId ?? "", content: message.content ?? "")
+            ]))
+        case .assistant:
+            var blocks: [ContentBlock] = []
+            if let content = message.content, !content.isEmpty {
+                blocks.append(.text(content))
+            }
+            for toolCall in message.toolCalls ?? [] {
+                blocks.append(.toolUse(
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: decodeToolArguments(toolCall.arguments)
+                ))
+            }
+            if blocks.isEmpty {
+                return AnthropicMessage(role: .assistant, content: .text(""))
+            }
+            return AnthropicMessage(role: .assistant, content: .blocks(blocks))
+        }
+    }
+
+    private func decodeToolArguments(_ arguments: String) -> [String: JSONValue] {
+        guard let data = arguments.data(using: .utf8),
+              let json = try? Foundation.JSONDecoder().decode([String: JSONValue].self, from: data) else {
+            return [:]
+        }
+        return json
+    }
+
+    private func toBedrockGLMChatResult(_ response: BedrockAnthropicResponse) -> BedrockGLMChatResult {
+        let text = response.content.compactMap { content -> String? in
+            guard case .text(let text) = content else { return nil }
+            return text
+        }.joined()
+
+        let reasoning = response.content.compactMap { content -> String? in
+            guard case .thinking(let thinking, _) = content else { return nil }
+            return thinking
+        }.joined()
+
+        let toolCalls = response.content.compactMap { content -> BedrockGLMToolCall? in
+            guard case .toolUse(let id, let name, let input) = content else { return nil }
+            let jsonInput = input.mapValues { JSONValue.fromAny($0) }
+            let data = try? Foundation.JSONEncoder().encode(jsonInput)
+            let arguments = data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            return BedrockGLMToolCall(id: id, name: name, arguments: arguments)
+        }
+
+        let assistantMessage = BedrockGLMChatMessage(
+            role: .assistant,
+            content: text.isEmpty ? nil : text,
+            reasoningContent: reasoning.isEmpty ? nil : reasoning,
+            toolCalls: toolCalls.isEmpty ? nil : toolCalls
+        )
+
+        return BedrockGLMChatResult(
+            assistantMessage: assistantMessage,
+            content: response.content,
+            stopReason: response.stopReason,
+            tokenUsage: tokenUsage(from: response.usage)
+        )
+    }
+
+    private func tokenUsage(from usage: BedrockAnthropicResponse.Usage?) -> BedrockTokenUsage? {
+        guard let usage else { return nil }
+        return BedrockTokenUsage(
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheCreationInputTokens: usage.cacheCreationInputTokens ?? 0,
+            cacheReadInputTokens: usage.cacheReadInputTokens ?? 0
+        )
     }
 
     // MARK: - Response Content Building

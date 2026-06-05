@@ -10,6 +10,7 @@ final class AgentChatController {
     private(set) var currentChat: AgentChat?
     private(set) var isStreaming = false
     private(set) var streamingParts: [StreamingPart] = []
+    private(set) var tokenBudgetNoticeMessageIds: Set<UUID> = []
     private(set) var error: String?
 
     var selectedConnections: [Connection] = []
@@ -69,6 +70,7 @@ final class AgentChatController {
     func createNewChat() {
         cancelStreamingTask()
         streamingParts = []
+        tokenBudgetNoticeMessageIds = []
         isStreaming = false
         resetConversationSummary()
         notebookDataController?.isAgentStreaming = false
@@ -94,6 +96,7 @@ final class AgentChatController {
 
     func selectChat(_ chat: AgentChat) {
         currentChat = chat
+        tokenBudgetNoticeMessageIds = []
         loadMessages(for: chat)
     }
 
@@ -120,9 +123,10 @@ final class AgentChatController {
         }
     }
 
-    func send(text: String) {
+    @discardableResult
+    func send(text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let chat = currentChat, !isStreaming else { return }
+        guard !trimmed.isEmpty, let chat = currentChat, !isStreaming else { return false }
 
         if messages.isEmpty {
             chat.title = String(trimmed.prefix(60))
@@ -136,9 +140,15 @@ final class AgentChatController {
         messages.append(userMessage)
         trackMessageCharacters(userMessage)
 
+        if LLMTokenUsageService.shared.currentSnapshot().isExhausted {
+            tokenBudgetNoticeMessageIds.insert(userMessage.id)
+            return false
+        }
+
         isStreaming = true
         notebookDataController?.isAgentStreaming = true
         startStreamingTask(for: chat)
+        return true
     }
 
     func cancelStreaming() {
@@ -215,94 +225,122 @@ final class AgentChatController {
         var accumulatedAssistantText = ""
 
         do {
-            try await refreshConversationSummaryIfNeeded()
-            var glmMessages = buildBedrockGLMMessages()
-            var roundNumber = 0
+            let usageService = LLMTokenUsageService.shared
+            var budgetSnapshot = usageService.currentSnapshot()
 
-            for _ in 0..<100 {
-                guard !Task.isCancelled else { break }
-                roundNumber += 1
+            if budgetSnapshot.isExhausted {
+                markLatestUserMessageTokenBudgetReached()
+            } else {
+                try await refreshConversationSummaryIfNeeded()
+                budgetSnapshot = usageService.currentSnapshot()
 
-                let currentBlocks = notebookDataController?.blocks ?? []
-                let round = try await engine.performRound(
-                    messages: glmMessages,
-                    connections: selectedConnections,
-                    blocks: currentBlocks,
-                    conversationSummary: conversationSummary,
-                    onToken: { [weak self] token in
-                        self?.appendOrUpdateText(token)
-                    },
-                    onThinking: { [weak self] token in
-                        self?.appendOrUpdateThinking(token)
+                if budgetSnapshot.isExhausted {
+                    markLatestUserMessageTokenBudgetReached()
+                } else {
+                    var glmMessages = buildBedrockGLMMessages()
+                    var roundNumber = 0
+
+                    for _ in 0..<100 {
+                        guard !Task.isCancelled else { break }
+
+                        budgetSnapshot = usageService.currentSnapshot()
+                        guard !budgetSnapshot.isExhausted else {
+                            markLatestUserMessageTokenBudgetReached()
+                            break
+                        }
+
+                        roundNumber += 1
+
+                        let currentBlocks = notebookDataController?.blocks ?? []
+                        let round = try await engine.performRound(
+                            messages: glmMessages,
+                            connections: selectedConnections,
+                            blocks: currentBlocks,
+                            conversationSummary: conversationSummary,
+                            onToken: { [weak self] token in
+                                self?.appendOrUpdateText(token)
+                            },
+                            onThinking: { [weak self] token in
+                                self?.appendOrUpdateThinking(token)
+                            }
+                        )
+
+                        let updatedBudgetSnapshot = round.tokenUsage.map { usageService.record($0) }
+                        let thinkingSerialized = serializeThinking(from: round.responseContent)
+
+                        if round.toolCalls.isEmpty {
+                            accumulatedAssistantText += thinkingSerialized
+                            accumulatedAssistantText += round.text
+                            if let updatedBudgetSnapshot, updatedBudgetSnapshot.isExhausted {
+                                markLatestUserMessageTokenBudgetReached()
+                            }
+                            break
+                        }
+
+                        accumulatedAssistantText += thinkingSerialized
+                        accumulatedAssistantText += round.text
+                        if let updatedBudgetSnapshot, updatedBudgetSnapshot.isExhausted {
+                            markLatestUserMessageTokenBudgetReached()
+                            break
+                        }
+
+                        glmMessages.append(round.assistantMessage)
+
+                        // Show all tool calls as active in the UI and serialize inputs for display
+                        var toolCallMeta: [(id: String, name: String, argumentsJSON: String)] = []
+                        for toolCall in round.toolCalls {
+                            let argumentsJSON = serializeToolInput(toolCall.input)
+                            let activeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: argumentsJSON)
+                            appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeInfo.text, iconName: activeInfo.icon, round: roundNumber)
+                            toolCallMeta.append((id: toolCall.id, name: toolCall.name, argumentsJSON: argumentsJSON))
+                        }
+
+                        // Execute all tool calls concurrently (Tasks inherit @MainActor)
+                        let tasks = round.toolCalls.enumerated().map { (i, toolCall) in
+                            let blocks = currentBlocks
+                            let conns = selectedConnections
+                            return (index: i, task: Task {
+                                await engine.executeToolCall(toolCall, connections: conns, blocks: blocks)
+                            })
+                        }
+                        var toolResults: [(index: Int, result: String)] = []
+                        for entry in tasks {
+                            let result = await entry.task.value
+                            toolResults.append((index: entry.index, result: result))
+                        }
+
+                        // Process side effects after all tools complete
+                        for creation in engine.pendingBlockCreations {
+                            handleBlockCreation(creation)
+                        }
+                        if let infoUpdate = engine.pendingNotebookInfoUpdate {
+                            handleNotebookInfoUpdate(infoUpdate)
+                        }
+                        if let arrangement = engine.pendingDashboardArrangement {
+                            handleDashboardArrangement(arrangement)
+                        }
+                        engine.clearPendingCreations()
+
+                        // Build messages in original tool call order
+                        for toolResult in toolResults {
+                            guard !Task.isCancelled else { break }
+
+                            let meta = toolCallMeta[toolResult.index]
+                            let completeInfo = ToolMetadata.displayInfo(for: meta.name, arguments: meta.argumentsJSON)
+                            markToolCallComplete(id: meta.id, displayText: completeInfo.text)
+                            if !accumulatedAssistantText.isEmpty && !accumulatedAssistantText.hasSuffix("\n") {
+                                accumulatedAssistantText += "\n"
+                            }
+                            accumulatedAssistantText += "<tool_call name=\"\(meta.name)\">\(completeInfo.text)</tool_call>\n"
+
+                            glmMessages.append(BedrockGLMChatMessage(
+                                role: .tool,
+                                content: toolResult.result,
+                                toolCallId: meta.id,
+                                name: meta.name
+                            ))
+                        }
                     }
-                )
-
-                let thinkingSerialized = serializeThinking(from: round.responseContent)
-
-                if round.toolCalls.isEmpty {
-                    accumulatedAssistantText += thinkingSerialized
-                    accumulatedAssistantText += round.text
-                    break
-                }
-
-                accumulatedAssistantText += thinkingSerialized
-                accumulatedAssistantText += round.text
-
-                glmMessages.append(round.assistantMessage)
-
-                // Show all tool calls as active in the UI and serialize inputs for display
-                var toolCallMeta: [(id: String, name: String, argumentsJSON: String)] = []
-                for toolCall in round.toolCalls {
-                    let argumentsJSON = serializeToolInput(toolCall.input)
-                    let activeInfo = ToolMetadata.displayInfo(for: toolCall.name, arguments: argumentsJSON)
-                    appendToolCall(id: toolCall.id, name: toolCall.name, displayText: activeInfo.text, iconName: activeInfo.icon, round: roundNumber)
-                    toolCallMeta.append((id: toolCall.id, name: toolCall.name, argumentsJSON: argumentsJSON))
-                }
-
-                // Execute all tool calls concurrently (Tasks inherit @MainActor)
-                let tasks = round.toolCalls.enumerated().map { (i, toolCall) in
-                    let blocks = currentBlocks
-                    let conns = selectedConnections
-                    return (index: i, task: Task {
-                        await engine.executeToolCall(toolCall, connections: conns, blocks: blocks)
-                    })
-                }
-                var toolResults: [(index: Int, result: String)] = []
-                for entry in tasks {
-                    let result = await entry.task.value
-                    toolResults.append((index: entry.index, result: result))
-                }
-
-                // Process side effects after all tools complete
-                for creation in engine.pendingBlockCreations {
-                    handleBlockCreation(creation)
-                }
-                if let infoUpdate = engine.pendingNotebookInfoUpdate {
-                    handleNotebookInfoUpdate(infoUpdate)
-                }
-                if let arrangement = engine.pendingDashboardArrangement {
-                    handleDashboardArrangement(arrangement)
-                }
-                engine.clearPendingCreations()
-
-                // Build messages in original tool call order
-                for toolResult in toolResults {
-                    guard !Task.isCancelled else { break }
-
-                    let meta = toolCallMeta[toolResult.index]
-                    let completeInfo = ToolMetadata.displayInfo(for: meta.name, arguments: meta.argumentsJSON)
-                    markToolCallComplete(id: meta.id, displayText: completeInfo.text)
-                    if !accumulatedAssistantText.isEmpty && !accumulatedAssistantText.hasSuffix("\n") {
-                        accumulatedAssistantText += "\n"
-                    }
-                    accumulatedAssistantText += "<tool_call name=\"\(meta.name)\">\(completeInfo.text)</tool_call>\n"
-
-                    glmMessages.append(BedrockGLMChatMessage(
-                        role: .tool,
-                        content: toolResult.result,
-                        toolCallId: meta.id,
-                        name: meta.name
-                    ))
                 }
             }
         } catch {
@@ -384,6 +422,11 @@ final class AgentChatController {
                 return "<tool_call name=\"\(name)\">\(displayText)</tool_call>\n"
             }
         }.joined()
+    }
+
+    private func markLatestUserMessageTokenBudgetReached() {
+        guard let message = messages.last(where: { $0.role == .user }) else { return }
+        tokenBudgetNoticeMessageIds.insert(message.id)
     }
 
     // MARK: - Block Creation
@@ -646,13 +689,15 @@ final class AgentChatController {
         </new_transcript>
         """
 
-        let summary = try await BedrockGLMService.shared.chatCompletion(
+        let summary = try await BedrockService.shared.notebookChatCompletion(
             messages: [BedrockGLMChatMessage(role: .user, content: userPrompt)],
             systemPrompt: systemPrompt,
             maxTokens: 1200,
-            temperature: 0.1,
             thinkingMode: .disabled
         )
+        if let tokenUsage = summary.tokenUsage {
+            LLMTokenUsageService.shared.record(tokenUsage)
+        }
 
         let normalizedSummary = summary.assistantMessage.content?
             .trimmingCharacters(in: .whitespacesAndNewlines)

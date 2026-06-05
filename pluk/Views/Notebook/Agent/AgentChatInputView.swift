@@ -29,16 +29,13 @@ final class AgentChatInputView: NSView {
             inputTextView.textView.string = newValue
             inputTextView.recalculateHeight()
             placeholderLabel.isHidden = !newValue.isEmpty
-            if !isStreaming {
-                sendButton.isEnabled = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+            updateSendButtonState()
         }
     }
 
     var isStreaming: Bool = false {
         didSet {
-            sendButton.mode = isStreaming ? .stop : .send
-            sendButton.isEnabled = isStreaming || !userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            updateSendButtonState()
         }
     }
 
@@ -65,9 +62,7 @@ final class AgentChatInputView: NSView {
             guard let self else { return }
             let msg = self.userMessage
             self.placeholderLabel.isHidden = !msg.isEmpty
-            if !self.isStreaming {
-                self.sendButton.isEnabled = !msg.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+            self.updateSendButtonState()
             self.handleAtDetection()
         }
 
@@ -337,6 +332,16 @@ final class AgentChatInputView: NSView {
     @objc private func handleAppearanceChange() {
         updateContainerAppearance()
         sendButton.updateAppearance()
+    }
+
+    private func updateSendButtonState() {
+        sendButton.mode = isStreaming ? .stop : .send
+        if isStreaming {
+            sendButton.isEnabled = true
+            return
+        }
+        let hasMessage = !userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        sendButton.isEnabled = hasMessage
     }
 }
 

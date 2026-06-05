@@ -58,6 +58,19 @@ struct BedrockGLMChatMessage: Sendable {
 struct BedrockGLMChatResult: Sendable {
     let assistantMessage: BedrockGLMChatMessage
     let content: [ResponseContentBlock]
+    var stopReason: String? = nil
+    var tokenUsage: BedrockTokenUsage? = nil
+}
+
+struct BedrockTokenUsage: Sendable, Equatable {
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheCreationInputTokens: Int
+    let cacheReadInputTokens: Int
+
+    var totalTokens: Int {
+        inputTokens + outputTokens + cacheCreationInputTokens + cacheReadInputTokens
+    }
 }
 
 // MARK: - Service

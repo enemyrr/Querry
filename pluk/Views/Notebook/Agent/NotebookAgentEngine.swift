@@ -7,6 +7,7 @@ struct AgentRoundResult {
     let toolCalls: [(id: String, name: String, input: [String: Any])]
     let responseContent: [ResponseContentBlock]
     let assistantMessage: BedrockGLMChatMessage
+    let tokenUsage: BedrockTokenUsage?
 }
 
 struct BlockCreationRequest {
@@ -517,11 +518,10 @@ final class NotebookAgentEngine {
         )
         let generationConfig = generationConfig(for: messages)
 
-        let response = try await BedrockGLMService.shared.chatCompletionStream(
+        let response = try await BedrockService.shared.notebookChatCompletionStream(
             messages: messages,
             systemPrompt: systemPrompt,
             tools: tools,
-            temperature: generationConfig.temperature,
             thinkingMode: generationConfig.thinkingMode,
             onTextDelta: onToken,
             onThinkingDelta: onThinking
@@ -541,7 +541,8 @@ final class NotebookAgentEngine {
             text: text,
             toolCalls: toolCalls,
             responseContent: response.content,
-            assistantMessage: response.assistantMessage
+            assistantMessage: response.assistantMessage,
+            tokenUsage: response.tokenUsage
         )
     }
 
@@ -1388,10 +1389,16 @@ final class NotebookAgentEngine {
         let trivialTurns: Set<String> = ["hi", "hello", "hey", "thanks", "thank you", "ok", "okay"]
 
         if !hasToolContext && trivialTurns.contains(latestUserText) {
-            return AgentGenerationConfig(temperature: 0.3, thinkingMode: .disabled)
+            return AgentGenerationConfig(
+                temperature: 0.3,
+                thinkingMode: .disabled
+            )
         }
 
-        return AgentGenerationConfig(temperature: 0.2, thinkingMode: .enabled)
+        return AgentGenerationConfig(
+            temperature: 0.2,
+            thinkingMode: .enabled
+        )
     }
 
     private func parseStringDictionary(_ value: Any?) -> [String: String] {

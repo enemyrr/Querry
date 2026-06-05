@@ -123,8 +123,9 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
             self?.showChatHistoryPopover()
         }
         chatInputView.onSend = { [weak self] text in
-            self?.chatController.send(text: text)
-            self?.chatInputView.isStreaming = true
+            guard let self else { return }
+            let didStartStreaming = self.chatController.send(text: text)
+            self.chatInputView.isStreaming = didStartStreaming
         }
         chatInputView.onStop = { [weak self] in
             self?.chatController.cancelStreaming()
@@ -192,14 +193,15 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
     private func handlePendingMessage() {
         guard let text = dataController.pendingAgentMessage else { return }
         dataController.pendingAgentMessage = nil
+        let pendingConnections = dataController.pendingAgentConnections
+        dataController.pendingAgentConnections = nil
 
-        if let connections = dataController.pendingAgentConnections {
-            dataController.pendingAgentConnections = nil
+        if let connections = pendingConnections {
             chatController.selectedConnections = connections
             chatInputView.setSelectedConnections(connections)
         }
 
-        chatController.send(text: text)
+        _ = chatController.send(text: text)
     }
 
     private func observeConnections() {
