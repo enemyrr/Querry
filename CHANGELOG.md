@@ -2,6 +2,18 @@
 
 # Pluk Release Notes
 
+## [0.0.46] – 2026-06-05
+
+This release improves Docker setup, makes the notebook agent faster and smoother, and fixes several stability and polish issues across notebooks, tables, and connection editing.
+
+Here’s what’s new:
+
+- **Docker setup is improved.** Docker now appears directly in the Create Connection provider list, with a native provider card and clearer `Platforms` grouping. ([#314](https://github.com/pluk-inc/app-pluk/pull/314))
+- **Notebook agent feels faster and smoother.** Pluk now routes notebook agent calls through the Claude Sonnet Bedrock adapter for a more responsive agent experience. ([#312](https://github.com/pluk-inc/app-pluk/pull/312))
+- **Notebook controls and edit mode are steadier.** Run All and Publish now use separate toolbar controls, Publish matches the Chat button style, and saved published notebooks no longer crash when switching a single-value view back into edit mode. ([#311](https://github.com/pluk-inc/app-pluk/pull/311), [#313](https://github.com/pluk-inc/app-pluk/pull/313))
+- **Connection editing closes correctly.** Updating or canceling from the sidebar connection edit sheet now dismisses reliably and uses the same form sizing as Home. ([#309](https://github.com/pluk-inc/app-pluk/pull/309))
+- **Fresh installs show table stripes by default.** Alternating table rows now match the default Settings toggle while preserving explicit user choices. ([#308](https://github.com/pluk-inc/app-pluk/pull/308))
+
 ## [0.0.45] – 2026-06-04
 
 This release fixes Docker container discovery for users running OrbStack or other non-default Docker contexts.
