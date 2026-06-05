@@ -187,7 +187,9 @@ struct HomeView: View {
             stopContainerSync()
         }
         .sheet(isPresented: $showCreateSheet) {
-            CreateConnectionForm()
+            CreateConnectionForm(onSavedConnection: { connection, isEditingExistingConnection in
+                openSavedConnection(connection, isEditingExistingConnection: isEditingExistingConnection)
+            })
                 .frame(width: 480)
         }
         .alert("\"\(pendingConnection?.name ?? "")\" is already connected", isPresented: $showConnectionAlert) {
@@ -430,6 +432,14 @@ struct HomeView: View {
                 isFirstConnection: isFirstConnection
             )
         }
+    }
+
+    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection: Bool) {
+        let totalConnections = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
+        openNewConnectionTab(
+            connection,
+            isFirstConnection: !isEditingExistingConnection && totalConnections == 1
+        )
     }
 
 }

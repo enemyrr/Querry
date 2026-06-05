@@ -397,7 +397,7 @@ final class EmptyStateViewController: NSViewController, NSTextFieldDelegate {
         typeLabel.drawsBackground = false
         typeLabel.wantsLayer = true
         typeLabel.layer?.borderWidth = 1
-        typeLabel.layer?.cornerRadius = 4
+        typeLabel.layer?.cornerRadius = 6
         var typeBorder: CGColor = NSColor.separatorColor.cgColor
         (view.effectiveAppearance).performAsCurrentDrawingAppearance {
             typeBorder = NSColor.separatorColor.cgColor

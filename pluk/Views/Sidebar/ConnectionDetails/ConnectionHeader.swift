@@ -160,9 +160,10 @@ struct ConnectionHeader: View {
         .sheet(isPresented: $showEditSheet) {
             CreateConnectionForm(
                 connection: instance.connection,
-                onDisconnect: onDisconnect
+                onDisconnect: onDisconnect,
+                onSavedConnection: openSavedConnection
             )
-            .frame(width: 560)
+            .frame(width: 480, height: 640)
         }
         .alert("Edit Connection", isPresented: $showEditConfirmation) {
             Button("Continue") {
@@ -173,6 +174,21 @@ struct ConnectionHeader: View {
             Text("Are you sure you want to edit this active connection?")
         }
         .padding(.bottom, 6)
+    }
+
+    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection _: Bool) {
+        let instanceId = sidebarViewModel.createNewConnectionInstance(for: connection)
+        guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
+
+        WindowController.newTab(
+            tabType: .connection(instanceId),
+            connectionInstance: connectionInstance
+        )
+
+        AnalyticsService.shared.trackConnectionOpened(
+            databaseType: connection.databaseType,
+            isFirstConnection: false
+        )
     }
 }
 

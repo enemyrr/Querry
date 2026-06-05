@@ -141,6 +141,8 @@ class HTTPServer: @unchecked Sendable {
 
 struct CreateConnection: View {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
+    @Environment(\.modelContext) private var modelContext
+    @Environment(SidebarViewModel.self) private var sidebarViewModel
     @Binding var showSheet: Bool
 
     var body: some View {
@@ -153,11 +155,26 @@ struct CreateConnection: View {
         }
         .buttonStyle(ActionButtonStyle())
         .sheet(isPresented: $showSheet) {
-            CreateConnectionForm()
+            CreateConnectionForm(onSavedConnection: openSavedConnection)
                 .frame(width: 560, height: 640)
         }
     }
 
+    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection: Bool) {
+        let instanceId = sidebarViewModel.createNewConnectionInstance(for: connection)
+        guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
+
+        WindowController.newTab(
+            tabType: .connection(instanceId),
+            connectionInstance: connectionInstance
+        )
+
+        let totalConnections = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
+        AnalyticsService.shared.trackConnectionOpened(
+            databaseType: connection.databaseType,
+            isFirstConnection: !isEditingExistingConnection && totalConnections == 1
+        )
+    }
 }
 
 struct CreateConnectionForm: View {
@@ -193,13 +210,20 @@ struct CreateConnectionForm: View {
 
     private let connection: Connection?
     private let onDisconnect: (() async -> Void)?
+    private let onSavedConnection: (@MainActor (Connection, Bool) -> Void)?
+    private let onClose: (() -> Void)?
 
-    @Environment(SidebarViewModel.self) private var sidebarViewModel
-
-    init(connection: Connection? = nil, onDisconnect: (() async -> Void)? = nil)
+    init(
+        connection: Connection? = nil,
+        onDisconnect: (() async -> Void)? = nil,
+        onSavedConnection: (@MainActor (Connection, Bool) -> Void)? = nil,
+        onClose: (() -> Void)? = nil
+    )
     {
         self.connection = connection
         self.onDisconnect = onDisconnect
+        self.onSavedConnection = onSavedConnection
+        self.onClose = onClose
         _color = State(initialValue: .blue)
     }
 
@@ -461,7 +485,7 @@ struct CreateConnectionForm: View {
 
             HStack(spacing: 8) {
                 Button {
-                    dismiss()
+                    closeForm()
                 } label: {
                     Text("Cancel")
                         .frame(minWidth: 80)
@@ -963,29 +987,17 @@ struct CreateConnectionForm: View {
             )
         }
 
-        // For new connections, always open a tab. For edits, only reconnect if
-        // the connection was previously connected (signalled by onDisconnect).
-        let shouldConnect = isEditingExistingConnection ? (onDisconnect != nil) : true
-        if shouldConnect {
-            let instanceId = sidebarViewModel.createNewConnectionInstance(
-                for: savedConnection
-            )
+        onSavedConnection?(savedConnection, isEditingExistingConnection)
 
-            if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
-                WindowController.newTab(
-                    tabType: .connection(instanceId),
-                    connectionInstance: connectionInstance
-                )
+        closeForm()
+    }
 
-                let totalConnections = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
-                AnalyticsService.shared.trackConnectionOpened(
-                    databaseType: databaseTypeEnum,
-                    isFirstConnection: !isEditingExistingConnection && totalConnections == 1
-                )
-            }
+    private func closeForm() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
-
-        dismiss()
     }
 }
 

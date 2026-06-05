@@ -411,25 +411,36 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
     private func presentEditSheet() {
         guard let parentWindow = window else { return }
 
+        var sheetWindow: NSWindow?
         let editForm = CreateConnectionForm(
             connection: instance.connection,
             onDisconnect: { [weak self] in
                 guard let self else { return }
                 await self.viewModel.disconnectConnectionInstance(self.instance.id)
+            },
+            onSavedConnection: { [weak self] connection, _ in
+                guard let self else { return }
+                self.openSavedConnection(connection)
+            },
+            onClose: { [weak parentWindow] in
+                guard let sheetWindow else { return }
+                parentWindow?.endSheet(sheetWindow)
             }
         )
-        .frame(width: 560)
+        .frame(width: 480, height: 640)
 
         let hostingController = NSHostingController(rootView: editForm)
-        let sheetWindow = NSWindow(contentViewController: hostingController)
-        sheetWindow.styleMask = [.titled, .closable, .fullSizeContentView]
-        sheetWindow.titleVisibility = .hidden
-        sheetWindow.titlebarAppearsTransparent = true
-        sheetWindow.isReleasedWhenClosed = false
-        let controller = NSWindowController(window: sheetWindow)
+        let window = NSWindow(contentViewController: hostingController)
+        sheetWindow = window
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.setContentSize(NSSize(width: 480, height: 640))
+        window.isReleasedWhenClosed = false
+        let controller = NSWindowController(window: window)
         editSheetController = controller
 
-        parentWindow.beginSheet(sheetWindow) { [weak self] _ in
+        parentWindow.beginSheet(window) { [weak self] _ in
             self?.editSheetController = nil
         }
     }
@@ -467,5 +478,19 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
             hoverBackground.layer?.backgroundColor = NSColor.separatorColor.cgColor
         }
     }
-}
 
+    private func openSavedConnection(_ connection: Connection) {
+        let instanceId = viewModel.createNewConnectionInstance(for: connection)
+        guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
+
+        WindowController.newTab(
+            tabType: .connection(instanceId),
+            connectionInstance: connectionInstance
+        )
+
+        AnalyticsService.shared.trackConnectionOpened(
+            databaseType: connection.databaseType,
+            isFirstConnection: false
+        )
+    }
+}
