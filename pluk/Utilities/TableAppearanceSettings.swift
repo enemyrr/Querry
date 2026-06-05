@@ -5,9 +5,14 @@
 
 import AppKit
 
+private enum TableAppearanceDefaults {
+    static let alternatingRowColorsKey = "alternatingRowColors"
+    static let alternatingRowColorsDefault = true
+}
+
 @MainActor
 enum TableAppearanceSettings {
-    nonisolated(unsafe) private(set) static var alternatingRowColors = UserDefaults.standard.bool(forKey: "alternatingRowColors")
+    nonisolated(unsafe) private(set) static var alternatingRowColors = readAlternatingRowColors()
 
     nonisolated(unsafe) private static let observer: NSObjectProtocol = {
         NotificationCenter.default.addObserver(
@@ -15,7 +20,7 @@ enum TableAppearanceSettings {
             object: nil,
             queue: .main
         ) { _ in
-            let newValue = UserDefaults.standard.bool(forKey: "alternatingRowColors")
+            let newValue = readAlternatingRowColors()
             if newValue != alternatingRowColors {
                 alternatingRowColors = newValue
                 NotificationCenter.default.post(name: .tableReloadData, object: nil)
@@ -34,8 +39,14 @@ enum TableAppearanceSettings {
     }()
 
     static func initialize() {
+        alternatingRowColors = readAlternatingRowColors()
         _ = observer
         _ = appearanceObserver
+    }
+
+    nonisolated private static func readAlternatingRowColors() -> Bool {
+        UserDefaults.standard.object(forKey: TableAppearanceDefaults.alternatingRowColorsKey) as? Bool
+            ?? TableAppearanceDefaults.alternatingRowColorsDefault
     }
 }
 
