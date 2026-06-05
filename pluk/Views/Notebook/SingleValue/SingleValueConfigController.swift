@@ -451,6 +451,7 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
     private let valueLabel = NSTextField(labelWithString: "")
     private let labelField = NSTextField(string: "")
+    private var observationGeneration = 0
 
     init(viewModel: SingleValueBlockViewModel, fallbackLabel: String? = nil, isLabelEditable: Bool = true) {
         self.viewModel = viewModel
@@ -458,7 +459,7 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         self.isLabelEditable = isLabelEditable
         super.init(frame: .zero)
         setupView()
-        observeViewModel()
+        startObservingViewModel()
         updateContent()
     }
 
@@ -516,7 +517,21 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
         ])
     }
 
-    private func observeViewModel() {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observationGeneration += 1
+        if window != nil {
+            startObservingViewModel()
+            updateContent()
+        }
+    }
+
+    private func startObservingViewModel() {
+        observationGeneration += 1
+        observeViewModel(generation: observationGeneration)
+    }
+
+    private func observeViewModel(generation: Int) {
         withObservationTracking {
             _ = viewModel.isLoadingSingleValue
             _ = viewModel.singleValueError
@@ -524,9 +539,9 @@ final class SingleValueDisplayView: NSView, NSTextFieldDelegate {
             _ = viewModel.config?.label
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, self.observationGeneration == generation else { return }
                 self.updateContent()
-                self.observeViewModel()
+                self.observeViewModel(generation: generation)
             }
         }
     }
