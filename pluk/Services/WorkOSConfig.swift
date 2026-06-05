@@ -30,8 +30,14 @@ enum WorkOSConfig {
     static let billingPortalURL = "\(apiBaseURL)/api/billing/portal"
     static let billingCheckoutURL = "\(apiBaseURL)/api/billing/checkout"
 
-    static let accessTokenKeychainKey = "workos_access_token"
-    static let refreshTokenKeychainKey = "workos_refresh_token"
-    static let userDefaultsKey = "workos_current_user"
-    static let billingCacheKey = "workos_billing_cache_v1"
+    #if DEBUG
+    private static let storageSuffix = "_debug"
+    #else
+    private static let storageSuffix = ""
+    #endif
+
+    static let accessTokenKeychainKey = "workos_access_token\(storageSuffix)"
+    static let refreshTokenKeychainKey = "workos_refresh_token\(storageSuffix)"
+    static let userDefaultsKey = "workos_current_user\(storageSuffix)"
+    static let billingCacheKey = "workos_billing_cache_v1\(storageSuffix)"
 }

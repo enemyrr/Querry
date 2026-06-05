@@ -16,6 +16,8 @@ final class WorkOSAuthService {
 
     var isAuthenticated: Bool { currentUser != nil }
 
+    private static let accessTokenRefreshLeadTime: TimeInterval = 60
+
     private init() {
         restoreSession()
         restoreBillingCache()
@@ -423,6 +425,14 @@ final class WorkOSAuthService {
         case refreshFailed
     }
 
+    private enum TokenRefreshFailureReason: Error {
+        case missingRefreshToken
+        case transientHTTP(Int)
+        case invalidGrant(Int, String)
+        case invalidResponse(Int, String)
+        case requestError(any Error)
+    }
+
     /// In-flight refresh task so parallel callers don't each kick off their own
     /// refresh round-trip against the auth server.
     private var inFlightRefresh: Task<Bool, Never>?
@@ -439,12 +449,9 @@ final class WorkOSAuthService {
             return false
         }
 
-        // Skip refresh if the token still has >60s of life. The 60s buffer
-        // absorbs clock skew + the ~ few hundred ms the retry round-trip would
-        // have taken.
         if !force,
            let exp = Self.expiry(fromJWT: token),
-           exp.timeIntervalSinceNow > 60 {
+           exp.timeIntervalSinceNow > Self.accessTokenRefreshLeadTime {
             return true
         }
 
@@ -454,7 +461,7 @@ final class WorkOSAuthService {
             NSLog("[WorkOS] access token expired/near-expiry — refreshing proactively")
         }
         let task = Task<Bool, Never> { [weak self] in
-            let ok = await self?.refreshAccessToken() ?? false
+            let ok = await self?.refreshAccessTokenIfPossible() ?? false
             await MainActor.run { self?.inFlightRefresh = nil }
             return ok
         }
@@ -492,18 +499,26 @@ final class WorkOSAuthService {
     }
 
     private static func expiry(fromJWT token: String) -> Date? {
-        guard let exp = jwtPayload(from: token)?["exp"] as? TimeInterval else { return nil }
+        guard let payload = jwtPayload(from: token),
+              let exp = payload["exp"] as? TimeInterval else { return nil }
         return Date(timeIntervalSince1970: exp)
     }
 
-    /// Exchanges the stored refresh token for a new access/refresh pair. Returns false
-    /// (and logs the user out) if the refresh token is missing or rejected.
+    /// Exchanges the stored refresh token for a new access/refresh pair.
     @discardableResult
-    private func refreshAccessToken() async -> Bool {
-        guard let refreshToken = KeychainHelper.shared.retrieve(for: WorkOSConfig.refreshTokenKeychainKey) else {
-            NSLog("[WorkOS] No refresh token available — logging out")
-            logout()
+    private func refreshAccessTokenIfPossible() async -> Bool {
+        switch await refreshAccessToken() {
+        case .success:
+            return true
+        case .failure(let reason):
+            handleRefreshFailure(reason)
             return false
+        }
+    }
+
+    private func refreshAccessToken() async -> Result<Void, TokenRefreshFailureReason> {
+        guard let refreshToken = KeychainHelper.shared.retrieve(for: WorkOSConfig.refreshTokenKeychainKey) else {
+            return .failure(.missingRefreshToken)
         }
 
         let bodyString = Self.formEncodedBody([
@@ -512,7 +527,9 @@ final class WorkOSAuthService {
             ("refresh_token", refreshToken),
         ])
 
-        guard let url = URL(string: WorkOSConfig.authenticateURL) else { return false }
+        guard let url = URL(string: WorkOSConfig.authenticateURL) else {
+            return .failure(.invalidResponse(-1, "invalid authenticate URL"))
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -523,24 +540,50 @@ final class WorkOSAuthService {
             let (data, response) = try await URLSession.shared.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
 
-            guard statusCode == 200,
-                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let newAccessToken = json["access_token"] as? String else {
-                let body = String(data: data, encoding: .utf8) ?? "no body"
-                NSLog("[WorkOS] Refresh failed: HTTP \(statusCode) — \(body)")
-                logout()
-                return false
+            let body = String(data: data, encoding: .utf8) ?? "no body"
+
+            guard statusCode == 200 else {
+                if statusCode == 400 || statusCode == 401 {
+                    return .failure(.invalidGrant(statusCode, body))
+                }
+                return .failure(.transientHTTP(statusCode))
             }
 
-            KeychainHelper.shared.store(password: newAccessToken, for: WorkOSConfig.accessTokenKeychainKey)
-            if let newRefreshToken = json["refresh_token"] as? String {
-                KeychainHelper.shared.store(password: newRefreshToken, for: WorkOSConfig.refreshTokenKeychainKey)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return .failure(.invalidResponse(statusCode, "invalid_json"))
             }
+            guard let newAccessToken = tokenString(named: "access_token", in: json),
+                  let newRefreshToken = tokenString(named: "refresh_token", in: json) else {
+                let keys = json.keys.sorted().joined(separator: ",")
+                return .failure(.invalidResponse(statusCode, "missing_token_fields keys=\(keys)"))
+            }
+
+            guard storeSessionTokens(accessToken: newAccessToken, refreshToken: newRefreshToken) else {
+                return .failure(.invalidResponse(statusCode, "keychain_store_failed"))
+            }
+
             NSLog("[WorkOS] Access token refreshed")
-            return true
+            return .success(())
         } catch {
             NSLog("[WorkOS] Refresh request failed: \(error)")
-            return false
+            return .failure(.requestError(error))
+        }
+    }
+
+    private func handleRefreshFailure(_ reason: TokenRefreshFailureReason) {
+        switch reason {
+        case .missingRefreshToken:
+            NSLog("[WorkOS] No refresh token available — logging out")
+            logout()
+        case .invalidGrant(let statusCode, let body):
+            NSLog("[WorkOS] Refresh rejected: HTTP \(statusCode) — \(body) — logging out")
+            logout()
+        case .transientHTTP(let statusCode):
+            NSLog("[WorkOS] Refresh temporarily failed: HTTP \(statusCode) — keeping local session")
+        case .invalidResponse(let statusCode, let body):
+            NSLog("[WorkOS] Refresh returned unusable response: HTTP \(statusCode) — \(body) — keeping local session")
+        case .requestError(let error):
+            NSLog("[WorkOS] Refresh request failed: \(error) — keeping local session")
         }
     }
 
@@ -575,7 +618,8 @@ final class WorkOSAuthService {
     func restoreSession() {
         guard let data = UserDefaults.standard.data(forKey: WorkOSConfig.userDefaultsKey),
               let user = try? Foundation.JSONDecoder().decode(WorkOSUser.self, from: data),
-              KeychainHelper.shared.passwordExists(for: WorkOSConfig.accessTokenKeychainKey) else {
+              KeychainHelper.shared.passwordExists(for: WorkOSConfig.accessTokenKeychainKey),
+              KeychainHelper.shared.passwordExists(for: WorkOSConfig.refreshTokenKeychainKey) else {
             return
         }
         currentUser = user
@@ -617,17 +661,24 @@ final class WorkOSAuthService {
 
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
-            guard let accessToken = json["access_token"] as? String else {
+            guard let accessToken = tokenString(named: "access_token", in: json) else {
                 authError = "No access token received"
                 AnalyticsService.shared.trackAuthLoginFailed(reason: "missing_access_token")
                 return
             }
 
-            let refreshToken = json["refresh_token"] as? String
+            guard let refreshToken = tokenString(named: "refresh_token", in: json) else {
+                let keys = json.keys.sorted().joined(separator: ",")
+                NSLog("[WorkOS] Token exchange response missing refresh token keys=\(keys)")
+                authError = "No refresh token received"
+                AnalyticsService.shared.trackAuthLoginFailed(reason: "missing_refresh_token")
+                return
+            }
 
-            KeychainHelper.shared.store(password: accessToken, for: WorkOSConfig.accessTokenKeychainKey)
-            if let refreshToken {
-                KeychainHelper.shared.store(password: refreshToken, for: WorkOSConfig.refreshTokenKeychainKey)
+            guard storeSessionTokens(accessToken: accessToken, refreshToken: refreshToken) else {
+                authError = "Couldn't save authentication session"
+                AnalyticsService.shared.trackAuthLoginFailed(reason: "keychain_store_failed")
+                return
             }
 
             if let userJSON = json["user"] {
@@ -642,6 +693,36 @@ final class WorkOSAuthService {
             authError = error.localizedDescription
             AnalyticsService.shared.trackAuthLoginFailed(reason: "request_error")
         }
+    }
+
+    private func tokenString(named snakeCaseName: String, in json: [String: Any]) -> String? {
+        if let token = json[snakeCaseName] as? String {
+            return token
+        }
+        let parts = snakeCaseName.split(separator: "_")
+        guard let first = parts.first else { return nil }
+        let camelCaseName = ([String(first)] + parts.dropFirst().map { part in
+            part.prefix(1).uppercased() + String(part.dropFirst())
+        }).joined()
+        return json[camelCaseName] as? String
+    }
+
+    private func storeSessionTokens(accessToken: String, refreshToken: String) -> Bool {
+        let accessStored = KeychainHelper.shared.store(
+            password: accessToken,
+            for: WorkOSConfig.accessTokenKeychainKey
+        )
+        let refreshStored = KeychainHelper.shared.store(
+            password: refreshToken,
+            for: WorkOSConfig.refreshTokenKeychainKey
+        )
+        guard accessStored && refreshStored else {
+            NSLog("[WorkOS] Failed to store session tokens accessStored=\(accessStored) refreshStored=\(refreshStored)")
+            KeychainHelper.shared.delete(for: WorkOSConfig.accessTokenKeychainKey)
+            KeychainHelper.shared.delete(for: WorkOSConfig.refreshTokenKeychainKey)
+            return false
+        }
+        return true
     }
 
     // MARK: - Persistence
