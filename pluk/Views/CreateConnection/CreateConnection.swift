@@ -278,7 +278,7 @@ struct CreateConnectionForm: View {
             return !name.isEmpty
         }
 
-        if databaseType.category == .cloud {
+        if databaseType.category == .platforms {
             return !name.isEmpty
         }
 
@@ -414,7 +414,7 @@ struct CreateConnectionForm: View {
                     DatabaseSelectionView(
                         selectedDatabaseType: $selectedDatabaseType
                     )
-                } else if selectedDatabaseType?.category == .cloud {
+                } else if selectedDatabaseType?.category == .platforms {
                     if selectedDatabaseType == .convex {
                         ConvexOAuthView(
                             selectedDatabaseType: $selectedDatabaseType,

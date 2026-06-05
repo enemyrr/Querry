@@ -111,7 +111,7 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
     var category: DatabaseCategory {
         switch self {
         case .convex, .supabase:
-            return .cloud
+            return .platforms
         case .postgres, .mysql, .mongodb, .sqlite:
             return .database
         }
@@ -137,8 +137,8 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
 }
 
 enum DatabaseCategory: String, CaseIterable, Sendable {
-    case cloud = "Cloud Providers"
     case database = "Database"
+    case platforms = "Platforms"
 }
 
 enum DatabaseStatus: Sendable {

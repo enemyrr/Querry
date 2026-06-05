@@ -12,6 +12,7 @@ struct DatabaseSelectionView: View {
     @Binding var selectedDatabaseType: DatabaseType?
 
     @Environment(\.dismiss) var dismiss
+    @AppStorage("containerSyncEnabled") private var containerSyncEnabled = true
 
     var groupedDatabaseTypes: [(DatabaseCategory, [DatabaseType])] {
         let visible = DatabaseType.allCases.filter { $0 != .supabase }
@@ -54,6 +55,10 @@ struct DatabaseSelectionView: View {
                             }
                         }
                     }
+
+                    if category == .platforms {
+                        DockerDiscoverySection(isEnabled: $containerSyncEnabled)
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -88,6 +93,34 @@ struct DatabaseSelectionView: View {
         }
         .padding(.top, 12)
         .padding(.trailing, 12)
+    }
+}
+
+private struct DockerDiscoverySection: View {
+    @Binding var isEnabled: Bool
+
+    var body: some View {
+        Section {
+            HStack(alignment: .top, spacing: 12) {
+                Image("docker")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Docker")
+                        .foregroundStyle(.primary)
+
+                    Text("When enabled, Pluk detects databases running in your local Docker containers and adds automatically.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+
+            Toggle("Docker", isOn: $isEnabled)
+        }
     }
 }
 
