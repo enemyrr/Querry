@@ -14,13 +14,29 @@ class AIService: @unchecked Sendable {
 
     private static let schemaToolName = "get_table_schema"
 
-    static func analyzeError(query: String, error: Error, databaseType: String, databaseService: DatabaseService) async throws -> String {
-        let collections = try await databaseService.listCollections(schema: nil)
-        let tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
+    static func analyzeError(
+        query: String,
+        error: Error,
+        databaseType: String,
+        databaseService: DatabaseService,
+        schemaName: String? = nil
+    ) async throws -> String {
+        let tablesList = try await availableObjectContext(
+            query: query,
+            databaseType: databaseType,
+            databaseService: databaseService,
+            selectedSchemaName: schemaName
+        )
+        let defaultSchemaName = defaultSchemaNameForErrorContext(
+            query: query,
+            databaseType: databaseType,
+            selectedSchemaName: schemaName
+        )
 
         let systemPrompt = errorAnalysisSystemPrompt(
             databaseType: databaseType,
-            availableTables: tablesList
+            availableTables: tablesList,
+            selectedSchemaName: schemaName
         )
 
         let userPrompt = """
@@ -35,7 +51,9 @@ class AIService: @unchecked Sendable {
 
         return try await performErrorFixRequest(
             systemPrompt: systemPrompt,
-            userPrompt: userPrompt
+            userPrompt: userPrompt,
+            databaseService: databaseService,
+            defaultSchemaName: defaultSchemaName
         )
     }
 
@@ -108,7 +126,173 @@ class AIService: @unchecked Sendable {
 
     // MARK: - Private
 
-    private static func errorAnalysisSystemPrompt(databaseType: String, availableTables: String) -> String {
+    private static func availableObjectContext(
+        query: String,
+        databaseType: String,
+        databaseService: DatabaseService,
+        selectedSchemaName: String?
+    ) async throws -> String {
+        if isPostgreSQLFamily(databaseType) {
+            var schemaNames = schemaContextNames(query: query, selectedSchemaName: selectedSchemaName)
+            if schemaNames.isEmpty {
+                schemaNames = ["public"]
+            }
+
+            var lines: [String] = []
+            for schemaName in schemaNames {
+                let collections = try await databaseService.listCollections(schema: schemaName)
+                lines.append(contentsOf: collections.map {
+                    formatAvailableObject($0, databaseType: databaseType, fallbackSchemaName: schemaName)
+                })
+            }
+            return uniqued(lines).joined(separator: "\n")
+        }
+
+        let collections = try await databaseService.listCollections(schema: selectedSchemaName)
+        return collections.map {
+            formatAvailableObject($0, databaseType: databaseType, fallbackSchemaName: selectedSchemaName)
+        }.joined(separator: "\n")
+    }
+
+    private static func schemaContextNames(query: String, selectedSchemaName: String?) -> [String] {
+        var names: [String] = []
+
+        if let selected = normalizedSchemaName(selectedSchemaName) {
+            names.append(selected)
+        }
+
+        for schemaName in referencedPostgreSQLSchemaNames(in: query) where !names.contains(schemaName) {
+            names.append(schemaName)
+        }
+
+        if !names.contains("public") {
+            names.append("public")
+        }
+
+        return names
+    }
+
+    private static func defaultSchemaNameForErrorContext(query: String, databaseType: String, selectedSchemaName: String?) -> String? {
+        if isPostgreSQLFamily(databaseType), let referencedSchema = referencedPostgreSQLSchemaNames(in: query).first {
+            return referencedSchema
+        }
+
+        return normalizedSchemaName(selectedSchemaName)
+    }
+
+    private static func referencedPostgreSQLSchemaNames(in query: String) -> [String] {
+        var schemaNames: [String] = []
+        var index = query.startIndex
+
+        while index < query.endIndex {
+            guard query[index] == "\"" else {
+                index = query.index(after: index)
+                continue
+            }
+
+            guard let firstIdentifier = readQuotedIdentifier(in: query, from: index) else {
+                index = query.index(after: index)
+                continue
+            }
+
+            var nextIndex = firstIdentifier.endIndex
+            skipWhitespace(in: query, from: &nextIndex)
+
+            guard nextIndex < query.endIndex, query[nextIndex] == "." else {
+                index = firstIdentifier.endIndex
+                continue
+            }
+
+            nextIndex = query.index(after: nextIndex)
+            skipWhitespace(in: query, from: &nextIndex)
+
+            guard nextIndex < query.endIndex,
+                  query[nextIndex] == "\"",
+                  let secondIdentifier = readQuotedIdentifier(in: query, from: nextIndex) else {
+                index = firstIdentifier.endIndex
+                continue
+            }
+
+            if !schemaNames.contains(firstIdentifier.identifier) {
+                schemaNames.append(firstIdentifier.identifier)
+            }
+            index = secondIdentifier.endIndex
+        }
+
+        return schemaNames
+    }
+
+    private static func readQuotedIdentifier(in string: String, from startIndex: String.Index) -> (identifier: String, endIndex: String.Index)? {
+        guard startIndex < string.endIndex, string[startIndex] == "\"" else {
+            return nil
+        }
+
+        var identifier = ""
+        var index = string.index(after: startIndex)
+
+        while index < string.endIndex {
+            let character = string[index]
+            if character == "\"" {
+                let nextIndex = string.index(after: index)
+                if nextIndex < string.endIndex, string[nextIndex] == "\"" {
+                    identifier.append("\"")
+                    index = string.index(after: nextIndex)
+                    continue
+                }
+                return (identifier, nextIndex)
+            }
+
+            identifier.append(character)
+            index = string.index(after: index)
+        }
+
+        return nil
+    }
+
+    private static func skipWhitespace(in string: String, from index: inout String.Index) {
+        while index < string.endIndex, string[index].unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) {
+            index = string.index(after: index)
+        }
+    }
+
+    private static func formatAvailableObject(
+        _ collection: any CollectionWrapper,
+        databaseType: String,
+        fallbackSchemaName: String?
+    ) -> String {
+        guard isPostgreSQLFamily(databaseType),
+              let schemaName = collection.schema ?? fallbackSchemaName,
+              !schemaName.isEmpty else {
+            return "- \(collection.name) (\(collection.type))"
+        }
+
+        return "- \(quotedSQLIdentifier(schemaName)).\(quotedSQLIdentifier(collection.name)) (\(collection.type))"
+    }
+
+    private static func quotedSQLIdentifier(_ identifier: String) -> String {
+        "\"\(identifier.replacing("\"", with: "\"\""))\""
+    }
+
+    private static func normalizedSchemaName(_ schemaName: String?) -> String? {
+        guard let schemaName else { return nil }
+        let trimmed = schemaName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func uniqued(_ values: [String]) -> [String] {
+        var result: [String] = []
+        for value in values where !result.contains(value) {
+            result.append(value)
+        }
+        return result
+    }
+
+    private static func isPostgreSQLFamily(_ databaseType: String) -> Bool {
+        let normalized = databaseType.lowercased()
+        return normalized == DatabaseType.postgres.rawValue || normalized == DatabaseType.supabase.rawValue
+    }
+
+    private static func errorAnalysisSystemPrompt(databaseType: String, availableTables: String, selectedSchemaName: String?) -> String {
         let normalizedDatabaseType = databaseType.lowercased()
 
         if normalizedDatabaseType == DatabaseType.convex.rawValue {
@@ -211,6 +395,12 @@ class AIService: @unchecked Sendable {
         1. Make the minimal change needed to resolve the error. Preserve the user's comments, whitespace, casing, and aliases.
         2. Match table names against <available_tables> to catch typos or casing mismatches.
         3. Return exactly one syntactically valid \(databaseType) statement.
+        4. For PostgreSQL and Supabase, available tables may be schema-qualified as `"schema"."table"`. Preserve existing schema-qualified references and use the schema-qualified form for non-public schemas.
+
+        <schema_context>
+        Selected schema: \(normalizedSchemaName(selectedSchemaName) ?? "none")
+        PostgreSQL identifiers should remain double quoted when they are shown double quoted in <available_tables> or the user's query.
+        </schema_context>
 
         <available_tables>
         \(availableTables)
@@ -226,6 +416,12 @@ class AIService: @unchecked Sendable {
         <query>SELECT * FROM ordres WHERE status = 'paid';</query>
         <error>relation "ordres" does not exist</error>
         <output>SELECT * FROM orders WHERE status = 'paid';</output>
+        </example>
+
+        <example>
+        <query>SELECT * FROM entity_nodes;</query>
+        <error>relation "entity_nodes" does not exist</error>
+        <output>SELECT * FROM "memory"."entity_nodes";</output>
         </example>
         """
     }
@@ -249,7 +445,11 @@ class AIService: @unchecked Sendable {
         ]
     )
 
-    private static func collectToolResults(for toolUses: [BedrockGLMToolCall], databaseService: DatabaseService) async throws -> [BedrockGLMChatMessage] {
+    private static func collectToolResults(
+        for toolUses: [BedrockGLMToolCall],
+        databaseService: DatabaseService,
+        defaultSchemaName: String? = nil
+    ) async throws -> [BedrockGLMChatMessage] {
         var results: [BedrockGLMChatMessage] = []
         for toolUse in toolUses where toolUse.name == schemaToolName {
             let inputDict: [String: Any]
@@ -262,7 +462,8 @@ class AIService: @unchecked Sendable {
 
             let toolResult = try await handleSchemaToolCall(
                 input: inputDict,
-                databaseService: databaseService
+                databaseService: databaseService,
+                defaultSchemaName: defaultSchemaName
             )
 
             results.append(
@@ -279,31 +480,60 @@ class AIService: @unchecked Sendable {
 
     private static func performErrorFixRequest(
         systemPrompt: String,
-        userPrompt: String
+        userPrompt: String,
+        databaseService: DatabaseService,
+        defaultSchemaName: String?
     ) async throws -> String {
-        let messages: [BedrockGLMChatMessage] = [
+        var messages: [BedrockGLMChatMessage] = [
             BedrockGLMChatMessage(role: .user, content: userPrompt)
         ]
 
         let response = try await BedrockGLMService.shared.chatCompletion(
             messages: messages,
             systemPrompt: systemPrompt,
-            tools: [],
+            tools: [schemaTool],
             maxTokens: 4096,
             model: BedrockConfig.glm47ModelId,
             temperature: generationTemperature,
             thinkingMode: .disabled
         )
 
+        let toolUses = response.assistantMessage.toolCalls ?? []
+        if !toolUses.isEmpty {
+            messages.append(response.assistantMessage)
+            let toolResults = try await collectToolResults(
+                for: toolUses,
+                databaseService: databaseService,
+                defaultSchemaName: defaultSchemaName
+            )
+            messages.append(contentsOf: toolResults)
+
+            let finalResponse = try await BedrockGLMService.shared.chatCompletion(
+                messages: messages,
+                systemPrompt: systemPrompt,
+                tools: [],
+                maxTokens: 4096,
+                model: BedrockConfig.glm47ModelId,
+                temperature: generationTemperature,
+                thinkingMode: .disabled
+            )
+
+            return finalResponse.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+
         return response.assistantMessage.content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    private static func handleSchemaToolCall(input: [String: Any], databaseService: DatabaseService) async throws -> String {
+    private static func handleSchemaToolCall(
+        input: [String: Any],
+        databaseService: DatabaseService,
+        defaultSchemaName: String?
+    ) async throws -> String {
         guard let tableName = input["table_name"] as? String else {
             return "Error: Invalid arguments for get_table_schema"
         }
 
-        let schemaName = input["schema_name"] as? String
+        let schemaName = normalizedSchemaName(input["schema_name"] as? String) ?? defaultSchemaName
 
         do {
             guard let schemaResult = try await databaseService.getSchema(for: tableName, databaseSchema: schemaName) else {

@@ -806,63 +806,7 @@ actor PostgreSQLDriver: DatabaseDriver {
 
         for statement in statements {
             do {
-                let postgresQuery = PostgresQuery(stringLiteral: statement)
-                let queryResults = try await poolQuery(postgresQuery)
-
-                var queryColumns: [QueryColumnInfo] = []
-                var convertedRows: [[String: QueryRowInfo]] = []
-                var convertedRawRows: [DatabaseRawRow] = []
-                var columnsInitialized = false
-
-                for try await row in queryResults {
-                    if !columnsInitialized {
-                        var columnIndex = 0
-                        for cell in row {
-                            queryColumns.append(QueryColumnInfo(
-                                name: cell.columnName,
-                                dataType: String(describing: cell.dataType),
-                                format: String(describing: cell.format),
-                                index: columnIndex
-                            ))
-                            columnIndex += 1
-                        }
-                        columnsInitialized = true
-                    }
-
-                    let randomAccessRow = row.makeRandomAccess()
-                    var processedRowData: [String: QueryRowInfo] = [:]
-                    var rawRowData: DatabaseRawRow = [:]
-
-                    for column in queryColumns {
-                        let columnName = column.name
-                        if randomAccessRow.contains(columnName) {
-                            let cell = randomAccessRow[columnName]
-                            do {
-                                let decoded = try decode(from: cell)
-                                processedRowData[columnName] = decoded
-                                rawRowData[columnName] = decoded.value
-                            } catch {
-                                debugLog("executeRawQuery decode error: \(String(reflecting: error))")
-                                processedRowData[columnName] = nil
-                                rawRowData[columnName] = nil
-                            }
-                        } else {
-                            processedRowData[columnName] = nil
-                            rawRowData[columnName] = nil
-                        }
-                    }
-
-                    convertedRows.append(processedRowData)
-                    convertedRawRows.append(rawRowData)
-                }
-
-                let result = QueryResult(
-                    columns: queryColumns,
-                    rows: convertedRows,
-                    totalCount: convertedRows.count,
-                    rawRows: convertedRawRows
-                )
-
+                let result = try await executeRawStatement(statement)
                 results.append(result)
 
             } catch let error as PSQLError {
@@ -873,6 +817,68 @@ actor PostgreSQLDriver: DatabaseDriver {
         }
 
         return results.isEmpty ? [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])] : results
+    }
+
+    private func executeRawStatement(_ statement: String) async throws -> QueryResult {
+        let query = PostgresQuery(stringLiteral: statement)
+        let queryResults = try await poolQuery(query)
+        return try await processRawQueryRows(queryResults)
+    }
+
+    private func processRawQueryRows(_ queryResults: PostgresRowSequence) async throws -> QueryResult {
+        var queryColumns: [QueryColumnInfo] = []
+        var convertedRows: [[String: QueryRowInfo]] = []
+        var convertedRawRows: [DatabaseRawRow] = []
+        var columnsInitialized = false
+
+        for try await row in queryResults {
+            if !columnsInitialized {
+                var columnIndex = 0
+                for cell in row {
+                    queryColumns.append(QueryColumnInfo(
+                        name: cell.columnName,
+                        dataType: String(describing: cell.dataType),
+                        format: String(describing: cell.format),
+                        index: columnIndex
+                    ))
+                    columnIndex += 1
+                }
+                columnsInitialized = true
+            }
+
+            let randomAccessRow = row.makeRandomAccess()
+            var processedRowData: [String: QueryRowInfo] = [:]
+            var rawRowData: DatabaseRawRow = [:]
+
+            for column in queryColumns {
+                let columnName = column.name
+                if randomAccessRow.contains(columnName) {
+                    let cell = randomAccessRow[columnName]
+                    do {
+                        let decoded = try decode(from: cell)
+                        processedRowData[columnName] = decoded
+                        rawRowData[columnName] = decoded.value
+                    } catch {
+                        debugLog("executeRawQuery decode error: \(String(reflecting: error))")
+                        processedRowData[columnName] = nil
+                        rawRowData[columnName] = nil
+                    }
+                } else {
+                    processedRowData[columnName] = nil
+                    rawRowData[columnName] = nil
+                }
+            }
+
+            convertedRows.append(processedRowData)
+            convertedRawRows.append(rawRowData)
+        }
+
+        return QueryResult(
+            columns: queryColumns,
+            rows: convertedRows,
+            totalCount: convertedRows.count,
+            rawRows: convertedRawRows
+        )
     }
     
     func createCollection(named collectionName: String) async throws {

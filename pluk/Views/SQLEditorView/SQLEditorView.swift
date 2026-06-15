@@ -26,6 +26,8 @@ private enum ResultsPillTabBarMetrics {
 struct SQLEditorView: View {
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) var colorScheme
+    @AppStorage("enableAIFeatures") private var enableAIFeatures = true
+    @AppStorage("showAIErrorSuggestions") private var showAIErrorSuggestions = true
     
     @State private var sqlQuery: String = ""
     @State private var viewState: SQLEditorViewState = .idle
@@ -123,6 +125,16 @@ struct SQLEditorView: View {
     
     @State private var selectedDatabase: String = ""
     @State private var availableDatabases: [any DatabaseWrapper] = []
+    @State private var selectedSchema: String = ""
+    @State private var availableSchemas: [InformationSchema] = []
+
+    private var usesSchemaPicker: Bool {
+        instance.connection.databaseType == .postgres || instance.connection.databaseType == .supabase
+    }
+
+    private var selectedExecutionSchema: String? {
+        usesSchemaPicker && !selectedSchema.isEmpty ? selectedSchema : nil
+    }
 
     private enum ToolbarMetrics {
         static let controlHeight: CGFloat = 30
@@ -176,25 +188,40 @@ struct SQLEditorView: View {
                 //                    tooltip: "Add to Favorites"
                 //                )
             }
+
+            aiErrorSuggestionToggle
             
             
-            // Database selection button (secondary style)
+            // Database/schema selection button (secondary style)
             Menu {
-                if !availableDatabases.isEmpty {
-                    ForEach(availableDatabases, id: \.name) { database in
-                        Button(database.name) {
-                            selectedDatabase = database.name
+                if usesSchemaPicker {
+                    if !availableSchemas.isEmpty {
+                        ForEach(availableSchemas, id: \.name) { schema in
+                            Button(schema.name) {
+                                selectedSchema = schema.name
+                            }
                         }
+                    } else {
+                        Text("No schemas available")
+                            .foregroundColor(.secondary)
                     }
                 } else {
-                    Text("No databases available")
-                        .foregroundColor(.secondary)
+                    if !availableDatabases.isEmpty {
+                        ForEach(availableDatabases, id: \.name) { database in
+                            Button(database.name) {
+                                selectedDatabase = database.name
+                            }
+                        }
+                    } else {
+                        Text("No databases available")
+                            .foregroundColor(.secondary)
+                    }
                 }
             } label: {
                 HStack(spacing: 0) {
                     HStack(spacing: 0) {
-                        Text("Database: ")
-                        Text(selectedDatabase)
+                        Text(usesSchemaPicker ? "Schema: " : "Database: ")
+                        Text(usesSchemaPicker ? selectedSchema : selectedDatabase)
                             .fontWeight(.medium)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -252,6 +279,29 @@ struct SQLEditorView: View {
         .padding(.leading)
         .padding(.trailing, 8)
         .padding(.vertical, 8)
+    }
+
+    private var aiErrorSuggestionToggle: some View {
+        Button {
+            showAIErrorSuggestions.toggle()
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: ToolbarMetrics.cornerRadius)
+                    .fill(showAIErrorSuggestions ? Color(NSColor.controlBackgroundColor) : Color.clear)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12))
+                    .foregroundStyle(showAIErrorSuggestions ? .primary : .secondary)
+            }
+            .frame(width: ToolbarMetrics.controlHeight, height: ToolbarMetrics.controlHeight)
+            .overlay(
+                RoundedRectangle(cornerRadius: ToolbarMetrics.cornerRadius)
+                    .stroke(.separator, lineWidth: showAIErrorSuggestions ? 0.5 : 0)
+            )
+            .contentShape(.rect(cornerRadius: ToolbarMetrics.cornerRadius))
+        }
+        .buttonStyle(.plain)
+        .customHelp(showAIErrorSuggestions ? "Turn off AI error suggestions" : "Turn on AI error suggestions")
     }
     
     @State private var position: CodeEditor.Position = CodeEditor.Position()
@@ -783,7 +833,7 @@ extension SQLEditorView {
             let startTime = Date()
 
             do {
-                let results = try await instance.databaseService.executeRawQuery(queryToExecute, databaseSchema: selectedDatabase)
+                let results = try await instance.databaseService.executeRawQuery(queryToExecute, databaseSchema: selectedExecutionSchema)
 
                 let executionTime = Date().timeIntervalSince(startTime)
 
@@ -812,6 +862,11 @@ extension SQLEditorView {
     }
     
     private func getAIErrorSuggestion(for query: String, error: Error) async {
+        let shouldShowSuggestion = await MainActor.run {
+            enableAIFeatures && showAIErrorSuggestions
+        }
+        guard shouldShowSuggestion else { return }
+
         await MainActor.run {
             isLoadingAISuggestion = true
             showAIErrorSuggestion = true
@@ -863,7 +918,13 @@ extension SQLEditorView {
     
     private func performAIErrorAnalysis(query: String, error: Error) async throws -> String {
         let databaseType = instance.connection.databaseType.rawValue
-        return try await AIService.analyzeError(query: query, error: error, databaseType: databaseType, databaseService: instance.databaseService)
+        return try await AIService.analyzeError(
+            query: query,
+            error: error,
+            databaseType: databaseType,
+            databaseService: instance.databaseService,
+            schemaName: selectedExecutionSchema
+        )
     }
     
     private func formatDiffText(original: String, suggested: String?) -> String {
@@ -1142,6 +1203,30 @@ extension SQLEditorView {
     
     private func loadAvailableDatabases() {
         Task {
+            if usesSchemaPicker {
+                do {
+                    let schemas = try await instance.databaseService.getInformationSchema()
+                    await MainActor.run {
+                        self.availableSchemas = schemas
+                        let preferredSchema = instance.selectedTab?.databaseSchema
+                            ?? instance.databaseService.currentSchema
+                            ?? "public"
+                        self.selectedSchema = schemas.first(where: { $0.name == preferredSchema })?.name
+                            ?? schemas.first(where: { $0.name == "public" })?.name
+                            ?? schemas.first?.name
+                            ?? ""
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.availableSchemas = []
+                        self.selectedSchema = instance.selectedTab?.databaseSchema
+                            ?? instance.databaseService.currentSchema
+                            ?? "public"
+                    }
+                }
+                return
+            }
+
             await MainActor.run {
                 // Show only the current connected database
                 if let currentDatabase = instance.databaseService.currentDatabase {
