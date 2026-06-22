@@ -226,6 +226,8 @@ struct CreateConnectionForm: View {
 
     init(
         connection: Connection? = nil,
+        initialDatabaseType: DatabaseType? = nil,
+        initialSQLiteFileURL: URL? = nil,
         onDisconnect: (() async -> Void)? = nil,
         onSavedConnection: (@MainActor (Connection, Bool) -> Void)? = nil,
         onClose: (() -> Void)? = nil
@@ -235,6 +237,12 @@ struct CreateConnectionForm: View {
         self.onDisconnect = onDisconnect
         self.onSavedConnection = onSavedConnection
         self.onClose = onClose
+        let initialType = connection == nil
+            ? initialDatabaseType ?? (initialSQLiteFileURL == nil ? nil : .sqlite)
+            : nil
+        _selectedDatabaseType = State(initialValue: initialType)
+        _uri = State(initialValue: connection == nil ? initialSQLiteFileURL?.path ?? "" : "")
+        _name = State(initialValue: connection == nil ? initialSQLiteFileURL?.deletingPathExtension().lastPathComponent ?? "" : "")
         _color = State(initialValue: .blue)
     }
 

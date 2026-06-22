@@ -21,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowShortcutMonitor: Any?
     private weak var lastUserActiveWindow: NSWindow?
     private var keyWindowObserver: NSObjectProtocol?
+    private var externalSQLiteConnectionSheetController: NSWindowController?
 
     static func appearance(for value: Int) -> NSAppearance? {
         switch value {
@@ -224,7 +225,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         bringAppToFront()
         for url in urls {
-            handleURLCallback(url)
+            if url.isFileURL {
+                handleOpenedFile(url)
+            } else {
+                handleURLCallback(url)
+            }
         }
     }
 
@@ -267,6 +272,157 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 userInfo: ["code": code]
             )
         }
+    }
+
+    private func handleOpenedFile(_ url: URL) {
+        guard isSupportedSQLiteDatabaseURL(url) else { return }
+
+        let normalizedPath = normalizedSQLitePath(url.path)
+        if let connection = existingSQLiteConnection(for: normalizedPath) {
+            let isFirstConnection = fetchConnectionCount() == 1
+                && ConnectionService.shared.connectionInstances.isEmpty
+            openSQLiteConnection(connection, isFirstConnection: isFirstConnection)
+            return
+        }
+
+        askToCreateSQLiteConnection(for: url)
+    }
+
+    private func isSupportedSQLiteDatabaseURL(_ url: URL) -> Bool {
+        let supportedExtensions = ["db", "sqlite", "sqlite3"]
+        return supportedExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    private func existingSQLiteConnection(for normalizedPath: String) -> Connection? {
+        let descriptor = FetchDescriptor<Connection>()
+        let connections = (try? sharedModelContainer.mainContext.fetch(descriptor)) ?? []
+        return connections.first { connection in
+            guard connection.databaseType == .sqlite,
+                  let storedPath = sqlitePath(from: connection.url) else {
+                return false
+            }
+            return normalizedSQLitePath(storedPath) == normalizedPath
+        }
+    }
+
+    private func sqlitePath(from connectionString: String?) -> String? {
+        guard let connectionString, !connectionString.isEmpty else { return nil }
+
+        if let (_, path) = BookmarkManager.shared.decodeBookmark(connectionString) {
+            return path
+        }
+
+        if connectionString.hasPrefix("sqlite://") {
+            let path = String(connectionString.dropFirst(9))
+            return path.isEmpty ? nil : path
+        }
+
+        if connectionString.hasPrefix("file:") {
+            return String(connectionString.dropFirst(5))
+        }
+
+        return connectionString
+    }
+
+    private func normalizedSQLitePath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private func askToCreateSQLiteConnection(for url: URL) {
+        let controller = WindowController.showHome()
+        guard let parentWindow = controller.window ?? NSApp.keyWindow else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Create SQLite Connection?"
+        alert.informativeText = "\(url.lastPathComponent) is not in your Pluk connections yet. Create a new SQLite connection for this file?"
+        alert.addButton(withTitle: "Create Connection")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: parentWindow) { [weak self, weak parentWindow] response in
+            Task { @MainActor in
+                guard response == .alertFirstButtonReturn,
+                      let parentWindow else {
+                    return
+                }
+                self?.presentCreateSQLiteConnectionSheet(for: url, parentWindow: parentWindow)
+            }
+        }
+    }
+
+    private func presentCreateSQLiteConnectionSheet(for url: URL, parentWindow: NSWindow) {
+        var sheetWindow: NSWindow?
+        let form = CreateConnectionForm(
+            initialSQLiteFileURL: url,
+            onSavedConnection: { [weak self] connection, isEditingExistingConnection in
+                self?.openSavedSQLiteConnection(
+                    connection,
+                    isEditingExistingConnection: isEditingExistingConnection
+                )
+            },
+            onClose: { [weak parentWindow] in
+                guard let sheetWindow else { return }
+                parentWindow?.endSheet(sheetWindow)
+            }
+        )
+        .frame(width: 480, height: 640)
+        .modelContainer(sharedModelContainer)
+
+        let hostingController = NSHostingController(rootView: form)
+        let window = NSWindow(contentViewController: hostingController)
+        sheetWindow = window
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.setContentSize(NSSize(width: 480, height: 640))
+        window.isReleasedWhenClosed = false
+
+        externalSQLiteConnectionSheetController = NSWindowController(window: window)
+        parentWindow.beginSheet(window) { [weak self] _ in
+            Task { @MainActor in
+                self?.externalSQLiteConnectionSheetController = nil
+            }
+        }
+    }
+
+    private func openSavedSQLiteConnection(_ connection: Connection, isEditingExistingConnection: Bool) {
+        let totalConnections = (try? sharedModelContainer.mainContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
+        openSQLiteConnection(
+            connection,
+            isFirstConnection: !isEditingExistingConnection && totalConnections == 1
+        )
+    }
+
+    private func openSQLiteConnection(_ connection: Connection, isFirstConnection: Bool) {
+        connection.lastOpenedAt = Date()
+
+        if let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
+            ConnectionService.shared.activeConnectionInstanceId = existingInstance.id
+            WindowController.switchToTab(.connection(existingInstance.id))
+            AnalyticsService.shared.trackConnectionOpened(
+                databaseType: connection.databaseType,
+                isFirstConnection: false
+            )
+            try? sharedModelContainer.mainContext.save()
+            return
+        }
+
+        if ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
+
+        let instanceId = ConnectionService.shared.createNewConnectionInstance(for: connection)
+        guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
+
+        WindowController.newTab(
+            tabType: .connection(instanceId),
+            connectionInstance: connectionInstance
+        )
+        AnalyticsService.shared.trackConnectionOpened(
+            databaseType: connection.databaseType,
+            isFirstConnection: isFirstConnection
+        )
+        try? sharedModelContainer.mainContext.save()
+    }
+
+    private func fetchConnectionCount() -> Int {
+        (try? sharedModelContainer.mainContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
     }
 
     @available(macOS 26, *)

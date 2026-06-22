@@ -15,6 +15,7 @@ struct SQLiteFieldsView: View {
     @State private var bookmarkErrorMessage = ""
     @State private var showNoSQLiteFilesError = false
     @State private var showWALModeWarning = false
+    @State private var isDropTargeted = false
     
     private var displayText: String {
         if filePath.isEmpty {
@@ -34,21 +35,27 @@ struct SQLiteFieldsView: View {
                     showFileImporter = true
                 } label: {
                     VStack(spacing: 4) {
-                        Text("Select File")
+                        Text("Select or Drop File")
                             .foregroundStyle(.primary)
 
-                        Text("Choose a .db, .sqlite, or .sqlite3 file")
-                            .font(.system(size: 12))
+                        Text("Choose or drag a .db, .sqlite, or .sqlite3 file")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
                 }
                 .fileSelectionStyle()
+                .overlay {
+                    if isDropTargeted {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.primaryButton, lineWidth: 2)
+                    }
+                }
             } else {
                 LabeledContent("File") {
                     HStack(spacing: 8) {
                         Image(systemName: "externaldrive.fill")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
 
                         Text(displayText)
@@ -63,6 +70,13 @@ struct SQLiteFieldsView: View {
                 }
             }
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first(where: \.isFileURL) else { return false }
+            handleSelectedURL(url)
+            return true
+        } isTargeted: { isTargeted in
+            isDropTargeted = isTargeted
+        }
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: [.database, .item, .folder],
@@ -71,96 +85,7 @@ struct SQLiteFieldsView: View {
             switch result {
             case .success(let urls):
                 if let url = urls.first {
-                    debugLog("📂 Selected file: \(url.path)")
-                    
-                    // CRITICAL: Start accessing security-scoped resource immediately
-                    guard url.startAccessingSecurityScopedResource() else {
-                        debugLog("❌ Failed to start accessing security-scoped resource")
-                        filePath = url.path
-                        return
-                    }
-                    
-                    debugLog("🔓 Successfully started accessing security-scoped resource")
-                    
-                    // Check if the selected item is a directory
-                    var isDirectory: ObjCBool = false
-                    FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-                    
-                    let finalURL: URL
-                    if isDirectory.boolValue {
-                        debugLog("📁 Directory selected, searching for SQLite files...")
-                        
-                        // Search for SQLite files in the directory
-                        do {
-                            if let sqliteFileURL = try findFirstSQLiteFileInDirectory(url) {
-                                debugLog("📁 Found SQLite file in directory: \(sqliteFileURL.lastPathComponent)")
-                                finalURL = sqliteFileURL
-                            } else {
-                                url.stopAccessingSecurityScopedResource()
-                                debugLog("❌ No SQLite files found in the selected folder")
-                                showNoSQLiteFilesError = true
-                                return
-                            }
-                        } catch {
-                            url.stopAccessingSecurityScopedResource()
-                            debugLog("❌ Error searching directory: \(error)")
-                            return
-                        }
-                    } else {
-                        // It's a file, check if it's in WAL mode
-                        if SQLiteWALDetector.isInWALMode(at: url) {
-                            url.stopAccessingSecurityScopedResource()
-                            debugLog("⚠️ SQLite file is in WAL mode, user should select directory")
-                            showWALModeWarning = true
-                            return
-                        }
-                        finalURL = url
-                    }
-                    
-                    // Now check file accessibility with security scope active
-                    debugLog("📏 File exists: \(FileManager.default.fileExists(atPath: finalURL.path))")
-                    debugLog("📖 Readable: \(FileManager.default.isReadableFile(atPath: finalURL.path))")
-                    debugLog("✏️ Writable: \(FileManager.default.isWritableFile(atPath: finalURL.path))")
-                    
-                    do {
-                        // Try to access the file content
-                        let _ = try Data(contentsOf: finalURL)
-                        debugLog("✅ File content is accessible")
-                        
-                        // Create security-scoped bookmark for the original directory (to maintain access)
-                        // but store the path to the specific SQLite file found
-                        let bookmarkData = try url.bookmarkData(
-                            options: [.withSecurityScope],
-                            includingResourceValuesForKeys: nil,
-                            relativeTo: nil
-                        )
-                        
-                        // Stop accessing for now - we'll restart when needed
-                        url.stopAccessingSecurityScopedResource()
-                        
-                        // Store the bookmark with the SQLite file path
-                        filePath = BookmarkManager.shared.encodeBookmark(bookmarkData, withPath: finalURL.path)
-                        
-                        debugLog("✅ Successfully created security-scoped bookmark for: \(finalURL.path)")
-                    } catch {
-                        // Stop accessing on error
-                        url.stopAccessingSecurityScopedResource()
-                        debugLog("⚠️ Failed to create bookmark: \(error)")
-                        debugLog("📋 Error details: \(String(reflecting: error))")
-                        
-                        // Show user-friendly error message
-                        bookmarkErrorMessage = """
-                        Unable to save file access permissions.
-                        
-                        The selected file can be used now, but you may need to select it again after restarting the app.
-                        
-                        Error: \(error.localizedDescription)
-                        """
-                        showBookmarkError = true
-                        
-                        // Store the path anyway for current session use
-                        filePath = finalURL.path
-                    }
+                    handleSelectedURL(url)
                 }
             case .failure(let error):
                 print("❌ Error selecting file: \(error)")
@@ -192,7 +117,105 @@ struct SQLiteFieldsView: View {
     }
     
     // MARK: - Helper Methods
-    
+
+    private func handleSelectedURL(_ url: URL) {
+        guard url.isFileURL else { return }
+
+        debugLog("📂 Selected file: \(url.path)")
+
+        let hasSecurityScopedAccess = url.startAccessingSecurityScopedResource()
+        if hasSecurityScopedAccess {
+            debugLog("🔓 Successfully started accessing security-scoped resource")
+        }
+
+        defer {
+            if hasSecurityScopedAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        var isDirectory: ObjCBool = false
+        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+        let finalURL: URL
+        if isDirectory.boolValue {
+            debugLog("📁 Directory selected, searching for SQLite files...")
+
+            do {
+                if let sqliteFileURL = try findFirstSQLiteFileInDirectory(url) {
+                    debugLog("📁 Found SQLite file in directory: \(sqliteFileURL.lastPathComponent)")
+                    finalURL = sqliteFileURL
+                } else {
+                    debugLog("❌ No SQLite files found in the selected folder")
+                    showNoSQLiteFilesError = true
+                    return
+                }
+            } catch {
+                debugLog("❌ Error searching directory: \(error)")
+                return
+            }
+        } else {
+            if SQLiteWALDetector.isInWALMode(at: url) {
+                debugLog("⚠️ SQLite file is in WAL mode, user should select directory")
+                showWALModeWarning = true
+                return
+            }
+            finalURL = url
+        }
+
+        persistSelectedSQLiteFile(
+            originalURL: url,
+            finalURL: finalURL,
+            canCreateSecurityScopedBookmark: hasSecurityScopedAccess
+        )
+    }
+
+    private func persistSelectedSQLiteFile(
+        originalURL: URL,
+        finalURL: URL,
+        canCreateSecurityScopedBookmark: Bool
+    ) {
+        debugLog("📏 File exists: \(FileManager.default.fileExists(atPath: finalURL.path))")
+        debugLog("📖 Readable: \(FileManager.default.isReadableFile(atPath: finalURL.path))")
+        debugLog("✏️ Writable: \(FileManager.default.isWritableFile(atPath: finalURL.path))")
+
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: finalURL)
+            try fileHandle.close()
+            debugLog("✅ File content is accessible")
+
+            guard canCreateSecurityScopedBookmark else {
+                filePath = finalURL.path
+                debugLog("✅ Successfully selected SQLite file: \(finalURL.path)")
+                return
+            }
+
+            let bookmarkData = try originalURL.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+
+            filePath = BookmarkManager.shared.encodeBookmark(bookmarkData, withPath: finalURL.path)
+
+            debugLog("✅ Successfully created security-scoped bookmark for: \(finalURL.path)")
+        } catch {
+            debugLog("⚠️ Failed to persist SQLite file access: \(error)")
+            debugLog("📋 Error details: \(String(reflecting: error))")
+
+            bookmarkErrorMessage = """
+            Unable to save file access permissions.
+
+            The selected file can be used now, but you may need to select it again after restarting the app.
+
+            Error: \(error.localizedDescription)
+            """
+            showBookmarkError = true
+
+            filePath = finalURL.path
+        }
+    }
+
     private func findFirstSQLiteFileInDirectory(_ directoryURL: URL) throws -> URL? {
         let fileManager = FileManager.default
         
