@@ -5,6 +5,7 @@
 //  Created by Fauzaan on 8/16/25.
 //
 
+import AppKit
 import SwiftUI
 
 struct PostgreSQLFieldsView: View {
@@ -14,9 +15,16 @@ struct PostgreSQLFieldsView: View {
     @Binding var password: String
     @Binding var defaultDatabase: String
     @Binding var sslMode: String
+    @Binding var sslKeyPath: String
+    @Binding var sslCertPath: String
+    @Binding var sslRootCertPath: String
     let onImportURI: (String) -> Void
 
     @State private var showURIImportPopover = false
+
+    private var hasSSLFiles: Bool {
+        !sslKeyPath.isEmpty || !sslCertPath.isEmpty || !sslRootCertPath.isEmpty
+    }
 
     var body: some View {
         Group {
@@ -67,8 +75,83 @@ struct PostgreSQLFieldsView: View {
                     Text("disable").tag("disable")
                     Text("prefer").tag("prefer")
                     Text("require").tag("require")
+                    Text("verify-ca").tag("verify-ca")
+                    Text("verify-full").tag("verify-full")
+                }
+
+                LabeledContent("SSL Files") {
+                    HStack(spacing: 8) {
+                        SSLFileButton(
+                            title: "Key",
+                            path: $sslKeyPath,
+                            panelTitle: "Choose SSL Private Key"
+                        )
+
+                        SSLFileButton(
+                            title: "Cert",
+                            path: $sslCertPath,
+                            panelTitle: "Choose SSL Certificate"
+                        )
+
+                        SSLFileButton(
+                            title: "CA Cert",
+                            path: $sslRootCertPath,
+                            panelTitle: "Choose SSL CA Certificate"
+                        )
+
+                        Button {
+                            clearSSLFiles()
+                        } label: {
+                            Image(systemName: "minus")
+                                .frame(width: 12, height: 12)
+                        }
+                        .disabled(!hasSSLFiles)
+                    }
                 }
             }
+        }
+    }
+
+    private func clearSSLFiles() {
+        sslKeyPath = ""
+        sslCertPath = ""
+        sslRootCertPath = ""
+    }
+}
+
+private struct SSLFileButton: View {
+    let title: String
+    @Binding var path: String
+    let panelTitle: String
+
+    private var label: String {
+        guard !path.isEmpty else {
+            return "\(title)..."
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    var body: some View {
+        Button {
+            chooseFile()
+        } label: {
+            Text(label)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 120)
+        }
+        .help(path.isEmpty ? title : path)
+    }
+
+    private func chooseFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.title = panelTitle
+
+        if panel.runModal() == .OK, let url = panel.url {
+            path = url.path
         }
     }
 }

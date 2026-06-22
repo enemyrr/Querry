@@ -154,7 +154,6 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
                 }
                 connectionVersion = buildInfo?.version
             } catch {
-                
             }
 
             await loadDatabases()

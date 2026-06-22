@@ -205,6 +205,17 @@ struct CreateConnectionForm: View {
     @State private var username = ""
     @State private var password = ""
     @State private var sslMode = "prefer"
+    @State private var sslKeyPath = ""
+    @State private var sslCertPath = ""
+    @State private var sslRootCertPath = ""
+    @State private var sshEnabled = false
+    @State private var sshHost = ""
+    @State private var sshPort = ""
+    @State private var sshUsername = ""
+    @State private var sshAuthMethod: SSHAuthMethod = .sshAgent
+    @State private var sshPassword = ""
+    @State private var sshPrivateKeyPath = ""
+    @State private var sshKeyPassphrase = ""
 
     // URI import
 
@@ -232,6 +243,30 @@ struct CreateConnectionForm: View {
         return databaseType == .postgres
             || databaseType == .supabase
             || databaseType == .mysql
+            || databaseType == .mongodb
+    }
+
+    private var supportsSSHTunnel: Bool {
+        guard let databaseType = selectedDatabaseType else { return false }
+        switch databaseType {
+        case .postgres, .supabase, .mysql, .mongodb:
+            return true
+        case .convex, .sqlite:
+            return false
+        }
+    }
+
+    private var isSSHConfigurationValid: Bool {
+        guard supportsSSHTunnel, sshEnabled else { return true }
+        let trimmedPort = sshPort.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sshHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        if !trimmedPort.isEmpty, Int(trimmedPort) == nil {
+            return false
+        }
+        if sshAuthMethod == .password, sshPassword.isEmpty {
+            return false
+        }
+        return true
     }
 
     @ViewBuilder
@@ -272,6 +307,7 @@ struct CreateConnectionForm: View {
 
     private var isFormValid: Bool {
         guard let databaseType = selectedDatabaseType else { return false }
+        guard isSSHConfigurationValid else { return false }
 
         // For Convex using OAuth
         if databaseType == .convex {
@@ -399,6 +435,16 @@ struct CreateConnectionForm: View {
         // Add database path
         if !database.isEmpty {
             components.path = "/\(database)"
+        }
+
+        if let sourceComponents = URLComponents(url: url, resolvingAgainstBaseURL: true) {
+            let allowedSSLItems = ["sslmode", "sslkey", "sslcert", "sslrootcert", "no-verify"]
+            let sslItems = sourceComponents.queryItems?.filter { item in
+                allowedSSLItems.contains(item.name.lowercased())
+            } ?? []
+            if !sslItems.isEmpty {
+                components.queryItems = sslItems
+            }
         }
 
         // Return the sanitized URI or original if construction fails
@@ -562,6 +608,9 @@ struct CreateConnectionForm: View {
                     password: $password,
                     defaultDatabase: $defaultDatabase,
                     sslMode: $sslMode,
+                    sslKeyPath: $sslKeyPath,
+                    sslCertPath: $sslCertPath,
+                    sslRootCertPath: $sslRootCertPath,
                     onImportURI: { parsePostgresURI($0) }
                 )
             } else if selectedDatabaseType == .sqlite {
@@ -608,6 +657,19 @@ struct CreateConnectionForm: View {
                 }
             }
 
+            if supportsSSHTunnel {
+                SSHTunnelFieldsView(
+                    isEnabled: $sshEnabled,
+                    host: $sshHost,
+                    port: $sshPort,
+                    username: $sshUsername,
+                    authMethod: $sshAuthMethod,
+                    password: $sshPassword,
+                    privateKeyPath: $sshPrivateKeyPath,
+                    keyPassphrase: $sshKeyPassphrase
+                )
+            }
+
             Section("Display Settings") {
                 Picker("Environment", selection: $selectedEnvironment) {
                     Text("None").tag(ConnectionEnvironment?.none)
@@ -630,29 +692,9 @@ struct CreateConnectionForm: View {
         guard let db = selectedDatabaseType else { return nil }
         switch db {
         case .postgres, .supabase:
-            var uri = "postgresql://"
-            if !username.isEmpty {
-                uri += username
-                if !password.isEmpty { uri += ":\(password)" }
-                uri += "@"
-            }
-            let p = Int(port) ?? 5432
-            uri += "\(hostname.isEmpty ? "localhost" : hostname):\(p)"
-            if !defaultDatabase.isEmpty { uri += "/\(defaultDatabase)" }
-            if sslMode != "prefer" { uri += "?sslmode=\(sslMode)" }
-            return uri
+            return constructPostgresURI()
         case .mysql:
-            var uri = "mysql://"
-            if !username.isEmpty {
-                uri += username
-                if !password.isEmpty { uri += ":\(password)" }
-                uri += "@"
-            }
-            let p = Int(port) ?? 3306
-            uri += "\(hostname.isEmpty ? "127.0.0.1" : hostname):\(p)"
-            if !defaultDatabase.isEmpty { uri += "/\(defaultDatabase)" }
-            if sslMode != "prefer" { uri += "?sslmode=\(sslMode)" }
-            return uri
+            return constructMySQLURI()
         case .sqlite:
             return uri
         case .mongodb:
@@ -670,7 +712,13 @@ struct CreateConnectionForm: View {
             isTestingConnection = true
             testSucceeded = nil
         }
-        let result = await databaseService.testConnection(databaseType: db, uri: uri)
+        let result = await databaseService.testConnection(
+            databaseType: db,
+            uri: uri,
+            sshConfiguration: currentSSHConfiguration(),
+            sshPassword: sshPassword,
+            sshKeyPassphrase: sshKeyPassphrase
+        )
         await MainActor.run {
             guard currentTestID == testID else { return }
             isTestingConnection = false
@@ -713,7 +761,18 @@ struct CreateConnectionForm: View {
         username = ""
         password = ""
         sslMode = "prefer"
+        sslKeyPath = ""
+        sslCertPath = ""
+        sslRootCertPath = ""
         useFieldBasedInput = true
+        sshEnabled = false
+        sshHost = ""
+        sshPort = ""
+        sshUsername = ""
+        sshAuthMethod = .sshAgent
+        sshPassword = ""
+        sshPrivateKeyPath = ""
+        sshKeyPassphrase = ""
     }
 
     private func mapExistingConnectionData() {
@@ -734,6 +793,9 @@ struct CreateConnectionForm: View {
                 port = connection.port ?? ""
                 username = connection.username ?? ""
                 sslMode = connection.sslMode ?? "prefer"
+                sslKeyPath = connection.sslKeyPath ?? ""
+                sslCertPath = connection.sslCertPath ?? ""
+                sslRootCertPath = connection.sslRootCertPath ?? ""
 
                 // Get password from keychain
                 password = connection.password ?? ""
@@ -752,6 +814,15 @@ struct CreateConnectionForm: View {
             if let databaseType = selectedDatabaseType, !uri.isEmpty {
                 validateConnectionString(uri, for: databaseType)
             }
+
+            sshEnabled = connection.sshEnabled
+            sshHost = connection.sshHost ?? ""
+            sshPort = connection.sshPort ?? ""
+            sshUsername = connection.sshUsername ?? ""
+            sshAuthMethod = connection.sshAuthMethod
+            sshPassword = connection.sshPassword ?? ""
+            sshPrivateKeyPath = connection.sshPrivateKeyPath ?? ""
+            sshKeyPassphrase = connection.sshKeyPassphrase ?? ""
         }
     }
 
@@ -793,6 +864,15 @@ struct CreateConnectionForm: View {
         if let sslModeItem = components.queryItems?.first(where: { $0.name.lowercased() == "sslmode" }) {
             sslMode = sslModeItem.value ?? "prefer"
         }
+        if let sslKeyItem = components.queryItems?.first(where: { $0.name.lowercased() == "sslkey" }) {
+            sslKeyPath = sslKeyItem.value ?? ""
+        }
+        if let sslCertItem = components.queryItems?.first(where: { $0.name.lowercased() == "sslcert" }) {
+            sslCertPath = sslCertItem.value ?? ""
+        }
+        if let sslRootCertItem = components.queryItems?.first(where: { $0.name.lowercased() == "sslrootcert" }) {
+            sslRootCertPath = sslRootCertItem.value ?? ""
+        }
     }
 
     private func constructPostgresURI() -> String {
@@ -805,7 +885,42 @@ struct CreateConnectionForm: View {
         components.path =
             defaultDatabase.isEmpty ? "/postgres" : "/\(defaultDatabase)"
 
-        // Add SSL mode as query parameter
+        var queryItems: [URLQueryItem] = []
+        if sslMode != "prefer" || hasSSLMaterial {
+            queryItems.append(URLQueryItem(name: "sslmode", value: sslMode))
+        }
+        if !sslKeyPath.isEmpty {
+            queryItems.append(URLQueryItem(name: "sslkey", value: sslKeyPath))
+        }
+        if !sslCertPath.isEmpty {
+            queryItems.append(URLQueryItem(name: "sslcert", value: sslCertPath))
+        }
+        if !sslRootCertPath.isEmpty {
+            queryItems.append(URLQueryItem(name: "sslrootcert", value: sslRootCertPath))
+        }
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
+        }
+
+        return components.url?.absoluteString ?? ""
+    }
+
+    private var hasSSLMaterial: Bool {
+        !sslKeyPath.isEmpty || !sslCertPath.isEmpty || !sslRootCertPath.isEmpty
+    }
+
+    private func constructMySQLURI() -> String {
+        var components = URLComponents()
+        components.scheme = "mysql"
+        components.host = hostname.isEmpty ? "127.0.0.1" : hostname
+        components.port = Int(port) ?? 3306
+        components.user = username.isEmpty ? "root" : username
+        components.password = password.isEmpty ? nil : password
+
+        if !defaultDatabase.isEmpty {
+            components.path = "/\(defaultDatabase)"
+        }
+
         if sslMode != "prefer" {
             components.queryItems = [
                 URLQueryItem(name: "sslmode", value: sslMode)
@@ -813,6 +928,43 @@ struct CreateConnectionForm: View {
         }
 
         return components.url?.absoluteString ?? ""
+    }
+
+    private func currentSSHConfiguration() -> SSHConfiguration? {
+        guard supportsSSHTunnel, sshEnabled else { return nil }
+        let trimmedPort = sshPort.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return SSHConfiguration(
+            enabled: true,
+            host: sshHost.trimmingCharacters(in: .whitespacesAndNewlines),
+            port: trimmedPort.isEmpty ? nil : Int(trimmedPort),
+            username: sshUsername.trimmingCharacters(in: .whitespacesAndNewlines),
+            authMethod: sshAuthMethod,
+            privateKeyPath: sshPrivateKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private func applySSHSettings(to connection: Connection) {
+        guard supportsSSHTunnel, sshEnabled, let configuration = currentSSHConfiguration() else {
+            connection.sshEnabled = false
+            connection.sshHost = nil
+            connection.sshPort = nil
+            connection.sshUsername = nil
+            connection.sshAuthMethod = .sshAgent
+            connection.sshPrivateKeyPath = nil
+            connection.sshPassword = nil
+            connection.sshKeyPassphrase = nil
+            return
+        }
+
+        connection.sshEnabled = true
+        connection.sshHost = configuration.host
+        connection.sshPort = configuration.port?.description
+        connection.sshUsername = configuration.username
+        connection.sshAuthMethod = configuration.authMethod
+        connection.sshPrivateKeyPath = configuration.privateKeyPath
+        connection.sshPassword = sshPassword
+        connection.sshKeyPassphrase = sshKeyPassphrase
     }
 
     private func saveConnection() {
@@ -885,6 +1037,7 @@ struct CreateConnectionForm: View {
             existing.color = color.unsafelyUnwrapped
             existing.environment = selectedEnvironment
             existing.defaultDatabase = defaultDatabase
+            applySSHSettings(to: existing)
 
             // For PostgreSQL databases using field-based input, update individual fields
             if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
@@ -895,6 +1048,9 @@ struct CreateConnectionForm: View {
                 existing.username = username
                 existing.password = password
                 existing.sslMode = sslMode
+                existing.sslKeyPath = sslKeyPath
+                existing.sslCertPath = sslCertPath
+                existing.sslRootCertPath = sslRootCertPath
                 // Set URL to nil since we're using field-based storage
                 existing.url = nil
             } else {
@@ -913,6 +1069,9 @@ struct CreateConnectionForm: View {
                     existing.username = nil
                     existing.password = nil
                     existing.sslMode = nil
+                    existing.sslKeyPath = nil
+                    existing.sslCertPath = nil
+                    existing.sslRootCertPath = nil
                 }
             }
 
@@ -935,7 +1094,10 @@ struct CreateConnectionForm: View {
                     port: port,
                     username: username,
                     database: defaultDatabase,
-                    sslMode: sslMode
+                    sslMode: sslMode,
+                    sslKeyPath: sslKeyPath.isEmpty ? nil : sslKeyPath,
+                    sslCertPath: sslCertPath.isEmpty ? nil : sslCertPath,
+                    sslRootCertPath: sslRootCertPath.isEmpty ? nil : sslRootCertPath
                 )
             } else {
                 // For non-PostgreSQL or URI-based input, use the legacy initializer
@@ -969,6 +1131,9 @@ struct CreateConnectionForm: View {
                     newConnection.password = password
                 }
             }
+
+            applySSHSettings(to: newConnection)
+            try? modelContext.save()
 
             savedConnection = newConnection
 

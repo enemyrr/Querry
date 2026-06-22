@@ -26,6 +26,8 @@ public struct PostgreSQLParsedConfig: Equatable {
         public var ca: String?
         /// Raw sslmode value (disable, prefer, require, verify-ca, verify-full, no-verify)
         public var mode: String?
+        public var tunneled: Bool?
+        public var tlsServerName: String?
     }
 
     public var host: String?
@@ -173,7 +175,7 @@ public enum PostgreSQLConnectionStringParser {
             var enableTLS = ssl.enabled ?? (ssl.mode?.lowercased() != "disable")
 
             // If connecting to localhost, force-disable TLS even if requested
-            if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            if isLocalEndpoint(host), ssl.tunneled != true {
                 enableTLS = false
             }
 
@@ -187,9 +189,7 @@ public enum PostgreSQLConnectionStringParser {
                     case "prefer":
                         tlsConfig.certificateVerification = .none
                     case "require":
-                        if ssl.rejectUnauthorized == false {
-                            tlsConfig.certificateVerification = .none
-                        }
+                        tlsConfig.certificateVerification = (ssl.ca == nil || ssl.rejectUnauthorized == false) ? .none : .noHostnameVerification
                     case "verify-ca":
                         tlsConfig.certificateVerification = .noHostnameVerification
                     case "verify-full":
@@ -205,6 +205,7 @@ public enum PostgreSQLConnectionStringParser {
 
                 if enableTLS {
                     do {
+                        try applySSLMaterials(from: ssl, to: &tlsConfig)
                         let context = try NIOSSLContext(configuration: tlsConfig)
                         if (ssl.mode?.lowercased() == "prefer") || (ssl.rejectUnauthorized == false) {
                             tls = .prefer(context)
@@ -212,13 +213,13 @@ public enum PostgreSQLConnectionStringParser {
                             tls = .require(context)
                         }
                     } catch {
-                        tls = .disable
+                        throw error
                     }
                 }
             }
         }
 
-        return PostgresConnection.Configuration(
+        var configuration = PostgresConnection.Configuration(
             host: host,
             port: port,
             username: username,
@@ -226,6 +227,8 @@ public enum PostgreSQLConnectionStringParser {
             database: database,
             tls: tls
         )
+        configuration.options.tlsServerName = parsed.ssl?.tlsServerName
+        return configuration
     }
 
     /// Parse a PostgreSQL connection string into PostgresClient.Configuration (connection pool)
@@ -246,7 +249,7 @@ public enum PostgreSQLConnectionStringParser {
         if let ssl = parsed.ssl {
             var enableTLS = ssl.enabled ?? (ssl.mode?.lowercased() != "disable")
 
-            if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            if isLocalEndpoint(host), ssl.tunneled != true {
                 enableTLS = false
             }
 
@@ -260,9 +263,7 @@ public enum PostgreSQLConnectionStringParser {
                     case "prefer":
                         tlsConfig.certificateVerification = .none
                     case "require":
-                        if ssl.rejectUnauthorized == false {
-                            tlsConfig.certificateVerification = .none
-                        }
+                        tlsConfig.certificateVerification = (ssl.ca == nil || ssl.rejectUnauthorized == false) ? .none : .noHostnameVerification
                     case "verify-ca":
                         tlsConfig.certificateVerification = .noHostnameVerification
                     case "verify-full":
@@ -277,6 +278,7 @@ public enum PostgreSQLConnectionStringParser {
                 }
 
                 if enableTLS {
+                    try applySSLMaterials(from: ssl, to: &tlsConfig)
                     if (ssl.mode?.lowercased() == "prefer") || (ssl.rejectUnauthorized == false) {
                         tls = .prefer(tlsConfig)
                     } else {
@@ -286,7 +288,7 @@ public enum PostgreSQLConnectionStringParser {
             }
         }
 
-        return PostgresClient.Configuration(
+        var configuration = PostgresClient.Configuration(
             host: host,
             port: port,
             username: username,
@@ -294,6 +296,8 @@ public enum PostgreSQLConnectionStringParser {
             database: database,
             tls: tls
         )
+        configuration.options.tlsServerName = parsed.ssl?.tlsServerName
+        return configuration
     }
 
     // MARK: - Helpers
@@ -319,15 +323,23 @@ public enum PostgreSQLConnectionStringParser {
             if value == "0" { ssl.enabled = false }
             config.ssl = ssl
         case "sslcert":
-            var ssl = config.ssl ?? .init(); ssl.cert = readFileIfExists(value); config.ssl = ssl
+            var ssl = config.ssl ?? .init(); ssl.cert = readFileIfExists(value) ?? value; config.ssl = ssl
         case "sslkey":
-            var ssl = config.ssl ?? .init(); ssl.key = readFileIfExists(value); config.ssl = ssl
+            var ssl = config.ssl ?? .init(); ssl.key = readFileIfExists(value) ?? value; config.ssl = ssl
         case "sslrootcert":
-            var ssl = config.ssl ?? .init(); ssl.ca = readFileIfExists(value); config.ssl = ssl
+            var ssl = config.ssl ?? .init(); ssl.ca = readFileIfExists(value) ?? value; config.ssl = ssl
         case "sslmode":
             var ssl = config.ssl ?? .init(); ssl.mode = value; config.ssl = ssl
         case "no-verify":
             var ssl = config.ssl ?? .init(); ssl.rejectUnauthorized = false; config.ssl = ssl
+        case "pluk-ssh-tunnel":
+            var ssl = config.ssl ?? .init()
+            ssl.tunneled = value == "true" || value == "1"
+            config.ssl = ssl
+        case "pluk-tls-server-name":
+            var ssl = config.ssl ?? .init()
+            ssl.tlsServerName = value.isEmpty ? nil : value
+            config.ssl = ssl
         case "uselibpqcompat":
             // handled later in postProcess
             break
@@ -351,6 +363,10 @@ public enum PostgreSQLConnectionStringParser {
         return false
     }
 
+    private static func isLocalEndpoint(_ host: String) -> Bool {
+        host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
     private static func encodeURICompat(_ s: String) -> String {
         // Encode spaces and leave valid %xx sequences intact
         // Simple approach: replace spaces with %20 and collapse %25NN -> %NN
@@ -370,6 +386,24 @@ public enum PostgreSQLConnectionStringParser {
             return try? String(contentsOfFile: path, encoding: .utf8)
         }
         return nil
+    }
+
+    private static func applySSLMaterials(from ssl: PostgreSQLParsedConfig.SSLConfig, to tlsConfig: inout TLSConfiguration) throws {
+        if let ca = ssl.ca, !ca.isEmpty {
+            tlsConfig.trustRoots = .certificates(try NIOSSLCertificate.fromPEMBytes(Array(ca.utf8)))
+        }
+
+        if let cert = ssl.cert, !cert.isEmpty {
+            let certificates = try NIOSSLCertificate.fromPEMBytes(Array(cert.utf8))
+            tlsConfig.certificateChain = certificates.map { .certificate($0) }
+        }
+
+        if let key = ssl.key, !key.isEmpty {
+            let emptyPassphrase: [UInt8] = []
+            tlsConfig.privateKey = .privateKey(try NIOSSLPrivateKey(bytes: Array(key.utf8), format: .pem) { setter in
+                setter(emptyPassphrase)
+            })
+        }
     }
 
     private static func postProcessSSL(in config: PostgreSQLParsedConfig, options: PostgreSQLParseOptions) -> PostgreSQLParsedConfig {
@@ -425,4 +459,3 @@ public enum PostgreSQLConnectionStringParser {
         return false
     }
 }
-

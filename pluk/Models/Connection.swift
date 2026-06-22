@@ -170,6 +170,29 @@ enum DataModelType: String, CaseIterable, Sendable {
     }
 }
 
+enum SSHAuthMethod: String, Codable, CaseIterable, Sendable {
+    case sshAgent
+    case privateKey
+    case password
+
+    var displayName: String {
+        switch self {
+        case .sshAgent: return "SSH Agent"
+        case .privateKey: return "Private Key"
+        case .password: return "Password"
+        }
+    }
+}
+
+struct SSHConfiguration: Codable, Hashable, Sendable {
+    var enabled: Bool = false
+    var host: String = ""
+    var port: Int?
+    var username: String = ""
+    var authMethod: SSHAuthMethod = .sshAgent
+    var privateKeyPath: String = ""
+}
+
 @Model
 final class Connection {
     var name: String
@@ -187,12 +210,22 @@ final class Connection {
     var port: String?
     var username: String?
     var sslMode: String?
+    var sslKeyPath: String?
+    var sslCertPath: String?
+    var sslRootCertPath: String?
     
     // Stable identifier for keychain storage (persists across app restarts)
     var keychainId: String = UUID().uuidString
 
     var containerName: String?
     var containerId: String?
+
+    var sshEnabled: Bool = false
+    var sshHost: String?
+    var sshPort: String?
+    var sshUsername: String?
+    var sshAuthMethodRawValue: String = SSHAuthMethod.sshAgent.rawValue
+    var sshPrivateKeyPath: String?
     
     // Password is stored in keychain, not in database
     var password: String? {
@@ -207,6 +240,41 @@ final class Connection {
             }
         }
     }
+
+    var sshAuthMethod: SSHAuthMethod {
+        get {
+            SSHAuthMethod(rawValue: sshAuthMethodRawValue) ?? .sshAgent
+        }
+        set {
+            sshAuthMethodRawValue = newValue.rawValue
+        }
+    }
+
+    var sshPassword: String? {
+        get {
+            KeychainHelper.shared.retrieve(for: sshPasswordKeychainId)
+        }
+        set {
+            if let newPassword = newValue, !newPassword.isEmpty {
+                KeychainHelper.shared.store(password: newPassword, for: sshPasswordKeychainId)
+            } else {
+                KeychainHelper.shared.delete(for: sshPasswordKeychainId)
+            }
+        }
+    }
+
+    var sshKeyPassphrase: String? {
+        get {
+            KeychainHelper.shared.retrieve(for: sshKeyPassphraseKeychainId)
+        }
+        set {
+            if let newPassphrase = newValue, !newPassphrase.isEmpty {
+                KeychainHelper.shared.store(password: newPassphrase, for: sshKeyPassphraseKeychainId)
+            } else {
+                KeychainHelper.shared.delete(for: sshKeyPassphraseKeychainId)
+            }
+        }
+    }
     
     init(databaseType: DatabaseType, url: String, name: String, color: ConnectionColor, environment: ConnectionEnvironment, defaultDatabase: String? = nil) {
         self.name = name
@@ -217,7 +285,7 @@ final class Connection {
         self.defaultDatabase = defaultDatabase
     }
     
-    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment?, hostname: String, port: String, username: String, database: String? = nil, sslMode: String? = "prefer") {
+    init(databaseType: DatabaseType, name: String, color: ConnectionColor, environment: ConnectionEnvironment?, hostname: String, port: String, username: String, database: String? = nil, sslMode: String? = "prefer", sslKeyPath: String? = nil, sslCertPath: String? = nil, sslRootCertPath: String? = nil) {
         self.name = name
         self.databaseType = databaseType
         self.color = color
@@ -227,6 +295,9 @@ final class Connection {
         self.port = port
         self.username = username
         self.sslMode = sslMode
+        self.sslKeyPath = sslKeyPath
+        self.sslCertPath = sslCertPath
+        self.sslRootCertPath = sslRootCertPath
         self.url = nil
     }
     
@@ -248,7 +319,7 @@ final class Connection {
             return url ?? ""
         }
     }
-    
+
     private func constructURIFromFields(encodeCredentials: Bool = true) -> String {
         guard let hostname = hostname, let port = port, let username = username else {
             return url ?? ""
@@ -291,9 +362,32 @@ final class Connection {
             uri += "/\(encodeCredentials ? encodedDatabase : database)"
         }
 
-        if (databaseType == .postgres || databaseType == .supabase || databaseType == .convex),
-           let sslMode = sslMode {
-            uri += "?sslmode=\(sslMode)"
+        if databaseType == .postgres || databaseType == .supabase || databaseType == .convex {
+            var queryItems: [URLQueryItem] = []
+
+            if let sslMode {
+                queryItems.append(URLQueryItem(name: "sslmode", value: sslMode))
+            }
+
+            if databaseType == .postgres || databaseType == .supabase {
+                if let sslKeyPath, !sslKeyPath.isEmpty {
+                    queryItems.append(URLQueryItem(name: "sslkey", value: sslKeyPath))
+                }
+                if let sslCertPath, !sslCertPath.isEmpty {
+                    queryItems.append(URLQueryItem(name: "sslcert", value: sslCertPath))
+                }
+                if let sslRootCertPath, !sslRootCertPath.isEmpty {
+                    queryItems.append(URLQueryItem(name: "sslrootcert", value: sslRootCertPath))
+                }
+            }
+
+            if !queryItems.isEmpty {
+                var queryComponents = URLComponents()
+                queryComponents.queryItems = queryItems
+                if let query = queryComponents.percentEncodedQuery {
+                    uri += "?\(query)"
+                }
+            }
         }
 
         return uri
@@ -320,6 +414,24 @@ final class Connection {
     // Helper method to check if password exists in keychain
     var hasPassword: Bool {
         return KeychainHelper.shared.passwordExists(for: keychainId)
+    }
+
+    var sshConfiguration: SSHConfiguration? {
+        guard sshEnabled else { return nil }
+        let trimmedHost = (sshHost ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHost.isEmpty else { return nil }
+
+        let trimmedPort = (sshPort ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedPort = trimmedPort.isEmpty ? nil : Int(trimmedPort)
+
+        return SSHConfiguration(
+            enabled: true,
+            host: trimmedHost,
+            port: parsedPort,
+            username: (sshUsername ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+            authMethod: sshAuthMethod,
+            privateKeyPath: (sshPrivateKeyPath ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
     
     var displayUrl: String? {
@@ -444,6 +556,8 @@ final class Connection {
     // Clean up keychain when connection is deleted
     func cleanupKeychain() {
         KeychainHelper.shared.delete(for: keychainId)
+        KeychainHelper.shared.delete(for: sshPasswordKeychainId)
+        KeychainHelper.shared.delete(for: sshKeyPassphraseKeychainId)
     }
     
     // Helper method to populate fields from existing URL (for migration)
@@ -475,5 +589,13 @@ final class Connection {
                 sslMode = "prefer" // Default value
             }
         }
+    }
+
+    private var sshPasswordKeychainId: String {
+        "\(keychainId).ssh.password"
+    }
+
+    private var sshKeyPassphraseKeychainId: String {
+        "\(keychainId).ssh.keyPassphrase"
     }
 }

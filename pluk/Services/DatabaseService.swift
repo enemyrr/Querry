@@ -12,6 +12,7 @@ import SwiftUI
     // MARK: - Current Connection State
     private var activeConnection: Connection?
     private var activeDriverBox: DatabaseDriverBox?
+    private var activeSSHTunnelID: UUID?
     public var connectedDatabase: (any DatabaseWrapper)?
     public var currentSchema: String?
     private var currentDeploymentURL: String?
@@ -94,46 +95,71 @@ import SwiftUI
         self.activeDriverBox = DatabaseDriverBox(databaseType: connection.databaseType)
 
         let requiresDatabaseSelection = shouldDeferDatabaseSelection(for: connection, targetDatabaseName: targetDatabaseName)
-        let connectionUri = connectionUriForInitialConnect(
+        let baseConnectionUri = connectionUriForInitialConnect(
             connection,
             targetDatabaseName: targetDatabaseName,
             requiresDatabaseSelection: requiresDatabaseSelection
         )
-        
+
         // Connect to database
         guard let driverBox = activeDriverBox else {
             throw DatabaseError.operationFailed("Failed to create database driver")
         }
 
-        let initialDatabase = try await driverBox.connect(to: connectionUri)
-        self.connectedDatabase = requiresDatabaseSelection ? nil : initialDatabase
-        self.currentDeploymentURL = await driverBox.getCurrentDeploymentUrl()
+        var createdTunnelID: UUID?
 
-        // For non-Convex databases, switch to target database if needed
-        if connection.databaseType != .convex,
-           let targetName = targetDatabaseName,
-           !targetName.isEmpty,
-           connectedDatabase?.name != targetName {
-            try await driverBox.switchDatabase(to: targetName)
-            // Update connectedDatabase to reflect the switch using the appropriate wrapper type
-            switch connection.databaseType {
-            case .postgres, .supabase:
-                self.connectedDatabase = PostgreSQLDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
-            case .mysql:
-                self.connectedDatabase = MySQLDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
-            case .sqlite:
-                self.connectedDatabase = SQLiteDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
-            case .mongodb:
-                if let wrapper = await driverBox.getCurrentDatabaseWrapper() {
-                    self.connectedDatabase = wrapper
+        do {
+            let preparedConnection = try await prepareConnectionUri(
+                baseConnectionUri,
+                databaseType: connection.databaseType,
+                sshConfiguration: connection.sshConfiguration,
+                sshPassword: connection.sshPassword,
+                sshKeyPassphrase: connection.sshKeyPassphrase
+            )
+            createdTunnelID = preparedConnection.sshTunnelID
+
+            let initialDatabase = try await driverBox.connect(to: preparedConnection.uri)
+            activeSSHTunnelID = createdTunnelID
+            self.connectedDatabase = requiresDatabaseSelection ? nil : initialDatabase
+            self.currentDeploymentURL = await driverBox.getCurrentDeploymentUrl()
+
+            // For non-Convex databases, switch to target database if needed
+            if connection.databaseType != .convex,
+               let targetName = targetDatabaseName,
+               !targetName.isEmpty,
+               connectedDatabase?.name != targetName {
+                try await driverBox.switchDatabase(to: targetName)
+                // Update connectedDatabase to reflect the switch using the appropriate wrapper type
+                switch connection.databaseType {
+                case .postgres, .supabase:
+                    self.connectedDatabase = PostgreSQLDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
+                case .mysql:
+                    self.connectedDatabase = MySQLDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
+                case .sqlite:
+                    self.connectedDatabase = SQLiteDatabaseWrapper(name: targetName, size: nil, tableCount: nil)
+                case .mongodb:
+                    if let wrapper = await driverBox.getCurrentDatabaseWrapper() {
+                        self.connectedDatabase = wrapper
+                    }
+                default:
+                    break
                 }
-            default:
-                break
             }
-        }
 
-        // Post notification about database connection change
-        NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
+            // Post notification about database connection change
+            NotificationCenter.default.post(name: .connectedDatabaseChanged, object: self)
+        } catch {
+            await driverBox.disconnect()
+            await SSHTunnelService.shared.closeTunnel(id: createdTunnelID)
+            activeSSHTunnelID = nil
+            activeConnection = nil
+            activeDriverBox = nil
+            connectedDatabase = nil
+            currentSchema = nil
+            currentDeploymentURL = nil
+            clearCache()
+            throw error
+        }
     }
 
     private func shouldDeferDatabaseSelection(for connection: Connection, targetDatabaseName: String?) -> Bool {
@@ -174,6 +200,145 @@ import SwiftUI
         let prefix = connectionUri.hasSuffix("/") ? String(connectionUri.dropLast()) : connectionUri
         return "\(prefix)/postgres"
     }
+
+    private struct PreparedConnectionUri {
+        let uri: String
+        let sshTunnelID: UUID?
+    }
+
+    private struct RemoteDatabaseEndpoint {
+        let host: String
+        let port: Int
+    }
+
+    private func prepareConnectionUri(
+        _ connectionUri: String,
+        databaseType: DatabaseType,
+        sshConfiguration: SSHConfiguration?,
+        sshPassword: String?,
+        sshKeyPassphrase: String?
+    ) async throws -> PreparedConnectionUri {
+        guard let sshConfiguration, sshConfiguration.enabled else {
+            return PreparedConnectionUri(uri: connectionUri, sshTunnelID: nil)
+        }
+
+        guard supportsSSHTunnel(databaseType) else {
+            throw DatabaseError.configurationError("SSH tunneling is not supported for \(databaseType.displayName)")
+        }
+
+        let remoteEndpoint = try remoteDatabaseEndpoint(from: connectionUri, databaseType: databaseType)
+        let tunnelEndpoint = try await SSHTunnelService.shared.createTunnel(
+            config: sshConfiguration,
+            sshPassword: sshPassword,
+            keyPassphrase: sshKeyPassphrase,
+            remoteHost: remoteEndpoint.host,
+            remotePort: remoteEndpoint.port
+        )
+
+        do {
+            let rewritten = try rewriteConnectionUri(
+                connectionUri,
+                databaseType: databaseType,
+                tunnelEndpoint: tunnelEndpoint
+            )
+            return PreparedConnectionUri(uri: rewritten, sshTunnelID: tunnelEndpoint.id)
+        } catch {
+            await SSHTunnelService.shared.closeTunnel(id: tunnelEndpoint.id)
+            throw error
+        }
+    }
+
+    private func supportsSSHTunnel(_ databaseType: DatabaseType) -> Bool {
+        switch databaseType {
+        case .postgres, .supabase, .mysql, .mongodb:
+            return true
+        case .convex, .sqlite:
+            return false
+        }
+    }
+
+    private func remoteDatabaseEndpoint(
+        from connectionUri: String,
+        databaseType: DatabaseType
+    ) throws -> RemoteDatabaseEndpoint {
+        guard let components = URLComponents(string: connectionUri) else {
+            throw DatabaseError.invalidConnectionString("Unable to parse connection URI for SSH tunnel")
+        }
+
+        if components.scheme?.lowercased() == "mongodb+srv" {
+            throw DatabaseError.configurationError("SSH tunneling requires a mongodb:// URI with an explicit host and port")
+        }
+
+        guard let host = components.host, !host.isEmpty else {
+            throw DatabaseError.invalidConnectionString("Connection URI must include a host for SSH tunneling")
+        }
+
+        return RemoteDatabaseEndpoint(
+            host: host,
+            port: components.port ?? defaultPort(for: databaseType)
+        )
+    }
+
+    private func rewriteConnectionUri(
+        _ connectionUri: String,
+        databaseType: DatabaseType,
+        tunnelEndpoint: SSHTunnelEndpoint
+    ) throws -> String {
+        guard var components = URLComponents(string: connectionUri) else {
+            throw DatabaseError.invalidConnectionString("Unable to rewrite connection URI for SSH tunnel")
+        }
+
+        if components.scheme?.lowercased() == "mongodb+srv" {
+            throw DatabaseError.configurationError("SSH tunneling requires a mongodb:// URI with an explicit host and port")
+        }
+
+        components.host = tunnelEndpoint.localHost
+        components.port = tunnelEndpoint.localPort
+
+        if databaseType == .mongodb {
+            var queryItems = components.queryItems ?? []
+            queryItems.removeAll { $0.name.lowercased() == "directconnection" }
+            queryItems.append(URLQueryItem(name: "directConnection", value: "true"))
+            components.queryItems = queryItems
+        } else if databaseType == .postgres || databaseType == .supabase {
+            var queryItems = components.queryItems ?? []
+            queryItems.removeAll {
+                let name = $0.name.lowercased()
+                return name == "pluk-ssh-tunnel" || name == "pluk-tls-server-name"
+            }
+            queryItems.append(URLQueryItem(name: "pluk-ssh-tunnel", value: "1"))
+            if let originalHost = remoteDatabaseHost(from: connectionUri) {
+                queryItems.append(URLQueryItem(name: "pluk-tls-server-name", value: originalHost))
+            }
+            components.queryItems = queryItems
+        }
+
+        guard let rewritten = components.url?.absoluteString else {
+            throw DatabaseError.invalidConnectionString("Unable to create SSH tunnel connection URI")
+        }
+
+        return rewritten
+    }
+
+    private func remoteDatabaseHost(from connectionUri: String) -> String? {
+        guard let components = URLComponents(string: connectionUri),
+              let host = components.host,
+              !host.isEmpty else {
+            return nil
+        }
+        return host
+    }
+
+    private func defaultPort(for databaseType: DatabaseType) -> Int {
+        switch databaseType {
+        case .mysql:
+            return 3306
+        case .mongodb:
+            return 27017
+        default:
+            return 5432
+        }
+    }
     
     func setCurrentSchema(_ schema: String) {
         guard currentSchema != schema else { return }
@@ -199,6 +364,8 @@ import SwiftUI
         cancelAllSubscriptions()
         
         await activeDriverBox?.disconnect()
+        await SSHTunnelService.shared.closeTunnel(id: activeSSHTunnelID)
+        activeSSHTunnelID = nil
         activeConnection = nil
         activeDriverBox = nil
         connectedDatabase = nil
@@ -315,24 +482,54 @@ import SwiftUI
     // MARK: - Connectivity Test
     func testConnection(_ connection: Connection) async -> Result<Void, DatabaseError> {
         let driver = DatabaseDriverFactory.createDriver(for: connection.databaseType)
+        var tunnelID: UUID?
         do {
-            try await driver.ping(to: connection.connectionUri)
+            let preparedConnection = try await prepareConnectionUri(
+                connection.connectionUri,
+                databaseType: connection.databaseType,
+                sshConfiguration: connection.sshConfiguration,
+                sshPassword: connection.sshPassword,
+                sshKeyPassphrase: connection.sshKeyPassphrase
+            )
+            tunnelID = preparedConnection.sshTunnelID
+            try await driver.ping(to: preparedConnection.uri)
+            await SSHTunnelService.shared.closeTunnel(id: tunnelID)
             return .success(())
         } catch let dbError as DatabaseError {
+            await SSHTunnelService.shared.closeTunnel(id: tunnelID)
             return .failure(dbError)
         } catch {
+            await SSHTunnelService.shared.closeTunnel(id: tunnelID)
             return .failure(DatabaseError.connectionFailed(error.localizedDescription))
         }
     }
     
-    func testConnection(databaseType: DatabaseType, uri: String) async -> Result<Void, DatabaseError> {
+    func testConnection(
+        databaseType: DatabaseType,
+        uri: String,
+        sshConfiguration: SSHConfiguration? = nil,
+        sshPassword: String? = nil,
+        sshKeyPassphrase: String? = nil
+    ) async -> Result<Void, DatabaseError> {
         let driver = DatabaseDriverFactory.createDriver(for: databaseType)
+        var tunnelID: UUID?
         do {
-            try await driver.ping(to: uri)
+            let preparedConnection = try await prepareConnectionUri(
+                uri,
+                databaseType: databaseType,
+                sshConfiguration: sshConfiguration,
+                sshPassword: sshPassword,
+                sshKeyPassphrase: sshKeyPassphrase
+            )
+            tunnelID = preparedConnection.sshTunnelID
+            try await driver.ping(to: preparedConnection.uri)
+            await SSHTunnelService.shared.closeTunnel(id: tunnelID)
             return .success(())
         } catch let dbError as DatabaseError {
+            await SSHTunnelService.shared.closeTunnel(id: tunnelID)
             return .failure(dbError)
         } catch {
+            await SSHTunnelService.shared.closeTunnel(id: tunnelID)
             return .failure(DatabaseError.connectionFailed(error.localizedDescription))
         }
     }

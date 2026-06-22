@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import PostgresNIO
 import NIOCore
 import NIOSSL
@@ -30,47 +31,47 @@ struct PostgreSQLQueryResult {
     let rows: [PostgresRandomAccessRow]
     let totalCount: Int
     let rawRows: [PostgresRandomAccessRow]
-    
+
     // Convenience computed properties
     var columnNames: [String] {
         return columns.map { $0.name }
     }
-    
+
     var columnCount: Int {
         return columns.count
     }
-    
+
     var rowCount: Int {
         return rows.count
     }
-    
+
     // Get specific column info by name
     func column(named name: String) -> PostgreSQLColumnInfo? {
         return columns.first { $0.name == name }
     }
-    
+
     // Get column info by index
     func column(at index: Int) -> PostgreSQLColumnInfo? {
         guard index >= 0 && index < columns.count else { return nil }
         return columns[index]
     }
-    
+
     func rawCell(row: Int, column: String) -> PostgresCell? {
         guard row < rawRows.count else { return nil }
         let randomAccessRow = rawRows[row]
         guard randomAccessRow.contains(column) else { return nil }
         return randomAccessRow[column]
     }
-    
+
     // For compatibility - decode on demand
     func value(row: Int, column: String) -> Any? {
         guard let cell = rawCell(row: row, column: column) else { return nil }
         return try? decodeValue(from: cell)
     }
-    
+
     private func decodeValue(from cell: PostgresCell) throws -> Any? {
         guard cell.bytes != nil else { return nil }
-        
+
         switch cell.dataType {
         case .bool: return try cell.decode(Bool.self)
         case .int2: return try cell.decode(Int16.self)
@@ -103,12 +104,14 @@ actor PostgreSQLDriver: DatabaseDriver {
         )
         return [result]
     }
-    
+
     typealias Database = PostgreSQLDatabaseWrapper
     typealias Collection = PostgreSQLCollectionWrapper
-    
+
     private var client: PostgresClient?
     private var clientTask: Task<Void, Never>?
+    private var directConnection: PostgresConnection?
+    private var directEventLoopGroup: MultiThreadedEventLoopGroup?
     private var isConnected = false
     private var connectionUri: String?
 
@@ -214,15 +217,22 @@ actor PostgreSQLDriver: DatabaseDriver {
 
     deinit {
         clientTask?.cancel()
+        if let directConnection {
+            try? directConnection.close().wait()
+        }
+        try? directEventLoopGroup?.syncShutdownGracefully()
     }
-    
+
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
         self.connectionUri = connectionUri
         let config = try PostgreSQLConnectionStringParser.parseClientConfiguration(connectionUri)
-        return try await establishConnection(with: config)
+        return try await establishConnection(with: config, fallbackConnectionUri: connectionUri)
     }
 
-    private func establishConnection(with config: PostgresClient.Configuration) async throws -> PostgreSQLDatabaseWrapper {
+    private func establishConnection(
+        with config: PostgresClient.Configuration,
+        fallbackConnectionUri: String?
+    ) async throws -> PostgreSQLDatabaseWrapper {
         self.clientConfiguration = config
 
         var poolConfig = config
@@ -240,38 +250,80 @@ actor PostgreSQLDriver: DatabaseDriver {
 
         // Verify connectivity eagerly so connection errors surface at connect time
         do {
-            _ = try await client.query("SELECT 1", logger: Logger(label: "postgres"))
+            try await withPoolTimeout {
+                let rows = try await client.query("SELECT 1", logger: Logger(label: "postgres"))
+                for try await _ in rows {}
+            }
         } catch let error as PSQLError {
-            clientTask?.cancel()
-            clientTask = nil
-            self.client = nil
+            closePoolClient()
             throw mapPSQLError(error)
+        } catch let error as DatabaseError {
+            closePoolClient()
+            if let fallbackConnectionUri {
+                return try await establishDirectConnection(connectionUri: fallbackConnectionUri)
+            }
+            throw error
         } catch {
-            clientTask?.cancel()
-            clientTask = nil
-            self.client = nil
+            closePoolClient()
             throw DatabaseError.connectionFailed("Failed to establish PostgreSQL connection: \(error.localizedDescription)")
         }
 
         self.isConnected = true
         return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
     }
-    
-    func disconnect() async {
+
+    private func closePoolClient() {
         clientTask?.cancel()
         clientTask = nil
         client = nil
+    }
+
+    private func establishDirectConnection(connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
+        let config = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
+        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+
+        do {
+            let connection = try await withPoolTimeout {
+                try await PostgresConnection.connect(
+                    on: eventLoopGroup.next(),
+                    configuration: config,
+                    id: 1,
+                    logger: Logger(label: "postgres-direct-fallback")
+                )
+            }
+
+            try await withPoolTimeout {
+                let rows = try await connection.query("SELECT 1", logger: Logger(label: "postgres-direct-fallback"))
+                for try await _ in rows {}
+            }
+
+            self.directConnection = connection
+            self.directEventLoopGroup = eventLoopGroup
+            self.isConnected = true
+            return PostgreSQLDatabaseWrapper(name: config.database ?? "postgres", size: nil, tableCount: nil)
+        } catch let error as PSQLError {
+            try? await eventLoopGroup.shutdownGracefully()
+            throw mapPSQLError(error)
+        } catch {
+            try? await eventLoopGroup.shutdownGracefully()
+            throw DatabaseError.connectionFailed("Failed to establish PostgreSQL connection: \(error.localizedDescription)")
+        }
+    }
+
+    func disconnect() async {
+        closePoolClient()
+        if let directConnection {
+            try? await directConnection.close()
+        }
+        directConnection = nil
+        if let directEventLoopGroup {
+            try? await directEventLoopGroup.shutdownGracefully()
+        }
+        directEventLoopGroup = nil
 
         await databaseSchema.removeAll()
 
         self.isConnected = false
-    }
-    
-    private func requireClient() throws -> PostgresClient {
-        guard let client = self.client else {
-            throw DatabaseError.connectionFailed("No active connection")
-        }
-        return client
     }
 
     /// Runs an async operation with a timeout. Throws if the operation doesn't
@@ -287,10 +339,10 @@ actor PostgreSQLDriver: DatabaseDriver {
             }
             group.addTask {
                 try await Task.sleep(for: .seconds(seconds))
-                throw DatabaseError.connectionFailed("Unable to reach the database server")
+                throw DatabaseError.connectionFailed("Unable to reach the database server within \(Int(seconds)) seconds")
             }
             guard let result = try await group.next() else {
-                throw DatabaseError.connectionFailed("Unable to reach the database server")
+                throw DatabaseError.connectionFailed("Unable to reach the database server within \(Int(seconds)) seconds")
             }
             group.cancelAll()
             return result
@@ -300,16 +352,25 @@ actor PostgreSQLDriver: DatabaseDriver {
     /// Executes a query through the pool with a connection timeout guard.
     @discardableResult
     private func poolQuery(_ query: PostgresQuery) async throws -> PostgresRowSequence {
-        let client = try requireClient()
-        return try await withPoolTimeout {
-            try await client.query(query, logger: Logger(label: "postgres"))
+        if let client {
+            return try await withPoolTimeout {
+                try await client.query(query, logger: Logger(label: "postgres"))
+            }
         }
+
+        if let directConnection {
+            return try await withPoolTimeout {
+                try await directConnection.query(query, logger: Logger(label: "postgres-direct-fallback"))
+            }
+        }
+
+        throw DatabaseError.connectionFailed("No active connection")
     }
 
     func reconnect() async throws {
         try await poolQuery("SELECT 1")
     }
-    
+
     func ping(to connectionUri: String) async throws {
         let config = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -330,7 +391,7 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
         }
     }
-    
+
     func switchDatabase(to databaseName: String) async throws {
         guard var config = self.clientConfiguration else {
             throw DatabaseError.configurationError("No active connection configuration")
@@ -340,46 +401,57 @@ actor PostgreSQLDriver: DatabaseDriver {
 
         await disconnect()
 
-        _ = try await establishConnection(with: config)
+        let fallbackUri = connectionUriForDatabase(databaseName)
+        _ = try await establishConnection(with: config, fallbackConnectionUri: fallbackUri)
+    }
+
+    private func connectionUriForDatabase(_ databaseName: String) -> String? {
+        guard let connectionUri, var components = URLComponents(string: connectionUri) else {
+            return nil
+        }
+
+        components.path = "/\(databaseName)"
+        return components.url?.absoluteString
     }
 
     func getBuildInfo() async throws -> BuildInfo {
         do {
             let rows = try await poolQuery("SELECT version()")
-            
+
             var fullVersionString = "Unknown"
-            
+
             for try await (versionString) in rows.decode((String).self) {
                 fullVersionString = versionString
             }
-            
+
             guard let version = extractVersionNumber(from: fullVersionString) else {
                 throw DatabaseError.operationFailed("Failed to extract build version")
             }
-            
-            return BuildInfo(
+
+            let buildInfo = BuildInfo(
                 version: version,
                 databaseType: DatabaseType.postgres
             )
+            return buildInfo
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch {
             throw DatabaseError.operationFailed("Failed to get build info: \(error.localizedDescription)")
         }
     }
-    
+
     func listDatabases() async throws -> [PostgreSQLDatabaseWrapper] {
         do {
             let rows = try await poolQuery(
                 "SELECT datname FROM pg_database WHERE datistemplate = false"
             )
-            
+
             var databases: [PostgreSQLDatabaseWrapper] = []
-            
+
             for try await (name) in rows.decode((String).self) {
                 databases.append(PostgreSQLDatabaseWrapper(name: name, size: nil, tableCount: nil))
             }
-            
+
             return databases
         } catch let error as PSQLError {
             throw mapPSQLError(error)
@@ -387,7 +459,7 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to list databases: \(error.localizedDescription)")
         }
     }
-    
+
     func listCollections(schema: String? = "public") async throws -> [PostgreSQLCollectionWrapper] {
         do {
             let effectiveSchema = schema ?? "public"
@@ -512,16 +584,16 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to get function definition: \(error.localizedDescription)")
         }
     }
-    
+
     func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
         return 0
     }
-    
+
     func findDocuments(in collectionName: String, filter: DatabaseDocument, skip: Int, limit: Int) async throws -> QueryResult {
         return try await findDocuments(in: collectionName, databaseSchema: nil, filter: filter, skip: skip, limit: limit, sortBy: nil, ascending: nil)
     }
-    
-    
+
+
     func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
 
@@ -543,17 +615,17 @@ actor PostgreSQLDriver: DatabaseDriver {
                 // default ORDER BY.
                 let primaryKey = try await getPrimaryKeyColumn(for: collectionName, in: databaseSchema ?? "public")
                 let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending, primaryKey: primaryKey)
-                
+
                 var queryString = "SELECT * FROM \(sanitizedCollectionName)"
-                
+
                 if !whereClause.isEmpty {
                     queryString += " WHERE \(whereClause)"
                 }
-                
+
                 if !orderByClause.isEmpty {
                     queryString += " \(orderByClause)"
                 }
-                
+
                 queryString += " LIMIT \(limit) OFFSET \(skip)"
 
                 query = PostgresQuery(stringLiteral: queryString)
@@ -582,11 +654,11 @@ actor PostgreSQLDriver: DatabaseDriver {
                     }
                     columnsInitialized = true
                 }
-                
+
                 let randomAccessRow = row.makeRandomAccess()
                 var processedRowData: [String: QueryRowInfo] = [:]
                 var rawRowData: DatabaseRawRow = [:]
-                
+
                 for column in queryColumns {
                     let columnName = column.name
                         if randomAccessRow.contains(columnName) {
@@ -605,7 +677,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                         rawRowData[columnName] = nil
                     }
                 }
-                
+
                 convertedRows.append(processedRowData)
                 convertedRawRows.append(rawRowData)
             }
@@ -626,35 +698,35 @@ actor PostgreSQLDriver: DatabaseDriver {
 
     func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
-        
+
         guard !document.isEmpty else {
             throw DatabaseError.operationFailed("Cannot insert an empty document.")
         }
-        
+
         do {
             // Get the schema to determine correct data types
             let schema = try await getSchema(for: collectionName, in: databaseSchema ?? "public")
             let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
             let columnTypeNames = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
-            
+
             // Sort keys for consistent parameter order
             let sortedKeys = document.keys.sorted()
-            
+
             let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
-            
+
             // Build value placeholders with proper casting for special column types
             var valuePlaceholders: [String] = []
             var values: [PostgresEncodable?] = []
             var parameterIndex = 1
-            
+
             for key in sortedKeys {
                 let columnTypeString = columnTypes[key] ?? 0
                 let columnType = PostgresDataType(UInt32(columnTypeString))
                 let columnTypeName = columnTypeNames[key]
-                
+
                 // For user-defined types (enums), pass the actual type name
                 let enumTypeName = columnType.isUserDefined ? columnTypeName : nil
-                
+
                 // Use buildSetClause to get the type casting, but extract just the casting part
                 let setClause = buildSetClause(for: key, parameterIndex: parameterIndex, columnType: columnType, enumTypeName: enumTypeName)
                 // Extract just the parameter placeholder with casting from the SET clause
@@ -663,19 +735,19 @@ actor PostgreSQLDriver: DatabaseDriver {
                 } else {
                     valuePlaceholders.append("$\(parameterIndex)")
                 }
-                
+
                 // Convert and add value
                 let value = document[key] ?? .null
                 let convertedValue = try encode(value, columnName: key, columnType: columnType)
                 values.append(convertedValue)
-                
+
                 parameterIndex += 1
             }
-            
+
             let queryString = "INSERT INTO \(sanitizedCollectionName) (\(columns)) VALUES (\(valuePlaceholders.joined(separator: ", ")))"
-            
+
             var bindings = PostgresBindings(capacity: values.count)
-            
+
             for value in values {
                 if let value = value {
                     try bindings.append(value)
@@ -683,10 +755,10 @@ actor PostgreSQLDriver: DatabaseDriver {
                     bindings.appendNull()
                 }
             }
-            
+
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
             try await poolQuery(query)
-            
+
         } catch let error as PSQLError {
             throw mapPSQLError(error)
         } catch let error as DatabaseError {
@@ -698,11 +770,11 @@ actor PostgreSQLDriver: DatabaseDriver {
 
     func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
-        
+
         guard !data.isEmpty else {
             throw DatabaseError.operationFailed("No changes detected to update")
         }
-        
+
         do {
             let (setClause, values) = try await buildParameterizedSetClause(dataToUpdate: data, for: collectionName, in: databaseSchema ?? "public")
             let schema = try await getSchema(for: collectionName, in: databaseSchema ?? "public")
@@ -718,9 +790,9 @@ actor PostgreSQLDriver: DatabaseDriver {
                 SET \(setClause)
                 WHERE \(sanitizedIDColumn) = $\(values.count + 1)\(idCast)
             """
-            
+
             var bindings = PostgresBindings(capacity: values.count + 1)
-            
+
             for value in values {
                 switch value {
                 case .none:
@@ -729,13 +801,13 @@ actor PostgreSQLDriver: DatabaseDriver {
                     try bindings.append(value)
                 }
             }
-            
+
             if let encodedID {
                 try bindings.append(encodedID)
             } else {
                 bindings.appendNull()
             }
-            
+
             // Execute the update query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
             try await poolQuery(query)
@@ -747,7 +819,7 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to update document: \(error.localizedDescription)")
         }
     }
-    
+
     func decodePostgresTime(from cell: PostgresCell) -> (hour: Int, minute: Int, second: Int, microsecond: Int)? {
         guard cell.dataType == .time, var value = cell.bytes else { return nil }
         // TIME is sent as Int64 microseconds since midnight
@@ -759,7 +831,7 @@ actor PostgreSQLDriver: DatabaseDriver {
         let microsecond = Int(microseconds % 1_000_000)
         return (hour, minute, second, microsecond)
     }
-    
+
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
         let sanitizedCollectionName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
 
@@ -775,16 +847,16 @@ actor PostgreSQLDriver: DatabaseDriver {
                 DELETE FROM \(sanitizedCollectionName)
                 WHERE \(sanitizedIDColumn) = $1\(idCast)
             """
-            
+
             // Create PostgresBindings and append the primary key value
             var bindings = PostgresBindings(capacity: 1)
-            
+
             if let encodedID {
                 try bindings.append(encodedID)
             } else {
                 bindings.appendNull()
             }
-            
+
             // Execute the delete query with parameter binding
             let query = PostgresQuery(unsafeSQL: queryString, binds: bindings)
             try await poolQuery(query)
@@ -794,7 +866,7 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to delete document: \(error.localizedDescription)")
         }
     }
-    
+
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
         let statements = splitSQLStatements(query)
 
@@ -880,17 +952,17 @@ actor PostgreSQLDriver: DatabaseDriver {
             rawRows: convertedRawRows
         )
     }
-    
+
     func createCollection(named collectionName: String) async throws {
         throw DatabaseError.notImplemented("Support for creating tables not yet implemented")
     }
-    
+
     func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
         let sanitizedOldName = try validateAndSanitizeIdentifier(oldName, databaseSchema: databaseSchema)
         let sanitizedNewName = try validateAndSanitizeIdentifier(newName, databaseSchema: nil)
-        
+
         let query = PostgresQuery("ALTER TABLE \(unescaped: sanitizedOldName) RENAME TO \(unescaped: sanitizedNewName)")
-        
+
         do {
             try await poolQuery(query)
             // Clear schema cache for both old and new names
@@ -902,12 +974,12 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed(error.localizedDescription)
         }
     }
-    
+
     func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
         let sanitizedTableName = try validateAndSanitizeIdentifier(collectionName, databaseSchema: databaseSchema)
-        
+
         let query = PostgresQuery("DROP TABLE \(unescaped: sanitizedTableName)")
-        
+
         do {
             try await poolQuery(query)
             // Clear schema cache since we deleted the table
@@ -918,7 +990,7 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed(error.localizedDescription)
         }
     }
-    
+
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
         return try await getSchema(for: collectionName, in: schema ?? "public")
     }
@@ -926,22 +998,22 @@ actor PostgreSQLDriver: DatabaseDriver {
     func getInformationSchema() async throws -> [InformationSchema] {
         do {
             let query = PostgresQuery("""
-            SELECT schema_name 
-                FROM information_schema.schemata 
+            SELECT schema_name
+                FROM information_schema.schemata
                 WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
                   AND schema_name NOT LIKE 'pg_temp_%'
                   AND schema_name NOT LIKE 'pg_toast%'
                   AND schema_name NOT LIKE 'pg_%'
                 ORDER BY schema_name;
             """)
-            
+
             let results = try await poolQuery(query)
             var schemas: [InformationSchema] = []
-            
+
             for try await (schemaName) in results.decode((String).self) {
                 schemas.append(InformationSchema(name: schemaName))
             }
-            
+
             return schemas.isEmpty ? [InformationSchema(name: "public")] : schemas
         } catch let error as PSQLError {
             debugLog("Error fetching schemas: \(error)")
@@ -951,14 +1023,14 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to fetch schemas: \(error.localizedDescription)")
         }
     }
-    
+
     func buildAICommandPromptSystemPrompt(_ message: String) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
-        
+
         // Get all available tables/collections
         let collections = try await listCollections(schema: "public")
         let tablesList = collections.map { "- \($0.name) (\($0.type))" }.joined(separator: "\n")
-        
+
         return """
         You are a PostgreSQL query assistant for a desktop database client's CMD+K quick action. Your output is inserted directly into a SQL editor, so respond with only the SQL query as plain text. Your output must be valid, executable PostgreSQL.
 
@@ -1014,11 +1086,11 @@ actor PostgreSQLDriver: DatabaseDriver {
         Current date: \(currentDate)
         """
     }
-    
+
     func buildSystemPrompt(for collectionName: String, databaseSchema: String?) async throws -> String {
         let currentDate = Date().formatted(.iso8601)
         let schema = await buildSchemaPrompt(for: collectionName, databaseSchema: databaseSchema)
-        
+
         return """
         You are a PostgreSQL query assistant. Your primary task is to convert natural language user queries into valid PostgreSQL SQL queries.
 
@@ -1099,7 +1171,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                     return "\(column.columnName): \(column.dataType) \(nullable)\(defaultValue)"
                 }
                 .joined(separator: "\n")
-            
+
             return """
             Table: \(schemaResult.tableName)
             Schema: \(schemaResult.schemaName)
@@ -1113,40 +1185,40 @@ actor PostgreSQLDriver: DatabaseDriver {
 
 
     // MARK: - Schema Cache
-    
+
     /// Efficient composite key for schema caching
     private struct SchemaKey: Hashable {
         let schemaName: String
         let tableName: String
-        
+
         init(_ schemaName: String, _ tableName: String) {
             self.schemaName = schemaName
             self.tableName = tableName
         }
     }
-    
+
     /// Thread-safe schema cache with size limits
     private actor SchemaCache {
         private var cache: [SchemaKey: DatabaseSchemaResult] = [:]
         private let maxSize: Int
         private var accessOrder: [SchemaKey] = [] // For LRU eviction
-        
+
         init(maxSize: Int = 100) {
             self.maxSize = maxSize
         }
-        
+
         func get(_ key: SchemaKey) -> DatabaseSchemaResult? {
             guard let result = cache[key] else { return nil }
-            
+
             // Update access order for LRU
             if let index = accessOrder.firstIndex(of: key) {
                 accessOrder.remove(at: index)
             }
             accessOrder.append(key)
-            
+
             return result
         }
-        
+
         func set(_ key: SchemaKey, value: DatabaseSchemaResult) {
             // Remove if already exists to update access order
             if cache[key] != nil {
@@ -1154,34 +1226,34 @@ actor PostgreSQLDriver: DatabaseDriver {
                     accessOrder.remove(at: index)
                 }
             }
-            
+
             cache[key] = value
             accessOrder.append(key)
-            
+
             // Enforce size limit with LRU eviction
             if cache.count > maxSize {
                 let oldestKey = accessOrder.removeFirst()
                 cache.removeValue(forKey: oldestKey)
             }
         }
-        
+
         func remove(_ key: SchemaKey) {
             cache.removeValue(forKey: key)
             if let index = accessOrder.firstIndex(of: key) {
                 accessOrder.remove(at: index)
             }
         }
-        
+
         func removeAll() {
             cache.removeAll()
             accessOrder.removeAll()
         }
-        
+
         var count: Int {
             cache.count
         }
     }
-    
+
     func getDatabaseMetadata() async throws -> [Database] {
         guard let uri = self.connectionUri else {
             throw DatabaseError.connectionFailed("No configuration available")
@@ -1244,7 +1316,7 @@ actor PostgreSQLDriver: DatabaseDriver {
 
         var tempConfig = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
         tempConfig.database = name
-        
+
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         var tempConnection: PostgresConnection?
 
@@ -1282,13 +1354,13 @@ actor PostgreSQLDriver: DatabaseDriver {
             return 0
         }
     }
-    
+
     // Cache for database schemas with performance optimizations
     private let databaseSchema = SchemaCache()
-    
+
     func getSchema(for tableName: String, in schemaName: String = "public", forceFetch: Bool = false) async throws -> DatabaseSchemaResult {
         let cacheKey = SchemaKey(schemaName, tableName)
-        
+
         if !forceFetch, let cachedSchema = await databaseSchema.get(cacheKey) {
             return cachedSchema
         }
@@ -1376,10 +1448,10 @@ actor PostgreSQLDriver: DatabaseDriver {
                     AND c.table_schema = '\(unescaped: schemaName)'
                 ORDER BY c.ordinal_position;
             """)
-            
+
             let results = try await poolQuery(combinedQuery)
             var databaseSchemaInfo: [DatabaseSchemaInfo] = []
-            
+
             for try await (ordinalPosition, columnName, dataType, pgTypeOid, _, _, _, enumValuesStr, numericPrecision, datetimePrecision, numericScale, dataLength, isNullable, check, checkConstraint, columnDefault, comment, constraintName, parentSchema, parentTable, parentColumn, onUpdate, onDelete) in results.decode((
                 Int, String, String, Int64, String?, String?, String, String?, Int, Int, Int, Int, String, String, String, String, String, String?, String?, String?, String?, String?, String?).self) {
 
@@ -1437,17 +1509,17 @@ actor PostgreSQLDriver: DatabaseDriver {
 
                 databaseSchemaInfo.append(schemaInfo)
             }
-            
+
             let schemaResult = DatabaseSchemaResult(
                 tableName: tableName,
                 schemaName: schemaName,
                 columns: databaseSchemaInfo,
                 totalCount: databaseSchemaInfo.count
             )
-            
+
             // Cache the result for future use
             await databaseSchema.set(cacheKey, value: schemaResult)
-            
+
             return schemaResult
         } catch let error as PSQLError {
             throw mapPSQLError(error)
@@ -1455,12 +1527,12 @@ actor PostgreSQLDriver: DatabaseDriver {
             throw DatabaseError.operationFailed("Failed to get schema: \(error.localizedDescription)")
         }
     }
-    
+
     /// Clear the schema cache - useful when schema changes are expected
     func clearSchemaCache() async {
         await databaseSchema.removeAll()
     }
-    
+
     /// Clear schema cache for a specific table
     func clearSchemaCache(for tableName: String, in schemaName: String = "public") async {
         let cacheKey = SchemaKey(schemaName, tableName)
@@ -1583,27 +1655,27 @@ actor PostgreSQLDriver: DatabaseDriver {
     private func validateAndSanitizeIdentifier(_ identifier: String, databaseSchema: String? = "public") throws -> String {
         // Remove whitespace and validate the identifier
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         // Check if the identifier is empty
         if trimmed.isEmpty {
             throw DatabaseError.configurationError("Identifier cannot be empty")
         }
-        
+
         // PostgreSQL identifier rules:
         // - Must start with a letter or underscore
         // - Can contain letters, digits, underscores, and dollar signs
         // - Maximum length is 63 characters
-        
+
         if trimmed.count > 63 {
             throw DatabaseError.configurationError("Identifier too long (max 63 characters)")
         }
-        
+
         // Check if it starts with letter or underscore
         guard let firstChar = trimmed.first,
               firstChar.isLetter || firstChar == "_" else {
             throw DatabaseError.configurationError("Identifier must start with letter or underscore")
         }
-        
+
         // Check for valid characters
         let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_$"))
         for char in trimmed.unicodeScalars {
@@ -1611,7 +1683,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                 throw DatabaseError.configurationError("Identifier contains invalid characters")
             }
         }
-        
+
         if let schema = databaseSchema {
             return "\"\(schema)\".\"\(trimmed)\""
         }
@@ -1619,13 +1691,13 @@ actor PostgreSQLDriver: DatabaseDriver {
         // Use double quotes to preserve case and handle reserved words
         return "\"\(trimmed)\""
     }
-    
+
     private func buildWhereClause(from filter: DatabaseDocument) -> String {
         // Filter out the rawQuery key as it's not meant for WHERE clause building
         let filteredDict = filter.filter { key, _ in key != "rawQuery" }
-        
+
         guard !filteredDict.isEmpty else { return "" }
-        
+
         let conditions = filteredDict.map { key, value in
             switch value {
             case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
@@ -1644,10 +1716,10 @@ actor PostgreSQLDriver: DatabaseDriver {
                 return "\(key) = '\(value.description.replacing("'", with: "''"))'"
             }
         }
-        
+
         return conditions.joined(separator: " AND ")
     }
-    
+
     private func buildOrderByClause(sortBy: String?, ascending: Bool?, primaryKey: String?) -> String {
         // If sortBy is provided, use it
         if let sortBy = sortBy, !sortBy.isEmpty {
@@ -1671,56 +1743,56 @@ actor PostgreSQLDriver: DatabaseDriver {
             return ""
         }
     }
-    
+
     private func buildParameterizedSetClause(dataToUpdate: DatabaseDocument, for tableName: String, in schemaName: String = "public") async throws -> (String, [PostgresEncodable?]) {
         var setClauses: [String] = []
         var values: [PostgresEncodable?] = []
         var parameterIndex = 1
-        
+
         // Get the schema to determine correct data types
         let schema = try await getSchema(for: tableName, in: schemaName)
         let columnTypes = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.typeOid) })
         let columnTypeNames = Dictionary(uniqueKeysWithValues: schema.columns.map { ($0.columnName, $0.dataType) })
-        
+
         for (columnName, value) in dataToUpdate {
             let columnTypeString = columnTypes[columnName] ?? 0
             let columnType = PostgresDataType(UInt32(columnTypeString))
             let columnTypeName = columnTypeNames[columnName]
-            
+
             // Use the new buildSetClause function for proper type casting
             // For user-defined types (enums), pass the actual type name
             let enumTypeName = columnType.isUserDefined ? columnTypeName : nil
             let setClause = buildSetClause(for: columnName, parameterIndex: parameterIndex, columnType: columnType, enumTypeName: enumTypeName)
             setClauses.append(setClause)
-            
+
             let convertedValue = try encode(value, columnName: columnName, columnType: columnType)
             values.append(convertedValue)
-            
+
             parameterIndex += 1
         }
-        
+
         return (setClauses.joined(separator: ", "), values)
     }
 
     private func validateAndSanitizeColumnName(_ columnName: String) throws -> String {
         let trimmed = columnName.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         // Check if the column name is empty
         if trimmed.isEmpty {
             throw DatabaseError.configurationError("Column name cannot be empty")
         }
-        
+
         // PostgreSQL column name rules (similar to identifier rules)
         if trimmed.count > 63 {
             throw DatabaseError.configurationError("Column name too long (max 63 characters)")
         }
-        
+
         // Check if it starts with letter or underscore
         guard let firstChar = trimmed.first,
               firstChar.isLetter || firstChar == "_" else {
             throw DatabaseError.configurationError("Column name must start with letter or underscore")
         }
-        
+
         // Check for valid characters
         let validCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_$"))
         for char in trimmed.unicodeScalars {
@@ -1728,11 +1800,11 @@ actor PostgreSQLDriver: DatabaseDriver {
                 throw DatabaseError.configurationError("Column name contains invalid characters")
             }
         }
-        
+
         // Return properly quoted column name for PostgreSQL
         return "\"\(trimmed)\""
     }
-    
+
     private func mapPSQLError(_ error: PSQLError, query: String? = nil) -> DatabaseError {
         // Check the specific error code first
         switch error.code {
@@ -1764,13 +1836,13 @@ actor PostgreSQLDriver: DatabaseDriver {
                         break
                     }
                 }
-                
+
                 // Use the error message from the server
                 if let message = serverInfo[.message] {
                     let position = serverInfo[.position].flatMap { Int($0) }
                     let hint = serverInfo[.hint]
                     let detail = serverInfo[.detail]
-                    
+
                     return DatabaseError(
                         code: .operationFailed,
                         message: message,
@@ -1787,15 +1859,15 @@ actor PostgreSQLDriver: DatabaseDriver {
             return DatabaseError.operationFailed("PostgreSQL error: \(error.code)")
         }
     }
-    
+
     private func extractVersionNumber(from fullVersion: String) -> String? {
         let pattern = #"PostgreSQL\s+(\d+(?:\.\d+)*)"#
-        
+
         do {
             let regex = try NSRegularExpression(pattern: pattern, options: [])
             let nsString = fullVersion as NSString
             let results = regex.matches(in: fullVersion, options: [], range: NSRange(location: 0, length: nsString.length))
-            
+
             if let match = results.first,
                match.numberOfRanges > 1 {
                 let versionRange = match.range(at: 1)
@@ -1804,31 +1876,31 @@ actor PostgreSQLDriver: DatabaseDriver {
         } catch {
             debugLog("Regex failed for version extraction: \(error)")
         }
-        
+
         return nil
     }
-    
-    
+
+
     // MARK: - Helper methods for foreign keys
     private func getTableOid(schema: String, table: String) async throws -> Int64? {
         let query = PostgresQuery("""
-            SELECT oid FROM pg_class 
-            WHERE relname = '\(unescaped: table)' 
+            SELECT oid FROM pg_class
+            WHERE relname = '\(unescaped: table)'
             AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '\(unescaped: schema)')
         """)
-        
+
         let results = try await poolQuery(query)
-        
+
         for try await (oid) in results.decode((Int64).self) {
             return oid
         }
-        
+
         return nil
     }
-    
+
     private func mapConstraintAction(_ action: String?) -> String {
         guard let action = action else { return "no action" }
-        
+
         switch action {
         case "r": return "restrict"
         case "c": return "cascade"
@@ -1838,7 +1910,7 @@ actor PostgreSQLDriver: DatabaseDriver {
         default: return "no action"
         }
     }
-    
+
     // MARK: - Helper method to get primary key column
     private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
         do {
@@ -2095,7 +2167,7 @@ struct DatabaseError: Error, LocalizedError {
         case invalidConnectionString = "INVALID_CONNECTION_STRING"
         case noDatabaseSelected = "NO_DATABASE_SELECTED"
     }
-    
+
     let code: Code
     let message: String
     let details: String?
@@ -2103,7 +2175,7 @@ struct DatabaseError: Error, LocalizedError {
     let hint: String?
     let query: String?
     let underlyingError: Error?
-    
+
     init(
         code: Code,
         message: String,
@@ -2121,7 +2193,7 @@ struct DatabaseError: Error, LocalizedError {
         self.query = query
         self.underlyingError = underlyingError
     }
-    
+
     var errorDescription: String? {
         switch code {
         case .authenticationFailed:
@@ -2140,46 +2212,46 @@ struct DatabaseError: Error, LocalizedError {
             return message
         }
     }
-    
+
     var errorDetails: String? {
         return details
     }
-    
+
     // MARK: - Static convenience methods for backward compatibility
     static func notImplemented(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .notImplemented, message: message, details: details, position: position)
     }
-    
+
     static func connectionFailed(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .connectionFailed, message: message, details: details, position: position)
     }
-    
+
     static func operationFailed(_ message: String, details: String? = nil, position: Int? = nil, hint: String? = nil, query: String? = nil) -> DatabaseError {
         return DatabaseError(code: .operationFailed, message: message, details: details, position: position, hint: hint, query: query)
     }
-    
+
     static func authenticationFailed(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .authenticationFailed, message: message, details: details, position: position)
     }
-    
+
     static func configurationError(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .configurationError, message: message, details: details, position: position)
     }
-    
+
     static func databaseNotFound(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .databaseNotFound, message: message, details: details, position: position)
     }
-    
+
     static let databaseNotSelected = DatabaseError(code: .databaseNotSelected, message: "Database not selected")
-    
+
     static func notConnected(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .notConnected, message: message, details: details, position: position)
     }
-    
+
     static func invalidConnectionString(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .invalidConnectionString, message: message, details: details, position: position)
     }
-    
+
     static func noDatabaseSelected(_ message: String, details: String? = nil, position: Int? = nil) -> DatabaseError {
         return DatabaseError(code: .noDatabaseSelected, message: message, details: details, position: position)
     }
