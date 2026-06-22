@@ -1146,11 +1146,7 @@ struct UpdateActionButton: View {
                         .padding(.vertical, 2)
                         .padding(.horizontal, 6)
                 } else {
-                    Image(systemName: "tray")
-                        .font(.system(size: 12))
-                        .contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer), options: .nonRepeating))
-
-                    Text("\(updateCount)")
+                    Text("Save")
                         .font(.system(size: 12, weight: .light))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
@@ -1158,14 +1154,14 @@ struct UpdateActionButton: View {
             }
             .foregroundColor(.white)
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .allowsHitTesting(!isProcessingBatch)
         .background(Color.orange)
-        .cornerRadius(6)
-        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
         .transition(.scale.combined(with: .opacity))
         .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
             modifiers: [.command],

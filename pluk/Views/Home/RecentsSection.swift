@@ -276,7 +276,7 @@ struct RecentConnectionCard: View {
                 .frame(width: 480)
         }
         .confirmationDialog(
-            "Delete Connection",
+            "Delete \"\(connection.name)\"?",
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible
         ) {
@@ -304,7 +304,7 @@ struct RecentConnectionCard: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Are you sure you want to delete this connection? This action cannot be undone.")
+            Text("Deleting this connection removes its saved settings and query history.")
         }
         .dialogSeverity(.critical)
     }

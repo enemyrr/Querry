@@ -135,9 +135,7 @@ struct SchemaModeActionBar: View {
                             onCommitSchemaModifications?()
                         }) {
                             HStack(spacing: 4) {
-                                Image(systemName: "tray")
-                                    .font(.system(size: 12))
-                                Text("\(nonDeletionCount)")
+                                Text("Save")
                                     .font(.system(size: 12, weight: .light))
                                     .lineLimit(1)
                                     .fixedSize()
@@ -150,7 +148,7 @@ struct SchemaModeActionBar: View {
                         .buttonStyle(.plain)
                         .background(Color.orange)
                         .clipShape(.rect(cornerRadius: 8))
-                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                         .transition(.scale.combined(with: .opacity))
                         .customHelp("Save Changes", position: .top, shortcut: KeyboardShortcut(
                             modifiers: [.command],
