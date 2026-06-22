@@ -709,7 +709,7 @@ struct WorkspaceConnectionRow: View {
         } message: {
             Text("Deleting this connection removes its saved settings and query history.")
         }
-        .dialogSeverity(.critical)
+        .dialogSeverity(.standard)
     }
 }
 

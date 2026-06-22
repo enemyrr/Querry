@@ -136,7 +136,7 @@ struct RecentCard<ContextMenu: View>: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.body)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -306,7 +306,7 @@ struct RecentConnectionCard: View {
         } message: {
             Text("Deleting this connection removes its saved settings and query history.")
         }
-        .dialogSeverity(.critical)
+        .dialogSeverity(.standard)
     }
 }
 
