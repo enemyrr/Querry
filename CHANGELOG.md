@@ -2,6 +2,17 @@
 
 # Pluk Release Notes
 
+## [0.0.48] – 2026-06-23
+
+This release adds SSH and SSL connection support, improves SQLite setup from Finder files, and smooths several query and confirmation flows.
+
+Here’s what’s new:
+
+- **Connect through SSH tunnels and SSL.** Pluk can now configure SSH tunnels for database connections and upload PostgreSQL/Supabase SSL key, certificate, and CA files, with TLS preserved through tunnels. ([#26](https://github.com/pluk-inc/Pluk/issues/26), [#318](https://github.com/pluk-inc/app-pluk/pull/318))
+- **Create SQLite connections from files.** Drag `.db`, `.sqlite`, or `.sqlite3` files into SQLite setup, or open supported SQLite files from Finder to reuse an existing connection or start a new one with the file already selected. ([#25](https://github.com/pluk-inc/Pluk/issues/25), [#319](https://github.com/pluk-inc/app-pluk/pull/319))
+- **PostgreSQL cross-schema queries work better.** The SQL editor now passes the selected schema into PostgreSQL execution and AI error correction uses schema-aware context, so schema-qualified queries no longer hit prepared-statement errors. ([#317](https://github.com/pluk-inc/app-pluk/pull/317))
+- **Connection confirmations and save actions are clearer.** Delete dialogs now name the connection and use cleaner consequence copy, while floating save actions are more direct and visually balanced. ([#320](https://github.com/pluk-inc/app-pluk/pull/320), [#321](https://github.com/pluk-inc/app-pluk/pull/321))
+
 ## [0.0.47] – 2026-06-05
 
 This release fixes Docker-backed connections on Home so rebuilding or removing local containers no longer leaves duplicate or stale connections behind.
