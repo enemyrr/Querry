@@ -1246,12 +1246,13 @@ final class HoverTrackingOutlineView: NSOutlineView {
         guard row != hoveredRow else { return }
         let previous = hoveredRow
         hoveredRow = row
-        if previous >= 0,
+        // hoveredRow can go stale across a reload; rowView(atRow:) throws on out-of-range rows.
+        if previous >= 0, previous < numberOfRows,
            let view = rowView(atRow: previous, makeIfNecessary: false) as? SidebarRowView {
             view.isRowHovered = false
             updateDisclosureVisibility(row: previous, hovered: false)
         }
-        if row >= 0,
+        if row >= 0, row < numberOfRows,
            let view = rowView(atRow: row, makeIfNecessary: false) as? SidebarRowView {
             view.isRowHovered = true
             updateDisclosureVisibility(row: row, hovered: true)
