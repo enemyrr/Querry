@@ -34,6 +34,7 @@ INFO_PLIST="$PROJECT_ROOT/pluk/Info.plist"
 SPARKLE_PRIVATE_KEY="$PROJECT_ROOT/private/sparkle_ed_private_key"
 SPARKLE_PUBLIC_KEY_FILE="$PROJECT_ROOT/pluk/sparkle-public-ed-key.txt"
 R2_CONFIG_FILE="$PROJECT_ROOT/private/r2-config"
+SENTRY_CONFIG_FILE="$PROJECT_ROOT/private/sentry-config"
 
 APP_NAME="Pluk"
 BUNDLE_ID="doc.pluk"
@@ -190,6 +191,32 @@ validate_sparkle_continuity() {
     fi
 }
 
+upload_dsyms() {
+    local archive_path="$1"
+
+    if [[ -f "$SENTRY_CONFIG_FILE" ]]; then
+        # shellcheck source=/dev/null
+        source "$SENTRY_CONFIG_FILE"
+    fi
+
+    if [[ -z "${SENTRY_AUTH_TOKEN:-}" || -z "${SENTRY_ORG:-}" || -z "${SENTRY_PROJECT:-}" ]]; then
+        echo "  ! Sentry config missing; dSYM upload skipped"
+        echo "    Crashes for this build will be unsymbolicated in Sentry."
+        echo "    Add SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT to $SENTRY_CONFIG_FILE"
+        return
+    fi
+
+    if ! command -v sentry-cli >/dev/null 2>&1; then
+        echo "  ! sentry-cli missing; dSYM upload skipped - brew install getsentry/tools/sentry-cli"
+        return
+    fi
+
+    SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" sentry-cli debug-files upload \
+        --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
+        "$archive_path/dSYMs"
+    echo "  ok uploaded dSYMs to Sentry ($SENTRY_ORG/$SENTRY_PROJECT)"
+}
+
 sync_legacy_appcasts() {
     if $SKIP_R2; then
         echo "  ! skipped legacy R2 appcast sync"
@@ -330,7 +357,21 @@ if [[ -z "$NOTES" ]]; then
     exit 1
 fi
 
-AMORE_RELEASE_FLAGS=(--scheme "$SCHEME" --release-notes "$NOTES" --format json)
+echo
+echo "Archive"
+ARCHIVE_PATH="$(mktemp -d)/$APP_NAME.xcarchive"
+xcodebuild -project "$PROJECT_ROOT/Pluk.xcodeproj" \
+    -scheme "$SCHEME" \
+    -configuration Release \
+    -archivePath "$ARCHIVE_PATH" \
+    archive
+echo "  ok archived to $ARCHIVE_PATH"
+
+echo
+echo "Sentry dSYM upload"
+upload_dsyms "$ARCHIVE_PATH"
+
+AMORE_RELEASE_FLAGS=("$ARCHIVE_PATH" --release-notes "$NOTES" --format json)
 if [[ "$RELEASE_TYPE" != "stable" ]]; then
     AMORE_RELEASE_FLAGS+=(--beta)
 fi
