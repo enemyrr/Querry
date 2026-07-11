@@ -91,7 +91,7 @@ final class MainContentViewController: NSViewController {
 
             let baseTint = makeFullSizeLayer()
             if isDark {
-                baseTint.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.80).cgColor
+                baseTint.backgroundColor = NSColor.underPageBackgroundColor.withAlphaComponent(0.80).cgColor
             } else {
                 baseTint.backgroundColor = NSColor.white.withAlphaComponent(0.10).cgColor
                 baseTint.compositingFilter = "multiplyBlendMode"
