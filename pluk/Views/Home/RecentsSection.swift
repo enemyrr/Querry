@@ -283,14 +283,20 @@ struct RecentConnectionCard: View {
             Button("Delete", role: .destructive) {
                 let databaseType = connection.databaseType
 
-                QueryHistoryService.deleteHistoryForConnection(
-                    modelContext: modelContext,
-                    connectionKeychainId: connection.keychainId
-                )
-                connection.cleanupKeychain()
-                modelContext.delete(connection)
-
                 Task { @MainActor in
+                    // Tear down any open window/tab holding this model before
+                    // deleting it, otherwise later reads of its attributes fault.
+                    if let instance = ConnectionService.shared.getExistingInstance(for: connection) {
+                        await ConnectionService.shared.removeConnectionInstance(instance.id)
+                    }
+
+                    QueryHistoryService.deleteHistoryForConnection(
+                        modelContext: modelContext,
+                        connectionKeychainId: connection.keychainId
+                    )
+                    connection.cleanupKeychain()
+                    modelContext.delete(connection)
+
                     AnalyticsService.shared.trackConnectionDeleted(databaseType: databaseType)
 
                     let remainingConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []

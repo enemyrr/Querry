@@ -353,7 +353,12 @@ struct HomeView: View {
                   let connectionToKeep = preferredConnection(from: groupedConnections, candidate: candidate) else {
                 continue
             }
-            connectionsToDelete.append(contentsOf: groupedConnections.filter { $0.keychainId != connectionToKeep.keychainId })
+            // Never auto-delete a connection that is currently open in a
+            // window/tab — its ConnectionInstance still holds the model.
+            connectionsToDelete.append(contentsOf: groupedConnections.filter {
+                $0.keychainId != connectionToKeep.keychainId
+                    && ConnectionService.shared.getExistingInstance(for: $0) == nil
+            })
         }
 
         guard !connectionsToDelete.isEmpty else { return }

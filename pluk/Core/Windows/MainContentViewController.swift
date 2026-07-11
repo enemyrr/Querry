@@ -102,7 +102,7 @@ final class MainContentViewController: NSViewController {
             homeDarken.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
             layer.addSublayer(homeDarken)
 
-            if let connectionInstance {
+            if let connectionInstance, connectionInstance.connection.modelContext != nil {
                 let colorLayer = makeFullSizeLayer()
                 colorLayer.backgroundColor = NSColor(connectionInstance.connection.color.color)
                     .withAlphaComponent(isDark ? 0.10 : 0.08).cgColor

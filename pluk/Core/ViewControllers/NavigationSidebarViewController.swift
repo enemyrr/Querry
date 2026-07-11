@@ -170,7 +170,8 @@ final class NavigationSidebarViewController: NSViewController {
 
         switch item {
         case .connection(let id):
-            guard let instance = ConnectionService.shared.getInstance(id) else {
+            guard let instance = ConnectionService.shared.getInstance(id),
+                  instance.connection.modelContext != nil else {
                 return SidebarItemButton(
                     frame: NSRect(x: 0, y: 0, width: 50, height: 40),
                     fillColor: .gray,
