@@ -232,6 +232,10 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             window.toolbarStyle = .unifiedCompact
         }
         window.isMovableByWindowBackground = true
+        // AppKit state restoration rebuilds window content outside
+        // configureWindow, so restored SwiftUI trees miss their injected
+        // environment objects. Frame persistence is handled manually below.
+        window.isRestorable = false
         restoreWindowFrame(window)
 
         window.delegate = self

@@ -11,7 +11,9 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(SidebarViewModel.self) private var viewModel
+    // Optional read: a non-optional @Environment traps fatally if any hosting
+    // path (e.g. window restoration) presents HomeView without the injection.
+    @Environment(SidebarViewModel.self) private var viewModel: SidebarViewModel?
     private var authService = WorkOSAuthService.shared
     @Query(sort: \Connection.lastOpenedAt, order: .reverse)
     private var connections: [Connection]
@@ -197,7 +199,7 @@ struct HomeView: View {
                 if let connection = pendingConnection,
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
                     connection.lastOpenedAt = Date()
-                    viewModel.changeActiveSidebarItem(.connection(existingInstance.id))
+                    viewModel?.changeActiveSidebarItem(.connection(existingInstance.id))
                     Task { @MainActor in
                         AnalyticsService.shared.trackConnectionOpened(
                             databaseType: connection.databaseType,
@@ -499,6 +501,7 @@ struct HomeView: View {
 
     private func openNewConnectionTab(_ connection: Connection, isFirstConnection: Bool) {
         connection.lastOpenedAt = Date()
+        guard let viewModel else { return }
         let instanceId = viewModel.createNewConnectionInstance(for: connection)
 
         guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
