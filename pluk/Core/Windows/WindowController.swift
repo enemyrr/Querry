@@ -7,6 +7,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     private static let legacyWindowFrameDefaultsKey = "PlukWindowFrame"
     private static let minimumWindowSize = NSSize(width: 800, height: 600)
     private static let defaultWindowSize = NSSize(width: 1200, height: 800)
+    private static var isSynchronizingTabbedWindowFrames = false
 
     override var windowNibName: NSNib.Name? {
         if #available(macOS 26, *) {
@@ -100,9 +101,11 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         let controller = WindowController(tabType: tabType, connectionInstance: connectionInstance)
 
         if let newWindow = controller.window {
-            newWindow.setFrame(parentWindow.frame, display: false)
             newWindow.tabbingMode = .preferred
             parentWindow.addTabbedWindow(newWindow, ordered: .above)
+            newWindow.setFrame(parentWindow.frame, display: false)
+            synchronizeTabbedWindowFrames(from: newWindow)
+            controller.persistWindowFrame(newWindow)
             newWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -268,7 +271,6 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
     private func restoreWindowFrame(_ window: NSWindow) {
         let restoredFrame = window.setFrameUsingName(Self.windowFrameAutosaveName)
-        window.setFrameAutosaveName(Self.windowFrameAutosaveName)
 
         if restoredFrame {
             let normalizedFrame = normalizedWindowFrame(window.frame)
@@ -352,6 +354,23 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
 
     private func persistWindowFrame(_ window: NSWindow) {
         window.saveFrame(usingName: Self.windowFrameAutosaveName)
+    }
+
+    private static func synchronizeTabbedWindowFrames(from sourceWindow: NSWindow) {
+        guard !isSynchronizingTabbedWindowFrames,
+              let tabbedWindows = sourceWindow.tabbedWindows,
+              tabbedWindows.count > 1 else {
+            return
+        }
+
+        isSynchronizingTabbedWindowFrames = true
+        defer { isSynchronizingTabbedWindowFrames = false }
+
+        for tabbedWindow in tabbedWindows
+        where tabbedWindow !== sourceWindow
+            && tabbedWindow.frame != sourceWindow.frame {
+            tabbedWindow.setFrame(sourceWindow.frame, display: false)
+        }
     }
 
     // MARK: - Toolbar
@@ -783,11 +802,13 @@ extension WindowController: NSWindowDelegate {
 
     func windowDidResize(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        Self.synchronizeTabbedWindowFrames(from: window)
         persistWindowFrame(window)
     }
 
     func windowDidMove(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        Self.synchronizeTabbedWindowFrames(from: window)
         persistWindowFrame(window)
     }
 
@@ -861,8 +882,12 @@ extension WindowController: NSWindowDelegate {
         let tabbedWindows = window.tabbedWindows ?? [window]
         guard tabbedWindows.count > 1,
               let nextWindow = tabbedWindows.first(where: { $0 != window }) else { return }
+        let closingFrame = window.frame
 
         Task { @MainActor in
+            nextWindow.setFrame(closingFrame, display: false)
+            Self.synchronizeTabbedWindowFrames(from: nextWindow)
+            Self.getController(for: nextWindow)?.persistWindowFrame(nextWindow)
             nextWindow.makeKeyAndOrderFront(nil)
         }
     }
