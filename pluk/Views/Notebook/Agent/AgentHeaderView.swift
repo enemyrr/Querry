@@ -137,6 +137,11 @@ final class AgentHeaderView: NSView {
     }
 }
 
+/// Corner radius as a fraction of the control's box size, so a 24pt notebook
+/// button and a 30pt table-dock button read as the same shape instead of the
+/// smaller one turning into a pill.
+private let agentHeaderCornerRadiusRatio: CGFloat = 1.0 / 3.0
+
 private final class AgentHeaderIconButton: NSView {
 
     var action: () -> Void = {}
@@ -165,7 +170,7 @@ private final class AgentHeaderIconButton: NSView {
         super.init(frame: .zero)
 
         wantsLayer = true
-        layer?.cornerRadius = 10
+        layer?.cornerRadius = 24 * agentHeaderCornerRadiusRatio
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(iconView)
@@ -199,6 +204,7 @@ private final class AgentHeaderIconButton: NSView {
     func setSize(_ size: CGFloat) {
         widthConstraint.constant = size
         heightConstraint.constant = size
+        layer?.cornerRadius = size * agentHeaderCornerRadiusRatio
     }
 
     override func updateTrackingAreas() {
@@ -290,7 +296,7 @@ private final class AgentHeaderDropdownIconButton: NSView {
         super.init(frame: .zero)
 
         wantsLayer = true
-        layer?.cornerRadius = 10
+        layer?.cornerRadius = 26 * agentHeaderCornerRadiusRatio
 
         let stack = NSStackView(views: [panelIcon, chevron])
         stack.orientation = .horizontal
@@ -331,6 +337,7 @@ private final class AgentHeaderDropdownIconButton: NSView {
 
     func setHeight(_ height: CGFloat) {
         heightConstraint.constant = height
+        layer?.cornerRadius = height * agentHeaderCornerRadiusRatio
     }
 
     override func updateTrackingAreas() {

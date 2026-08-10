@@ -2,6 +2,21 @@
 
 # Pluk Release Notes
 
+## [0.0.49] – 2026-08-10
+
+Pluk v0.0.49 brings the AI agent out of notebooks and into the table view. You can now ask questions about the table you're looking at and have the agent make changes for you — with an approval step before anything touches your data. The rest of the release is stability: three crashes fixed, plus window and popover behavior that stays put.
+
+Here’s what’s new:
+
+- **Chat with the table you're looking at.** The right dock now switches between Row Detail and a full agent chat that already knows your open table, its schema, and the rest of your database — so it answers instead of spending turns discovering. Chat history persists per connection, and asking for a large result set opens a query tab with the results already running. ([#323](https://github.com/pluk-inc/app-pluk/pull/323))
+- **The agent can change your data, but only with your say-so.** Ask for an edit and the agent shows you the exact SQL in an approval card before running it. Approve for me handles routine writes on its own, while risky statements — DROP, TRUNCATE, ALTER, or a DELETE/UPDATE with no WHERE — always stop and ask. The grid refreshes as soon as a write goes through. ([#323](https://github.com/pluk-inc/app-pluk/pull/323))
+- **Three crashes are gone.** Pluk no longer crashes on launch when macOS restores a home window, when you delete a connection that's currently open, or when the sidebar's hover state lands on a row that's already been reloaded away. ([#325](https://github.com/pluk-inc/app-pluk/pull/325), [#326](https://github.com/pluk-inc/app-pluk/pull/326), [#327](https://github.com/pluk-inc/app-pluk/pull/327))
+
+We’ve also shipped some small but mighty fixes:
+
+- **Tabbed windows remember the right size.** Native tabs each kept their own stale frame under a shared autosave key, so closing or detaching a tab could snap the window back to an older size. Tab groups now stay in sync when they move or resize. ([#328](https://github.com/pluk-inc/app-pluk/pull/328))
+- **The create-table popover sits on its button.** Opening it from the **+** in the connection header no longer drops the bubble below its arrow, over the table list. ([#329](https://github.com/pluk-inc/app-pluk/pull/329))
+
 ## [0.0.48] – 2026-06-23
 
 This release adds SSH and SSL connection support, improves SQLite setup from Finder files, and smooths several query and confirmation flows.
