@@ -312,11 +312,19 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
         })
         .environment(instance)
 
+        let hostingController = NSHostingController(rootView: form)
+        hostingController.sizingOptions = [.preferredContentSize]
+
         let popover = NSPopover()
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: form)
-        popover.show(relativeTo: plusButton.bounds, of: plusButton, preferredEdge: .maxY)
+        popover.contentViewController = hostingController
+        // An unsized NSHostingController makes AppKit anchor the popover from a
+        // zero-height frame, so the bubble ends up detached from the button once
+        // SwiftUI lays out. Resolve the SwiftUI size first, then show below the
+        // button (`.minY` — the plus button is unflipped, so `.maxY` means above).
+        popover.contentSize = hostingController.view.fittingSize
+        popover.show(relativeTo: plusButton.bounds, of: plusButton, preferredEdge: .minY)
         createTablePopover = popover
         updateHoverBackground()
     }
