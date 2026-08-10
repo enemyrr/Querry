@@ -2,7 +2,7 @@ import AppKit
 
 final class AgentChatInputView: NSView {
 
-    var onSend: (String) -> Void = { _ in }
+    var onSend: ((String) -> Void)?
     var onStop: () -> Void = {}
     var onConnectionsChanged: (([Connection]) -> Void)?
 
@@ -10,6 +10,8 @@ final class AgentChatInputView: NSView {
     private let inputTextView: AgentInputTextView
     private let sendButton: AgentSendButton
     private let connectionButton: AgentChatConnectionButton
+    private let approvalModeButton = AgentApprovalModeButton()
+    private var currentApprovalMode: AgentWriteApprovalMode = .askApproval
     private let placeholderLabel: NSTextField
     private let statusLabel: NSTextField
 
@@ -74,7 +76,10 @@ final class AgentChatInputView: NSView {
             }
             let message = self.userMessage
             guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            self.onSend(message)
+            // Only clear the draft when a send handler is actually wired;
+            // otherwise Return would silently destroy the typed message.
+            guard let onSend = self.onSend else { return }
+            onSend(message)
             self.text = ""
         }
 
@@ -129,6 +134,28 @@ final class AgentChatInputView: NSView {
 
         connectionButton.update(with: selectedConnections)
         onConnectionsChanged?(selectedConnections)
+    }
+
+    /// Hides the connection picker for surfaces where the connection is fixed,
+    /// such as the table chat sidebar.
+    func setConnectionPickerHidden(_ hidden: Bool) {
+        connectionButton.isHidden = hidden
+        connectionButtonCollapsedWidth.isActive = hidden
+    }
+
+    private lazy var connectionButtonCollapsedWidth =
+        connectionButton.widthAnchor.constraint(equalToConstant: 0)
+
+    /// Called when the user picks a different write-approval mode from the
+    /// picker. Only fires when the picker is shown via `setApprovalModePicker`.
+    var onApprovalModeChanged: ((AgentWriteApprovalMode) -> Void)?
+
+    /// Shows the write-approval mode picker (table chat sidebar only) and sets
+    /// its current mode. Hidden by default.
+    func setApprovalModePicker(visible: Bool, mode: AgentWriteApprovalMode) {
+        currentApprovalMode = mode
+        approvalModeButton.isHidden = !visible
+        approvalModeButton.update(mode: mode)
     }
 
     func setStatusMessage(_ message: String?) {
@@ -196,6 +223,12 @@ final class AgentChatInputView: NSView {
         connectionButton.target = self
         connectionButton.action = #selector(connectionButtonTapped)
         containerView.addSubview(connectionButton)
+
+        approvalModeButton.isHidden = true
+        approvalModeButton.translatesAutoresizingMaskIntoConstraints = false
+        approvalModeButton.target = self
+        approvalModeButton.action = #selector(approvalModeButtonTapped)
+        containerView.addSubview(approvalModeButton)
     }
 
     private func setupSendButton() {
@@ -221,6 +254,10 @@ final class AgentChatInputView: NSView {
             connectionButton.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -4),
             connectionButton.centerYAnchor.constraint(equalTo: sendButton.centerYAnchor),
             connectionButton.heightAnchor.constraint(equalToConstant: 26),
+
+            approvalModeButton.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 8),
+            approvalModeButton.centerYAnchor.constraint(equalTo: sendButton.centerYAnchor),
+            approvalModeButton.heightAnchor.constraint(equalToConstant: 26),
 
             sendButton.topAnchor.constraint(equalTo: inputTextView.bottomAnchor, constant: 10),
             sendButton.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -8),
@@ -304,6 +341,67 @@ final class AgentChatInputView: NSView {
         window?.makeFirstResponder(inputTextView.textView)
     }
 
+    // MARK: - Approval Mode Picker
+
+    @objc private func approvalModeButtonTapped() {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        let header = NSMenuItem(title: "How should Pluk AI changes be approved?", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+
+        for mode in AgentWriteApprovalMode.allCases {
+            let item = NSMenuItem(title: mode.displayName, action: #selector(approvalModeItemClicked(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = mode.rawValue
+            item.state = mode == currentApprovalMode ? .on : .off
+
+            let title = NSMutableAttributedString(
+                string: "\(mode.displayName)\n",
+                attributes: [
+                    .font: NSFont.menuFont(ofSize: NSFont.systemFontSize(for: .regular)),
+                    .foregroundColor: NSColor.labelColor,
+                ]
+            )
+            title.append(NSAttributedString(
+                string: mode.menuDescription,
+                attributes: [
+                    .font: NSFont.menuFont(ofSize: NSFont.systemFontSize(for: .small)),
+                    .foregroundColor: NSColor.secondaryLabelColor,
+                ]
+            ))
+            item.attributedTitle = title
+            menu.addItem(item)
+        }
+
+        containerView.layoutSubtreeIfNeeded()
+        menu.update()
+
+        let gap: CGFloat = 6
+        let menuPoint = NSPoint(
+            x: approvalModeButton.frame.minX,
+            y: approvalModeButton.frame.maxY + gap + menu.size.height
+        )
+
+        suppressNextReturnSend = true
+        _ = menu.popUp(positioning: nil, at: menuPoint, in: containerView)
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.suppressNextReturnSend = false
+        }
+        window?.makeFirstResponder(inputTextView.textView)
+    }
+
+    @objc private func approvalModeItemClicked(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let mode = AgentWriteApprovalMode(rawValue: raw),
+              mode != currentApprovalMode else { return }
+        currentApprovalMode = mode
+        approvalModeButton.update(mode: mode)
+        onApprovalModeChanged?(mode)
+    }
+
     @objc private func connectionPickerItemClicked(_ sender: NSMenuItem) {
         guard let keychainId = sender.representedObject as? String,
               let connection = availableConnections.first(where: { $0.keychainId == keychainId }) else { return }
@@ -342,6 +440,94 @@ final class AgentChatInputView: NSView {
         }
         let hasMessage = !userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         sendButton.isEnabled = hasMessage
+    }
+}
+
+// MARK: - Approval Mode Button
+
+private final class AgentApprovalModeButton: NSControl {
+
+    private let iconView = NSImageView()
+    private let label = NSTextField(labelWithString: "")
+    private var trackingArea: NSTrackingArea?
+    private var isHovering = false
+
+    init() {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+
+        iconView.symbolConfiguration = .init(pointSize: 11, weight: .medium)
+        iconView.contentTintColor = .secondaryLabelColor
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+
+        label.font = .preferredFont(forTextStyle: .body)
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 5),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func update(mode: AgentWriteApprovalMode) {
+        iconView.image = NSImage(systemSymbolName: mode.iconName, accessibilityDescription: mode.displayName)
+        label.stringValue = mode.displayName
+        // Auto-approve grants the agent real write power — tint it as a caution.
+        iconView.contentTintColor = mode == .autoApprove ? .systemOrange : .secondaryLabelColor
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+        refreshHoverState()
+    }
+
+    private func refreshHoverState() {
+        guard let window else {
+            isHovering = false
+            applyHoverBackground(false)
+            return
+        }
+        let mouse = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let should = bounds.contains(mouse)
+        guard should != isHovering else { return }
+        isHovering = should
+        applyHoverBackground(isHovering)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        applyHoverBackground(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        applyHoverBackground(false)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        sendAction(action, to: target)
+        // The menu's tracking session swallows mouseExited — resync afterwards.
+        refreshHoverState()
     }
 }
 
@@ -510,6 +696,14 @@ private final class PlainPasteTextView: NSTextView {
     override func paste(_ sender: Any?) {
         pasteAsPlainText(sender)
     }
+
+    // NSTextView's default I-beam cursor rect is derived from its (effectively
+    // unbounded) text region, which balloons past the visible input and leaves
+    // the I-beam set window-wide while focused. Replace it with a rect bounded
+    // to the view so the window reverts to the arrow outside the input.
+    override func resetCursorRects() {
+        addCursorRect(visibleRect, cursor: .iBeam)
+    }
 }
 
 // MARK: - Input Text View
@@ -517,6 +711,7 @@ private final class PlainPasteTextView: NSTextView {
 private final class AgentInputTextView: NSView, NSTextViewDelegate {
 
     let textView: NSTextView
+    private let scrollView = PassthroughScrollView()
     var onTextChanged: (() -> Void)?
     var onReturn: (() -> Void)?
 
@@ -547,10 +742,14 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         textView.backgroundColor = .clear
         textView.drawsBackground = false
         textView.textContainerInset = .zero
-        textView.isVerticallyResizable = false
+        // Standard scroll-view-hosted text view: the document view grows with
+        // content and is clipped by the scroll view's clip view — which keeps the
+        // I-beam cursor region bounded to the visible input instead of leaking.
+        textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
-        textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textView.autoresizingMask = [.width]
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.typingAttributes = [
             .font: NSFont.systemFont(ofSize: 14),
             .foregroundColor: NSColor.labelColor,
@@ -563,16 +762,22 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
 
         textView.delegate = self
 
-        textView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(textView)
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.documentView = textView
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(scrollView)
 
         heightConstraint = heightAnchor.constraint(equalToConstant: 34)
 
         NSLayoutConstraint.activate([
-            textView.topAnchor.constraint(equalTo: topAnchor),
-            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightConstraint,
         ])
     }
@@ -581,18 +786,16 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         fatalError("init(coder:) is not supported")
     }
 
-    override func scrollWheel(with event: NSEvent) {
-        nextResponder?.scrollWheel(with: event)
-    }
-
     override func layout() {
         super.layout()
 
-        if let textContainer = textView.textContainer {
-            let containerWidth = max(0, bounds.width)
-            if abs(textContainer.containerSize.width - containerWidth) > 1 {
-                textContainer.containerSize = NSSize(width: containerWidth, height: CGFloat.greatestFiniteMagnitude)
-            }
+        // Keep the text view at least as tall as the visible input area so
+        // clicks anywhere in the input land on the text view and place the
+        // caret, instead of hitting bare clip view below a short document.
+        let contentSize = scrollView.contentSize
+        if textView.minSize.height != contentSize.height {
+            textView.minSize = NSSize(width: 0, height: contentSize.height)
+            textView.sizeToFit()
         }
 
         recalculateHeight()
@@ -607,7 +810,6 @@ private final class AgentInputTextView: NSView, NSTextViewDelegate {
         guard abs(newHeight - lastKnownHeight) > 0.5 else { return }
         lastKnownHeight = newHeight
         heightConstraint.constant = newHeight
-        textView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: newHeight)
     }
 
     // MARK: - NSTextViewDelegate

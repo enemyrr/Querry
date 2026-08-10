@@ -1258,6 +1258,16 @@ extension SQLEditorView {
            let query = tab.initialQuery {
             sqlQuery = query
             tab.initialQuery = nil
+            if tab.autoRunInitialQuery {
+                tab.autoRunInitialQuery = false
+                // loadAvailableDatabases() resolves selectedSchema
+                // asynchronously, so seed it from the tab first — otherwise
+                // this auto-run would execute with no schema.
+                if usesSchemaPicker, let schema = tab.databaseSchema, !schema.isEmpty {
+                    selectedSchema = schema
+                }
+                executeQuery()
+            }
         }
 
         if sqlQuery.isEmpty && instance.connection.databaseType == .convex {

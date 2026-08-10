@@ -34,7 +34,7 @@ final class DocumentViewController: NSViewController {
 
     private var tabView: NSTabView!
     private var tabBarView: TabBarView?
-    private var rightSidebarViewController: RowDetailSidebarViewController?
+    private var rightSidebarViewController: RightSidebarContainerViewController?
     private var emptyStateView: EmptyDocumentStateView?
 
     private var contentContainer: NSView!
@@ -220,6 +220,7 @@ final class DocumentViewController: NSViewController {
         contentContainer?.removeFromSuperview()
         contentContainer = nil
         tabViewContainer = nil
+        rightSidebarViewController?.prepareForRemoval()
         rightSidebarViewController?.view.removeFromSuperview()
         rightSidebarViewController?.removeFromParent()
         rightSidebarViewController = nil
@@ -274,11 +275,18 @@ final class DocumentViewController: NSViewController {
         let clipView = RightSidebarClipView()
         clipView.translatesAutoresizingMaskIntoConstraints = false
 
-        let sidebarViewController = RowDetailSidebarViewController(
+        let sidebarViewController = RightSidebarContainerViewController(
             instance: instance,
             appViewModel: appViewModel,
+            modelContainer: modelContainer,
             onWidthChange: { [weak self] _ in
                 self?.applyRightSidebarWidth()
+            },
+            onClose: { [weak self] in
+                // Close only this window's sidebar; the global .toggleRightSidebar
+                // notification would flip the sidebar in every open window.
+                guard let self, self.appViewModel.isRightSidebarVisible else { return }
+                self.handleToggleRightSidebar()
             }
         )
         addChild(sidebarViewController)
@@ -324,6 +332,7 @@ final class DocumentViewController: NSViewController {
         rightSidebarWidthConstraint = nil
         rightSidebarContentWidthConstraint = nil
 
+        rightSidebarViewController?.prepareForRemoval()
         rightSidebarClipView?.removeFromSuperview()
         rightSidebarViewController?.removeFromParent()
         rightSidebarViewController = nil

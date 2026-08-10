@@ -63,10 +63,39 @@ for round in 0..<100:
 
 ## Write Operation Blocking
 
-The agent can ONLY run read-only queries. Blocked prefixes:
-`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`
+`NotebookAgentEngine.isReadOnlyStatement(_:)` is the security boundary for every
+tool that executes SQL without user approval (`run_query`, `open_query_tab`). It
+requires **all** of:
+
+1. First real keyword (after stripping `--` and `/* */` comments) is one of
+   `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE`, `DESC`
+2. A single statement — no semicolons except one trailing terminator
+3. No write keyword anywhere in the text, matched as a whole word
+
+Prefix-only checks are **not** sufficient: `-- x\nDROP TABLE t`, a writable CTE
+(`WITH d AS (DELETE … RETURNING *) SELECT * FROM d`), and `SELECT 1; DROP TABLE t`
+all pass a prefix check. Any new tool that runs SQL must call this helper, never
+re-implement a prefix test.
+
+`isRoutineWrite(_:)` gates auto-approve (`AgentWriteApprovalMode.autoApprove`) and
+is deliberately narrow: a single `INSERT`, or `UPDATE`/`DELETE` with a `WHERE`,
+containing no schema-changing or statement-smuggling keywords. Everything else
+shows the approval card.
 
 Block creation happens through dedicated tools (`create_chart_block`, `create_text_block`), not raw SQL.
+
+## Write Approval Contract
+
+`writeApprovalHandler` receives a `WriteApprovalRequest` carrying the query **and
+the resolved execution target** (connection, `databaseName`, `schemaName`). The
+target is resolved *before* approval and reused verbatim for execution, so the
+card can never show a different database than the one written to. Do not
+re-resolve `database_name` after approval.
+
+Surfaces hosting the chat must call `TableChatSidebarViewController.prepareForRemoval()`
+before teardown (and `declinePendingApproval()` when the card is hidden, e.g. on
+mode switch). The approval suspends the agent on a checked continuation; leaking
+it hangs the agent task and retains the whole chat stack.
 
 ## XML Serialization Format
 
@@ -115,6 +144,10 @@ An `actor` that manages database connections for the agent:
 - `pendingBlockCreations` / `pendingNotebookInfoUpdate` / `pendingDashboardArrangement` are drained into the notebook after each round's tool executions, then cleared via `engine.clearPendingCreations()`.
 - `run_query` blocks writes by prefix check in `NotebookAgentEngine` (`blockedPrefixes = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]`).
 - System prompt includes: available connections, pre-fetched Convex deployments, chart types, aggregation functions, current notebook blocks, optional conversation summary, and workflow instructions.
+
+## Gotchas
+
+- `SQLiteDriver.switchDatabase(to:)` disconnects and reopens the *name* as a file path — for SQLite the database name is just the file's display name, so switching tears down security-scoped file access and leaves the driver dead ("Not connected to SQLite database" on the next query). `AgentDriverSession.connect` therefore skips `switchDatabase` entirely for `.sqlite`. The LLM always passes `database_name` (it's in the system prompt's connection list), so any new tool path that forwards `database_name` into a driver switch must exclude SQLite the same way.
 
 ## Anti-Patterns
 

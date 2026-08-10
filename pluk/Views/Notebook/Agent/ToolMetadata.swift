@@ -24,6 +24,8 @@ enum ToolMetadata {
         case "list_tables": return "tablecells"
         case "get_table_schema": return "square.stack.3d.up"
         case "run_query": return "rectangle.and.text.magnifyingglass"
+        case "run_write_query": return "pencil.and.list.clipboard"
+        case "open_query_tab": return "rectangle.badge.plus"
         case "set_notebook_info": return "text.document"
         case "list_notebook_blocks": return "list.bullet"
         case "create_chart_block", "update_chart_block": return "chart.bar"
@@ -43,6 +45,8 @@ enum ToolMetadata {
         case "list_tables": return "Exploring database"
         case "get_table_schema": return "Reading schema"
         case "run_query": return "Querying data"
+        case "run_write_query": return "Modifying data"
+        case "open_query_tab": return "Opening results"
         case "set_notebook_info": return "Setting up notebook"
         case "list_notebook_blocks": return "Reading notebook"
         case "create_chart_block", "create_text_block", "create_single_value_block", "create_query_block", "create_block": return "Building visualizations"
@@ -73,6 +77,14 @@ enum ToolMetadata {
             let query = json["query"] as? String ?? ""
             let preview = queryPreview(query)
             return (preview.isEmpty ? "Running query" : preview, icon(for: name))
+
+        case "run_write_query":
+            let query = json["query"] as? String ?? ""
+            let preview = queryPreview(query)
+            return (preview.isEmpty ? "Modifying data" : preview, icon(for: name))
+
+        case "open_query_tab":
+            return ("Opening results in a query tab", icon(for: name))
 
         case "set_notebook_info":
             let title = json["title"] as? String

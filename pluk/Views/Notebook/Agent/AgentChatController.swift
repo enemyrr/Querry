@@ -15,9 +15,15 @@ final class AgentChatController {
 
     var selectedConnections: [Connection] = []
 
-    private let notebookId: UUID
+    /// Persistence scope for `AgentChat` records (stored in `AgentChat.notebookId`).
+    /// The notebook agent passes the notebook id; the table chat sidebar passes a
+    /// stable per-connection id so each connection keeps its own chat history.
+    private let scopeId: UUID
     private let modelContainer: ModelContainer
     private weak var notebookDataController: NotebookDataController?
+    /// Supplies the currently open table for table-chat mode. Nil when this
+    /// controller serves the notebook agent panel.
+    private let tableContextProvider: (@MainActor () -> TableAgentContext?)?
     let engine = NotebookAgentEngine()
     private var streamingTask: Task<Void, Never>?
     private var streamingTaskID = UUID()
@@ -30,10 +36,16 @@ final class AgentChatController {
     private let recentMessageWindow = 10
     private let summaryCharacterThreshold = 12_000
 
-    init(notebookId: UUID, modelContainer: ModelContainer, notebookDataController: NotebookDataController) {
-        self.notebookId = notebookId
+    init(
+        scopeId: UUID,
+        modelContainer: ModelContainer,
+        notebookDataController: NotebookDataController? = nil,
+        tableContextProvider: (@MainActor () -> TableAgentContext?)? = nil
+    ) {
+        self.scopeId = scopeId
         self.modelContainer = modelContainer
         self.notebookDataController = notebookDataController
+        self.tableContextProvider = tableContextProvider
     }
 
     deinit {
@@ -44,24 +56,15 @@ final class AgentChatController {
 
     func load() {
         let context = modelContainer.mainContext
-        let id = notebookId
+        let id = scopeId
         let chatDescriptor = FetchDescriptor<AgentChat>(
             predicate: #Predicate { $0.notebookId == id },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         chats = (try? context.fetch(chatDescriptor)) ?? []
 
-        if let latest = chats.first {
-            let chatId = latest.id
-            let messageDescriptor = FetchDescriptor<AgentMessage>(
-                predicate: #Predicate { $0.chatId == chatId }
-            )
-            let messageCount = (try? context.fetchCount(messageDescriptor)) ?? 0
-            if messageCount == 0 {
-                selectChat(latest)
-            } else {
-                createNewChat()
-            }
+        if let unused = unusedChat {
+            selectChat(unused)
         } else {
             createNewChat()
         }
@@ -75,23 +78,45 @@ final class AgentChatController {
         resetConversationSummary()
         notebookDataController?.isAgentStreaming = false
 
-        if let latest = chats.first {
-            let chatId = latest.id
-            let descriptor = FetchDescriptor<AgentMessage>(
-                predicate: #Predicate { $0.chatId == chatId }
-            )
-            let count = (try? modelContainer.mainContext.fetchCount(descriptor)) ?? 0
-            if count == 0 {
-                selectChat(latest)
-                return
-            }
+        if let unused = unusedChat {
+            selectChat(unused)
+            return
         }
 
-        let chat = AgentChat(notebookId: notebookId)
+        selectChat(insertChat())
+    }
+
+    /// Guarantees an unused chat sits at the top of `chats` so the history list
+    /// always offers a "New Chat" entry to switch into. Unlike `createNewChat()`
+    /// this never changes the current selection, and it refreshes the unused
+    /// chat's timestamp so it stays grouped under Today.
+    func ensureUnusedChatExists() {
+        if let unused = unusedChat {
+            unused.updatedAt = Date()
+            save()
+            return
+        }
+        _ = insertChat()
+    }
+
+    /// The newest chat when it has no messages yet. Only the newest can be
+    /// unused — `createNewChat()` reuses it rather than stacking empties.
+    private var unusedChat: AgentChat? {
+        guard let latest = chats.first else { return nil }
+        let chatId = latest.id
+        let descriptor = FetchDescriptor<AgentMessage>(
+            predicate: #Predicate { $0.chatId == chatId }
+        )
+        let count = (try? modelContainer.mainContext.fetchCount(descriptor)) ?? 0
+        return count == 0 ? latest : nil
+    }
+
+    private func insertChat() -> AgentChat {
+        let chat = AgentChat(notebookId: scopeId)
         modelContainer.mainContext.insert(chat)
         save()
         chats.insert(chat, at: 0)
-        selectChat(chat)
+        return chat
     }
 
     func selectChat(_ chat: AgentChat) {
@@ -252,10 +277,15 @@ final class AgentChatController {
                         roundNumber += 1
 
                         let currentBlocks = notebookDataController?.blocks ?? []
+                        let surface: AgentSurface = if let tableContextProvider {
+                            .table(tableContextProvider())
+                        } else {
+                            .notebook(blocks: currentBlocks)
+                        }
                         let round = try await engine.performRound(
                             messages: glmMessages,
                             connections: selectedConnections,
-                            blocks: currentBlocks,
+                            surface: surface,
                             conversationSummary: conversationSummary,
                             onToken: { [weak self] token in
                                 self?.appendOrUpdateText(token)

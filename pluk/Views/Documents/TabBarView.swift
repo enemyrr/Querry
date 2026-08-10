@@ -547,7 +547,6 @@ final class TabBarView: NSView {
     private func updateSidebarToggleAppearance() {
         let isActive = appViewModel.isRightSidebarVisible
         sidebarToggleButton.contentTintColor = isActive ? .labelColor : .secondaryLabelColor
-        sidebarToggleButton.keepsHoverVisible = isActive
     }
 
     // MARK: - Actions

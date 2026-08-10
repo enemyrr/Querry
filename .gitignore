@@ -93,3 +93,7 @@ iOSInjectionProject/
 
 # Developer ID provisioning profile (embedded at signing time, not committed)
 *.provisionprofile
+
+# Local environment files (never commit real keys)
+.env
+.env.local

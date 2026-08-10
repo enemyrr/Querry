@@ -438,13 +438,15 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         controller.prewarmFetch()
     }
 
-    func createSQLEditorTab(withQuery query: String? = nil) {
+    func createSQLEditorTab(withQuery query: String? = nil, autoRun: Bool = false, schema: String? = nil) {
         let newTab = DatabaseTab(
             name: "Query Editor",
             type: .sqlEditor,
-            queryState: .idle
+            queryState: .idle,
+            databaseSchema: schema
         )
         newTab.initialQuery = query
+        newTab.autoRunInitialQuery = autoRun && query != nil
         tabs.append(newTab)
 
         selectedTab = newTab

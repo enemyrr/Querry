@@ -13,7 +13,7 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
     init(dataController: NotebookDataController) {
         self.dataController = dataController
         self.chatController = AgentChatController(
-            notebookId: dataController.notebookId,
+            scopeId: dataController.notebookId,
             modelContainer: dataController.modelContainer,
             notebookDataController: dataController
         )

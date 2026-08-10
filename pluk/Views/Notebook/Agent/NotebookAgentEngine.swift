@@ -39,6 +39,76 @@ struct DashboardArrangementRequest {
     let switchToDashboard: Bool
 }
 
+/// Snapshot of the table currently open in the table viewer, injected into the
+/// agent's system prompt when chatting from the table sidebar (no notebook).
+/// The app has usually already loaded the schema, table list, and database
+/// list by the time the sidebar opens — passing them here lets the agent skip
+/// redundant discovery tool calls.
+struct TableAgentContext {
+    let tableName: String
+    var schemaName: String?
+    var databaseName: String?
+    var filterDescription: String?
+    /// Pre-rendered column lines for the current table (name, type, nullability,
+    /// FKs) from the table viewer's already-fetched schema.
+    var columnLines: [String] = []
+    /// Tables already discovered in the current database (rendered as
+    /// `schema.table` where applicable).
+    var knownTables: [String] = []
+    /// Databases already discovered on the connection.
+    var knownDatabases: [String] = []
+}
+
+/// How the table chat handles data-modifying statements from the agent.
+enum AgentWriteApprovalMode: String, CaseIterable {
+    /// Every data-modifying statement requires explicit user approval.
+    case askApproval
+    /// Routine writes run automatically; risky statements (DROP, TRUNCATE,
+    /// ALTER, CREATE, or DELETE/UPDATE without a WHERE) still ask.
+    case autoApprove
+
+    var displayName: String {
+        switch self {
+        case .askApproval: "Ask for approval"
+        case .autoApprove: "Approve for me"
+        }
+    }
+
+    var menuDescription: String {
+        switch self {
+        case .askApproval: "Always ask before running a data-modifying statement"
+        case .autoApprove: "Run routine changes, ask only for risky statements"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .askApproval: "hand.raised"
+        case .autoApprove: "exclamationmark.shield"
+        }
+    }
+}
+
+/// Everything the user needs to see before approving a data-modifying
+/// statement: the exact SQL and the exact execution target.
+struct WriteApprovalRequest {
+    let query: String
+    let connection: Connection
+    /// Resolved database the statement will run against (may be empty when
+    /// the connection has no default database).
+    let databaseName: String
+    let schemaName: String?
+}
+
+/// Which UI surface the agent is serving — decides the system prompt and toolset.
+enum AgentSurface {
+    /// Notebook agent panel: full block-creation toolset plus block inventory.
+    case notebook(blocks: [NotebookBlock])
+    /// Table viewer chat sidebar: exploration-only tools, answers stay in chat.
+    /// Context is nil when no table tab is open.
+    case table(TableAgentContext?)
+}
+
 private struct AgentGenerationConfig {
     let temperature: Double
     let thinkingMode: BedrockThinkingMode
@@ -53,6 +123,24 @@ final class NotebookAgentEngine {
     private(set) var pendingDashboardArrangement: DashboardArrangementRequest?
 
     private let driverSession = AgentDriverSession()
+
+    /// Table-chat write access mode. Writes are impossible unless the hosting
+    /// surface also wires `writeApprovalHandler` — the write tool is only
+    /// offered, and can only execute, when a handler exists. The notebook
+    /// agent never wires one, so it stays read-only.
+    var writeApprovalMode: AgentWriteApprovalMode = .askApproval
+    /// Asks the user to approve a data-modifying statement before it runs.
+    /// Returns true when the user approved. Set by the table chat sidebar.
+    var writeApprovalHandler: (@MainActor (WriteApprovalRequest) async -> Bool)?
+    /// Fired after a write statement executes successfully so the hosting
+    /// surface can refresh what's on screen.
+    var onWriteExecuted: (@MainActor () -> Void)?
+    /// Opens a SQL editor tab preloaded with the given query (and its
+    /// database/schema context) so the user can explore full result sets in
+    /// the real table view. Returns nil on success or an error string for the
+    /// model (e.g. the requested database isn't the connected one). Set by the
+    /// table chat sidebar; the `open_query_tab` tool is only offered when wired.
+    var onOpenQueryTab: (@MainActor (_ query: String, _ databaseName: String?, _ schemaName: String?) -> String?)?
 
     /// Pre-fetched Convex deployment names keyed by connection keychainId
     private(set) var convexDeployments: [String: [String]] = [:]
@@ -400,23 +488,7 @@ final class NotebookAgentEngine {
         """
 
         // Dynamic block: connections and notebook blocks — changes between rounds
-        let connectionList: String
-        if connections.isEmpty {
-            connectionList = "No connections selected. Ask the user to select a connection using the picker below the chat input."
-        } else {
-            connectionList = connections.map { conn in
-                let dbName: String
-                if conn.databaseType == .convex {
-                    // For Convex, defaultDatabase may be the connection name (wrong).
-                    // Use the first pre-fetched deployment name instead.
-                    let deployments = convexDeployments[conn.keychainId] ?? []
-                    dbName = deployments.first ?? conn.defaultDatabase ?? "default"
-                } else {
-                    dbName = conn.defaultDatabase ?? "default"
-                }
-                return "- \(conn.name): connection_keychain_id: \(conn.keychainId), connection_name: \(conn.name), database_type: \(conn.databaseType.rawValue), database_name: \(dbName)"
-            }.joined(separator: "\n")
-        }
+        let connectionList = connectionListSection(connections: connections)
 
         let blockInventory: String
         if blocks.isEmpty {
@@ -478,6 +550,188 @@ final class NotebookAgentEngine {
         return "\(staticPrompt)\n\n\(dynamicPrompt)"
     }
 
+    private func connectionListSection(connections: [Connection]) -> String {
+        guard !connections.isEmpty else {
+            return "No connections selected. Ask the user to select a connection using the picker below the chat input."
+        }
+        return connections.map { conn in
+            let dbName: String
+            if conn.databaseType == .convex {
+                // For Convex, defaultDatabase may be the connection name (wrong).
+                // Use the first pre-fetched deployment name instead.
+                let deployments = convexDeployments[conn.keychainId] ?? []
+                dbName = deployments.first ?? conn.defaultDatabase ?? "default"
+            } else {
+                dbName = conn.defaultDatabase ?? "default"
+            }
+            return "- \(conn.name): connection_keychain_id: \(conn.keychainId), connection_name: \(conn.name), database_type: \(conn.databaseType.rawValue), database_name: \(dbName)"
+        }.joined(separator: "\n")
+    }
+
+    // MARK: - Table Chat System Prompt
+
+    func buildTableSystemPrompt(
+        connections: [Connection],
+        tableContext: TableAgentContext?,
+        conversationSummary: String? = nil
+    ) -> String {
+        let staticPrompt = """
+        You are Pluk AI — the built-in data analyst for Pluk, a database client for macOS. Always refer to yourself as "Pluk AI" (never "data analysis assistant", "AI assistant", or similar generic labels). The user is browsing a database table in Pluk's table viewer and is chatting with you in a sidebar next to it. Help them understand, explore, and query their data. Your answers appear only in this chat — you cannot create charts, notebooks, or any other content.
+
+        <tools>
+        - `list_databases` — Discover all databases on a connection
+        - `list_tables` — Discover tables in a connection (supports `database_name` param)
+        - `get_table_schema` — Column names, types, keys, constraints (supports `database_name` param)
+        - `run_query` — Execute a read-only query (SQL for SQL databases; JavaScript for Convex). Results are returned to you only — surface the relevant findings in your reply.
+        - `open_query_tab` — Open a query editor tab with a read-only SQL query preloaded and running, next to this chat. Use it when the full result set is too large to present in chat (roughly more than 15 rows), or when the user asks to see, browse, or explore full results. Summarize the highlights in chat and mention the tab is open. Do not use it for exploratory queries whose results only you need.
+        </tools>
+
+        <sql_statement_rules>
+        `run_query` and `open_query_tab` accept ONE read-only statement each. They reject anything containing a data-modifying keyword anywhere in the text — including inside CTEs, subqueries, comments, or string literals — and reject multiple statements separated by semicolons. Send exactly one SELECT (or WITH … SELECT, EXPLAIN, SHOW, DESCRIBE) with no trailing extras.
+
+        Data modification goes only through `run_write_query`, one statement per call. Do not try to smuggle a write into a read tool, and do not batch several statements into one call — send them as separate calls so each is approved on its own.
+        </sql_statement_rules>
+
+        <preloaded_context>
+        The app has already loaded context for you, provided later in this prompt:
+        - <current_table> usually includes the open table's full column schema.
+        - <known_tables> lists tables already discovered in the current database.
+        - <known_databases> lists databases already discovered on the connection.
+        Never call `get_table_schema`, `list_tables`, or `list_databases` to re-fetch information already present in those blocks — go straight to `run_query` or answer directly. Call discovery tools only for information genuinely missing, such as another table's columns or a database not listed.
+        </preloaded_context>
+
+        <tool_call_contract>
+        - Use only parameter names defined in the tool schema.
+        - Copy `connection_keychain_id`, `database_type`, and `database_name` exactly from <available_connections>.
+        - Copy table names and column names exactly from `list_tables`, `get_table_schema`, or query output. Do not rename, normalize, or paraphrase them.
+        - If any required field is unknown, call another discovery tool instead of guessing.
+        - After any tool error, send a corrected tool call that fixes the reported fields.
+        - Parallelize independent exploratory reads such as several `get_table_schema` or `run_query` calls.
+        </tool_call_contract>
+
+        <intent_classification>
+        Before doing anything, determine the scope of the user's request.
+
+        Conversational follow-up — the user asks a question you can answer from data already in the conversation (prior tool results, query output, or your own earlier analysis). Do NOT call any tools. Just answer directly.
+
+        Targeted question — the user asks something specific about the open table ("how many rows have status failed?", "what does this column mean?"). Call `get_table_schema` on the current table if you haven't yet, run the minimal queries needed, and answer.
+
+        Broader exploration — the question spans other tables or databases ("which table stores invoices?", "compare this to last year's table"). Use `list_tables` / `list_databases` to find what you need, then query it.
+        </intent_classification>
+
+        <workflow>
+        1. The user's question is about the table in <current_table> unless they say otherwise.
+        2. Use the column schema in <current_table> when present; call `get_table_schema` only when it is missing. Never guess column names.
+        3. Keep exploratory result sets small — add LIMIT (or the equivalent) of 100 or less unless the user asks for more.
+        4. Answer in concise markdown. Use a markdown table when presenting rows; cite specific numbers from query results.
+        5. If the active filter in <current_table> is relevant to the question, respect it in your queries and mention that you did.
+        </workflow>
+
+        <writing_style>
+        - When greeting the user or introducing yourself, be brief and direct — e.g. "Hey, I'm Pluk AI. What would you like to know about this table?" Do not list capabilities in bullet points.
+        - Do not use emoji. Keep a clean, professional tone.
+        - Use em dashes (—) instead of parenthetical asides.
+        - Cite specific numbers: "Revenue grew 440x from $1.2K to $528K" not "Revenue grew significantly".
+        - Bold key metrics: **$528K**, **3.2x growth**, **42% of total**.
+        - Keep answers dense with insight, no filler. Professional but direct tone, like a senior analyst.
+        </writing_style>
+
+        <rules>
+        - `run_query` is strictly read-only. Never attempt INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or CREATE through it, and never wrap one in a CTE or comment to get around the check — the statement is rejected and the attempt is visible to the user.
+        - Modify data only through `run_write_query` when it is available, and only when the user explicitly asks for a change — never as a side effect of answering a question. Write precise statements (always a WHERE clause on UPDATE/DELETE unless the user asked for a full-table change), one statement per call, and report exactly what changed afterwards. The user may be asked to approve the statement first; if they decline, do not retry — ask how they'd like to proceed.
+        - If no write tool is available and the user asks for a modification, explain that this chat can only read data and suggest the table editor instead.
+        - Every statistic in your answer must come from a `run_query` result or prior tool output.
+        - If a query returns unexpected data (nulls, zeros, outliers, empty results), run a follow-up query to investigate before drawing conclusions.
+        - If no connection is available, ask the user to pick one from the connection picker.
+        </rules>
+
+        <conversation_memory>
+        If a <conversation_summary> block is present later in this prompt, treat it as durable memory from earlier turns. Use it to preserve prior decisions and unresolved user requests, but prefer newer explicit user messages if they conflict with the summary.
+        </conversation_memory>
+        """
+
+        let currentTable: String
+        var knownTablesSection = ""
+        var knownDatabasesSection = ""
+        if let tableContext {
+            var lines = ["table_name: \(tableContext.tableName)"]
+            if let schemaName = tableContext.schemaName, !schemaName.isEmpty {
+                lines.append("schema_name: \(schemaName)")
+            }
+            if let databaseName = tableContext.databaseName, !databaseName.isEmpty {
+                lines.append("database_name: \(databaseName)")
+            }
+            if let filterDescription = tableContext.filterDescription, !filterDescription.isEmpty {
+                lines.append("active_filter: \(filterDescription)")
+            }
+            if !tableContext.columnLines.isEmpty {
+                lines.append("columns:")
+                lines.append(contentsOf: tableContext.columnLines.map { "  \($0)" })
+            }
+            currentTable = lines.joined(separator: "\n")
+
+            if !tableContext.knownTables.isEmpty {
+                knownTablesSection = """
+
+                <known_tables>
+                \(tableContext.knownTables.map { "- \($0)" }.joined(separator: "\n"))
+                </known_tables>
+                """
+            }
+            if !tableContext.knownDatabases.isEmpty {
+                knownDatabasesSection = """
+
+                <known_databases>
+                \(tableContext.knownDatabases.map { "- \($0)" }.joined(separator: "\n"))
+                </known_databases>
+                """
+            }
+        } else {
+            currentTable = "No table is currently open. Ask the user what they'd like to explore, or use `list_tables` to discover the data."
+        }
+
+        let summaryPrompt: String
+        if let conversationSummary, !conversationSummary.isEmpty {
+            summaryPrompt = """
+            <conversation_summary>
+            \(conversationSummary)
+            </conversation_summary>
+
+            """
+        } else {
+            summaryPrompt = ""
+        }
+
+        let writeAccess: String
+        if writeApprovalHandler == nil {
+            writeAccess = "Data modification is disabled — you can only read data."
+        } else {
+            writeAccess = switch writeApprovalMode {
+            case .askApproval:
+                "`run_write_query` is available. Every statement you send through it is shown to the user for approval before it runs."
+            case .autoApprove:
+                "`run_write_query` is available. Only strictly routine single statements run automatically — an INSERT, or an UPDATE/DELETE with a WHERE clause, containing no other keywords. Everything else (schema changes, CTEs, unbounded mutations, multiple statements) is shown to the user for approval first."
+            }
+        }
+
+        let dynamicPrompt = """
+        \(summaryPrompt)<current_table>
+        \(currentTable)
+        </current_table>
+        \(knownTablesSection)\(knownDatabasesSection)
+        <write_access>
+        \(writeAccess)
+        </write_access>
+
+        <available_connections>
+        \(connectionListSection(connections: connections))
+        </available_connections>
+        \(convexHint(connections: connections))
+        """
+
+        return "\(staticPrompt)\n\n\(dynamicPrompt)"
+    }
+
     // MARK: - Tool Definitions
 
     func buildTools(connections: [Connection]) -> [BedrockGLMToolDefinition] {
@@ -500,22 +754,60 @@ final class NotebookAgentEngine {
         return tools
     }
 
+    /// Exploration toolset for the table chat sidebar — no notebook block or
+    /// dashboard tools. The write tool joins only when the user has enabled
+    /// writes and the surface wired an approval handler.
+    func buildTableTools(connections: [Connection]) -> [BedrockGLMToolDefinition] {
+        var tools: [BedrockGLMToolDefinition] = [
+            listTablesTool,
+            listDatabasesTool,
+            getTableSchemaTool,
+            runQueryTool,
+        ]
+
+        if writeApprovalHandler != nil {
+            tools.append(runWriteQueryTool)
+        }
+
+        if onOpenQueryTab != nil {
+            tools.append(openQueryTabTool)
+        }
+
+        if connections.contains(where: { $0.databaseType == .convex }) {
+            tools.append(convexQueryGuideTool)
+        }
+
+        return tools
+    }
+
     // MARK: - API Round (Streaming)
 
     func performRound(
         messages: [BedrockGLMChatMessage],
         connections: [Connection],
-        blocks: [NotebookBlock] = [],
+        surface: AgentSurface = .notebook(blocks: []),
         conversationSummary: String? = nil,
         onToken: @MainActor @Sendable (String) -> Void = { _ in },
         onThinking: @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> AgentRoundResult {
-        let tools = buildTools(connections: connections)
-        let systemPrompt = buildSystemPrompt(
-            connections: connections,
-            blocks: blocks,
-            conversationSummary: conversationSummary
-        )
+        let tools: [BedrockGLMToolDefinition]
+        let systemPrompt: String
+        switch surface {
+        case .notebook(let blocks):
+            tools = buildTools(connections: connections)
+            systemPrompt = buildSystemPrompt(
+                connections: connections,
+                blocks: blocks,
+                conversationSummary: conversationSummary
+            )
+        case .table(let tableContext):
+            tools = buildTableTools(connections: connections)
+            systemPrompt = buildTableSystemPrompt(
+                connections: connections,
+                tableContext: tableContext,
+                conversationSummary: conversationSummary
+            )
+        }
         let generationConfig = generationConfig(for: messages)
 
         let response = try await BedrockService.shared.notebookChatCompletionStream(
@@ -565,6 +857,10 @@ final class NotebookAgentEngine {
             result = await executeGetTableSchema(json: json, connections: connections)
         case "run_query":
             result = await executeRunQuery(json: json, connections: connections)
+        case "run_write_query":
+            result = await executeRunWriteQuery(json: json, connections: connections)
+        case "open_query_tab":
+            result = executeOpenQueryTab(json: json, connections: connections)
         case "create_chart_block":
             result = await executeCreateChartBlock(json: json, connections: connections)
         case "create_single_value_block":
@@ -709,10 +1005,95 @@ final class NotebookAgentEngine {
         return output
     }
 
+    // MARK: - SQL Safety
+
+    /// Keywords that modify data or schema. Scanned as whole words across the
+    /// entire statement — not just the prefix — so writes hidden behind
+    /// comments, CTEs (`WITH ... DELETE`), or subclauses are caught.
+    /// Deliberately conservative: a SELECT that merely mentions one of these
+    /// (e.g. in a string literal) is rejected and routed through approval.
+    private static let writeKeywords = [
+        "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE",
+        "REPLACE", "MERGE", "UPSERT", "GRANT", "REVOKE", "ATTACH", "DETACH",
+        "VACUUM", "REINDEX", "PRAGMA",
+    ]
+
+    /// Statement-level keywords that make a write non-routine: schema changes,
+    /// multi-part constructs, and anything that can smuggle a second operation.
+    private static let riskyWriteKeywords = [
+        "DROP", "ALTER", "TRUNCATE", "CREATE", "REPLACE", "MERGE", "UPSERT",
+        "GRANT", "REVOKE", "ATTACH", "DETACH", "VACUUM", "REINDEX", "PRAGMA",
+        "WITH",
+    ]
+
+    /// Strips leading whitespace, `--` line comments, and `/* */` block
+    /// comments so classification sees the first real keyword.
+    private static func stripLeadingTrivia(_ sql: String) -> Substring {
+        var rest = Substring(sql)
+        while true {
+            rest = rest.drop(while: { $0.isWhitespace })
+            if rest.hasPrefix("--") {
+                guard let newline = rest.firstIndex(where: \.isNewline) else { return "" }
+                rest = rest[rest.index(after: newline)...]
+            } else if rest.hasPrefix("/*") {
+                guard let close = rest.range(of: "*/") else { return "" }
+                rest = rest[close.upperBound...]
+            } else {
+                return rest
+            }
+        }
+    }
+
+    private static func firstKeyword(of sql: String) -> String {
+        stripLeadingTrivia(sql).prefix(while: { $0.isLetter || $0 == "_" }).uppercased()
+    }
+
+    /// True when the statement is a single statement: no semicolons other than
+    /// one trailing terminator. Conservative — a semicolon inside a string
+    /// literal also rejects.
+    private static func isSingleStatement(_ sql: String) -> Bool {
+        var body = Substring(sql).trimmingCharacters(in: .whitespacesAndNewlines)
+        while body.hasSuffix(";") {
+            body = String(body.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return !body.contains(";")
+    }
+
+    private static func containsWholeWord(of keywords: [String], in sql: String) -> Bool {
+        let upper = sql.uppercased()
+        guard let regex = try? NSRegularExpression(pattern: "\\b(" + keywords.joined(separator: "|") + ")\\b") else {
+            return true
+        }
+        return regex.firstMatch(in: upper, range: NSRange(upper.startIndex..., in: upper)) != nil
+    }
+
+    /// True only for a single read-only statement. This is the security
+    /// boundary for `run_query` and `open_query_tab` — anything that fails
+    /// must go through `run_write_query`'s approval flow.
+    static func isReadOnlyStatement(_ sql: String) -> Bool {
+        let readPrefixes: Set<String> = ["SELECT", "WITH", "EXPLAIN", "SHOW", "DESCRIBE", "DESC"]
+        return readPrefixes.contains(firstKeyword(of: sql))
+            && isSingleStatement(sql)
+            && !containsWholeWord(of: writeKeywords, in: sql)
+    }
+
+    /// True only for a single routine data write that auto-approve mode may
+    /// run without asking: INSERT, or UPDATE/DELETE with a WHERE clause, with
+    /// no schema-modifying or statement-smuggling keywords anywhere.
+    static func isRoutineWrite(_ sql: String) -> Bool {
+        let first = firstKeyword(of: sql)
+        guard ["INSERT", "UPDATE", "DELETE"].contains(first), isSingleStatement(sql) else {
+            return false
+        }
+        if first != "INSERT" && !containsWholeWord(of: ["WHERE"], in: sql) {
+            return false
+        }
+        return !containsWholeWord(of: riskyWriteKeywords, in: sql)
+    }
+
     // MARK: - Run Query
 
     private static let schemaCapableTypes: Set<DatabaseType> = [.postgres, .supabase, .mysql, .convex]
-    private static let blockedPrefixes = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]
 
     private func formatStoredQuery(_ query: String, databaseType: String) -> String {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -742,11 +1123,8 @@ final class NotebookAgentEngine {
         }
 
         // Block SQL write operations for non-Convex databases (Convex enforces read-only server-side)
-        if conn.databaseType != .convex {
-            let trimmedUpper = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-            if Self.blockedPrefixes.contains(where: { trimmedUpper.hasPrefix($0) }) {
-                return "Error: run_query only supports read-only SELECT queries. Write operations are not allowed."
-            }
+        if conn.databaseType != .convex, !Self.isReadOnlyStatement(query) {
+            return "Error: run_query only accepts a single read-only SELECT statement — no data-modifying keywords anywhere in the statement, no multiple statements. Use run_write_query for data modifications."
         }
 
         do {
@@ -762,6 +1140,87 @@ final class NotebookAgentEngine {
         } catch {
             return "Error executing query: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Run Write Query (user-approved)
+
+    private func executeRunWriteQuery(json: [String: Any], connections: [Connection]) async -> String {
+        guard let query = json["query"] as? String else {
+            return "Error: query is required"
+        }
+        guard let conn = resolveConnection(json: json, connections: connections) else {
+            return "Error: No connection available"
+        }
+        if conn.databaseType == .convex {
+            return "Error: Data modification is not supported for Convex connections."
+        }
+        // The security boundary — a write can never run without a wired
+        // approval path (the notebook agent never wires one).
+        guard let writeApprovalHandler else {
+            return "Error: Data modification is disabled. This chat can only read data."
+        }
+
+        // Resolve the exact execution target BEFORE approval so the user sees
+        // precisely where the statement will run.
+        let schemaName = json["schema_name"] as? String
+        let databaseName = (json["database_name"] as? String) ?? conn.defaultDatabase ?? ""
+
+        // Auto-approve only covers strictly routine single-statement writes;
+        // everything else — hidden statements, CTEs, schema changes,
+        // unbounded mutations — is shown to the user.
+        let needsApproval = writeApprovalMode == .askApproval || !Self.isRoutineWrite(query)
+        if needsApproval {
+            let request = WriteApprovalRequest(
+                query: query,
+                connection: conn,
+                databaseName: databaseName,
+                schemaName: schemaName
+            )
+            let approved = await writeApprovalHandler(request)
+            guard approved else {
+                return "The user declined to run this statement. Do not retry it — ask the user how they'd like to proceed."
+            }
+        }
+
+        do {
+            try await driverSession.connect(
+                databaseType: conn.databaseType,
+                uri: conn.connectionUri,
+                keychainId: conn.keychainId,
+                databaseName: databaseName
+            )
+            let results = try await driverSession.executeRawQuery(query, schema: schemaName)
+            onWriteExecuted?()
+            return "Statement executed successfully.\n\(formatQueryResults(results))"
+        } catch {
+            return "Error executing statement: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - Open Query Tab
+
+    private func executeOpenQueryTab(json: [String: Any], connections: [Connection]) -> String {
+        guard let query = json["query"] as? String, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "Error: query is required"
+        }
+        guard let onOpenQueryTab else {
+            return "Error: Opening query tabs is not available in this context."
+        }
+        if connections.first?.databaseType == .convex {
+            return "Error: open_query_tab is not supported for Convex connections."
+        }
+        // The tab auto-runs, so this must be a single provably read-only
+        // statement — writes go through run_write_query's approval flow.
+        guard Self.isReadOnlyStatement(query) else {
+            return "Error: open_query_tab only accepts a single read-only SELECT statement — no data-modifying keywords anywhere, no multiple statements. Use run_write_query for data modifications."
+        }
+
+        let databaseName = json["database_name"] as? String
+        let schemaName = json["schema_name"] as? String
+        if let failure = onOpenQueryTab(query, databaseName, schemaName) {
+            return failure
+        }
+        return "Opened a query editor tab with the query running. The user can now explore the full results there."
     }
 
     private func formatQueryResults(_ results: [QueryResult]) -> String {
@@ -1371,8 +1830,12 @@ final class NotebookAgentEngine {
     }
 
     private func resolveConnection(json: [String: Any], connections: [Connection]) -> Connection? {
-        if let keychainId = json["connection_keychain_id"] as? String {
-            return connections.first { $0.keychainId == keychainId }
+        // Fall back to the first selected connection when the model passes a
+        // stale or mistyped keychainId — failing outright surfaces a confusing
+        // "no connection available" error even though a connection is selected.
+        if let keychainId = json["connection_keychain_id"] as? String,
+           let match = connections.first(where: { $0.keychainId == keychainId }) {
+            return match
         }
         return connections.first
     }
@@ -1611,6 +2074,56 @@ final class NotebookAgentEngine {
                 "database_name": .object([
                     "type": .string("string"),
                     "description": .string("Database name to connect to. If omitted, uses the connection's default database. Use list_databases to discover available databases."),
+                ]),
+            ]),
+            "required": .array([.string("connection_keychain_id"), .string("query")]),
+        ]
+    )
+
+    private let openQueryTabTool = BedrockGLMToolDefinition(
+        name: "open_query_tab",
+        description: "Open a new query editor tab in Pluk with a read-only SQL query preloaded and running, so the user can browse, sort, and explore the full result set in the real table view. Use when a result set is too large to show meaningfully in chat, or when the user asks to see or explore the full results. The tab runs against the connection's current database — always pass the database_name and schema_name you used in the preceding run_query calls, and qualify table names with schema when outside the default.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "query": .object([
+                    "type": .string("string"),
+                    "description": .string("The read-only SQL query to load and run in the new tab."),
+                ]),
+                "database_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Database the query targets. Must match the database used in preceding run_query calls; omit for the connection's default database."),
+                ]),
+                "schema_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Schema the query targets (optional, e.g. 'public' for PostgreSQL)."),
+                ]),
+            ]),
+            "required": .array([.string("query")]),
+        ]
+    )
+
+    private let runWriteQueryTool = BedrockGLMToolDefinition(
+        name: "run_write_query",
+        description: "Execute a data-modifying SQL statement (INSERT, UPDATE, DELETE, etc.). Use ONLY when the user explicitly asks to change data. The user is shown the exact statement and may need to approve it before it runs. Always include a WHERE clause on UPDATE/DELETE unless the user explicitly asked for a full-table change.",
+        inputSchema: [
+            "type": .string("object"),
+            "properties": .object([
+                "connection_keychain_id": .object([
+                    "type": .string("string"),
+                    "description": .string("The keychainId of the connection to run the statement on"),
+                ]),
+                "query": .object([
+                    "type": .string("string"),
+                    "description": .string("The exact data-modifying SQL statement to run. One statement only."),
+                ]),
+                "schema_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Schema name (optional, e.g. 'public' for PostgreSQL)"),
+                ]),
+                "database_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Database name to connect to. If omitted, uses the connection's default database."),
                 ]),
             ]),
             "required": .array([.string("connection_keychain_id"), .string("query")]),

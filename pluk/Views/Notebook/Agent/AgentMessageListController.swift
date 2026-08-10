@@ -350,6 +350,11 @@ final class AgentMessageListController: NSViewController {
         row.setContentHuggingPriority(.defaultLow, for: .horizontal)
         row.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         row.translatesAutoresizingMaskIntoConstraints = false
+        // Separate each user bubble from the assistant message above it — the
+        // stack's 2pt spacing reads cramped between conversation turns.
+        if row.role == .user, let previous = stackView.arrangedSubviews.last {
+            stackView.setCustomSpacing(6, after: previous)
+        }
         stackView.addArrangedSubview(row)
         NSLayoutConstraint.activate([
             row.leadingAnchor.constraint(equalTo: stackView.leadingAnchor),

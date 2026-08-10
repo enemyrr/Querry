@@ -20,7 +20,9 @@
       "Bash(/Applications/Xcode.app/Contents/Developer/usr/bin/xctrace export:*)",
       "Bash(aws logs:*)",
       "Bash(xcodebuild:*)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(rg -rn \"bookmark\" pluk/Models/Connection.swift)",
+      "Bash(rg -ril \"create table\" pluk/)"
     ],
     "deny": [],
     "ask": [],

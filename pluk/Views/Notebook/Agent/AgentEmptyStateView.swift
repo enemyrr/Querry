@@ -2,23 +2,31 @@ import AppKit
 
 final class AgentEmptyStateView: NSView {
 
+    static let notebookSuggestions: [(icon: String, label: String)] = [
+        ("chart.bar.xaxis", "Analyze trends over time"),
+        ("sparkle.magnifyingglass", "Explore and visualize this data"),
+        ("text.below.photo", "Build a dashboard with insights"),
+    ]
+
+    static let tableSuggestions: [(icon: String, label: String)] = [
+        ("tablecells", "Summarize this table"),
+        ("sparkle.magnifyingglass", "Find interesting patterns in this data"),
+        ("questionmark.circle", "Explain what each column means"),
+    ]
+
     var onSuggestionSelected: (String) -> Void = { _ in }
 
     private let stackView: NSStackView
 
-    override init(frame: NSRect) {
-        let rows: [(icon: String, label: String)] = [
-            ("chart.bar.xaxis", "Analyze trends over time"),
-            ("sparkle.magnifyingglass", "Explore and visualize this data"),
-            ("text.below.photo", "Build a dashboard with insights"),
-        ]
+    init(suggestions: [(icon: String, label: String)] = AgentEmptyStateView.notebookSuggestions) {
+        let rows = suggestions
 
         stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 0
 
-        super.init(frame: frame)
+        super.init(frame: .zero)
 
         for row in rows {
             let suggestionRow = AgentSuggestionRowView(iconName: row.icon, label: row.label) { [weak self] in

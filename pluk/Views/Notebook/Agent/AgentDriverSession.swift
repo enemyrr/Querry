@@ -6,20 +6,26 @@ actor AgentDriverSession {
     private var connectedDatabaseName: String?
 
     func connect(databaseType: DatabaseType, uri: String, keychainId: String, databaseName: String) async throws {
-        let cacheKey = "\(keychainId)|\(databaseName)"
+        // A SQLite connection is a single file — its "database name" is just
+        // the file's display name. Switching to it would tear down the
+        // connection (dropping security-scoped file access) and try to reopen
+        // the bare name as a path, silently leaving the driver disconnected.
+        let effectiveDatabaseName = databaseType == .sqlite ? "" : databaseName
+
+        let cacheKey = "\(keychainId)|\(effectiveDatabaseName)"
         let currentKey = connectedKeychainId.map { "\($0)|\(connectedDatabaseName ?? "")" }
         if cacheKey == currentKey { return }
 
         let newDriver = DatabaseDriverFactory.createDriver(for: databaseType)
         _ = try await newDriver.connect(to: uri)
-        if !databaseName.isEmpty {
-            try? await newDriver.switchDatabase(to: databaseName)
+        if !effectiveDatabaseName.isEmpty {
+            try? await newDriver.switchDatabase(to: effectiveDatabaseName)
         }
 
         await driver?.disconnect()
         driver = newDriver
         connectedKeychainId = keychainId
-        connectedDatabaseName = databaseName
+        connectedDatabaseName = effectiveDatabaseName
     }
 
     func listCollections(schema: String?) async throws -> [any CollectionWrapper] {

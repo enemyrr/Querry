@@ -5,7 +5,7 @@ final class AgentMessageRowView: NSView {
     var onRetry: (() -> Void)?
     var onFeedbackChanged: ((AgentMessageFeedback?) -> Void)?
 
-    private let role: AgentMessageRole
+    let role: AgentMessageRole
     private let showsTokenBudgetNotice: Bool
     private let textView: NSTextView
     private var containerView: NSView?

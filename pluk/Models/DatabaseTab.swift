@@ -32,6 +32,8 @@ final class DatabaseTab: Identifiable, Equatable, Transferable {
 
     // Initial query for SQL Editor tabs (transient, not persisted)
     var initialQuery: String?
+    // Execute initialQuery as soon as the editor mounts (transient, not persisted)
+    var autoRunInitialQuery: Bool = false
 
     // Function editor metadata (transient, not persisted)
     var functionOid: String?

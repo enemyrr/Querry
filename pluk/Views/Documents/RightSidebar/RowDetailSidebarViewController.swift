@@ -4,27 +4,15 @@ import Observation
 @MainActor
 final class RowDetailSidebarViewController: NSViewController {
 
-    private enum Layout {
-        static let minWidth: CGFloat = 200
-        static let maxWidth: CGFloat = 500
-    }
-
     private let instance: ConnectionInstance
-    private let appViewModel: AppViewModel
-    private let onWidthChange: ((CGFloat) -> Void)?
 
-    private let dividerView = SidebarResizeHandleView()
     private let contentContainer = NSView()
-    private let headerContainer = NSView()
-    private let headerLabel = NSTextField(labelWithString: "FIELDS")
-    private let headerDivider = NSView()
     private let scrollView = NSScrollView()
     private let contentStackView = NSStackView()
     private let fieldsStackView = NSStackView()
     private let actionsContainerView = NSView()
     private let emptyStateStackView = NSStackView()
 
-    nonisolated(unsafe) private var scrollObserver: NSObjectProtocol?
     nonisolated(unsafe) private var appearanceObserver: NSObjectProtocol?
     nonisolated(unsafe) private var copiedResetTask: Task<Void, Never>?
 
@@ -38,14 +26,8 @@ final class RowDetailSidebarViewController: NSViewController {
     private var isDeleting = false
     private var deleteError: String?
 
-    init(
-        instance: ConnectionInstance,
-        appViewModel: AppViewModel,
-        onWidthChange: ((CGFloat) -> Void)? = nil
-    ) {
+    init(instance: ConnectionInstance) {
         self.instance = instance
-        self.appViewModel = appViewModel
-        self.onWidthChange = onWidthChange
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -54,9 +36,6 @@ final class RowDetailSidebarViewController: NSViewController {
     }
 
     deinit {
-        if let scrollObserver {
-            NotificationCenter.default.removeObserver(scrollObserver)
-        }
         if let appearanceObserver {
             NotificationCenter.default.removeObserver(appearanceObserver)
         }
@@ -64,6 +43,7 @@ final class RowDetailSidebarViewController: NSViewController {
     }
 
     private var hasLoadedInitialContent = false
+    private var needsReloadOnAttach = false
 
     override func loadView() {
         let rootView = NSView()
@@ -73,7 +53,6 @@ final class RowDetailSidebarViewController: NSViewController {
         view = rootView
 
         setupLayout()
-        headerContainer.isHidden = true
         scrollView.isHidden = true
         emptyStateStackView.isHidden = true
         setupObservation()
@@ -88,32 +67,7 @@ final class RowDetailSidebarViewController: NSViewController {
     }
 
     private func setupLayout() {
-        dividerView.translatesAutoresizingMaskIntoConstraints = false
-        dividerView.onDrag = { [weak self] delta in
-            guard let self else { return }
-            let newWidth = max(
-                Layout.minWidth,
-                min(Layout.maxWidth, self.appViewModel.rightSidebarWidth - delta)
-            )
-            guard newWidth != self.appViewModel.rightSidebarWidth else { return }
-            self.appViewModel.rightSidebarWidth = newWidth
-            self.onWidthChange?(newWidth)
-        }
-
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
-
-        headerContainer.translatesAutoresizingMaskIntoConstraints = false
-        headerLabel.translatesAutoresizingMaskIntoConstraints = false
-        headerLabel.font = .systemFont(ofSize: 11, weight: .semibold)
-        headerLabel.textColor = .secondaryLabelColor
-        headerLabel.alignment = .left
-
-        headerDivider.translatesAutoresizingMaskIntoConstraints = false
-        headerDivider.wantsLayer = true
-        headerDivider.isHidden = true
-
-        headerContainer.addSubview(headerLabel)
-        headerContainer.addSubview(headerDivider)
 
         let documentView = FlippedSidebarContentView()
         documentView.translatesAutoresizingMaskIntoConstraints = false
@@ -139,7 +93,6 @@ final class RowDetailSidebarViewController: NSViewController {
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = documentView
-        scrollView.contentView.postsBoundsChangedNotifications = true
 
         emptyStateStackView.orientation = .vertical
         emptyStateStackView.alignment = .centerX
@@ -164,38 +117,17 @@ final class RowDetailSidebarViewController: NSViewController {
         emptyStateStackView.addArrangedSubview(emptyIcon)
         emptyStateStackView.addArrangedSubview(emptyLabel)
 
-        view.addSubview(dividerView)
         view.addSubview(contentContainer)
-        contentContainer.addSubview(headerContainer)
         contentContainer.addSubview(scrollView)
         contentContainer.addSubview(emptyStateStackView)
 
         NSLayoutConstraint.activate([
-            dividerView.topAnchor.constraint(equalTo: view.topAnchor),
-            dividerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            dividerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            dividerView.widthAnchor.constraint(equalToConstant: 6),
-
             contentContainer.topAnchor.constraint(equalTo: view.topAnchor),
-            contentContainer.leadingAnchor.constraint(equalTo: dividerView.trailingAnchor),
+            contentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             contentContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            headerContainer.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            headerContainer.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            headerContainer.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
-            headerContainer.heightAnchor.constraint(equalToConstant: 32),
-
-            headerLabel.leadingAnchor.constraint(equalTo: headerContainer.leadingAnchor, constant: 12),
-            headerLabel.trailingAnchor.constraint(lessThanOrEqualTo: headerContainer.trailingAnchor, constant: -12),
-            headerLabel.centerYAnchor.constraint(equalTo: headerContainer.centerYAnchor),
-
-            headerDivider.leadingAnchor.constraint(equalTo: headerContainer.leadingAnchor),
-            headerDivider.trailingAnchor.constraint(equalTo: headerContainer.trailingAnchor),
-            headerDivider.bottomAnchor.constraint(equalTo: headerContainer.bottomAnchor),
-            headerDivider.heightAnchor.constraint(equalToConstant: 1),
-
-            scrollView.topAnchor.constraint(equalTo: headerContainer.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
@@ -214,16 +146,6 @@ final class RowDetailSidebarViewController: NSViewController {
 
         fieldsStackView.widthAnchor.constraint(equalTo: contentStackView.widthAnchor).isActive = true
         actionsContainerView.widthAnchor.constraint(equalTo: contentStackView.widthAnchor).isActive = true
-
-        scrollObserver = NotificationCenter.default.addObserver(
-            forName: NSView.boundsDidChangeNotification,
-            object: scrollView.contentView,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.updateHeaderDividerVisibility()
-            }
-        }
     }
 
     private func setupObservation() {
@@ -265,16 +187,33 @@ final class RowDetailSidebarViewController: NSViewController {
             self.view.layer?.backgroundColor = NSColor.clear.cgColor
             self.view.layer?.borderColor = NSColor.clear.cgColor
             self.view.layer?.borderWidth = 0
-            self.headerDivider.layer?.backgroundColor = NSColor.separatorColor.cgColor
         }
     }
 
     private func reloadContent(preserveScrollOffset: Bool = true) {
+        // The container keeps this controller cached while the Chat panel is
+        // displayed; skip full field rebuilds while detached and catch up once
+        // the view is reattached.
+        guard view.window != nil else {
+            needsReloadOnAttach = true
+            return
+        }
+        performReload(preserveScrollOffset: preserveScrollOffset)
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        if needsReloadOnAttach {
+            needsReloadOnAttach = false
+            performReload(preserveScrollOffset: false)
+        }
+    }
+
+    private func performReload(preserveScrollOffset: Bool) {
         let scrollOrigin = scrollView.contentView.bounds.origin
         let rowData = instance.selectedTab?.selectedRowData ?? [:]
         let hasSelection = !rowData.isEmpty
 
-        headerContainer.isHidden = !hasSelection
         scrollView.isHidden = !hasSelection
         emptyStateStackView.isHidden = hasSelection
 
@@ -291,7 +230,6 @@ final class RowDetailSidebarViewController: NSViewController {
             scrollView.contentView.scroll(to: .zero)
         }
         scrollView.reflectScrolledClipView(scrollView.contentView)
-        updateHeaderDividerVisibility()
     }
 
     private func rebuildFields(using rowData: [String: QueryRowInfo]) {
@@ -608,11 +546,6 @@ final class RowDetailSidebarViewController: NSViewController {
         }
     }
 
-    private func updateHeaderDividerVisibility() {
-        let isScrolled = scrollView.contentView.bounds.minY > 1
-        headerDivider.isHidden = !isScrolled
-    }
-
     private func resetTransientState() {
         copiedResetTask?.cancel()
         copiedResetTask = nil
@@ -919,92 +852,6 @@ private final class SidebarValueTextView: NSTextView {
         super.didChangeText()
         invalidateIntrinsicContentSize()
         onTextChange?(string)
-    }
-}
-
-private final class SidebarResizeHandleView: NSView {
-    var onDrag: ((CGFloat) -> Void)?
-    private var trackingArea: NSTrackingArea?
-    private var isDragging = false
-    private var isHovering = false
-    private var lastX: CGFloat = 0
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        wantsLayer = true
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-
-        let trackingArea = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-            owner: self
-        )
-        addTrackingArea(trackingArea)
-        self.trackingArea = trackingArea
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-        NSCursor.resizeLeftRight.push()
-        needsDisplay = true
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        if !isDragging {
-            NSCursor.pop()
-        }
-        needsDisplay = true
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        isDragging = true
-        lastX = event.locationInWindow.x
-        needsDisplay = true
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        let currentX = event.locationInWindow.x
-        let delta = currentX - lastX
-        lastX = currentX
-        onDrag?(delta)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        isDragging = false
-        let point = convert(event.locationInWindow, from: nil)
-        if !bounds.contains(point) {
-            isHovering = false
-            NSCursor.pop()
-        }
-        needsDisplay = true
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        guard isHovering || isDragging else { return }
-
-        let highlightRect = NSRect(
-            x: (bounds.width - 2) / 2,
-            y: 0,
-            width: 2,
-            height: bounds.height
-        )
-        NSColor.separatorColor.setFill()
-        highlightRect.fill()
     }
 }
 
