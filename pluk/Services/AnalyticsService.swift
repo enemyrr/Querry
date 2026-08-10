@@ -12,6 +12,8 @@ import PostHog
 final class AnalyticsService {
     static let shared = AnalyticsService()
 
+    private let journeyVersion = "retention_v1"
+
     private init() {}
 
     // MARK: - First Event Tracking
@@ -27,14 +29,38 @@ final class AnalyticsService {
     // MARK: - Super Properties Setup
 
     func setupSuperPropertiesIfNeeded() {
-        if !UserDefaults.standard.bool(forKey: "posthog_super_properties_set") {
-            UserDefaults.standard.set(true, forKey: "posthog_super_properties_set")
-            PostHogSDK.shared.register([
-                "first_seen_date": ISO8601DateFormatter().string(from: Date()),
-                "app_install_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-            ])
+        let defaults = UserDefaults.standard
+        let firstSeenDate: String
+        if let storedFirstSeenDate = defaults.string(forKey: "analytics_first_seen_date") {
+            firstSeenDate = storedFirstSeenDate
+        } else {
+            firstSeenDate = ISO8601DateFormatter().string(from: Date())
+            defaults.set(firstSeenDate, forKey: "analytics_first_seen_date")
         }
+
+        PostHogSDK.shared.register([
+            "first_seen_date": firstSeenDate,
+            "app_install_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+            "auth_state": "anonymous"
+        ])
         updateAppearanceSuperProperty()
+    }
+
+    func identify(user: WorkOSUser, source: String) {
+        PostHogSDK.shared.identify(
+            user.id,
+            userProperties: ["email_verified": user.emailVerified],
+            userPropertiesSetOnce: ["platform": "macos"]
+        )
+        PostHogSDK.shared.register(["auth_state": "authenticated"])
+        PostHogSDK.shared.capture("auth_session_identified", properties: retentionProperties([
+            "source": source
+        ]))
+    }
+
+    func resetIdentity() {
+        PostHogSDK.shared.reset()
+        setupSuperPropertiesIfNeeded()
     }
 
     func updateAppearanceSuperProperty() {
@@ -55,6 +81,68 @@ final class AnalyticsService {
     }
 
     // MARK: - Connection Events
+
+    func trackConnectionFormOpened(databaseType: DatabaseType?, isEditing: Bool) {
+        var properties: [String: Any] = ["is_editing": isEditing]
+        if let databaseType {
+            properties["database_type"] = databaseType.rawValue
+        }
+        PostHogSDK.shared.capture("connection_form_opened", properties: retentionProperties(properties))
+    }
+
+    func trackConnectionAttemptStarted(databaseType: DatabaseType, source: String, isReconnect: Bool) {
+        PostHogSDK.shared.capture("connection_attempt_started", properties: retentionProperties([
+            "database_type": databaseType.rawValue,
+            "source": source,
+            "is_reconnect": isReconnect
+        ]))
+    }
+
+    func trackConnectionAttemptSucceeded(
+        databaseType: DatabaseType,
+        source: String,
+        isReconnect: Bool,
+        durationMs: Int
+    ) {
+        PostHogSDK.shared.capture("connection_attempt_succeeded", properties: retentionProperties([
+            "database_type": databaseType.rawValue,
+            "source": source,
+            "is_reconnect": isReconnect,
+            "duration_ms": durationMs
+        ]))
+    }
+
+    func trackConnectionAttemptFailed(
+        databaseType: DatabaseType,
+        source: String,
+        isReconnect: Bool,
+        durationMs: Int,
+        errorCategory: String
+    ) {
+        PostHogSDK.shared.capture("connection_attempt_failed", properties: retentionProperties([
+            "database_type": databaseType.rawValue,
+            "source": source,
+            "is_reconnect": isReconnect,
+            "duration_ms": durationMs,
+            "error_category": errorCategory
+        ]))
+    }
+
+    func trackDatabaseDiscoverySucceeded(databaseType: DatabaseType, source: String, databaseCount: Int) {
+        PostHogSDK.shared.capture("database_discovery_succeeded", properties: retentionProperties([
+            "database_type": databaseType.rawValue,
+            "source": source,
+            "database_count": databaseCount
+        ]))
+    }
+
+    func trackDatabaseDiscoveryFailed(databaseType: DatabaseType, source: String, errorCategory: String) {
+        PostHogSDK.shared.capture("database_discovery_failed", properties: retentionProperties([
+            "database_type": databaseType.rawValue,
+            "source": source,
+            "error_category": errorCategory
+        ]))
+    }
 
     func trackConnectionOpened(databaseType: DatabaseType, isFirstConnection: Bool) {
         PostHogSDK.shared.capture("connection_opened", properties: [
@@ -110,6 +198,13 @@ final class AnalyticsService {
             trackFirstEvent("first_query_executed", properties: [
                 "database_type": databaseType.rawValue
             ])
+            trackFirstEvent("activation_completed", properties: retentionProperties([
+                "activation_type": "sql_editor_query",
+                "activation_source": "sql_editor",
+                "surface": "sql_editor",
+                "database_type": databaseType.rawValue,
+                "query_type": queryType
+            ]))
         }
     }
 
@@ -164,14 +259,28 @@ final class AnalyticsService {
         ])
     }
 
-    func trackAuthLoginCompleted() {
-        PostHogSDK.shared.capture("auth_login_completed")
+    func trackAuthLoginCompleted(mode: String, source: String) {
+        let properties = retentionProperties([
+            "mode": mode,
+            "source": source
+        ])
+        PostHogSDK.shared.capture("auth_login_completed", properties: properties)
+        PostHogSDK.shared.capture(
+            mode == "sign_up" ? "signup_completed" : "login_completed",
+            properties: properties
+        )
     }
 
-    func trackAuthLoginFailed(reason: String) {
-        PostHogSDK.shared.capture("auth_login_failed", properties: [
-            "reason": reason
-        ])
+    func trackAuthLoginFailed(reason: String, mode: String, source: String) {
+        PostHogSDK.shared.capture("auth_login_failed", properties: retentionProperties([
+            "reason": reason,
+            "mode": mode,
+            "source": source
+        ]))
+    }
+
+    func trackAuthLogout() {
+        PostHogSDK.shared.capture("auth_logged_out", properties: retentionProperties([:]))
     }
 
     // MARK: - Billing Funnel
@@ -329,18 +438,88 @@ final class AnalyticsService {
 
     // MARK: - Notebook Events
 
-    func trackNotebookCreated() {
-        PostHogSDK.shared.capture("notebook_created")
+    func trackNotebookCreated(source: String) {
+        let properties = retentionProperties(["source": source])
+        PostHogSDK.shared.capture("notebook_created", properties: properties)
 
-        trackFirstEvent("first_notebook_created")
+        trackFirstEvent("first_notebook_created", properties: properties)
+    }
+
+    func trackNotebookOpened(blockCount: Int, isPublished: Bool) {
+        PostHogSDK.shared.capture("notebook_opened", properties: retentionProperties([
+            "block_count": blockCount,
+            "is_published": isPublished
+        ]))
+    }
+
+    func trackNotebookBlockCreated(blockType: NotebookBlockType, source: String) {
+        PostHogSDK.shared.capture("notebook_block_created", properties: retentionProperties([
+            "block_type": blockType.rawValue,
+            "source": source
+        ]))
+    }
+
+    func trackNotebookExecutionStarted(
+        surface: String,
+        dataSource: String,
+        databaseType: DatabaseType?
+    ) {
+        PostHogSDK.shared.capture(
+            "notebook_execution_started",
+            properties: notebookExecutionProperties(
+                surface: surface,
+                dataSource: dataSource,
+                databaseType: databaseType
+            )
+        )
+    }
+
+    func trackNotebookExecutionSucceeded(
+        surface: String,
+        dataSource: String,
+        databaseType: DatabaseType?,
+        durationMs: Int,
+        resultCount: Int
+    ) {
+        var properties = notebookExecutionProperties(
+            surface: surface,
+            dataSource: dataSource,
+            databaseType: databaseType
+        )
+        properties["duration_ms"] = durationMs
+        properties["result_count"] = resultCount
+        PostHogSDK.shared.capture("notebook_execution_succeeded", properties: properties)
+        trackFirstEvent("first_notebook_value_received", properties: properties)
+
+        var activationProperties = properties
+        activationProperties["activation_type"] = "notebook_\(surface)"
+        activationProperties["activation_source"] = "notebook"
+        trackFirstEvent("activation_completed", properties: activationProperties)
+    }
+
+    func trackNotebookExecutionFailed(
+        surface: String,
+        dataSource: String,
+        databaseType: DatabaseType?,
+        durationMs: Int,
+        errorCategory: String
+    ) {
+        var properties = notebookExecutionProperties(
+            surface: surface,
+            dataSource: dataSource,
+            databaseType: databaseType
+        )
+        properties["duration_ms"] = durationMs
+        properties["error_category"] = errorCategory
+        PostHogSDK.shared.capture("notebook_execution_failed", properties: properties)
     }
 
     func trackNotebookPublished(blockCount: Int) {
-        PostHogSDK.shared.capture("notebook_published", properties: [
+        PostHogSDK.shared.capture("notebook_published", properties: retentionProperties([
             "block_count": blockCount
-        ])
+        ]))
 
-        trackFirstEvent("first_notebook_published")
+        trackFirstEvent("first_notebook_published", properties: retentionProperties([:]))
     }
 
     func trackNotebookUnpublished() {
@@ -363,19 +542,69 @@ final class AnalyticsService {
         return "OTHER"
     }
 
+    nonisolated static func durationMilliseconds(since startTime: ContinuousClock.Instant) -> Int {
+        let duration = startTime.duration(to: .now)
+        return Int(
+            duration.components.seconds * 1000
+                + duration.components.attoseconds / 1_000_000_000_000_000
+        )
+    }
+
     // MARK: - Error Category Detection
 
     nonisolated static func categorizeError(_ error: Error) -> String {
         let errorMessage = error.localizedDescription.lowercased()
 
         if errorMessage.contains("syntax") { return "syntax_error" }
+        if errorMessage.contains("ssh") { return "ssh_error" }
+        if errorMessage.contains("ssl")
+            || errorMessage.contains("tls")
+            || errorMessage.contains("certificate")
+        {
+            return "tls_error"
+        }
+        if errorMessage.contains("authentication")
+            || errorMessage.contains("password")
+            || errorMessage.contains("credential")
+            || errorMessage.contains("login failed")
+        {
+            return "authentication_error"
+        }
         if errorMessage.contains("permission") || errorMessage.contains("access denied") { return "permission_error" }
         if errorMessage.contains("timeout") { return "timeout_error" }
+        if errorMessage.contains("resolve") || errorMessage.contains("dns") { return "host_resolution_error" }
+        if errorMessage.contains("refused")
+            || errorMessage.contains("unreachable")
+            || errorMessage.contains("network")
+        {
+            return "network_error"
+        }
         if errorMessage.contains("connection") { return "connection_error" }
         if errorMessage.contains("not found") || errorMessage.contains("does not exist") { return "not_found_error" }
         if errorMessage.contains("constraint") || errorMessage.contains("violation") { return "constraint_error" }
         if errorMessage.contains("duplicate") { return "duplicate_error" }
 
         return "unknown_error"
+    }
+
+    private func retentionProperties(_ properties: [String: Any]) -> [String: Any] {
+        var properties = properties
+        properties["journey_version"] = journeyVersion
+        return properties
+    }
+
+    private func notebookExecutionProperties(
+        surface: String,
+        dataSource: String,
+        databaseType: DatabaseType?
+    ) -> [String: Any] {
+        var properties: [String: Any] = [
+            "surface": surface,
+            "data_source": dataSource
+        ]
+        if let databaseType {
+            properties["database_type"] = databaseType.rawValue
+        }
+        return retentionProperties(properties)
     }
 }

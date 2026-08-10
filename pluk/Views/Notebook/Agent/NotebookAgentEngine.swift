@@ -1127,6 +1127,13 @@ final class NotebookAgentEngine {
             return "Error: run_query only accepts a single read-only SELECT statement — no data-modifying keywords anywhere in the statement, no multiple statements. Use run_write_query for data modifications."
         }
 
+        let analyticsStartTime = ContinuousClock.now
+        AnalyticsService.shared.trackNotebookExecutionStarted(
+            surface: "agent_query",
+            dataSource: "direct_connection",
+            databaseType: conn.databaseType
+        )
+
         do {
             let databaseName = (json["database_name"] as? String) ?? conn.defaultDatabase ?? ""
             try await driverSession.connect(
@@ -1136,8 +1143,22 @@ final class NotebookAgentEngine {
                 databaseName: databaseName
             )
             let results = try await driverSession.executeRawQuery(query, schema: schemaName)
+            AnalyticsService.shared.trackNotebookExecutionSucceeded(
+                surface: "agent_query",
+                dataSource: "direct_connection",
+                databaseType: conn.databaseType,
+                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
+                resultCount: results.reduce(0) { $0 + $1.rows.count }
+            )
             return formatQueryResults(results)
         } catch {
+            AnalyticsService.shared.trackNotebookExecutionFailed(
+                surface: "agent_query",
+                dataSource: "direct_connection",
+                databaseType: conn.databaseType,
+                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
+                errorCategory: AnalyticsService.categorizeError(error)
+            )
             return "Error executing query: \(error.localizedDescription)"
         }
     }

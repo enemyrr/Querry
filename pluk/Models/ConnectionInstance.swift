@@ -124,6 +124,8 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         guard connectionStatus != .connected, !isConnectionAttemptActive else { return }
 
         let attemptID = UUID()
+        let startTime = ContinuousClock.now
+        let databaseType = connection.databaseType
         connectionAttemptID = attemptID
         isConnectionAttemptActive = true
         defer {
@@ -135,6 +137,11 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         connectionStatus = .connecting
         connectionVersion = nil
         lastError = nil
+        AnalyticsService.shared.trackConnectionAttemptStarted(
+            databaseType: databaseType,
+            source: "saved_connection",
+            isReconnect: false
+        )
 
         do {
             try await databaseService.setActiveConnection(
@@ -156,7 +163,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
             } catch {
             }
 
-            await loadDatabases()
+            await loadDatabases(source: "initial_connection")
             guard shouldContinueConnectionAttempt(attemptID) else {
                 await finishCancelledConnectionAttemptIfNeeded(attemptID)
                 return
@@ -171,6 +178,12 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
             }
 
             lastError = nil
+            AnalyticsService.shared.trackConnectionAttemptSucceeded(
+                databaseType: databaseType,
+                source: "saved_connection",
+                isReconnect: false,
+                durationMs: AnalyticsService.durationMilliseconds(since: startTime)
+            )
         } catch is CancellationError {
             await finishCancelledConnectionAttemptIfNeeded(attemptID)
         } catch {
@@ -180,13 +193,17 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
             lastError = error
             connectionStatus = .error
             let errorType = AnalyticsService.categorizeError(error)
-            let dbType = connection.databaseType
-            Task { @MainActor in
-                AnalyticsService.shared.trackConnectionFailed(
-                    databaseType: dbType,
-                    errorType: errorType
-                )
-            }
+            AnalyticsService.shared.trackConnectionAttemptFailed(
+                databaseType: databaseType,
+                source: "saved_connection",
+                isReconnect: false,
+                durationMs: AnalyticsService.durationMilliseconds(since: startTime),
+                errorCategory: errorType
+            )
+            AnalyticsService.shared.trackConnectionFailed(
+                databaseType: databaseType,
+                errorType: errorType
+            )
             throw error
         }
     }
@@ -195,6 +212,8 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         guard !isConnectionAttemptActive else { return }
 
         let attemptID = UUID()
+        let startTime = ContinuousClock.now
+        let databaseType = connection.databaseType
         connectionAttemptID = attemptID
         isConnectionAttemptActive = true
         defer {
@@ -206,6 +225,11 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         connectionStatus = .connecting
         connectionVersion = nil
         lastError = nil
+        AnalyticsService.shared.trackConnectionAttemptStarted(
+            databaseType: databaseType,
+            source: "saved_connection",
+            isReconnect: true
+        )
 
         do {
             try await databaseService.reconnect()
@@ -218,12 +242,26 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
             connectionStatus = .connected
             connectionGeneration += 1
             lastError = nil
+            AnalyticsService.shared.trackConnectionAttemptSucceeded(
+                databaseType: databaseType,
+                source: "saved_connection",
+                isReconnect: true,
+                durationMs: AnalyticsService.durationMilliseconds(since: startTime)
+            )
         } catch is CancellationError {
             await finishCancelledConnectionAttemptIfNeeded(attemptID)
         } catch {
             guard isCurrentConnectionAttempt(attemptID) else { return }
             lastError = error
             connectionStatus = .error
+            let errorCategory = AnalyticsService.categorizeError(error)
+            AnalyticsService.shared.trackConnectionAttemptFailed(
+                databaseType: databaseType,
+                source: "saved_connection",
+                isReconnect: true,
+                durationMs: AnalyticsService.durationMilliseconds(since: startTime),
+                errorCategory: errorCategory
+            )
             throw error
         }
     }
@@ -242,11 +280,16 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         await databaseService.disconnect()
     }
 
-    func loadDatabases() async {
+    func loadDatabases(source: String = "manual_refresh") async {
         do {
             let databaseList = try await databaseService.listDatabases()
             guard connectionStatus != .disconnected, !Task.isCancelled else { return }
             self.databases = databaseList
+            AnalyticsService.shared.trackDatabaseDiscoverySucceeded(
+                databaseType: connection.databaseType,
+                source: source,
+                databaseCount: databaseList.count
+            )
 
             // Notify that databases have been updated
             NotificationCenter.default.post(name: .databasesUpdated, object: self)
@@ -254,6 +297,11 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         } catch {
             guard connectionStatus != .disconnected, !Task.isCancelled else { return }
             lastError = error
+            AnalyticsService.shared.trackDatabaseDiscoveryFailed(
+                databaseType: connection.databaseType,
+                source: source,
+                errorCategory: AnalyticsService.categorizeError(error)
+            )
             debugLog("Failed to load databases \(error)")
         }
     }

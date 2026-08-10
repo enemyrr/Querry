@@ -100,11 +100,7 @@ private struct AccountSettingsContentView: View {
 
                 HStack(spacing: 12) {
                     Button {
-                        AnalyticsService.shared.trackAuthLoginStarted(
-                            mode: "sign_up",
-                            source: "account_pane"
-                        )
-                        authService.login(signUp: true)
+                        authService.login(signUp: true, source: "account_pane")
                     } label: {
                         Text("Sign Up")
                             .frame(minWidth: 80)
@@ -113,11 +109,7 @@ private struct AccountSettingsContentView: View {
                     .disabled(authService.isLoading)
 
                     Button("Log In") {
-                        AnalyticsService.shared.trackAuthLoginStarted(
-                            mode: "log_in",
-                            source: "account_pane"
-                        )
-                        authService.login()
+                        authService.login(source: "account_pane")
                     }
                     .controlSize(.large)
                     .buttonStyle(.borderless)

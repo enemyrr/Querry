@@ -268,7 +268,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         try? modelContext.save()
         SidebarItemRegistry.shared.addNotebook(id: notebook.id, title: notebook.title)
         WindowController.switchToTab(.notebook(notebook.id))
-        AnalyticsService.shared.trackNotebookCreated()
+        AnalyticsService.shared.trackNotebookCreated(source: "menu_bar")
     }
 
     @objc

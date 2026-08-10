@@ -13,6 +13,8 @@ final class WorkOSAuthService {
 
     private(set) var currentUser: WorkOSUser?
     private var codeVerifier = ""
+    private var pendingAuthMode = "log_in"
+    private var pendingAuthSource = "unknown"
 
     var isAuthenticated: Bool { currentUser != nil }
 
@@ -29,9 +31,12 @@ final class WorkOSAuthService {
 
     // MARK: - Login
 
-    func login(signUp: Bool = false) {
+    func login(signUp: Bool = false, source: String = "unknown") {
         isLoading = true
         authError = nil
+        pendingAuthMode = signUp ? "sign_up" : "log_in"
+        pendingAuthSource = source
+        AnalyticsService.shared.trackAuthLoginStarted(mode: pendingAuthMode, source: source)
 
         codeVerifier = generateCodeVerifier()
         let codeChallenge = generateCodeChallenge(from: codeVerifier)
@@ -59,6 +64,11 @@ final class WorkOSAuthService {
 
         guard let authURL = components.url else {
             isLoading = false
+            AnalyticsService.shared.trackAuthLoginFailed(
+                reason: "invalid_authorization_url",
+                mode: pendingAuthMode,
+                source: pendingAuthSource
+            )
             return
         }
 
@@ -76,6 +86,7 @@ final class WorkOSAuthService {
 
     func logout() {
         NSLog("[Auth] logout() — clearing local session")
+        AnalyticsService.shared.trackAuthLogout()
 
         // Grab the access token BEFORE we wipe it so we can pull the session
         // id and tell WorkOS to invalidate the session server-side. Without
@@ -91,6 +102,7 @@ final class WorkOSAuthService {
         authError = nil
         resetBillingState()
         hasLoadedSubscriptionStatus = false
+        AnalyticsService.shared.resetIdentity()
 
         // Drop the SceneKit/Metal caches so the next user's engraved card
         // renders fresh instead of flashing the previous user's name/serial.
@@ -655,7 +667,11 @@ final class WorkOSAuthService {
                 let body = String(data: data, encoding: .utf8) ?? "no body"
                 NSLog("[WorkOS] Token exchange failed: HTTP \(httpResponse.statusCode) — \(body)")
                 authError = "Authentication failed (HTTP \(httpResponse.statusCode))"
-                AnalyticsService.shared.trackAuthLoginFailed(reason: "http_\(httpResponse.statusCode)")
+                AnalyticsService.shared.trackAuthLoginFailed(
+                    reason: "http_\(httpResponse.statusCode)",
+                    mode: pendingAuthMode,
+                    source: pendingAuthSource
+                )
                 return
             }
 
@@ -663,7 +679,11 @@ final class WorkOSAuthService {
 
             guard let accessToken = tokenString(named: "access_token", in: json) else {
                 authError = "No access token received"
-                AnalyticsService.shared.trackAuthLoginFailed(reason: "missing_access_token")
+                AnalyticsService.shared.trackAuthLoginFailed(
+                    reason: "missing_access_token",
+                    mode: pendingAuthMode,
+                    source: pendingAuthSource
+                )
                 return
             }
 
@@ -671,13 +691,21 @@ final class WorkOSAuthService {
                 let keys = json.keys.sorted().joined(separator: ",")
                 NSLog("[WorkOS] Token exchange response missing refresh token keys=\(keys)")
                 authError = "No refresh token received"
-                AnalyticsService.shared.trackAuthLoginFailed(reason: "missing_refresh_token")
+                AnalyticsService.shared.trackAuthLoginFailed(
+                    reason: "missing_refresh_token",
+                    mode: pendingAuthMode,
+                    source: pendingAuthSource
+                )
                 return
             }
 
             guard storeSessionTokens(accessToken: accessToken, refreshToken: refreshToken) else {
                 authError = "Couldn't save authentication session"
-                AnalyticsService.shared.trackAuthLoginFailed(reason: "keychain_store_failed")
+                AnalyticsService.shared.trackAuthLoginFailed(
+                    reason: "keychain_store_failed",
+                    mode: pendingAuthMode,
+                    source: pendingAuthSource
+                )
                 return
             }
 
@@ -686,12 +714,20 @@ final class WorkOSAuthService {
                 let user = try Foundation.JSONDecoder().decode(WorkOSUser.self, from: userData)
                 currentUser = user
                 persistUser(user)
-                AnalyticsService.shared.trackAuthLoginCompleted()
+                AnalyticsService.shared.identify(user: user, source: "auth_callback")
+                AnalyticsService.shared.trackAuthLoginCompleted(
+                    mode: pendingAuthMode,
+                    source: pendingAuthSource
+                )
                 await fetchSubscriptionStatus()
             }
         } catch {
             authError = error.localizedDescription
-            AnalyticsService.shared.trackAuthLoginFailed(reason: "request_error")
+            AnalyticsService.shared.trackAuthLoginFailed(
+                reason: "request_error",
+                mode: pendingAuthMode,
+                source: pendingAuthSource
+            )
         }
     }
 

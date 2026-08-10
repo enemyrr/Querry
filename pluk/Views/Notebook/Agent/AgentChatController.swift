@@ -471,7 +471,7 @@ final class AgentChatController {
 
         switch request.kind {
         case .chart:
-            dataController.addChartBlock()
+            dataController.addChartBlock(source: "agent")
             if let block = dataController.blocks.last, var config = request.config {
                 block.title = request.title
                 block.isHiddenInDashboard = true
@@ -487,7 +487,7 @@ final class AgentChatController {
                 dataController.updateBlock(block)
             }
         case .text:
-            dataController.addTextBlock()
+            dataController.addTextBlock(source: "agent")
             if let block = dataController.blocks.last {
                 block.title = request.title
                 block.isHiddenInDashboard = true
@@ -497,7 +497,7 @@ final class AgentChatController {
         case .singleValue:
             let insertIndex = dataController.blocks.lastIndex(where: { $0.blockType == .singleValue })
                 .map { $0 + 1 } ?? 0
-            dataController.insertSingleValueBlock(at: insertIndex)
+            dataController.insertSingleValueBlock(at: insertIndex, source: "agent")
             if let block = dataController.blocks[safe: insertIndex], let config = request.singleValueConfig {
                 block.title = request.title
                 block.isHiddenInDashboard = true
@@ -508,7 +508,7 @@ final class AgentChatController {
                 dataController.updateBlock(block)
             }
         case .query:
-            dataController.addQueryBlock()
+            dataController.addQueryBlock(source: "agent")
             if let block = dataController.blocks.last, let config = request.queryBlockConfig {
                 block.title = request.title
                 block.isHiddenInDashboard = true

@@ -91,6 +91,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             AnalyticsService.shared.setupSuperPropertiesIfNeeded()
+            if let user = WorkOSAuthService.shared.currentUser {
+                AnalyticsService.shared.identify(user: user, source: "session_restore")
+            }
         }
 
         // Check if user has explicitly disabled crash reporting (defaults to enabled)

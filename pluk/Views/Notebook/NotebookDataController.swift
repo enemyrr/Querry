@@ -160,41 +160,43 @@ final class NotebookDataController {
             viewMode = .dashboard
             isViewingPublished = true
         }
+
+        AnalyticsService.shared.trackNotebookOpened(blockCount: blocks.count, isPublished: isPublished)
     }
 
-    func addChartBlock() {
-        addBlock(type: .chart)
+    func addChartBlock(source: String = "manual") {
+        addBlock(type: .chart, source: source)
     }
 
-    func insertChartBlock(at index: Int) {
-        insertBlock(type: .chart, at: index)
+    func insertChartBlock(at index: Int, source: String = "manual") {
+        insertBlock(type: .chart, at: index, source: source)
     }
 
-    func addTextBlock() {
-        addBlock(type: .text)
+    func addTextBlock(source: String = "manual") {
+        addBlock(type: .text, source: source)
     }
 
-    func insertTextBlock(at index: Int) {
-        insertBlock(type: .text, at: index)
+    func insertTextBlock(at index: Int, source: String = "manual") {
+        insertBlock(type: .text, at: index, source: source)
     }
 
-    func addSingleValueBlock() {
-        addBlock(type: .singleValue)
+    func addSingleValueBlock(source: String = "manual") {
+        addBlock(type: .singleValue, source: source)
     }
 
-    func insertSingleValueBlock(at index: Int) {
-        insertBlock(type: .singleValue, at: index)
+    func insertSingleValueBlock(at index: Int, source: String = "manual") {
+        insertBlock(type: .singleValue, at: index, source: source)
     }
 
-    func addQueryBlock() {
-        addBlock(type: .query)
+    func addQueryBlock(source: String = "manual") {
+        addBlock(type: .query, source: source)
     }
 
-    func insertQueryBlock(at index: Int) {
-        insertBlock(type: .query, at: index)
+    func insertQueryBlock(at index: Int, source: String = "manual") {
+        insertBlock(type: .query, at: index, source: source)
     }
 
-    private func addBlock(type: NotebookBlockType) {
+    private func addBlock(type: NotebookBlockType, source: String) {
         guard let notebook else { return }
         let nextOrder = (blocks.map(\.sortOrder).max() ?? -1) + 1
         let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: nextOrder)
@@ -211,9 +213,10 @@ final class NotebookDataController {
         blocks.append(block)
         invalidateDashboardBlocks()
         save()
+        AnalyticsService.shared.trackNotebookBlockCreated(blockType: type, source: source)
     }
 
-    private func insertBlock(type: NotebookBlockType, at index: Int) {
+    private func insertBlock(type: NotebookBlockType, at index: Int, source: String) {
         guard let notebook else { return }
         let block = NotebookBlock(notebookId: notebook.id, blockType: type, sortOrder: index)
         block.dashboardSortOrder = nextDashboardOrder()
@@ -230,6 +233,7 @@ final class NotebookDataController {
         reindexSortOrders()
         invalidateDashboardBlocks()
         save()
+        AnalyticsService.shared.trackNotebookBlockCreated(blockType: type, source: source)
     }
 
     func chartViewModel(for block: NotebookBlock) -> ChartBlockViewModel {
@@ -355,6 +359,7 @@ final class NotebookDataController {
         invalidateDashboardBlocks()
         reindexDashboardSortOrders()
         save()
+        AnalyticsService.shared.trackNotebookBlockCreated(blockType: block.blockType, source: "duplicate")
     }
 
     func moveBlockUp(_ block: NotebookBlock) {

@@ -484,6 +484,10 @@ struct CreateConnectionForm: View {
         }
         .onAppear {
             mapExistingConnectionData()
+            AnalyticsService.shared.trackConnectionFormOpened(
+                databaseType: connection?.databaseType,
+                isEditing: connection != nil
+            )
         }
         .onChange(of: selectedDatabaseType) { oldValue, newValue in
             // Reset form when switching database types (but not on initial load or when editing)
@@ -715,10 +719,16 @@ struct CreateConnectionForm: View {
     private func testConnection() async {
         guard let db = selectedDatabaseType, let uri = buildUriForTest() else { return }
         let testID = UUID()
+        let startTime = ContinuousClock.now
         await MainActor.run {
             currentTestID = testID
             isTestingConnection = true
             testSucceeded = nil
+            AnalyticsService.shared.trackConnectionAttemptStarted(
+                databaseType: db,
+                source: "connection_form_test",
+                isReconnect: false
+            )
         }
         let result = await databaseService.testConnection(
             databaseType: db,
@@ -733,8 +743,21 @@ struct CreateConnectionForm: View {
             switch result {
             case .success:
                 testSucceeded = true
-            case .failure:
+                AnalyticsService.shared.trackConnectionAttemptSucceeded(
+                    databaseType: db,
+                    source: "connection_form_test",
+                    isReconnect: false,
+                    durationMs: AnalyticsService.durationMilliseconds(since: startTime)
+                )
+            case .failure(let error):
                 testSucceeded = false
+                AnalyticsService.shared.trackConnectionAttemptFailed(
+                    databaseType: db,
+                    source: "connection_form_test",
+                    isReconnect: false,
+                    durationMs: AnalyticsService.durationMilliseconds(since: startTime),
+                    errorCategory: AnalyticsService.categorizeError(error)
+                )
             }
         }
         try? await Task.sleep(for: .seconds(2))
