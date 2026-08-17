@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Pluk Pre-release Updates</title>
+        <link>https://r2.pluk.sh/</link>
+        <description>Pluk pre-release and beta updates feed</description>
+        <language>en</language>
+        <item>
+            <title>Pluk 0.0.1 Beta 41</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.41.dmg</link>
+            <sparkle:version>301</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.41</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 41</h2><div>A small polish release that keeps you in the right window after signing in.
+Here’s what’s new:
+<ul>
+<li><strong>Sign-in keeps Settings in front.</strong> When you sign in from Settings → Account, Pluk now brings the Settings window back to the front after the browser callback instead of pushing it behind the home window. The same fix applies to billing and checkout callbacks, so whichever window you were last in stays where you expect. (<a href="https://github.com/pluk-inc/Pluk/issues/127">#127</a>)</li>
+<li><strong>Bug fixes and improvements.</strong> A handful of smaller fixes and refinements across the app.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 14:10:37 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.41.dmg"
+                length="47984591"
+                type="application/octet-stream"
+                sparkle:edSignature="wKvNJ7heJn40wgK7YJWzvmuhvoZT41VkCpTa4Y+nPUVy49YVnCY1SGJt6wRT61tnfSnjQBlCKS7dVJJ2SDskCw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 40</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.40.dmg</link>
+            <sparkle:version>300</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.40</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 40</h2><div>A small polish and stability release with a handful of fixes and improvements across the app.
+Here’s what’s new:
+<ul>
+<li><strong>A more responsive database selector.</strong> The database picker sheet now closes properly when you hit Cancel or press Esc, so you can back out without committing to a database. (<a href="https://github.com/pluk-inc/Pluk/issues/129">#129</a>)</li>
+<li><strong>Bug fixes and improvements.</strong> Lots of smaller fixes and refinements across the app to make everyday use feel smoother.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 13:36:50 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.40.dmg"
+                length="47973648"
+                type="application/octet-stream"
+                sparkle:edSignature="q1jGvi21M0RWdseelg7c4k7imiyuwlWj/w5hfRtE9YRtuHuWSSbHEdGw0rWhd5/ICM9K1ivAUh70kUHbhWESAQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 39</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.39.dmg</link>
+            <sparkle:version>299</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.39</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 39</h2><div>A small release with polish and stability improvements across the app.
+Here’s what’s new:
+<ul>
+<li><strong>Sign-in links bring Pluk to the front.</strong> When an auth callback or any custom URL link opens Pluk while it’s in the background, the app now activates and brings a window forward instead of staying hidden behind your browser. (<a href="https://github.com/pluk-inc/Pluk/issues/126">#126</a>)</li>
+<li><strong>Bug fixes and polish.</strong> A handful of smaller fixes and stability improvements across the app.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 12:50:19 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.39.dmg"
+                length="47973247"
+                type="application/octet-stream"
+                sparkle:edSignature="8fuSWQxMLUb56nP7URpZLsrCuV4vzT/OnxVS6VVDkksXdiVmgrCZxHTXmKnt2yrKGI7/1+YwVTfUbrEcB/atAA=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 38</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.38.dmg</link>
+            <sparkle:version>298</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.38</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 38</h2><div>This release makes Pluk feel faster and more native in the places you touch most: opening table tabs, switching through the sidebar, setting up new connections, and working in schema view. It also fixes a Convex root-component loading hang and tightens up Ask AI for PostgreSQL.
+Here’s what’s new:
+<ul>
+<li><strong>Faster data loading.</strong> Opening tables is now around 2x faster than before, so your data appears sooner when you move through a connection.</li>
+<li><strong>A native connection sidebar.</strong> The connection sidebar has moved to an AppKit-backed implementation for smoother table browsing, search, query history, hover behavior, resizing, context menus, and database selection.</li>
+<li><strong>Cleaner connection setup.</strong> The database picker, PostgreSQL setup, MySQL setup, create-database flow, and database selector modal have been redesigned to feel more focused and consistent. (<a href="https://github.com/pluk-inc/Pluk/issues/119">#119</a>, <a href="https://github.com/pluk-inc/Pluk/issues/120">#120</a>)</li>
+<li><strong>A steadier filter builder.</strong> Table filters now use a native AppKit implementation that stays in sync with table state and schema changes. (<a href="https://github.com/pluk-inc/Pluk/issues/121">#121</a>)</li>
+<li><strong>Better schema view editing.</strong> Schema and index tables now match the main data table styling, save changes refresh in place, and ⌘E toggles between content and schema view.</li>
+<li><strong>More reliable Convex root tables.</strong> Convex tables in the root <code>app</code> component no longer hang when loading, querying, subscribing, or editing documents. (<a href="https://github.com/pluk-inc/Pluk/issues/124">#124</a>)</li>
+</ul>
+We’ve also shipped some small but mighty updates:
+<ul>
+<li><strong>PostgreSQL Ask AI quotes identifiers.</strong> Ask AI now generates PostgreSQL examples with quoted table and column names, and tapping outside no longer wipes an in-progress Ask AI prompt.</li>
+<li><strong>A cleaner home screen.</strong> Empty states, recent workspaces, and first-run states on the home screen have been refreshed. (<a href="https://github.com/pluk-inc/Pluk/issues/122">#122</a>)</li>
+<li><strong>Window dragging feels native again.</strong> Custom titlebar tab areas once again support expected window dragging behavior. (<a href="https://github.com/pluk-inc/Pluk/issues/123">#123</a>)</li>
+<li><strong>Sidebar search matches the design system.</strong> The sidebar search field now uses the same toolbar island treatment as the surrounding controls.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Sun, 26 Apr 2026 06:55:57 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.38.dmg"
+                length="47970836"
+                type="application/octet-stream"
+                sparkle:edSignature="nmdVkue9PIoqGf3cQCMYGDFyrO+T/ZFaalBVocA+laG0QKsbtZV+OkqnPkBOkCoYrLeHCZdumKXpDvRLIvqLAw=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
+            <title>Pluk 0.0.1 Beta 37</title>
+            <link>https://r2.pluk.sh/releases/Pluk-0.0.1-beta.37.dmg</link>
+            <sparkle:version>297</sparkle:version>
+            <sparkle:shortVersionString>0.0.1-beta.37</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>Pluk 0.0.1 Beta 37</h2><div>Pluk v35 introduces SQL editor autocomplete, adds more keyboard shortcuts, makes shortcut handling more reliable across windows and databases, and fixes the repeated keychain access prompt for existing users. The rest of the release focuses on bug fixes and polish across the app.
+Here’s what’s new:
+<ul>
+<li><strong>SQL editor autocomplete.</strong> The SQL editor now includes autocomplete to help you write queries faster.</li>
+<li><strong>More keyboard shortcuts.</strong> Added more shortcuts to make it easier to move through Pluk.</li>
+<li><strong>More reliable shortcuts.</strong> Fixed cases where shortcuts could be picked up by the wrong window or tab, with better routing across windows and databases.</li>
+<li><strong>Keychain access migration.</strong> Existing users may need to approve keychain access one last time after updating as Pluk moves to a new keychain flow. Future updates will not ask again.</li>
+<li><strong>Bug fixes and polish.</strong> Also includes fixes and refinements across the menu bar, Open Quickly, recent tables, and sidebar.</li>
+</ul></div>
+            ]]></description>
+            <pubDate>Tue, 21 Apr 2026 18:53:06 +0000</pubDate>
+            <enclosure 
+                url="https://r2.pluk.sh/releases/Pluk-0.0.1-beta.37.dmg"
+                length="48199388"
+                type="application/octet-stream"
+                sparkle:edSignature="A7aWvkfbS1c1MLILjqYYj/21DTh5Xm6PZRo5PBqZMBfIqT6RVlAmsbEsJTZQGGorMd/Ite3rUtWRjN5X29NKCQ=="
+            />
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
