@@ -19,6 +19,8 @@
 
 Pluk is a powerful, native macOS database client that revolutionizes how you interact with your databases. With AI-powered querying capabilities, Pluk makes database exploration intuitive and efficient for developers, data analysts, and database administrators.
 
+Pluk is open source under the [GNU Affero General Public License v3.0](./LICENSE). The Pluk name, logo, icon, and visual identity remain covered by the separate [trademark policy](./TRADEMARKS.md).
+
 ### ✨ Key Features
 
 - **🤖 AI-Powered Querying** - Natural language to SQL/NoSQL conversion
@@ -51,6 +53,19 @@ Pluk is a powerful, native macOS database client that revolutionizes how you int
 | **PostgreSQL** | 9.6+ | Full SQL, JSON |
 | **MySQL** | 5.7+ | Full SQL |
 | **SQLite** | 3.8+ | Local files |
+
+## 🛠 Build from source
+
+Requirements:
+
+- macOS 15 or later
+- Xcode 26 or later with Swift 6 support
+
+Clone the repository, open `Pluk.xcodeproj`, select the shared `Collection` scheme, and run the app target. Xcode resolves the Swift package dependencies from the checked-in `Package.resolved` file.
+
+Community builds work without Pluk's hosted service configuration. PostHog, Sentry, WorkOS sign-in, and funded Bedrock AI are disabled when their values are absent. Maintainers can copy `pluk/Secrets.xcconfig.example` to the ignored `pluk/Secrets.xcconfig` for official builds. Values placed there are embedded in the app binary and must not be treated as server-side secrets.
+
+If code signing fails, choose your own development team in Xcode or build locally with code signing disabled. Do not commit personal signing configuration.
 
 ## 📋 Issue Tracking
 
@@ -95,7 +110,7 @@ We use labels to categorize and prioritize issues:
 
 ## 📊 Project Status
 
-- **Status**: Waitlist (Beta)
+- **Status**: Open source beta
 - **Platform**: macOS 15.0
 - **Architecture**: Apple Silicon & Intel
 - **Development**: Active
@@ -108,10 +123,13 @@ We use labels to categorize and prioritize issues:
 
 ## 🤝 Contributing
 
-While this repository is primarily for issue tracking, we welcome:
+Source contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. For security vulnerabilities, follow [SECURITY.md](./SECURITY.md) instead of opening a public issue.
+
+We welcome:
 
 - **Bug reports** with detailed reproduction steps
 - **Feature suggestions** with clear use cases
+- **Code contributions** with focused tests and validation
 - **Documentation improvements**
 - **Community feedback** and discussions
 

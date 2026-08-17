@@ -1,0 +1,638 @@
+import Foundation
+
+final class BedrockService: Sendable {
+
+    static let shared = BedrockService()
+
+    private let credentialManager = CognitoCredentialManager.shared
+
+    private init() {}
+
+    func warmUpCredentials() {
+        Task { try? await credentialManager.getCredentials() }
+    }
+
+    func messageRequest(
+        messages: [AnthropicMessage],
+        system: [SystemContentBlock],
+        tools: [AnthropicToolDefinition],
+        maxTokens: Int = 8192,
+        modelId: String = BedrockConfig.modelId
+    ) async throws -> BedrockAnthropicResponse {
+        let (request, body) = try await buildSignedRequest(
+            url: BedrockConfig.bedrockEndpoint(for: modelId),
+            messages: messages,
+            system: system,
+            tools: tools,
+            maxTokens: maxTokens,
+            thinking: nil,
+            additionalHeaders: [("Accept", "application/json")]
+        )
+
+        var mutableRequest = request
+        mutableRequest.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: mutableRequest)
+        try validateHTTPResponse(response, data: data)
+        return try Foundation.JSONDecoder().decode(BedrockAnthropicResponse.self, from: data)
+    }
+
+    // MARK: - Streaming
+
+    func messageRequestStream(
+        messages: [AnthropicMessage],
+        system: [SystemContentBlock],
+        tools: [AnthropicToolDefinition],
+        maxTokens: Int = 64_000,
+        thinking: ThinkingConfig? = .adaptive,
+        modelId: String = BedrockConfig.modelId,
+        onTextDelta: @MainActor @Sendable (String) -> Void,
+        onThinkingDelta: @MainActor @Sendable (String) -> Void = { _ in }
+    ) async throws -> BedrockAnthropicResponse {
+        let (request, body) = try await buildSignedRequest(
+            url: BedrockConfig.bedrockStreamEndpoint(for: modelId),
+            messages: messages,
+            system: system,
+            tools: tools,
+            maxTokens: maxTokens,
+            thinking: thinking
+        )
+
+        var mutableRequest = request
+        mutableRequest.httpBody = body
+
+        let (asyncBytes, response) = try await URLSession.shared.bytes(for: mutableRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BedrockError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            var errorData = Data()
+            for try await byte in asyncBytes { errorData.append(byte) }
+            let errorBody = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            print("[BedrockService] HTTP \(httpResponse.statusCode): \(errorBody)")
+            throw BedrockError.httpError(statusCode: httpResponse.statusCode, body: errorBody)
+        }
+
+        var buffer = Data()
+        var fullText = ""
+        var responseId = ""
+        var responseRole = "assistant"
+        var stopReason: String?
+        var inputTokens = 0
+        var outputTokens = 0
+        var cacheCreationInputTokens: Int?
+        var cacheReadInputTokens: Int?
+        var textBlocks: [Int: String] = [:]
+        var thinkingBlocks: [Int: (text: String, signature: String)] = [:]
+        var toolUseBlocks: [Int: (id: String, name: String, inputJSON: String)] = [:]
+
+        for try await byte in asyncBytes {
+            buffer.append(byte)
+
+            while buffer.count >= 12 {
+                let totalLength = buffer.readBigEndianUInt32(at: 0)
+                guard buffer.count >= totalLength else { break }
+
+                let headersLength = buffer.readBigEndianUInt32(at: 4)
+                let payloadStart = 12 + headersLength
+                let payloadEnd = totalLength - 4
+                let base = buffer.startIndex
+
+                if payloadStart < payloadEnd {
+                    let payload = Data(buffer[(base + payloadStart)..<(base + payloadEnd)])
+
+                    if let wrapper = try? Foundation.JSONDecoder().decode(EventStreamChunk.self, from: payload),
+                       let decoded = Data(base64Encoded: wrapper.bytes),
+                       let event = try? Foundation.JSONDecoder().decode(AnthropicStreamEvent.self, from: decoded) {
+                        switch event.type {
+                        case "message_start":
+                            if let msg = event.message {
+                                responseId = msg.id ?? responseId
+                                responseRole = msg.role ?? responseRole
+                                if let u = msg.usage {
+                                    inputTokens = u.input_tokens ?? inputTokens
+                                    if let cc = u.cache_creation_input_tokens { cacheCreationInputTokens = cc }
+                                    if let cr = u.cache_read_input_tokens { cacheReadInputTokens = cr }
+                                }
+                            }
+                        case "content_block_start":
+                            if let idx = event.index, let block = event.content_block {
+                                switch block.type {
+                                case "text": textBlocks[idx] = ""
+                                case "thinking": thinkingBlocks[idx] = (text: "", signature: "")
+                                case "tool_use": toolUseBlocks[idx] = (id: block.id ?? "", name: block.name ?? "", inputJSON: "")
+                                default: break
+                                }
+                            }
+                        case "content_block_delta":
+                            if let idx = event.index, let delta = event.delta {
+                                switch delta.type {
+                                case "text_delta":
+                                    if let text = delta.text {
+                                        textBlocks[idx, default: ""] += text
+                                        fullText += text
+                                        await onTextDelta(text)
+                                    }
+                                case "thinking_delta":
+                                    if let thinking = delta.thinking {
+                                        if var existing = thinkingBlocks[idx] {
+                                            existing.text += thinking
+                                            thinkingBlocks[idx] = existing
+                                        }
+                                        await onThinkingDelta(thinking)
+                                    }
+                                case "signature_delta":
+                                    if let sig = delta.signature, var existing = thinkingBlocks[idx] {
+                                        existing.signature += sig
+                                        thinkingBlocks[idx] = existing
+                                    }
+                                case "input_json_delta":
+                                    if let json = delta.partial_json, var existing = toolUseBlocks[idx] {
+                                        existing.inputJSON += json
+                                        toolUseBlocks[idx] = existing
+                                    }
+                                default:
+                                    print("[BedrockService] unhandled delta type: \(delta.type ?? "nil") at index \(idx)")
+                                }
+                            }
+                        case "message_delta":
+                            if let delta = event.delta {
+                                stopReason = delta.stop_reason ?? stopReason
+                                if let u = event.usage {
+                                    outputTokens = u.output_tokens ?? outputTokens
+                                }
+                            }
+                        default:
+                            break
+                        }
+                    }
+                }
+
+                buffer = Data(buffer.dropFirst(totalLength))
+            }
+        }
+
+        let content = buildResponseContent(
+            textBlocks: textBlocks,
+            thinkingBlocks: thinkingBlocks,
+            toolUseBlocks: toolUseBlocks
+        )
+
+        let usage = BedrockAnthropicResponse.Usage(
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            cacheCreationInputTokens: cacheCreationInputTokens,
+            cacheReadInputTokens: cacheReadInputTokens
+        )
+
+        if let cacheRead = cacheReadInputTokens, cacheRead > 0 {
+            print("[BedrockService] Cache hit: \(cacheRead) tokens read from cache")
+        }
+        if let cacheWrite = cacheCreationInputTokens, cacheWrite > 0 {
+            print("[BedrockService] Cache write: \(cacheWrite) tokens written to cache")
+        }
+
+        return BedrockAnthropicResponse(
+            id: responseId,
+            type: "message",
+            role: responseRole,
+            content: content,
+            stopReason: stopReason,
+            usage: usage
+        )
+    }
+
+    func notebookChatCompletionStream(
+        messages: [BedrockGLMChatMessage],
+        systemPrompt: String? = nil,
+        tools: [BedrockGLMToolDefinition] = [],
+        maxTokens: Int = 64_000,
+        model: String = BedrockConfig.sonnet46ModelId,
+        thinkingMode: BedrockThinkingMode = .enabled,
+        onTextDelta: @MainActor @Sendable (String) -> Void,
+        onThinkingDelta: @MainActor @Sendable (String) -> Void = { _ in }
+    ) async throws -> BedrockGLMChatResult {
+        let response = try await messageRequestStream(
+            messages: messages.map(toAnthropicMessage),
+            system: systemPrompt.map { [SystemContentBlock(text: $0)] } ?? [],
+            tools: tools.map(toAnthropicTool),
+            maxTokens: maxTokens,
+            thinking: thinkingMode == .enabled ? .adaptive : nil,
+            modelId: model,
+            onTextDelta: onTextDelta,
+            onThinkingDelta: onThinkingDelta
+        )
+
+        return toBedrockGLMChatResult(response)
+    }
+
+    func notebookChatCompletion(
+        messages: [BedrockGLMChatMessage],
+        systemPrompt: String? = nil,
+        tools: [BedrockGLMToolDefinition] = [],
+        maxTokens: Int = 16_000,
+        model: String = BedrockConfig.sonnet46ModelId,
+        thinkingMode: BedrockThinkingMode = .enabled
+    ) async throws -> BedrockGLMChatResult {
+        let response = try await messageRequest(
+            messages: messages.map(toAnthropicMessage),
+            system: systemPrompt.map { [SystemContentBlock(text: $0)] } ?? [],
+            tools: tools.map(toAnthropicTool),
+            maxTokens: maxTokens,
+            modelId: model
+        )
+
+        return toBedrockGLMChatResult(response)
+    }
+
+    // MARK: - Request Building
+
+    private func buildSignedRequest(
+        url: URL,
+        messages: [AnthropicMessage],
+        system: [SystemContentBlock],
+        tools: [AnthropicToolDefinition],
+        maxTokens: Int,
+        thinking: ThinkingConfig?,
+        additionalHeaders: [(String, String)] = []
+    ) async throws -> (URLRequest, Data) {
+        let credentials = try await credentialManager.getCredentials()
+
+        let requestBody = BedrockAnthropicRequest(
+            anthropicVersion: BedrockConfig.anthropicVersion,
+            anthropicBeta: thinking != nil ? ["interleaved-thinking-2025-05-14"] : nil,
+            maxTokens: maxTokens,
+            system: system,
+            messages: messages,
+            tools: tools,
+            thinking: thinking
+        )
+
+        let body = try Foundation.JSONEncoder().encode(requestBody)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (field, value) in additionalHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        request.timeoutInterval = 300
+
+        AWSSignatureV4.sign(
+            request: &request,
+            body: body,
+            credentials: credentials,
+            region: BedrockConfig.region,
+            service: "bedrock"
+        )
+
+        return (request, body)
+    }
+
+    private func validateHTTPResponse(_ response: URLResponse, data: Data) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BedrockError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("[BedrockService] HTTP \(httpResponse.statusCode): \(errorBody)")
+            throw BedrockError.httpError(statusCode: httpResponse.statusCode, body: errorBody)
+        }
+    }
+
+    private func toAnthropicTool(_ tool: BedrockGLMToolDefinition) -> AnthropicToolDefinition {
+        AnthropicToolDefinition(name: tool.name, description: tool.description, inputSchema: tool.inputSchema)
+    }
+
+    private func toAnthropicMessage(_ message: BedrockGLMChatMessage) -> AnthropicMessage {
+        switch message.role {
+        case .system:
+            return AnthropicMessage(role: .user, content: .text(message.content ?? ""))
+        case .user:
+            return AnthropicMessage(role: .user, content: .text(message.content ?? ""))
+        case .tool:
+            return AnthropicMessage(role: .user, content: .blocks([
+                .toolResult(toolUseId: message.toolCallId ?? "", content: message.content ?? "")
+            ]))
+        case .assistant:
+            var blocks: [ContentBlock] = []
+            if let content = message.content, !content.isEmpty {
+                blocks.append(.text(content))
+            }
+            for toolCall in message.toolCalls ?? [] {
+                blocks.append(.toolUse(
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: decodeToolArguments(toolCall.arguments)
+                ))
+            }
+            if blocks.isEmpty {
+                return AnthropicMessage(role: .assistant, content: .text(""))
+            }
+            return AnthropicMessage(role: .assistant, content: .blocks(blocks))
+        }
+    }
+
+    private func decodeToolArguments(_ arguments: String) -> [String: JSONValue] {
+        guard let data = arguments.data(using: .utf8),
+              let json = try? Foundation.JSONDecoder().decode([String: JSONValue].self, from: data) else {
+            return [:]
+        }
+        return json
+    }
+
+    private func toBedrockGLMChatResult(_ response: BedrockAnthropicResponse) -> BedrockGLMChatResult {
+        let text = response.content.compactMap { content -> String? in
+            guard case .text(let text) = content else { return nil }
+            return text
+        }.joined()
+
+        let reasoning = response.content.compactMap { content -> String? in
+            guard case .thinking(let thinking, _) = content else { return nil }
+            return thinking
+        }.joined()
+
+        let toolCalls = response.content.compactMap { content -> BedrockGLMToolCall? in
+            guard case .toolUse(let id, let name, let input) = content else { return nil }
+            let jsonInput = input.mapValues { JSONValue.fromAny($0) }
+            let data = try? Foundation.JSONEncoder().encode(jsonInput)
+            let arguments = data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            return BedrockGLMToolCall(id: id, name: name, arguments: arguments)
+        }
+
+        let assistantMessage = BedrockGLMChatMessage(
+            role: .assistant,
+            content: text.isEmpty ? nil : text,
+            reasoningContent: reasoning.isEmpty ? nil : reasoning,
+            toolCalls: toolCalls.isEmpty ? nil : toolCalls
+        )
+
+        return BedrockGLMChatResult(
+            assistantMessage: assistantMessage,
+            content: response.content,
+            stopReason: response.stopReason,
+            tokenUsage: tokenUsage(from: response.usage)
+        )
+    }
+
+    private func tokenUsage(from usage: BedrockAnthropicResponse.Usage?) -> BedrockTokenUsage? {
+        guard let usage else { return nil }
+        return BedrockTokenUsage(
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheCreationInputTokens: usage.cacheCreationInputTokens ?? 0,
+            cacheReadInputTokens: usage.cacheReadInputTokens ?? 0
+        )
+    }
+
+    // MARK: - Response Content Building
+
+    private func buildResponseContent(
+        textBlocks: [Int: String],
+        thinkingBlocks: [Int: (text: String, signature: String)],
+        toolUseBlocks: [Int: (id: String, name: String, inputJSON: String)]
+    ) -> [ResponseContentBlock] {
+        let allIndices = Set(textBlocks.keys).union(thinkingBlocks.keys).union(toolUseBlocks.keys).sorted()
+        return allIndices.map { idx -> ResponseContentBlock in
+            if let thinking = thinkingBlocks[idx] {
+                return .thinking(thinking.text, signature: thinking.signature)
+            } else if let text = textBlocks[idx] {
+                return .text(text)
+            } else if let tool = toolUseBlocks[idx] {
+                let inputData = Data(tool.inputJSON.utf8)
+                let inputDict: [String: any Sendable]
+                if let parsed = try? JSONSerialization.jsonObject(with: inputData) as? [String: any Sendable] {
+                    inputDict = parsed
+                } else {
+                    inputDict = [:]
+                }
+                return .toolUse(id: tool.id, name: tool.name, input: inputDict)
+            } else {
+                return .text("")
+            }
+        }
+    }
+}
+
+// MARK: - Streaming Event Types
+
+private struct EventStreamChunk: Decodable {
+    let bytes: String
+}
+
+private struct AnthropicStreamEvent: Decodable {
+    let type: String
+    let index: Int?
+    let message: StreamMessage?
+    let content_block: StreamContentBlock?
+    let delta: StreamDelta?
+    let usage: StreamUsage?
+}
+
+private struct StreamMessage: Decodable {
+    let id: String?
+    let role: String?
+    let usage: StreamUsage?
+}
+
+private struct StreamContentBlock: Decodable {
+    let type: String
+    let id: String?
+    let name: String?
+    let text: String?
+}
+
+private struct StreamDelta: Decodable {
+    let type: String?
+    let text: String?
+    let thinking: String?
+    let signature: String?
+    let partial_json: String?
+    let stop_reason: String?
+}
+
+private struct StreamUsage: Decodable {
+    let input_tokens: Int?
+    let output_tokens: Int?
+    let cache_creation_input_tokens: Int?
+    let cache_read_input_tokens: Int?
+}
+
+// MARK: - Data helpers for big-endian reads
+
+private extension Data {
+    func readBigEndianUInt32(at offset: Int) -> Int {
+        let b0 = Int(self[startIndex + offset]) << 24
+        let b1 = Int(self[startIndex + offset + 1]) << 16
+        let b2 = Int(self[startIndex + offset + 2]) << 8
+        let b3 = Int(self[startIndex + offset + 3])
+        return b0 | b1 | b2 | b3
+    }
+}
+
+// MARK: - Errors
+
+enum BedrockError: LocalizedError {
+    case notConfigured
+    case invalidResponse
+    case httpError(statusCode: Int, body: String)
+    case cognitoError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured:
+            return "AI is not configured for this build"
+        case .invalidResponse:
+            return "Invalid response from Bedrock"
+        case .httpError(let code, let body):
+            return "Bedrock HTTP \(code): \(body)"
+        case .cognitoError(let message):
+            return "Cognito error: \(message)"
+        }
+    }
+}
+
+// MARK: - Cognito Credential Manager
+
+actor CognitoCredentialManager {
+
+    static let shared = CognitoCredentialManager()
+
+    private var cachedCredentials: AWSSignatureV4.AWSCredentials?
+    private var refreshTask: Task<AWSSignatureV4.AWSCredentials, any Error>?
+
+    func getCredentials() async throws -> AWSSignatureV4.AWSCredentials {
+        if let cached = cachedCredentials, cached.expiration.timeIntervalSinceNow > 300 {
+            return cached
+        }
+
+        if let existing = refreshTask {
+            return try await existing.value
+        }
+
+        let task = Task<AWSSignatureV4.AWSCredentials, any Error> {
+            defer { refreshTask = nil }
+            let creds = try await fetchNewCredentials()
+            cachedCredentials = creds
+            return creds
+        }
+        refreshTask = task
+        return try await task.value
+    }
+
+    // Basic (classic) auth flow: GetId → GetOpenIdToken → STS AssumeRoleWithWebIdentity
+    // This avoids the scope-down session policy that Cognito's enhanced flow applies to unauthenticated identities.
+
+    private func fetchNewCredentials() async throws -> AWSSignatureV4.AWSCredentials {
+        guard let identityPoolId = BedrockConfig.identityPoolId,
+              let roleArn = BedrockConfig.roleArn else {
+            throw BedrockError.notConfigured
+        }
+
+        let identityId = try await getIdentityId(identityPoolId: identityPoolId)
+        let token = try await getOpenIdToken(identityId)
+        return try await assumeRoleWithWebIdentity(token: token, roleArn: roleArn)
+    }
+
+    private func getIdentityId(identityPoolId: String) async throws -> String {
+        var request = URLRequest(url: BedrockConfig.cognitoEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/x-amz-json-1.1", forHTTPHeaderField: "Content-Type")
+        request.setValue("AWSCognitoIdentityService.GetId", forHTTPHeaderField: "X-Amz-Target")
+
+        let body: [String: String] = ["IdentityPoolId": identityPoolId]
+        request.httpBody = try Foundation.JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown"
+            throw BedrockError.cognitoError("GetId failed: \(errorBody)")
+        }
+
+        struct GetIdResponse: Decodable { let IdentityId: String }
+        return try Foundation.JSONDecoder().decode(GetIdResponse.self, from: data).IdentityId
+    }
+
+    private func getOpenIdToken(_ identityId: String) async throws -> String {
+        var request = URLRequest(url: BedrockConfig.cognitoEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/x-amz-json-1.1", forHTTPHeaderField: "Content-Type")
+        request.setValue("AWSCognitoIdentityService.GetOpenIdToken", forHTTPHeaderField: "X-Amz-Target")
+
+        let body: [String: String] = ["IdentityId": identityId]
+        request.httpBody = try Foundation.JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown"
+            throw BedrockError.cognitoError("GetOpenIdToken failed: \(errorBody)")
+        }
+
+        struct TokenResponse: Decodable { let Token: String }
+        return try Foundation.JSONDecoder().decode(TokenResponse.self, from: data).Token
+    }
+
+    private func assumeRoleWithWebIdentity(
+        token: String,
+        roleArn: String
+    ) async throws -> AWSSignatureV4.AWSCredentials {
+        guard var components = URLComponents(url: BedrockConfig.stsEndpoint, resolvingAgainstBaseURL: false) else {
+            throw BedrockError.cognitoError("Invalid STS endpoint URL")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "Action", value: "AssumeRoleWithWebIdentity"),
+            URLQueryItem(name: "RoleArn", value: roleArn),
+            URLQueryItem(name: "RoleSessionName", value: "PlukDesktop"),
+            URLQueryItem(name: "WebIdentityToken", value: token),
+            URLQueryItem(name: "Version", value: "2011-06-15"),
+        ]
+
+        guard let url = components.url else {
+            throw BedrockError.cognitoError("Failed to construct STS request URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown"
+            throw BedrockError.cognitoError("AssumeRoleWithWebIdentity failed: \(errorBody)")
+        }
+
+        return try parseSTSResponse(data)
+    }
+
+    private func parseSTSResponse(_ data: Data) throws -> AWSSignatureV4.AWSCredentials {
+        let xml = String(data: data, encoding: .utf8) ?? ""
+
+        func extract(_ tag: String) -> String? {
+            guard let start = xml.range(of: "<\(tag)>"),
+                  let end = xml.range(of: "</\(tag)>", range: start.upperBound..<xml.endIndex) else { return nil }
+            return String(xml[start.upperBound..<end.lowerBound])
+        }
+
+        guard let accessKeyId = extract("AccessKeyId"),
+              let secretAccessKey = extract("SecretAccessKey"),
+              let sessionToken = extract("SessionToken"),
+              let expirationStr = extract("Expiration") else {
+            throw BedrockError.cognitoError("Failed to parse STS response")
+        }
+
+        let formatter = ISO8601DateFormatter()
+        let expiration = formatter.date(from: expirationStr) ?? Date().addingTimeInterval(3600)
+
+        return AWSSignatureV4.AWSCredentials(
+            accessKeyId: accessKeyId,
+            secretAccessKey: secretAccessKey,
+            sessionToken: sessionToken,
+            expiration: expiration
+        )
+    }
+}
