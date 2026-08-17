@@ -31,35 +31,51 @@ Pluk requires macOS 15 or later and runs on Apple Silicon and Intel Macs.
 ## A native home for your data
 
 <p align="center">
-  <img src="assets/hero-screenshot.png" width="900" alt="Pluk database workspace" />
+  <img src="assets/workspace.png" width="900" alt="Pluk workspace with recent connections and notebooks" />
 </p>
 
 <p align="center">
-  <em>Keep connections, recent tables, notebooks, and local Docker databases within reach.</em>
+  <em>Keep connections, notebooks, local files, and Docker databases together in one workspace.</em>
 </p>
 
 <p align="center">
-  <img src="assets/connection-manager.png" width="900" alt="Pluk connection manager" />
+  <img src="assets/data-grid.png" width="900" alt="Browsing a PostgreSQL table in Pluk" />
 </p>
 
 <p align="center">
-  <em>Connect with focused native forms for every supported database.</em>
+  <em>Browse, sort, filter, and edit real data in a fast native grid.</em>
 </p>
 
 <p align="center">
-  <img src="assets/query-interface.png" width="900" alt="Pluk SQL query editor and results" />
+  <img src="assets/query-editor.png" width="900" alt="Pluk SQL query editor" />
 </p>
 
 <p align="center">
-  <em>Write queries with autocomplete, run them, and inspect the results without leaving the window.</em>
+  <em>Open a query beside the active schema, write SQL with autocomplete, and keep the results in a tab.</em>
 </p>
 
 <p align="center">
-  <img src="assets/ai-assistant.png" width="900" alt="Pluk AI database assistant" />
+  <img src="assets/table-assistant.png" width="900" alt="Pluk table assistant summarizing active data" />
 </p>
 
 <p align="center">
-  <em>Ask questions with the active database and table already in context.</em>
+  <em>Ask about the table in front of you — Pluk already has the database, schema, and rows in context.</em>
+</p>
+
+<p align="center">
+  <img src="assets/notebook-assistant.png" width="900" alt="Pluk assistant building a notebook dashboard" />
+</p>
+
+<p align="center">
+  <em>Turn a question into queries, metrics, and charts while the assistant builds alongside you.</em>
+</p>
+
+<p align="center">
+  <img src="assets/dashboard.png" width="900" alt="A finished analytics dashboard in Pluk" />
+</p>
+
+<p align="center">
+  <em>Publish the result as a focused native dashboard.</em>
 </p>
 
 ## Features
