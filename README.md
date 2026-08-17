@@ -1,144 +1,146 @@
-<div align="center">
-  <img src="./assets/logo.png" alt="Pluk Logo" width="120" height="120">
-  
-  # Pluk
-  
-  **Native macOS database client for MongoDB, Postgres, MySQL, & SQLite**  
-  *AI does the querying, you explore your data* ✨
-  
-  [![Website](https://img.shields.io/badge/Website-pluk.sh-blue)](https://www.pluk.sh/)
-  [![Waitlist](https://img.shields.io/badge/Join-Waitlist-orange)](https://www.pluk.sh)
-  [![Issues](https://img.shields.io/github/issues/pluk-inc/pluk)](https://github.com/pluk-inc/pluk/issues)
-  
-  <img src="./assets/hero-screenshot.png" alt="Pluk Hero Screenshot" width="800">
-</div>
+<h1 align="center">Pluk</h1>
+
+<p align="center">
+  <img src="assets/logo.png" width="128" alt="Pluk logo" />
+</p>
+
+<p align="center">
+  A fast, native macOS workspace for your databases.
+</p>
+
+<p align="center"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-blue" />&nbsp;<img alt="Swift" src="https://img.shields.io/badge/swift-6.0-orange" />&nbsp;<img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-green" />&nbsp;<img alt="Latest release" src="https://img.shields.io/github/v/release/pluk-inc/Pluk" /></p>
+
+<p align="center">
+  <a href="https://github.com/pluk-inc/Pluk/releases/latest">Download</a>
+  &nbsp;·&nbsp;
+  <a href="https://pluk.sh">Website</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/pluk-inc/Pluk/issues/new/choose">Report an issue</a>
+</p>
 
 ---
 
-## 🚀 About Pluk
+> Connect PostgreSQL, MySQL, MariaDB, MongoDB, SQLite, or Convex and work with the data in one focused Mac app — no Electron, no browser tabs, no context switching.
 
-Pluk is a powerful, native macOS database client that revolutionizes how you interact with your databases. With AI-powered querying capabilities, Pluk makes database exploration intuitive and efficient for developers, data analysts, and database administrators.
+## Installation
 
-Pluk is open source under the [GNU Affero General Public License v3.0](./LICENSE). The Pluk name, logo, icon, and visual identity remain covered by the separate [trademark policy](./TRADEMARKS.md).
+Download the latest signed DMG from [Releases](https://github.com/pluk-inc/Pluk/releases/latest), open it, and drag Pluk to Applications.
 
-### ✨ Key Features
+Pluk requires macOS 15 or later and runs on Apple Silicon and Intel Macs.
 
-- **🤖 AI-Powered Querying** - Natural language to SQL/NoSQL conversion
-- **🔗 Multi-Database Support** - MongoDB, PostgreSQL, MySQL, SQLite
-- **🎨 Native macOS Design** - Beautiful, responsive interface built for Mac
-- **⚡ Lightning Fast** - Optimized performance for large datasets
-- **🔒 Secure Connections** - SSL/TLS support with credential management
-- **📊 Data Visualization** - Built-in charts and graphs *(coming soon)*
-- **💾 Query History** - Save and organize your favorite queries *(coming soon)*
-- **🔄 Real-time Updates** - Live data refresh capabilities *(coming soon)*
-- **🔌 Cloud Integrations** - Supabase, Convex, Neon support *(coming soon)*
+## A native home for your data
 
-## 📸 Screenshots
+<p align="center">
+  <img src="assets/workspace.png" width="900" alt="Pluk workspace with recent connections and notebooks" />
+</p>
 
-<div align="center">
-  <img src="./assets/connection-manager.png" alt="Connection Manager" width="100%">
-  <br><br>
+<p align="center">
+  <em>Keep connections, notebooks, local files, and Docker databases together in one workspace.</em>
+</p>
 
-  <img src="./assets/query-interface.png" alt="Query Interface" width="100%">
-  <br><br>
-  
-  <img src="./assets/ai-assistant.png" alt="AI Assistant" width="100%">
-</div>
+<p align="center">
+  <img src="assets/data-grid.png" width="900" alt="Browsing a PostgreSQL table in Pluk" />
+</p>
 
-## 🔧 Supported Databases
+<p align="center">
+  <em>Browse, sort, filter, and edit real data in a fast native grid.</em>
+</p>
 
-| Database | Version | Features |
-|----------|---------|----------|
-| **MongoDB** | 3.6+ | Collections |
-| **PostgreSQL** | 9.6+ | Full SQL, JSON |
-| **MySQL** | 5.7+ | Full SQL |
-| **SQLite** | 3.8+ | Local files |
+<p align="center">
+  <img src="assets/query-editor.png" width="900" alt="Pluk SQL query editor" />
+</p>
 
-## 🛠 Build from source
+<p align="center">
+  <em>Open a query beside the active schema, write SQL with autocomplete, and keep the results in a tab.</em>
+</p>
 
-Requirements:
+<p align="center">
+  <img src="assets/table-assistant.png" width="900" alt="Pluk table assistant summarizing active data" />
+</p>
 
-- macOS 15 or later
-- Xcode 26 or later with Swift 6 support
+<p align="center">
+  <em>Ask about the table in front of you — Pluk already has the database, schema, and rows in context.</em>
+</p>
 
-Clone the repository, open `Pluk.xcodeproj`, select the shared `Collection` scheme, and run the app target. Xcode resolves the Swift package dependencies from the checked-in `Package.resolved` file.
+<p align="center">
+  <img src="assets/notebook-assistant.png" width="900" alt="Pluk assistant building a notebook dashboard" />
+</p>
 
-Community builds work without Pluk's hosted service configuration. PostHog, Sentry, WorkOS sign-in, and funded Bedrock AI are disabled when their values are absent. Maintainers can copy `pluk/Secrets.xcconfig.example` to the ignored `pluk/Secrets.xcconfig` for official builds. Values placed there are embedded in the app binary and must not be treated as server-side secrets.
+<p align="center">
+  <em>Turn a question into queries, metrics, and charts while the assistant builds alongside you.</em>
+</p>
 
-If code signing fails, choose your own development team in Xcode or build locally with code signing disabled. Do not commit personal signing configuration.
+<p align="center">
+  <img src="assets/dashboard.png" width="900" alt="A finished analytics dashboard in Pluk" />
+</p>
 
-## 📋 Issue Tracking
+<p align="center">
+  <em>Publish the result as a focused native dashboard.</em>
+</p>
 
-This repository is dedicated to tracking bugs, feature requests, and feedback for Pluk. We welcome your contributions to make Pluk even better!
+## Features
 
-### 🐛 Reporting Bugs
+- **Native macOS interface** — AppKit and SwiftUI throughout, with real windows, tabs, sheets, keyboard navigation, and platform-standard controls.
+- **Six database families** — PostgreSQL, MySQL, MariaDB, MongoDB, SQLite, and Convex in one connection model.
+- **Editable data grid** — browse, filter, sort, copy, paste, and edit rows directly, with dedicated views for larger values.
+- **Query workspace** — SQL editing, autocomplete, multiple result sets, history, schema-aware execution, and saved notebooks.
+- **Schema tools** — inspect columns and indexes, create tables and databases, and make schema changes without leaving the app.
+- **Notebook dashboards** — combine queries, values, text, and charts in a flexible native canvas.
+- **Context-aware assistant** — chat about the open table or notebook and review generated writes before they run.
+- **Real-world connections** — SSH tunnels, SSL certificates, URI import, local SQLite files, and Docker container discovery.
+- **Secure local handling** — Keychain-backed secrets, encrypted query history, and no Pluk telemetry in unconfigured community builds.
 
-Before submitting a bug report, please:
+## Supported databases
 
-1. **Search existing issues** to avoid duplicates
-<!-- 2. **Check our [FAQ](https://www.pluk.sh/faq)** for common solutions -->
-2. **Provide detailed information** using our bug report template
+| Database | What Pluk supports |
+| --- | --- |
+| PostgreSQL | Tables, schemas, SQL, JSON, SSL, SSH tunnels |
+| MySQL and MariaDB | Tables, SQL, SSL, SSH tunnels |
+| MongoDB | Collections, documents, filters, aggregation |
+| SQLite | Local database files and SQL |
+| Convex | Projects, deployments, documents, and queries |
 
-[**🐛 Report a Bug**](https://github.com/pluk-inc/pluk/issues/new?template=bug_report.md)
+## Building from source
 
-### 💡 Feature Requests
+You need macOS 15 or later and Xcode 26 or later with Swift 6 support.
 
-Have an idea to improve Pluk? We'd love to hear it!
+```sh
+git clone https://github.com/pluk-inc/Pluk.git
+cd Pluk
+open Pluk.xcodeproj
+```
 
-[**💡 Request a Feature**](https://github.com/pluk-inc/pluk/issues/new?template=feature_request.md)
+Build and run the shared `Collection` scheme. Swift Package Manager resolves the pinned dependencies on the first build.
 
-### 📝 Issue Templates
+If signing fails, select your own development team in Xcode or build locally with code signing disabled. Never commit personal signing configuration.
 
-- [🐛 Bug Report](/.github/ISSUE_TEMPLATE/bug_report.md)
-- [💡 Feature Request](/.github/ISSUE_TEMPLATE/feature_request.md)
-- [📚 Documentation](/.github/ISSUE_TEMPLATE/documentation.md)
-- [❓ Question](/.github/ISSUE_TEMPLATE/question.md)
+### Community builds
 
-## 🏷️ Labels
+The database client builds without access to Pluk's hosted services. When `pluk/Secrets.xcconfig` is absent, PostHog, Sentry, WorkOS sign-in, Convex OAuth, and funded Bedrock AI are not configured. Manual Convex connections remain available.
 
-We use labels to categorize and prioritize issues:
+Maintainers can copy `pluk/Secrets.xcconfig.example` to the ignored `pluk/Secrets.xcconfig` for official builds. Those values are embedded in the app binary and must not be treated as server-side secrets.
 
-| Label | Description |
-|-------|-------------|
-| `bug` | Something isn't working |
-| `enhancement` | New feature or request |
-| `documentation` | Improvements to documentation |
-| `good first issue` | Good for newcomers |
-| `help wanted` | Extra attention is needed |
-| `priority: high` | High priority issues |
-| `status: in progress` | Currently being worked on |
+See [DATA_COLLECTION.md](DATA_COLLECTION.md) for the service and telemetry boundary.
 
-## 📊 Project Status
+## Project layout
 
-- **Status**: Open source beta
-- **Platform**: macOS 15.0
-- **Architecture**: Apple Silicon & Intel
-- **Development**: Active
+```text
+pluk/                 Main macOS app source and resources
+plukTests/            Unit tests
+plukUITests/          UI test target
+BSON/                 Vendored BSON package
+Pluk.xcodeproj/       Shared Xcode project, scheme, and package pins
+scripts/              Release and rollback automation
+```
 
-## 🔗 Quick Links
+## Contributing
 
-- 🌐 **Website**: [pluk.sh](https://www.pluk.sh/)
-- 📝 **Join Waitlist**: [pluk.sh](https://www.pluk.sh)
-- 🐦 **Twitter**: [@pluk_sh](https://x.com/pluk_sh)
+Pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), keep changes focused, and test user-facing behavior in the running app before submitting.
 
-## 🤝 Contributing
+Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Third-party software and attribution are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Source contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. For security vulnerabilities, follow [SECURITY.md](./SECURITY.md) instead of opening a public issue.
+## License
 
-We welcome:
+Pluk's source code is available under the [GNU Affero General Public License v3.0](LICENSE).
 
-- **Bug reports** with detailed reproduction steps
-- **Feature suggestions** with clear use cases
-- **Code contributions** with focused tests and validation
-- **Documentation improvements**
-- **Community feedback** and discussions
-
----
-
-<div align="center">
-  <p>Made with ❤️ for the developer community</p>
-  <p>
-    <a href="https://www.pluk.sh/">Website</a> •
-    <a href="https://github.com/pluk-inc/pluk/issues">Issues</a>
-  </p>
-</div>
+The source license does not grant permission to use the Pluk name, logo, icon, or visual identity for another product. Forks and redistributed builds must follow the [Pluk Trademark Policy](TRADEMARKS.md).
