@@ -2,6 +2,12 @@
 
 # Pluk Release Notes
 
+## [0.0.50-beta.1] – 2026-08-18
+
+This beta fixes PostgreSQL connections that go through a local port-forward to a server that requires SSL.
+
+- **SSL Mode is respected on local connections.** Pluk force-disabled TLS whenever the host was `localhost`, `127.0.0.1`, or `::1`, ignoring whatever the SSL Mode menu was set to. Connecting through an SSH or SSM port-forward to a server that enforces SSL — an RDS instance with `rds.force_ssl`, for example — failed with `no pg_hba.conf entry ... no encryption`, and no value in the menu could fix it. An explicit SSL Mode now wins. Local servers without TLS still connect, because `prefer` falls back to plaintext.
+
 ## [0.0.49] – 2026-08-10
 
 Pluk v0.0.49 brings the AI agent out of notebooks and into the table view. You can now ask questions about the table you're looking at and have the agent make changes for you — with an approval step before anything touches your data. The rest of the release is stability: three crashes fixed, plus window and popover behavior that stays put.
