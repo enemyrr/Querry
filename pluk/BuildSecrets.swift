@@ -1,8 +1,6 @@
 import Foundation
 
 enum BuildSecrets {
-    static let postHogAPIKey = value(for: "PLUKPostHogAPIKey")
-    static let sentryDSN = value(for: "PLUKSentryDSN")
     static let convexOAuthClientID = value(for: "PLUKConvexOAuthClientID")
     static let convexOAuthClientSecret = value(for: "PLUKConvexOAuthClientSecret")
 

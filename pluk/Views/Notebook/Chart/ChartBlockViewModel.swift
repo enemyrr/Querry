@@ -608,15 +608,6 @@ final class ChartBlockViewModel {
             return
         }
 
-        let analyticsStartTime = ContinuousClock.now
-        let databaseType = DatabaseType(rawValue: cfg.databaseType)
-        let dataSource = cfg.sourceQueryBlockId == nil ? "direct_connection" : "query_block"
-        AnalyticsService.shared.trackNotebookExecutionStarted(
-            surface: "chart",
-            dataSource: dataSource,
-            databaseType: databaseType
-        )
-
         isLoadingChart = true
         chartError = nil
         defer { isLoadingChart = false }
@@ -625,25 +616,11 @@ final class ChartBlockViewModel {
            let queryBlockId = UUID(uuidString: queryBlockIdStr) {
             guard let result = dataController?.queryResult(for: queryBlockId) else {
                 chartError = "Run the source query block first"
-                AnalyticsService.shared.trackNotebookExecutionFailed(
-                    surface: "chart",
-                    dataSource: dataSource,
-                    databaseType: databaseType,
-                    durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                    errorCategory: "missing_source_result"
-                )
                 return
             }
 
             let points = chartPoints(from: result, config: cfg, xColumn: xCol)
             applyChartPoints(points)
-            AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                surface: "chart",
-                dataSource: dataSource,
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                resultCount: points.count
-            )
             return
         }
 
@@ -660,13 +637,6 @@ final class ChartBlockViewModel {
                 )
                 let points = chartPoints(from: result, config: cfg, xColumn: xCol)
                 applyChartPoints(points)
-                AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                    surface: "chart",
-                    dataSource: dataSource,
-                    databaseType: databaseType,
-                    durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                    resultCount: points.count
-                )
                 return
             }
 
@@ -716,13 +686,6 @@ final class ChartBlockViewModel {
                     }
                 }
                 applyChartPoints(points)
-                AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                    surface: "chart",
-                    dataSource: dataSource,
-                    databaseType: databaseType,
-                    durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                    resultCount: points.count
-                )
             } else {
                 let allYCols = cfg.fields["yAxis"] ?? [yCol]
                 let result = try await session.fetchTableData(
@@ -747,23 +710,9 @@ final class ChartBlockViewModel {
                     }
                 }
                 applyChartPoints(points)
-                AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                    surface: "chart",
-                    dataSource: dataSource,
-                    databaseType: databaseType,
-                    durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                    resultCount: points.count
-                )
             }
         } catch {
             chartError = error.localizedDescription
-            AnalyticsService.shared.trackNotebookExecutionFailed(
-                surface: "chart",
-                dataSource: dataSource,
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                errorCategory: AnalyticsService.categorizeError(error)
-            )
         }
     }
 

@@ -20,10 +20,5 @@
 	<true/>
 	<key>com.apple.security.files.bookmarks.document-scope</key>
 	<true/>
-	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
-	<array>
-		<string>doc.pluk-spks</string>
-		<string>doc.pluk-spki</string>
-	</array>
 </dict>
 </plist>

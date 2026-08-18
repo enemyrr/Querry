@@ -291,7 +291,9 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
 
     @objc private func searchButtonTapped() {
         viewModel.isSearchVisible.toggle()
-        if !viewModel.isSearchVisible {
+        if viewModel.isSearchVisible {
+            viewModel.shouldFocusSearchOnAppear = true
+        } else {
             viewModel.searchText = ""
         }
     }
@@ -494,11 +496,6 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
         WindowController.newTab(
             tabType: .connection(instanceId),
             connectionInstance: connectionInstance
-        )
-
-        AnalyticsService.shared.trackConnectionOpened(
-            databaseType: connection.databaseType,
-            isFirstConnection: false
         )
     }
 }

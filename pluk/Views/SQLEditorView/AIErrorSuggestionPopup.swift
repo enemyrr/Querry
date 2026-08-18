@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PostHog
 
 struct AIErrorSuggestionPopup: View {
     private static let actionButtonHeight: CGFloat = 18
@@ -44,7 +43,6 @@ struct AIErrorSuggestionPopup: View {
                         Spacer()
                         
                         Button(action: {
-                            PostHogSDK.shared.capture("ai_error_fix_accepted", properties: ["action": "accept_and_run"])
                             onAcceptAndRun()
                         }) {
                             Text("Accept & Run ⌘⏎")
@@ -54,7 +52,6 @@ struct AIErrorSuggestionPopup: View {
                         .keyboardShortcut(.return, modifiers: [.command])
 
                         Button(action: {
-                            PostHogSDK.shared.capture("ai_error_fix_rejected")
                             onReject()
                         }) {
                             HStack(spacing: 4) {

@@ -5,13 +5,7 @@ final class NavigationSidebarViewController: NSViewController {
 
     private let stackView = NSStackView()
     private var itemButtonsContainer = NSStackView()
-    private var feedbackPopover: NSPopover?
-    private var sidebarViewModel: SidebarViewModel?
     nonisolated(unsafe) private var notificationObservers: [Any] = []
-
-    func configure(sidebarViewModel: SidebarViewModel) {
-        self.sidebarViewModel = sidebarViewModel
-    }
 
     override func loadView() {
         let container = NSView()
@@ -40,18 +34,10 @@ final class NavigationSidebarViewController: NSViewController {
         itemButtonsContainer.spacing = 0
         stackView.addArrangedSubview(itemButtonsContainer)
 
-        // Feedback button pinned to bottom
-        let feedbackButton = makeFeedbackButton()
-        feedbackButton.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(feedbackButton)
-
         NSLayoutConstraint.activate([
             stackView.topAnchor.constraint(equalTo: container.topAnchor, constant: 50),
             stackView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-
-            feedbackButton.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            feedbackButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
         ])
     }
 
@@ -101,15 +87,6 @@ final class NavigationSidebarViewController: NSViewController {
         WindowController.switchToTab(.home)
     }
 
-    // MARK: - Feedback Button
-
-    private func makeFeedbackButton() -> SidebarIconButton {
-        let button = makeSidebarIconButton(systemName: "exclamationmark.bubble.fill", style: .borderless)
-        button.target = self
-        button.action = #selector(feedbackButtonTapped(_:))
-        return button
-    }
-
     private func makeSidebarIconButton(systemName: String, style: SidebarIconButton.Style = .bordered) -> SidebarIconButton {
         let button = SidebarIconButton(frame: NSRect(x: 0, y: 0, width: 50, height: 40), style: style)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -119,27 +96,6 @@ final class NavigationSidebarViewController: NSViewController {
         ])
         button.setIcon(systemName: systemName)
         return button
-    }
-
-    @objc private func feedbackButtonTapped(_ sender: NSView) {
-        guard let sidebarViewModel else { return }
-
-        if let existing = feedbackPopover, existing.isShown {
-            existing.close()
-            feedbackPopover = nil
-            return
-        }
-
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 400, height: 320)
-
-        let feedbackView = FeedbackForm(viewModel: sidebarViewModel)
-        let hostingController = NSHostingController(rootView: feedbackView)
-        popover.contentViewController = hostingController
-
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxX)
-        feedbackPopover = popover
     }
 
     // MARK: - Item Buttons

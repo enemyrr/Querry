@@ -9,7 +9,6 @@ import AppKit
 import SwiftUI
 import CodeEditorView
 import LanguageSupport
-import PostHog
 
 private enum ResultsPillTabBarMetrics {
     static let outerCornerRadius = ToolbarIslandMetrics.cornerRadius
@@ -895,15 +894,6 @@ extension SQLEditorView {
 
             // Clear any existing messages
             messages = Set()
-        }
-
-        let errorCategory = AnalyticsService.categorizeError(error)
-        Task { @MainActor in
-            AnalyticsService.shared.trackAIErrorFixGeneration(
-                databaseType: instance.connection.databaseType,
-                queryLength: query.count,
-                errorCategory: errorCategory
-            )
         }
 
         do {

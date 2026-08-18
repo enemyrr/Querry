@@ -7,7 +7,6 @@
 
 import SwiftUI
 import CryptoKit
-import PostHog
 import SwiftData
 
 struct ConvexHelpSheet: View {
@@ -457,12 +456,7 @@ struct ConvexOAuthView: View {
         if !embeddedToken.isEmpty {
             newConnection.password = embeddedToken
         }
-        
-        // Track connection creation event
-        PostHogSDK.shared.capture("connection_created", properties: [
-            "database_type": DatabaseType.convex.rawValue,
-        ])
-        
+
         // Dismiss the modal immediately after saving
         await MainActor.run {
             dismiss()

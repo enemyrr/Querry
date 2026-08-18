@@ -1,5 +1,4 @@
 import SwiftUI
-@_spi(Experimental) import PostHog
 
 @MainActor
 @Observable class SidebarViewModel {
@@ -15,7 +14,10 @@ import SwiftUI
 
     var activeSidebarItem: SidebarNavItem = .home
     var searchText: String = ""
-    var isSearchVisible: Bool = false
+    var isSearchVisible: Bool = true
+    /// Set when the user opens search, so the field only steals focus on an explicit toggle.
+    @ObservationIgnored
+    var shouldFocusSearchOnAppear: Bool = false
     var sidebarViewMode: SidebarViewMode = .tables
     var isShowingAdvancedHistory: Bool = false
 
@@ -62,33 +64,5 @@ import SwiftUI
 
     func loadActiveConnection() async {
         try? await activeConnection?.connect()
-    }
-
-    // MARK: - Feedback
-
-    var isShowingFeedback: Bool = false
-    var feedbackText: String = ""
-    var feedbackEmail: String = ""
-    var isFeedbackSubmitting: Bool = false
-    var isFeedbackSubmitted: Bool = false
-
-    func showFeedbackForm() {
-        feedbackText = ""
-        isFeedbackSubmitted = false
-        isFeedbackSubmitting = false
-        isShowingFeedback = true
-    }
-
-    func submitFeedback() async {
-        isFeedbackSubmitting = true
-
-        PostHogSDK.shared.capture("survey sent", properties: [
-            "$survey_id": "01966cb2-a2e8-0000-fb97-f2e9a889567f",
-            "$survey_response_ec511b62-1f0a-4480-a946-04f3cc420dc3": feedbackText,
-            "$survey_response_c75e07e1-5dcf-4708-8bd8-549726126767": feedbackEmail
-        ])
-
-        isFeedbackSubmitting = false
-        isFeedbackSubmitted = true
     }
 }

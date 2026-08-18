@@ -4,15 +4,10 @@
 //
 
 import SwiftUI
-import PostHog
-import Sentry
 
 struct GeneralSettingsView: View {
     @AppStorage("appearance") private var appearance = 0
     @AppStorage("showInMenuBar") private var showInMenuBar = true
-    @AppStorage("autoCheckForUpdates") private var autoCheckForUpdates = true
-    @AppStorage("reportCrashes") private var reportCrashes = true
-    @AppStorage("sendAnalytics") private var sendAnalytics = true
     @AppStorage("containerSyncEnabled") private var containerSyncEnabled = true
     @AppStorage(QueryAlertMode.storageKey) private var queryAlertMode = QueryAlertMode.default.rawValue
 
@@ -64,40 +59,9 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .onChange(of: appearance) { _, newValue in
             applyAppearance(newValue)
-            AnalyticsService.shared.updateAppearanceSuperProperty()
-        }
-        .onChange(of: autoCheckForUpdates) { _, newValue in
-            SparkleUpdaterManager.shared.updaterController?.updater.automaticallyChecksForUpdates = newValue
-        }
-        .onChange(of: sendAnalytics) { _, newValue in
-            if newValue {
-                PostHogSDK.shared.optIn()
-            } else {
-                PostHogSDK.shared.optOut()
-            }
-        }
-        .onChange(of: reportCrashes) { _, newValue in
-            if !newValue {
-                SentrySDK.close()
-            }
-            // Note: Enabling crash reporting requires app restart since Sentry
-            // can only be initialized once. The setting is checked in AppDelegate.
         }
         .onAppear {
             applyAppearance(appearance)
-            syncSettingsWithServices()
-        }
-    }
-
-    private func syncSettingsWithServices() {
-        if let updater = SparkleUpdaterManager.shared.updaterController?.updater {
-            updater.automaticallyChecksForUpdates = autoCheckForUpdates
-        }
-
-        if sendAnalytics {
-            PostHogSDK.shared.optIn()
-        } else {
-            PostHogSDK.shared.optOut()
         }
     }
 
@@ -162,9 +126,6 @@ struct GeneralSettingsView: View {
     private var applicationSection: some View {
         Section("Application") {
             Toggle("Show in menu bar", isOn: $showInMenuBar)
-            Toggle("Automatically check for updates", isOn: $autoCheckForUpdates)
-            Toggle("Report crashes", isOn: $reportCrashes)
-            Toggle("Send anonymous usage analytics", isOn: $sendAnalytics)
 
             // MARK: Future Application toggles (DO NOT REMOVE - uncomment to enable)
             // Toggle("Receive Beta Updates", isOn: $receiveBetaUpdates)

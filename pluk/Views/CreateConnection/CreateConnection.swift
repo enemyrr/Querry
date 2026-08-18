@@ -9,7 +9,6 @@ import Foundation
 import MongoCore
 import MongoKitten
 import Network
-import PostHog
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -160,19 +159,13 @@ struct CreateConnection: View {
         }
     }
 
-    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection: Bool) {
+    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection _: Bool) {
         let instanceId = sidebarViewModel.createNewConnectionInstance(for: connection)
         guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }
 
         WindowController.newTab(
             tabType: .connection(instanceId),
             connectionInstance: connectionInstance
-        )
-
-        let totalConnections = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
-        AnalyticsService.shared.trackConnectionOpened(
-            databaseType: connection.databaseType,
-            isFirstConnection: !isEditingExistingConnection && totalConnections == 1
         )
     }
 }
@@ -484,10 +477,6 @@ struct CreateConnectionForm: View {
         }
         .onAppear {
             mapExistingConnectionData()
-            AnalyticsService.shared.trackConnectionFormOpened(
-                databaseType: connection?.databaseType,
-                isEditing: connection != nil
-            )
         }
         .onChange(of: selectedDatabaseType) { oldValue, newValue in
             // Reset form when switching database types (but not on initial load or when editing)
@@ -495,7 +484,6 @@ struct CreateConnectionForm: View {
                 resetForm()
             }
         }
-        .postHogScreenView("CreateConnection")
     }
     
     @Environment(\.colorScheme) var colorScheme: ColorScheme
@@ -719,16 +707,10 @@ struct CreateConnectionForm: View {
     private func testConnection() async {
         guard let db = selectedDatabaseType, let uri = buildUriForTest() else { return }
         let testID = UUID()
-        let startTime = ContinuousClock.now
         await MainActor.run {
             currentTestID = testID
             isTestingConnection = true
             testSucceeded = nil
-            AnalyticsService.shared.trackConnectionAttemptStarted(
-                databaseType: db,
-                source: "connection_form_test",
-                isReconnect: false
-            )
         }
         let result = await databaseService.testConnection(
             databaseType: db,
@@ -743,21 +725,8 @@ struct CreateConnectionForm: View {
             switch result {
             case .success:
                 testSucceeded = true
-                AnalyticsService.shared.trackConnectionAttemptSucceeded(
-                    databaseType: db,
-                    source: "connection_form_test",
-                    isReconnect: false,
-                    durationMs: AnalyticsService.durationMilliseconds(since: startTime)
-                )
-            case .failure(let error):
+            case .failure:
                 testSucceeded = false
-                AnalyticsService.shared.trackConnectionAttemptFailed(
-                    databaseType: db,
-                    source: "connection_form_test",
-                    isReconnect: false,
-                    durationMs: AnalyticsService.durationMilliseconds(since: startTime),
-                    errorCategory: AnalyticsService.categorizeError(error)
-                )
             }
         }
         try? await Task.sleep(for: .seconds(2))
@@ -1167,20 +1136,6 @@ struct CreateConnectionForm: View {
             try? modelContext.save()
 
             savedConnection = newConnection
-
-            let connectionCount = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
-            let isFirstConnection = connectionCount == 1
-            AnalyticsService.shared.trackConnectionCreated(
-                databaseType: databaseTypeEnum,
-                isFirstConnection: isFirstConnection
-            )
-
-            let allConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []
-            let databaseTypes = Array(Set(allConnections.map { $0.databaseType.rawValue }))
-            AnalyticsService.shared.updateConnectionSuperProperties(
-                totalConnections: connectionCount,
-                databaseTypes: databaseTypes
-            )
         }
 
         onSavedConnection?(savedConnection, isEditingExistingConnection)

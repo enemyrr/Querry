@@ -341,10 +341,6 @@ class TableDataController {
             return
         }
 
-        if let databaseType = instance.databaseType {
-            AnalyticsService.shared.trackTableViewed(databaseType: databaseType)
-        }
-
         let initialFilter = generateInitialFilter()
         currentActiveFilter = initialFilter
         // Initial open: forceFetch documents (we have nothing cached) but

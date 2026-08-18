@@ -217,11 +217,6 @@ final class TableContentViewController: NSViewController {
                 guard let self else { return }
                 let effectiveFilter: String? = filter.isEmpty ? nil : filter
                 self.dataController.currentActiveFilter = effectiveFilter
-                if let databaseType = self.dataController.instance.databaseType, !filter.isEmpty {
-                    Task { @MainActor in
-                        AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
-                    }
-                }
                 self.dataController.scheduleLoadOrSubscribe(
                     forceFetch: true,
                     fetchSchema: false,
@@ -412,11 +407,6 @@ final class TableContentViewController: NSViewController {
                 guard let self else { return }
                 self.dataController.sortColumn = column.isEmpty ? nil : column
                 self.dataController.sortAscending = ascending
-                if let databaseType = self.instance.databaseType {
-                    Task { @MainActor in
-                        AnalyticsService.shared.trackSortApplied(databaseType: databaseType)
-                    }
-                }
                 self.dataController.scheduleLoadOrSubscribe(
                     forceFetch: true,
                     fetchSchema: false,
@@ -725,11 +715,6 @@ final class TableContentViewController: NSViewController {
                 guard let self else { return }
                 let effectiveFilter: String? = filter.isEmpty ? nil : filter
                 self.dataController.currentActiveFilter = effectiveFilter
-                if let databaseType = self.dataController.instance.databaseType, !filter.isEmpty {
-                    Task { @MainActor in
-                        AnalyticsService.shared.trackFilterApplied(databaseType: databaseType)
-                    }
-                }
                 self.dataController.scheduleLoadOrSubscribe(
                     forceFetch: true,
                     fetchSchema: false,

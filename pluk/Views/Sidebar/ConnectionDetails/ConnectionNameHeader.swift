@@ -36,7 +36,9 @@ struct ConnectionNameHeader: View {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         viewModel.isSearchVisible.toggle()
-                        if !viewModel.isSearchVisible {
+                        if viewModel.isSearchVisible {
+                            viewModel.shouldFocusSearchOnAppear = true
+                        } else {
                             viewModel.searchText = ""
                         }
                     }
@@ -151,11 +153,6 @@ struct ConnectionNameHeader: View {
         WindowController.newTab(
             tabType: .connection(instanceId),
             connectionInstance: connectionInstance
-        )
-
-        AnalyticsService.shared.trackConnectionOpened(
-            databaseType: connection.databaseType,
-            isFirstConnection: false
         )
     }
 }

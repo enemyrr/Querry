@@ -161,7 +161,6 @@ struct HomeView: View {
             maxHeight: .infinity,
             alignment: .leading
         )
-        .postHogScreenView("HomeView")
         .task {
             if containerSyncEnabled {
                 await loadDockerCandidates()
@@ -192,18 +191,12 @@ struct HomeView: View {
                    let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
                     connection.lastOpenedAt = Date()
                     viewModel?.changeActiveSidebarItem(.connection(existingInstance.id))
-                    Task { @MainActor in
-                        AnalyticsService.shared.trackConnectionOpened(
-                            databaseType: connection.databaseType,
-                            isFirstConnection: false
-                        )
-                    }
                 }
                 pendingConnection = nil
             }
             Button("Create New Tab") {
                 if let connection = pendingConnection {
-                    openNewConnectionTab(connection, isFirstConnection: false)
+                    openNewConnectionTab(connection)
                 }
                 pendingConnection = nil
             }
@@ -460,7 +453,6 @@ struct HomeView: View {
         let notebook = Notebook()
         modelContext.insert(notebook)
         handleNotebookOpen(notebook)
-        AnalyticsService.shared.trackNotebookCreated(source: "home")
     }
 
     private func handleNotebookOpen(_ notebook: Notebook) {
@@ -470,17 +462,15 @@ struct HomeView: View {
     }
 
     private func handleConnectionOpen(_ connection: Connection) {
-        let isFirstConnection = connections.count == 1 && ConnectionService.shared.connectionInstances.isEmpty
-
         if ConnectionService.shared.getExistingInstance(for: connection) != nil {
             pendingConnection = connection
             showConnectionAlert = true
         } else {
-            openNewConnectionTab(connection, isFirstConnection: isFirstConnection)
+            openNewConnectionTab(connection)
         }
     }
 
-    private func openNewConnectionTab(_ connection: Connection, isFirstConnection: Bool) {
+    private func openNewConnectionTab(_ connection: Connection) {
         connection.lastOpenedAt = Date()
         guard let viewModel else { return }
         let instanceId = viewModel.createNewConnectionInstance(for: connection)
@@ -490,20 +480,10 @@ struct HomeView: View {
             tabType: .connection(instanceId),
             connectionInstance: connectionInstance
         )
-        Task { @MainActor in
-            AnalyticsService.shared.trackConnectionOpened(
-                databaseType: connection.databaseType,
-                isFirstConnection: isFirstConnection
-            )
-        }
     }
 
-    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection: Bool) {
-        let totalConnections = (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
-        openNewConnectionTab(
-            connection,
-            isFirstConnection: !isEditingExistingConnection && totalConnections == 1
-        )
+    private func openSavedConnection(_ connection: Connection, isEditingExistingConnection _: Bool) {
+        openNewConnectionTab(connection)
     }
 
 }

@@ -184,11 +184,6 @@ struct ConnectionHeader: View {
             tabType: .connection(instanceId),
             connectionInstance: connectionInstance
         )
-
-        AnalyticsService.shared.trackConnectionOpened(
-            databaseType: connection.databaseType,
-            isFirstConnection: false
-        )
     }
 }
 

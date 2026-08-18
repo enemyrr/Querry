@@ -711,10 +711,6 @@ struct FloatingActionBar: View {
     func openQueryEditor() {
         Task { @MainActor in
             if !showQueryEditor {
-                AnalyticsService.shared.trackQueryEditorOpened(
-                    databaseType: databaseType ?? instance.connection.databaseType,
-                    source: "floating_action_bar"
-                )
                 withAnimation(.spring(response: 0.15)) {
                     showQueryEditor = true
                 }

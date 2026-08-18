@@ -181,9 +181,7 @@ final class MainContentViewController: NSViewController {
     // MARK: - Sidebar Controllers
 
     private func makeNavigationSidebar() -> NavigationSidebarViewController {
-        let navVC = NavigationSidebarViewController()
-        navVC.configure(sidebarViewModel: sidebarViewModel)
-        return navVC
+        return NavigationSidebarViewController()
     }
 
     private func makeSidebarController() -> NSViewController {

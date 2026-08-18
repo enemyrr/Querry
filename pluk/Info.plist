@@ -6,24 +6,12 @@
 	<string>$(CONVEX_OAUTH_CLIENT_ID)</string>
 	<key>PLUKConvexOAuthClientSecret</key>
 	<string>$(CONVEX_OAUTH_CLIENT_SECRET)</string>
-	<key>PLUKPostHogAPIKey</key>
-	<string>$(POSTHOG_API_KEY)</string>
-	<key>PLUKSentryDSN</key>
-	<string>$(SENTRY_DSN)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>Preferred default scene session role</key>
 	<string>MainWindow</string>
 	<key>SEnableDownloaderService</key>
 	<true/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUFeedURL</key>
-	<string>https://r2.pluk.sh/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>gIQjgqfjkIR+egQ4S1oBLxE/NCDxpXXGdZXSpn04VAY=</string>
-	<key>SUScheduledCheckInterval</key>
-	<integer>3600</integer>
 	<key>UIApplicationSceneManifest</key>
 	<false/>
 	<key>com.apple.security.network.client</key>

@@ -6,9 +6,6 @@
 //
 import Cocoa
 import OSLog
-import PostHog
-import Sentry
-import Sparkle
 import SwiftData
 import SwiftUI
 
@@ -72,35 +69,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSApp.appearance = Self.userPreferredAppearance()
-
-        let _ = SparkleUpdaterManager.shared
-
-        if let postHogAPIKey = BuildSecrets.postHogAPIKey {
-            let sendAnalytics = UserDefaults.standard.object(forKey: "sendAnalytics") as? Bool ?? true
-            let config = PostHogConfig(apiKey: postHogAPIKey, host: "https://us.i.posthog.com")
-
-            #if DEBUG
-                config.optOut = true
-            #else
-                config.optOut = !sendAnalytics
-            #endif
-
-            PostHogSDK.shared.setup(config)
-
-            Task { @MainActor in
-                AnalyticsService.shared.setupSuperPropertiesIfNeeded()
-            }
-        }
-
-        let reportCrashes = UserDefaults.standard.object(forKey: "reportCrashes") as? Bool ?? true
-        if reportCrashes, let sentryDSN = BuildSecrets.sentryDSN {
-            SentrySDK.start { options in
-                options.dsn = sentryDSN
-                options.sendDefaultPii = false
-                options.enableUncaughtNSExceptionReporting = true
-                options.debug = false
-            }
-        }
 
         // Ensure the app has a basic main menu and is frontmost
         if NSApp.mainMenu == nil {
@@ -194,12 +162,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindowController.shared.show()
     }
 
-    @IBAction func checkForUpdates(_ sender: Any?) {
-        Task { @MainActor in
-            SparkleUpdaterManager.shared.checkForUpdates()
-        }
-    }
-
     func applicationWillTerminate(_ aNotification: Notification) {
         if let windowShortcutMonitor {
             NSEvent.removeMonitor(windowShortcutMonitor)
@@ -259,9 +221,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let normalizedPath = normalizedSQLitePath(url.path)
         if let connection = existingSQLiteConnection(for: normalizedPath) {
-            let isFirstConnection = fetchConnectionCount() == 1
-                && ConnectionService.shared.connectionInstances.isEmpty
-            openSQLiteConnection(connection, isFirstConnection: isFirstConnection)
+            openSQLiteConnection(connection)
             return
         }
 
@@ -332,11 +292,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var sheetWindow: NSWindow?
         let form = CreateConnectionForm(
             initialSQLiteFileURL: url,
-            onSavedConnection: { [weak self] connection, isEditingExistingConnection in
-                self?.openSavedSQLiteConnection(
-                    connection,
-                    isEditingExistingConnection: isEditingExistingConnection
-                )
+            onSavedConnection: { [weak self] connection, _ in
+                self?.openSQLiteConnection(connection)
             },
             onClose: { [weak parentWindow] in
                 guard let sheetWindow else { return }
@@ -363,24 +320,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func openSavedSQLiteConnection(_ connection: Connection, isEditingExistingConnection: Bool) {
-        let totalConnections = (try? sharedModelContainer.mainContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
-        openSQLiteConnection(
-            connection,
-            isFirstConnection: !isEditingExistingConnection && totalConnections == 1
-        )
-    }
-
-    private func openSQLiteConnection(_ connection: Connection, isFirstConnection: Bool) {
+    private func openSQLiteConnection(_ connection: Connection) {
         connection.lastOpenedAt = Date()
 
         if let existingInstance = ConnectionService.shared.getExistingInstance(for: connection) {
             ConnectionService.shared.activeConnectionInstanceId = existingInstance.id
             WindowController.switchToTab(.connection(existingInstance.id))
-            AnalyticsService.shared.trackConnectionOpened(
-                databaseType: connection.databaseType,
-                isFirstConnection: false
-            )
             try? sharedModelContainer.mainContext.save()
             return
         }
@@ -392,15 +337,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             tabType: .connection(instanceId),
             connectionInstance: connectionInstance
         )
-        AnalyticsService.shared.trackConnectionOpened(
-            databaseType: connection.databaseType,
-            isFirstConnection: isFirstConnection
-        )
         try? sharedModelContainer.mainContext.save()
-    }
-
-    private func fetchConnectionCount() -> Int {
-        (try? sharedModelContainer.mainContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
     }
 
     @available(macOS 26, *)
@@ -408,7 +345,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let mainMenu = NSApp.mainMenu else { return }
 
         let symbolsByTitle: [String: String] = [
-            "Check for Updates…": "arrow.triangle.2.circlepath",
             "Settings…": "gearshape.fill",
             "Toggle Row Details": "sidebar.right",
         ]

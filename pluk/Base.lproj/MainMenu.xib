@@ -25,13 +25,6 @@
                                     <action selector="showAboutPanel:" target="Voe-Tx-rLC" id="Exp-CZ-Vem"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Check for Updates…" id="zkU-J0-F8v">
-                                <modifierMask key="keyEquivalentModifierMask"/>
-                                <connections>
-                                    <action selector="checkForUpdates:" target="Voe-Tx-rLC" id="7hU-K9-P2x"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem isSeparatorItem="YES" id="VOq-y0-SEH"/>
                             <menuItem title="Settings…" keyEquivalent="," id="BOF-NM-1cW">
                                 <connections>
                                     <action selector="showSettings:" target="Voe-Tx-rLC" id="pLk-St-1cW"/>

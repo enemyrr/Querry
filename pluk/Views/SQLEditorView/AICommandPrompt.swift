@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PostHog
 
 struct AICommandPrompt: View {
     @Environment(ConnectionInstance.self) private var instance
@@ -128,12 +127,6 @@ struct AICommandPrompt: View {
                 }
             }
 
-            AnalyticsService.shared.trackAIQueryGeneration(
-                hasSelectedText: !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                databaseType: instance.connection.databaseType,
-                promptLength: userMessage.count,
-                success: true
-            )
             hasError = false
         } catch {
             await MainActor.run {
@@ -141,14 +134,6 @@ struct AICommandPrompt: View {
                 hasError = true
             }
 
-            await MainActor.run {
-                AnalyticsService.shared.trackAIQueryGeneration(
-                    hasSelectedText: !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    databaseType: instance.connection.databaseType,
-                    promptLength: userMessage.count,
-                    success: false
-                )
-            }
             debugLog(error)
         }
     }

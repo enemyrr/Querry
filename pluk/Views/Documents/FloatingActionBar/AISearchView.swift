@@ -7,7 +7,6 @@
 
 import SwiftUI
 import Combine
-import PostHog
 
 struct AISearchView: View {
     @Binding var filter: String
@@ -197,24 +196,12 @@ struct AISearchView: View {
     private func processNaturalLanguageQuery(search: String) async {
         guard !search.isEmpty else { return }
 
-        let searchLength = search.count
-
         await MainActor.run {
             processingStage = .writingQuery
         }
 
         do {
             filter = try await performAIQuery(databaseService: instance.databaseService, search: search)
-
-            if let databaseType = instance.databaseType {
-                await MainActor.run {
-                    AnalyticsService.shared.trackAISearch(
-                        databaseType: databaseType,
-                        queryLength: searchLength,
-                        resultsCount: 0
-                    )
-                }
-            }
 
             await processQueryResult(filter)
         } catch {

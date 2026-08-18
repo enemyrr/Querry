@@ -524,6 +524,8 @@ struct SearchInput: View {
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
         .onAppear {
+            guard viewModel.shouldFocusSearchOnAppear else { return }
+            viewModel.shouldFocusSearchOnAppear = false
             Task {
                 try? await Task.sleep(for: .milliseconds(100))
                 isSearchFocused = true

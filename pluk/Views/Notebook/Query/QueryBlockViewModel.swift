@@ -127,13 +127,6 @@ final class QueryBlockViewModel {
         isExecutingQuery = true
         queryError = nil
         let startTime = Date()
-        let analyticsStartTime = ContinuousClock.now
-        let databaseType = DatabaseType(rawValue: cfg.databaseType)
-        AnalyticsService.shared.trackNotebookExecutionStarted(
-            surface: "query_block",
-            dataSource: "direct_connection",
-            databaseType: databaseType
-        )
         defer {
             isExecutingQuery = false
             executionTime = Date().timeIntervalSince(startTime)
@@ -144,23 +137,9 @@ final class QueryBlockViewModel {
             queryResult = results.first
             saveQueryCache()
             dataController?.queryBlockDidUpdate(blockId: block.id)
-            AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                surface: "query_block",
-                dataSource: "direct_connection",
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                resultCount: results.reduce(0) { $0 + $1.rows.count }
-            )
         } catch {
             queryError = error.localizedDescription
             queryResult = nil
-            AnalyticsService.shared.trackNotebookExecutionFailed(
-                surface: "query_block",
-                dataSource: "direct_connection",
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                errorCategory: AnalyticsService.categorizeError(error)
-            )
         }
     }
 

@@ -268,7 +268,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         try? modelContext.save()
         SidebarItemRegistry.shared.addNotebook(id: notebook.id, title: notebook.title)
         WindowController.switchToTab(.notebook(notebook.id))
-        AnalyticsService.shared.trackNotebookCreated(source: "menu_bar")
     }
 
     @objc
@@ -285,10 +284,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         connectionInstance.connection.lastOpenedAt = Date()
         ConnectionService.shared.activeConnectionInstanceId = connectionInstance.id
         WindowController.switchToTab(.connection(connectionInstance.id))
-        AnalyticsService.shared.trackConnectionOpened(
-            databaseType: connectionInstance.connection.databaseType,
-            isFirstConnection: false
-        )
     }
 
     private func openConnection(_ connection: Connection) {
@@ -299,18 +294,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             return
         }
 
-        let isFirstConnection = fetchConnectionCount() == 1
-            && ConnectionService.shared.connectionInstances.isEmpty
         let instanceId = ConnectionService.shared.createNewConnectionInstance(for: connection)
 
         if let connectionInstance = ConnectionService.shared.getInstance(instanceId) {
             WindowController.newTab(
                 tabType: .connection(instanceId),
                 connectionInstance: connectionInstance
-            )
-            AnalyticsService.shared.trackConnectionOpened(
-                databaseType: connection.databaseType,
-                isFirstConnection: isFirstConnection
             )
         }
     }
@@ -319,10 +308,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         notebook.updatedAt = Date()
         SidebarItemRegistry.shared.addNotebook(id: notebook.id, title: notebook.title)
         WindowController.switchToTab(.notebook(notebook.id))
-    }
-
-    private func fetchConnectionCount() -> Int {
-        (try? modelContext.fetchCount(FetchDescriptor<Connection>())) ?? 0
     }
 }
 

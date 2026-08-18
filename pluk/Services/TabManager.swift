@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftUI
-import PostHog
 
 @Observable @MainActor
 class TabManager {
@@ -73,13 +72,6 @@ class TabManager {
 
         tabs.append(newTab)
         activeTabId = tabId
-
-        Task { @MainActor in
-            AnalyticsService.shared.trackTabCreated(
-                databaseType: connectionInstance.connection.databaseType,
-                tabType: "connection"
-            )
-        }
 
         return tabId
     }

@@ -350,15 +350,6 @@ final class SingleValueBlockViewModel {
             return
         }
 
-        let analyticsStartTime = ContinuousClock.now
-        let databaseType = DatabaseType(rawValue: cfg.databaseType)
-        let dataSource = cfg.sourceQueryBlockId == nil ? "direct_connection" : "query_block"
-        AnalyticsService.shared.trackNotebookExecutionStarted(
-            surface: "single_value",
-            dataSource: dataSource,
-            databaseType: databaseType
-        )
-
         // If sourced from a query block, compute aggregation from in-memory result
         if let queryBlockIdStr = cfg.sourceQueryBlockId,
            let queryBlockId = UUID(uuidString: queryBlockIdStr) {
@@ -368,13 +359,6 @@ final class SingleValueBlockViewModel {
 
             guard let result = dataController?.queryResult(for: queryBlockId) else {
                 singleValueError = "Run the source query block first"
-                AnalyticsService.shared.trackNotebookExecutionFailed(
-                    surface: "single_value",
-                    dataSource: dataSource,
-                    databaseType: databaseType,
-                    durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                    errorCategory: "missing_source_result"
-                )
                 return
             }
 
@@ -404,13 +388,6 @@ final class SingleValueBlockViewModel {
             case .none: singleValueResult = values.first
             }
             saveSingleValueCache()
-            AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                surface: "single_value",
-                dataSource: dataSource,
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                resultCount: singleValueResult == nil ? 0 : 1
-            )
             return
         }
 
@@ -427,22 +404,8 @@ final class SingleValueBlockViewModel {
                 filters: validFilters
             )
             saveSingleValueCache()
-            AnalyticsService.shared.trackNotebookExecutionSucceeded(
-                surface: "single_value",
-                dataSource: dataSource,
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                resultCount: singleValueResult == nil ? 0 : 1
-            )
         } catch {
             singleValueError = error.localizedDescription
-            AnalyticsService.shared.trackNotebookExecutionFailed(
-                surface: "single_value",
-                dataSource: dataSource,
-                databaseType: databaseType,
-                durationMs: AnalyticsService.durationMilliseconds(since: analyticsStartTime),
-                errorCategory: AnalyticsService.categorizeError(error)
-            )
         }
     }
 

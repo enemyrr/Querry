@@ -281,8 +281,6 @@ struct RecentConnectionCard: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                let databaseType = connection.databaseType
-
                 Task { @MainActor in
                     // Tear down any open window/tab holding this model before
                     // deleting it, otherwise later reads of its attributes fault.
@@ -296,15 +294,6 @@ struct RecentConnectionCard: View {
                     )
                     connection.cleanupKeychain()
                     modelContext.delete(connection)
-
-                    AnalyticsService.shared.trackConnectionDeleted(databaseType: databaseType)
-
-                    let remainingConnections = (try? modelContext.fetch(FetchDescriptor<Connection>())) ?? []
-                    let databaseTypes = Array(Set(remainingConnections.map { $0.databaseType.rawValue }))
-                    AnalyticsService.shared.updateConnectionSuperProperties(
-                        totalConnections: remainingConnections.count,
-                        databaseTypes: databaseTypes
-                    )
                 }
             }
 
