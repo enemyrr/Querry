@@ -9,6 +9,15 @@ import Foundation
 import MySQLNIO
 
 extension MySQLDriver {
+    // DateFormatter is thread-safe on modern platforms; cached to avoid a per-cell allocation
+    nonisolated(unsafe) private static let dateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
     func decode(from data: MySQLData) throws -> QueryRowInfo {
         // Check if the data is null
         if data.buffer == nil {
@@ -54,10 +63,7 @@ extension MySQLDriver {
         
         // For date/time types, try to get as string first
         if let dateValue = data.date {
-            let dateFormatter = DateFormatter()
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            let dateString = dateFormatter.string(from: dateValue)
+            let dateString = Self.dateTimeFormatter.string(from: dateValue)
             return QueryRowInfo(
                 value: dateString,
                 dataType: "date",

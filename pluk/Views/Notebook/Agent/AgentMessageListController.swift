@@ -12,6 +12,7 @@ final class AgentMessageListController: NSViewController {
     private weak var lastAssistantRow: AgentMessageRowView?
     private var userScrolledAway = false
     private var suppressScrollTracking = false
+    private var scrollFlushPending = false
     nonisolated(unsafe) private var scrollObserver: NSObjectProtocol?
 
     init(chatController: AgentChatController) {
@@ -207,9 +208,22 @@ final class AgentMessageListController: NSViewController {
     }
 
     private func updateStreamingRow() {
-        suppressScrollTracking = true
         streamingRow?.updateParts(chatController.streamingParts)
-        scrollToBottom()
+        scheduleScrollToBottom()
+    }
+
+    /// Coalesces per-token scroll requests into a bounded ~30Hz cadence so each
+    /// streaming delta doesn't force a full layout pass. Stream end flushes
+    /// immediately via syncMessageRows' direct scrollToBottom().
+    private func scheduleScrollToBottom() {
+        guard !scrollFlushPending else { return }
+        scrollFlushPending = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(33))
+            guard let self else { return }
+            self.scrollFlushPending = false
+            self.scrollToBottom()
+        }
     }
 
     // MARK: - Row Factory

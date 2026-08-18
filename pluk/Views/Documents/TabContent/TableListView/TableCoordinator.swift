@@ -141,11 +141,21 @@ import AppKit
     }
     
     @objc private func handleTableReloadData(notification: Notification) {
-        if let userInfo = notification.userInfo,
-           let targetTableName = userInfo["tableName"] as? String,
-           !targetTableName.isEmpty,
-           targetTableName != self.tableName {
-            return
+        if let userInfo = notification.userInfo {
+            // Tab-scoped posts must only reload the coordinator for that tab;
+            // same-named tables in other tabs/connections would otherwise
+            // cross-fire. Posts without a tabID stay broadcast (e.g. table
+            // appearance changes).
+            if let targetTabID = userInfo["tabID"] as? String,
+               !targetTabID.isEmpty,
+               targetTabID != currentTab?.id.uuidString {
+                return
+            }
+            if let targetTableName = userInfo["tableName"] as? String,
+               !targetTableName.isEmpty,
+               targetTableName != self.tableName {
+                return
+            }
         }
         guard !isSidebarAnimating else { return }
         Task { @MainActor [weak self] in

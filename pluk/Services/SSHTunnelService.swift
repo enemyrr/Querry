@@ -48,6 +48,9 @@ actor SSHTunnelService {
                     throw error
                 }
 
+                // Auth is done once the tunnel is up; remove the askpass helper
+                // and its credential files immediately.
+                tunnel.cleanupAskPassHelper()
                 tunnels[tunnelId] = tunnel
                 return SSHTunnelEndpoint(id: tunnelId, localHost: "127.0.0.1", localPort: localPort)
             } catch let error as SSHTunnelError where error.isLocalPortCollision {
@@ -191,13 +194,9 @@ actor SSHTunnelService {
         environment["SSH_ASKPASS_REQUIRE"] = "force"
         environment["DISPLAY"] = environment["DISPLAY"] ?? "localhost:0"
 
-        if let sshPassword, hasPassword {
-            environment["PLUK_SSH_PASSWORD"] = sshPassword
-        }
-        if let keyPassphrase, hasPassphrase {
-            environment["PLUK_SSH_KEY_PASSPHRASE"] = keyPassphrase
-        }
-
+        // Secrets are never placed in the child environment (readable by other
+        // same-user processes); the askpass helper reads them from 0600 files
+        // in a private per-launch directory instead.
         return environment
     }
 
@@ -211,19 +210,44 @@ actor SSHTunnelService {
 
         let directory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("pluk-ssh-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+
+        let passwordURL = directory.appendingPathComponent("password")
+        let passphraseURL = directory.appendingPathComponent("passphrase")
+
+        if let sshPassword, hasPassword {
+            try writeSecretFile(sshPassword, to: passwordURL)
+        }
+        if let keyPassphrase, hasPassphrase {
+            try writeSecretFile(keyPassphrase, to: passphraseURL)
+        }
 
         let scriptURL = directory.appendingPathComponent("askpass.sh")
         let script = """
         #!/bin/sh
         case "$1" in
-          *passphrase*) printf "%s" "$PLUK_SSH_KEY_PASSPHRASE" ;;
-          *) printf "%s" "$PLUK_SSH_PASSWORD" ;;
+          *passphrase*) cat "\(passphraseURL.path)" 2>/dev/null ;;
+          *) cat "\(passwordURL.path)" 2>/dev/null ;;
         esac
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
         return scriptURL
+    }
+
+    private func writeSecretFile(_ secret: String, to url: URL) throws {
+        let created = FileManager.default.createFile(
+            atPath: url.path,
+            contents: Data(secret.utf8),
+            attributes: [.posixPermissions: 0o600]
+        )
+        guard created else {
+            throw DatabaseError.connectionFailed("Failed to write SSH credential file")
+        }
     }
 
     private func waitUntilReady(_ tunnel: SystemSSHTunnel) async throws {

@@ -4,6 +4,8 @@ import Charts
 struct AreaChartView: View {
     let data: [ChartDataPoint]
     var chartType: ChartBlockConfig.ChartType = .stackedArea
+    /// Precomputed by the view model so body doesn't refill series per evaluation.
+    var filledData: [ChartDataPoint]? = nil
 
     private var isMultiSeries: Bool {
         ChartDataPoint.hasMultipleSeries(data)
@@ -15,7 +17,7 @@ struct AreaChartView: View {
 
     private var displayData: [ChartDataPoint] {
         guard isMultiSeries else { return data }
-        return ChartDataPoint.fillMissingSeries(data)
+        return filledData ?? ChartDataPoint.fillMissingSeries(data)
     }
 
     private var stackingMethod: MarkStackingMethod {
@@ -27,6 +29,7 @@ struct AreaChartView: View {
             let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
             let series = ChartDataPoint.seriesNames(data)
             let colors = series.indices.map { ChartDataPoint.seriesPalette[$0 % ChartDataPoint.seriesPalette.count] }
+            let indexByX = ChartDataPoint.indexByX(data)
 
             Chart(displayData) { point in
                 if isMultiSeries {
@@ -57,7 +60,7 @@ struct AreaChartView: View {
             .chartXAxis {
                 AxisMarks(values: .automatic) { value in
                     if let label = value.as(String.self),
-                       let index = data.firstIndex(where: { $0.x == label }),
+                       let index = indexByX[label],
                        index % stride == 0 {
                         AxisValueLabel {
                             Text(data[index].truncatedX)

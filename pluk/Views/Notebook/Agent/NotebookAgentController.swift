@@ -9,6 +9,7 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
     private var emptyStateView: AgentEmptyStateView!
     private var messageListController: AgentMessageListController!
     private var chatInputView: AgentChatInputView!
+    private var windowCloseObserver: NSObjectProtocol?
 
     init(dataController: NotebookDataController) {
         self.dataController = dataController
@@ -54,6 +55,45 @@ final class NotebookAgentController: NSViewController, NSPopoverDelegate {
     override func viewDidAppear() {
         super.viewDidAppear()
         chatInputView.focusInput()
+        installWindowCloseObserver()
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            if let windowCloseObserver {
+                NotificationCenter.default.removeObserver(windowCloseObserver)
+            }
+        }
+    }
+
+    // MARK: - Teardown
+
+    /// Each notebook lives in its own window, so window close means the
+    /// notebook is going away — unlike `viewDidDisappear`, which also fires
+    /// on mere tab switches. Kept installed across disappearance since a
+    /// background tab's window can be closed while another tab is selected.
+    private func installWindowCloseObserver() {
+        guard windowCloseObserver == nil, let window = view.window else { return }
+        windowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            // Runs synchronously during close — a Task hop could land after
+            // the controller is torn down.
+            MainActor.assumeIsolated {
+                self?.prepareForRemoval()
+            }
+        }
+    }
+
+    /// Stops any running agent loop and disconnects the engine's database
+    /// session so a closed notebook can't keep streaming, running queries,
+    /// or holding connections. Mirrors `TableChatSidebarViewController.prepareForRemoval()`.
+    func prepareForRemoval() {
+        chatController.cancelStreaming()
+        let engine = chatController.engine
+        Task { await engine.cleanup() }
     }
 
     // MARK: - Setup

@@ -781,6 +781,7 @@ private struct FloatingBarContainer: View {
             databaseType: dataController.instance.databaseType,
             currentQueryResult: dataController.currentQueryResult,
             schema: dataController.cachedSchema,
+            totalRowCount: dataController.totalRowCount,
             schemaModificationTracker: dataController.schemaModificationTracker,
             onCommitSchemaModifications: {
                 Task {
@@ -791,6 +792,9 @@ private struct FloatingBarContainer: View {
             },
             onNewField: {
                 dataController.handleNewField()
+            },
+            onCancelLoad: {
+                dataController.cancelActiveLoad()
             }
         )
         .padding(.bottom, 6)

@@ -102,8 +102,8 @@ public final class ConfettiNSView: NSView {
         switch style {
         case .large:
             emitter?.birthRate = 4
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                self.emitter?.birthRate = 0.6
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.emitter?.birthRate = 0.6
             }
         case .small:
             emitter?.birthRate = 0.35
@@ -113,16 +113,32 @@ public final class ConfettiNSView: NSView {
             layer.addSublayer(emitter!)
         }
         active = true
-        
+
         // Auto-stop after 5 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-            self.stopConfetti()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.stopConfetti()
         }
     }
 
     public func stopConfetti() {
-        emitter?.birthRate = 0
         active = false
+        guard let emitter else { return }
+        emitter.birthRate = 0
+
+        // Let already-emitted particles finish, then drop the layer so it
+        // stops animating and can be released.
+        let maxLifetime = TimeInterval((emitter.emitterCells ?? [])
+            .map { $0.lifetime + $0.lifetimeRange }
+            .max() ?? 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + maxLifetime) { [weak self, weak emitter] in
+            guard let emitter else { return }
+            emitter.removeFromSuperlayer()
+            // A restart swaps in a fresh emitter; only clear our reference
+            // if it still points at the one we just removed.
+            if self?.emitter === emitter {
+                self?.emitter = nil
+            }
+        }
     }
 
     public override func layout() {

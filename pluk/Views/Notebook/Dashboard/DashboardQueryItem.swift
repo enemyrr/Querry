@@ -101,15 +101,20 @@ final class DashboardQueryItem: DashboardBaseItem {
         observationTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 let vm = viewModel
-                await withCheckedContinuation { continuation in
+                // AsyncStream instead of a checked continuation: cancelling the
+                // task ends iteration immediately, so the suspended task (and the
+                // captured view model) don't outlive the reused cell.
+                let changes = AsyncStream<Void> { continuation in
                     withObservationTracking {
                         _ = vm.queryResult
                         _ = vm.isExecutingQuery
                         _ = vm.queryError
                     } onChange: {
-                        continuation.resume()
+                        continuation.yield()
+                        continuation.finish()
                     }
                 }
+                for await _ in changes { break }
                 guard !Task.isCancelled else { return }
                 self?.updateContent(viewModel: viewModel)
             }

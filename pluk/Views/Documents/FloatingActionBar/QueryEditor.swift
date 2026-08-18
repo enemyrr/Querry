@@ -15,6 +15,7 @@ struct QueryEditor: View {
     @Binding var filter: String
     let isLoading: Bool
     let totalCount: Int
+    var totalRowCount: Int? = nil
     let onLoadDocuments: (_ filter: String?) -> Void
     
     @State private var position: CodeEditor.Position = CodeEditor.Position()
@@ -99,7 +100,13 @@ struct QueryEditor: View {
                 
                 Spacer()
                 
-                Text("\(totalCount) rows")
+                Group {
+                    if let totalRowCount, totalRowCount > totalCount {
+                        Text("\(totalCount) of \(totalRowCount.formatted()) rows")
+                    } else {
+                        Text("\(totalCount) rows")
+                    }
+                }
                     .foregroundColor(.secondary)
                     .font(.subheadline)
                 

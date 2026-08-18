@@ -1,10 +1,17 @@
 import SwiftUI
 
 struct ChartDataPoint: Identifiable {
-    let id = UUID()
+    let id: String
     let x: String
     let y: Double
-    var series: String = ""
+    var series: String
+
+    init(x: String, y: Double, series: String = "", id: String? = nil) {
+        self.x = x
+        self.y = y
+        self.series = series
+        self.id = id ?? "\(x)\u{1F}\(series)"
+    }
 
     var truncatedX: String {
         x.count > 16 ? String(x.prefix(14)) + "…" : x
@@ -51,8 +58,29 @@ struct ChartDataPoint: Identifiable {
         }
         return filled.map { point in
             let total = totalByX[point.x] ?? 1
-            return ChartDataPoint(x: point.x, y: total > 0 ? point.y / total : 0, series: point.series)
+            return ChartDataPoint(x: point.x, y: total > 0 ? point.y / total : 0, series: point.series, id: point.id)
         }
+    }
+
+    /// Disambiguates duplicate (x, series) pairs so identities stay unique yet
+    /// deterministic across recomputations.
+    static func uniquelyIdentified(_ data: [ChartDataPoint]) -> [ChartDataPoint] {
+        var counts: [String: Int] = [:]
+        return data.map { point in
+            let occurrence = counts[point.id, default: 0]
+            counts[point.id] = occurrence + 1
+            guard occurrence > 0 else { return point }
+            return ChartDataPoint(x: point.x, y: point.y, series: point.series, id: "\(point.id)\u{1F}\(occurrence)")
+        }
+    }
+
+    /// First index of each x value, for O(1) axis-label lookup.
+    static func indexByX(_ data: [ChartDataPoint]) -> [String: Int] {
+        var indices: [String: Int] = [:]
+        for (index, point) in data.enumerated() where indices[point.x] == nil {
+            indices[point.x] = index
+        }
+        return indices
     }
 
     static func fillMissingSeries(_ data: [ChartDataPoint]) -> [ChartDataPoint] {
@@ -115,7 +143,16 @@ final class ChartBlockViewModel {
     var schemaResult: DatabaseSchemaResult?
 
     // Chart state
-    var chartData: [ChartDataPoint] = []
+    var chartData: [ChartDataPoint] = [] {
+        didSet {
+            let filled = ChartDataPoint.fillMissingSeries(chartData)
+            seriesFilledChartData = filled
+            normalizedChartData = ChartDataPoint.normalized(filled)
+        }
+    }
+    // Derived once per data change so chart views don't recompute inside body.
+    private(set) var normalizedChartData: [ChartDataPoint] = []
+    private(set) var seriesFilledChartData: [ChartDataPoint] = []
     var isLoadingChart = false
     var chartError: String?
 
@@ -137,7 +174,7 @@ final class ChartBlockViewModel {
 
         if dataController?.isDashboardPublished == true,
            let cached = block.cachedChartData() {
-            chartData = cached.toChartData()
+            chartData = ChartDataPoint.uniquelyIdentified(cached.toChartData())
             return
         }
 
@@ -822,7 +859,7 @@ final class ChartBlockViewModel {
     }
 
     private func applyChartPoints(_ points: [ChartDataPoint]) {
-        chartData = reduceChartData(points, maxPoints: 160)
+        chartData = ChartDataPoint.uniquelyIdentified(reduceChartData(points, maxPoints: 160))
         saveChartCache()
     }
 

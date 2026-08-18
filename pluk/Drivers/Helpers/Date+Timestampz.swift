@@ -7,6 +7,39 @@
 
 import Foundation
 
+// MARK: - Cached Formatters
+
+/// Cache of fully configured DateFormatters keyed by format + timezone.
+/// DateFormatter is not thread-safe for mutation but is safe for concurrent
+/// parsing/formatting once configured, so formatters are configured here at
+/// creation and never mutated afterwards.
+private enum TimestampTZFormatters {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: DateFormatter] = [:]
+
+    /// Returns a cached formatter for the given format. Passing no timezone
+    /// preserves DateFormatter's default timezone behavior.
+    static func formatter(format: String, timeZone: TimeZone? = nil) -> DateFormatter {
+        let key = "\(format)|\(timeZone?.identifier ?? "default")"
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cached = cache[key] {
+            return cached
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        if let timeZone {
+            formatter.timeZone = timeZone
+        }
+        formatter.dateFormat = format
+        cache[key] = formatter
+        return formatter
+    }
+}
+
 extension String {
     
     // MARK: - Timestamp with Timezone Parsing
@@ -24,12 +57,9 @@ extension String {
             ("yyyy-MM-dd'T'HH:mm:ss'Z'", true)              // 2023-12-13T10:30:00Z (UTC)
         ]
         
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        
         for (format, hasOffset) in formats {
-            formatter.dateFormat = format
-            
+            let formatter = TimestampTZFormatters.formatter(format: format)
+
             if let date = formatter.date(from: self) {
                 let offset = extractTimezoneOffset() ?? "+00:00"
                 let timezone = extractTimezone(formatter: formatter, hasOffset: hasOffset)
@@ -70,17 +100,11 @@ extension String {
             "yyyy-MM-dd'T'HH:mm:ssZZZZZ"   // ISO 8601
         ]
         
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        
         for format in formats {
-            formatter.dateFormat = format
+            let formatter = TimestampTZFormatters.formatter(format: format)
             if let date = formatter.date(from: self) {
                 let offset = extractTimezoneOffset() ?? "+00:00"
-                
-                // Verify round-trip
-                formatter.timeZone = TimeZone(secondsFromGMT: offsetToSeconds(offset))
-                
+
                 // PostgreSQL is flexible with format, so just verify date is correct
                 return (date, offset)
             }
@@ -106,11 +130,11 @@ extension String {
         let datePart = String(self[datePartRange])
         let offset = String(self[offsetRange])
         
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = datePart.contains(".") ? "yyyy-MM-dd HH:mm:ss.SSSSSSS" : "yyyy-MM-dd HH:mm:ss"
-        
+        let formatter = TimestampTZFormatters.formatter(
+            format: datePart.contains(".") ? "yyyy-MM-dd HH:mm:ss.SSSSSSS" : "yyyy-MM-dd HH:mm:ss",
+            timeZone: TimeZone(secondsFromGMT: 0)
+        )
+
         guard let date = formatter.date(from: datePart) else {
             throw TimestampTZError.invalidSQLServerFormat
         }
@@ -217,10 +241,7 @@ struct TimestampTZData {
     
     /// Reconstruct the original string
     func toString() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timezone
-        formatter.dateFormat = format.dateFormat
+        let formatter = TimestampTZFormatters.formatter(format: format.dateFormat, timeZone: timezone)
         return formatter.string(from: date)
     }
     
@@ -238,19 +259,13 @@ struct TimestampTZData {
     }
     
     private func toPostgreSQLString() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timezone
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ssZZZ"
+        let formatter = TimestampTZFormatters.formatter(format: "yyyy-MM-dd HH:mm:ssZZZ", timeZone: timezone)
         return formatter.string(from: date)
     }
-    
+
     private func toMySQLString() -> String {
         // MySQL converts to UTC
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let formatter = TimestampTZFormatters.formatter(format: "yyyy-MM-dd HH:mm:ss", timeZone: TimeZone(secondsFromGMT: 0))
         return formatter.string(from: date)
     }
 }
@@ -303,10 +318,7 @@ enum TimestampTZError: LocalizedError {
 extension Date {
     /// Convert to timestamptz string with specific timezone
     func toTimestampTZ(timezone: TimeZone = .current, format: TimestampTZFormat = .standard) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timezone
-        formatter.dateFormat = format.dateFormat
+        let formatter = TimestampTZFormatters.formatter(format: format.dateFormat, timeZone: timezone)
         return formatter.string(from: self)
     }
     

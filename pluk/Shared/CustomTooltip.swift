@@ -618,6 +618,11 @@ extension NSView {
         spacing: CGFloat = 8
     ) {
         toolTip = nil
+        // Re-installation (e.g. on view reconfiguration) must not stack
+        // tracking areas: drop any area owned by a previous tracker first.
+        for trackingArea in trackingAreas where trackingArea.owner is TooltipHoverTracker {
+            removeTrackingArea(trackingArea)
+        }
         let tracker = TooltipHoverTracker(
             text: text,
             shortcut: shortcut,

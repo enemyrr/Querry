@@ -12,6 +12,7 @@ struct Pagination: View {
     @Binding var currentPage: Int
     var totalPages: Int
     var totalCount: Int
+    var totalRowCount: Int?
     var totalPerPage: Int
     let onRefresh: () -> Void
     let modificationTracker: TableModificationTracker
@@ -37,7 +38,11 @@ struct Pagination: View {
     
     var body: some View {
         let isPreviousDisabled = currentPage <= 1
-        let isNextDisabled = totalCount != totalPerPage
+        // With a known total we can page precisely; otherwise fall back to the
+        // "last page is a short page" heuristic.
+        let isNextDisabled = totalRowCount != nil
+            ? currentPage >= totalPages
+            : totalCount != totalPerPage
         
         HStack(spacing: 0) {
             Button(action: {
@@ -71,13 +76,20 @@ struct Pagination: View {
             }) {
                 Group {
                     if isShowingPageNumber || isAnyButtonHovering {
-                        Text("Page \(currentPage)")
+                        if totalRowCount != nil {
+                            Text("Page \(currentPage) of \(totalPages)")
+                        } else {
+                            Text("Page \(currentPage)")
+                        }
+                    } else if let totalRowCount, totalRowCount > totalCount {
+                        Text("\(totalCount) of \(totalRowCount.formatted())")
                     } else {
                         Text("^[\(totalCount) row](inflect: true)")
                     }
                 }
                     .foregroundStyle(.gray)
-                    .frame(width: 60)
+                    .frame(minWidth: 60)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), disableScaleEffect: true))

@@ -685,9 +685,11 @@ struct WorkspaceConnectionRow: View {
         ) {
             Button("Delete", role: .destructive) {
                 Task { @MainActor in
-                    // Tear down any open window/tab holding this model before
+                    // Tear down every open window/tab holding this model before
                     // deleting it, otherwise later reads of its attributes fault.
-                    if let instance = ConnectionService.shared.getExistingInstance(for: connection) {
+                    // Multiple instances can exist per connection (multiple tabs,
+                    // environment tabs) — removing only the first leaves zombies.
+                    while let instance = ConnectionService.shared.getExistingInstance(for: connection) {
                         await ConnectionService.shared.removeConnectionInstance(instance.id)
                     }
 

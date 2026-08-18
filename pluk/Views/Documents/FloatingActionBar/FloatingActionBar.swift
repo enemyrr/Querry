@@ -27,10 +27,14 @@ struct FloatingActionBar: View {
     let currentQueryResult: QueryResult?
     let schema: DatabaseSchemaResult?
 
+    // Total rows in the table for the active filter (nil while unknown)
+    var totalRowCount: Int? = nil
+
     // Schema modification tracking
     let schemaModificationTracker: SchemaModificationTracker?
     let onCommitSchemaModifications: (() -> Void)?
     var onNewField: (() -> Void)?
+    var onCancelLoad: (() -> Void)? = nil
     
     @Environment(ConnectionInstance.self) private var instance
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
@@ -83,8 +87,11 @@ struct FloatingActionBar: View {
     
     // MARK: - Pagination
     @State var currentPage = 1
-    @State var totalPages = 1
     @State var totalPerPage = 300
+    private var totalPages: Int {
+        guard let totalRowCount, totalPerPage > 0 else { return 1 }
+        return max(1, Int((Double(totalRowCount) / Double(totalPerPage)).rounded(.up)))
+    }
     private var totalCount: Int {
         // Use the directly passed currentQueryResult to preserve data during loading
         if let queryResult = currentQueryResult {
@@ -131,7 +138,7 @@ struct FloatingActionBar: View {
             }
             
             if !showCreateDocumentSheet && showQueryEditor {
-                QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, onLoadDocuments: onLoadDocuments)
+                QueryEditor(showQueryEditor: $showQueryEditor, filter: $filter, isLoading: isLoading,totalCount: totalCount, totalRowCount: totalRowCount, onLoadDocuments: onLoadDocuments)
                     .padding(.horizontal, 80)
             }
             
@@ -150,6 +157,7 @@ struct FloatingActionBar: View {
                             tabViewMode: $tabViewMode,
                             totalPages: totalPages,
                             totalCount: totalCount,
+                            totalRowCount: totalRowCount,
                             totalPerPage: totalPerPage,
                             modificationTracker: modificationTracker,
                             isProcessingUpdates: isProcessingUpdates,
@@ -173,7 +181,8 @@ struct FloatingActionBar: View {
                                 debouncedIsLoading = newValue
                             },
                             onDiscardChanges: onDiscardChanges,
-                            databaseType: databaseType
+                            databaseType: databaseType,
+                            onCancelLoad: onCancelLoad
                         )
                     case .schema:
                         SchemaModeActionBar(
@@ -187,7 +196,8 @@ struct FloatingActionBar: View {
                             },
                             schemaModificationTracker: schemaModificationTracker,
                             onCommitSchemaModifications: onCommitSchemaModifications,
-                            onNewField: onNewField
+                            onNewField: onNewField,
+                            onCancelLoad: onCancelLoad
                         )
                     case .definition:
                         DefinitionModeActionBar(
@@ -197,7 +207,8 @@ struct FloatingActionBar: View {
                             onRefresh: onRefresh,
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
-                            }
+                            },
+                            onCancelLoad: onCancelLoad
                         )
                     }
                 case .search:
@@ -237,6 +248,7 @@ struct FloatingActionBar: View {
                             tabViewMode: $tabViewMode,
                             totalPages: totalPages,
                             totalCount: totalCount,
+                            totalRowCount: totalRowCount,
                             totalPerPage: totalPerPage,
                             modificationTracker: modificationTracker,
                             isProcessingUpdates: isProcessingUpdates,
@@ -264,7 +276,8 @@ struct FloatingActionBar: View {
                                 debouncedIsLoading = newValue
                             },
                             onDiscardChanges: onDiscardChanges,
-                            databaseType: databaseType
+                            databaseType: databaseType,
+                            onCancelLoad: onCancelLoad
                         )
                     case .schema:
                         SchemaModeActionBar(
@@ -278,7 +291,8 @@ struct FloatingActionBar: View {
                             },
                             schemaModificationTracker: schemaModificationTracker,
                             onCommitSchemaModifications: onCommitSchemaModifications,
-                            onNewField: onNewField
+                            onNewField: onNewField,
+                            onCancelLoad: onCancelLoad
                         )
                     case .definition:
                         DefinitionModeActionBar(
@@ -288,7 +302,8 @@ struct FloatingActionBar: View {
                             onRefresh: onRefresh,
                             onDebounceLoadingChange: { newValue in
                                 debouncedIsLoading = newValue
-                            }
+                            },
+                            onCancelLoad: onCancelLoad
                         )
                     }
                 }

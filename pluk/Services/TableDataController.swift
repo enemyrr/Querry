@@ -60,6 +60,11 @@ class TableDataController {
     var filterConditions: [FilterCondition] = [FilterCondition(conjunction: .whereClause, field: "", filterOperator: .equals, value: "")]
     var currentActiveFilter: String?
 
+    /// Total rows in the table for the active filter — nil while unknown.
+    /// Fetched off the load path and cached per (table, filter, connection).
+    private(set) var totalRowCount: Int?
+    private var totalRowCountKey: String?
+
     private var lastTabFilterColumn: String?
     private var lastTabFilterValue: String?
 
@@ -90,6 +95,20 @@ class TableDataController {
         loadingTaskID = UUID()
         loadingTask?.cancel()
         loadingTask = nil
+    }
+
+    /// User-initiated cancel from the action bar's ✕ while loading. Stops the
+    /// load and restores the last loaded result so the UI doesn't hang in
+    /// the loading state.
+    func cancelActiveLoad() {
+        cancelLoadingTask()
+        if case .loading = viewState {
+            if let cachedDocuments {
+                viewState = .loaded(cachedDocuments, cachedSchema)
+            } else {
+                viewState = .error("Query cancelled")
+            }
+        }
     }
 
     /// Eager non-MainActor fetch used by `prewarmTableDataController`. The DB
@@ -472,6 +491,8 @@ class TableDataController {
             // `.loaded(documents, schema)` when it arrives.
             viewState = .loaded(documents, cachedSchema)
 
+            refreshTotalRowCount(filter: filter ?? "", force: forceFetch)
+
             if let schema = cachedSchema {
                 let mismatch = hasColumnMismatch(queryResult: documents, schema: schema)
                 updateTabSchemaDeviation(mismatch)
@@ -501,6 +522,38 @@ class TableDataController {
         } catch {
             debugLog(error.localizedDescription)
             viewState = .error(error.localizedDescription)
+        }
+    }
+
+    /// Fetches the table's total row count (honoring the active filter) in the
+    /// background. Cached per (table, filter, connection) so page navigation
+    /// doesn't re-count; `force` re-counts on explicit refresh.
+    private func refreshTotalRowCount(filter: String, force: Bool = false) {
+        let key = [
+            tab.name,
+            tab.databaseSchema ?? "",
+            filter,
+            String(instance.connectionGeneration),
+            instance.connectedDatabase?.name ?? ""
+        ].joined(separator: "|")
+
+        guard force || key != totalRowCountKey else { return }
+        // Clear a stale total when switching table/filter; keep it visible
+        // during a same-key force refresh to avoid label flicker.
+        if key != totalRowCountKey { totalRowCount = nil }
+        totalRowCountKey = key
+
+        let tabName = tab.name
+        let databaseSchema = tab.databaseSchema
+        Task { [weak self] in
+            guard let self else { return }
+            let count = try? await instance.databaseService.getTotalRowCount(
+                for: tabName,
+                databaseSchema: databaseSchema,
+                filter: filter
+            )
+            guard self.totalRowCountKey == key else { return }
+            self.totalRowCount = count ?? nil
         }
     }
 
@@ -769,7 +822,7 @@ class TableDataController {
         NotificationCenter.default.post(
             name: .tableReloadData,
             object: nil,
-            userInfo: ["tableName": tab.name]
+            userInfo: ["tableName": tab.name, "tabID": tab.id.uuidString]
         )
 
         debugLog("✅ Discarded changes, removed \(insertIndices.count) inserted row(s)")
@@ -824,7 +877,7 @@ class TableDataController {
         NotificationCenter.default.post(
             name: .tableReloadData,
             object: nil,
-            userInfo: ["tableName": tab.name]
+            userInfo: ["tableName": tab.name, "tabID": tab.id.uuidString]
         )
 
         debugLog("✅ Undid row insert at index \(index)")
@@ -848,7 +901,7 @@ class TableDataController {
         NotificationCenter.default.post(
             name: .tableReloadData,
             object: nil,
-            userInfo: ["autoEditLastRow": true]
+            userInfo: ["autoEditLastRow": true, "tabID": tab.id.uuidString]
         )
     }
 
@@ -1138,7 +1191,7 @@ class TableDataController {
         NotificationCenter.default.post(
             name: .tableReloadData,
             object: nil,
-            userInfo: ["tableName": tableName]
+            userInfo: ["tableName": tableName, "tabID": tab.id.uuidString]
         )
     }
 }

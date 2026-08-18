@@ -24,7 +24,7 @@ extension MySQLDriver {
         
         guard !validConditions.isEmpty else { return "" }
         
-        var sql = "SELECT * FROM `\(tableName)` "
+        var sql = "SELECT * FROM \(quoteIdentifier(tableName)) "
         
         for (index, condition) in validConditions.enumerated() {
             if index == 0 {
@@ -33,9 +33,9 @@ extension MySQLDriver {
                 sql += " \(condition.conjunction.rawValue.uppercased()) "
             }
             
-            let escapedField = "`\(condition.field)`"
+            let escapedField = quoteIdentifier(condition.field)
             let escapedValue = "'\(condition.value.replacingOccurrences(of: "'", with: "\\'"))'"
-            
+
             switch condition.filterOperator {
             case .equals:
                 sql += "\(escapedField) = \(escapedValue)"
@@ -98,9 +98,9 @@ extension MySQLDriver {
                 whereClause += " \(condition.conjunction.rawValue.uppercased()) "
             }
             
-            let escapedField = "`\(condition.field)`"
+            let escapedField = quoteIdentifier(condition.field)
             let escapedValue = "'\(condition.value.replacingOccurrences(of: "'", with: "\\'"))'"
-            
+
             switch condition.filterOperator {
             case .equals:
                 whereClause += "\(escapedField) = \(escapedValue)"

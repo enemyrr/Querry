@@ -5,6 +5,7 @@ final class MarkdownContentView: NSView {
     private let stackView: NSStackView
     private var currentBlocks: [MarkdownBlock] = []
     private var blockViews: [NSView] = []
+    private var parserState = MarkdownBlockParser.StreamingState()
 
     override init(frame: NSRect) {
         stackView = NSStackView()
@@ -17,7 +18,7 @@ final class MarkdownContentView: NSView {
     }
 
     func update(content: String) {
-        let newBlocks = MarkdownBlockParser.parse(content)
+        let newBlocks = MarkdownBlockParser.parseIncremental(content, state: &parserState)
 
         guard !newBlocks.isEmpty else {
             removeAllBlockViews()

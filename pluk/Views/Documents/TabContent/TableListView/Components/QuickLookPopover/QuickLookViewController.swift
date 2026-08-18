@@ -67,6 +67,7 @@ final class QuickLookViewController: NSViewController {
     private var isResizeHandleHovered = false
     private var lockedResizeHandlePlacement: ResizeHandlePlacement?
     private let buttonState = QuickLookButtonState()
+    private var pendingEditedRange: NSRange?
 
     init(
         content: String,
@@ -133,6 +134,7 @@ final class QuickLookViewController: NSViewController {
         textView.font = textViewFont
         textView.string = displayedInitialContent
         textView.delegate = self
+        textView.textStorage?.delegate = self
         textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
 
@@ -439,7 +441,11 @@ final class QuickLookViewController: NSViewController {
         UserDefaults.standard.set(Double(size.height), forKey: contentHeightDefaultsKey)
     }
 
-    private func applyEditorAttributesAndHighlighting() {
+    /// Re-applies base attributes and JSON highlighting. Passing `editedRange`
+    /// restricts the pass to the affected lines (plus the preceding line, whose
+    /// key/value colouring can depend on the edited one); `nil` runs the full
+    /// document, which is only needed for the initial load.
+    private func applyEditorAttributesAndHighlighting(editedRange: NSRange? = nil) {
         guard let textStorage = textView.textStorage else {
             return
         }
@@ -456,15 +462,20 @@ final class QuickLookViewController: NSViewController {
             .paragraphStyle: paragraphStyle,
             .foregroundColor: theme.textColour,
         ]
-        let fullRange = NSRange(location: 0, length: textStorage.length)
+        let targetRange: NSRange
+        if let editedRange {
+            targetRange = Self.lineScopedHighlightRange(for: editedRange, in: textStorage.string as NSString)
+        } else {
+            targetRange = NSRange(location: 0, length: textStorage.length)
+        }
 
         textStorage.beginEditing()
-        if fullRange.length > 0 {
-            textStorage.setAttributes(baseAttributes, range: fullRange)
+        if targetRange.length > 0 {
+            textStorage.setAttributes(baseAttributes, range: targetRange)
             if Self.shouldHighlightAsJSON(textView.string) {
                 applyJSONSyntaxHighlighting(
                     in: textStorage,
-                    string: textView.string,
+                    range: targetRange,
                     theme: theme,
                     keyStringColour: jsonKeyStringColour(for: appearance),
                     valueStringColour: jsonValueStringColour(for: appearance)
@@ -474,6 +485,18 @@ final class QuickLookViewController: NSViewController {
         textStorage.endEditing()
 
         textView.typingAttributes = baseAttributes
+    }
+
+    private static func lineScopedHighlightRange(for editedRange: NSRange, in string: NSString) -> NSRange {
+        let length = string.length
+        let location = min(max(editedRange.location, 0), length)
+        let clamped = NSRange(location: location, length: min(max(editedRange.length, 0), length - location))
+        var lineRange = string.lineRange(for: clamped)
+        if lineRange.location > 0 {
+            let previousLine = string.lineRange(for: NSRange(location: lineRange.location - 1, length: 0))
+            lineRange = NSUnionRange(previousLine, lineRange)
+        }
+        return lineRange
     }
 
     private func editorTheme(for appearance: NSAppearance) -> Theme {
@@ -500,82 +523,100 @@ final class QuickLookViewController: NSViewController {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
+    /// Tokenises over the UTF-16 view with integer offsets so each token's
+    /// NSRange is built in O(1), instead of walking from the string's start
+    /// per token as `NSRange(_:in:)` on String.Index ranges does.
     private func applyJSONSyntaxHighlighting(
         in textStorage: NSTextStorage,
-        string: String,
+        range: NSRange,
         theme: Theme,
         keyStringColour: NSColor,
         valueStringColour: NSColor
     ) {
-        var index = string.startIndex
+        let string = textStorage.string as NSString
+        let end = min(range.location + range.length, string.length)
+        var index = range.location
 
-        while index < string.endIndex {
-            let character = string[index]
+        while index < end {
+            let character = string.character(at: index)
 
-            if character == "\"" {
+            if character == JSONScalar.quote {
                 let endIndex = Self.endOfJSONString(startingAt: index, in: string)
                 let nextCharacter = Self.nextNonWhitespaceCharacter(after: endIndex, in: string)
-                let tokenRange = NSRange(index..<endIndex, in: string)
-                let stringColour = nextCharacter == ":" ? keyStringColour : valueStringColour
-                textStorage.addAttribute(.foregroundColor, value: stringColour, range: tokenRange)
+                let stringColour = nextCharacter == JSONScalar.colon ? keyStringColour : valueStringColour
+                textStorage.addAttribute(.foregroundColor, value: stringColour, range: NSRange(location: index, length: endIndex - index))
                 index = endIndex
                 continue
             }
 
             if let endIndex = Self.endOfJSONNumber(startingAt: index, in: string) {
-                let tokenRange = NSRange(index..<endIndex, in: string)
-                textStorage.addAttribute(.foregroundColor, value: theme.numberColour, range: tokenRange)
+                textStorage.addAttribute(.foregroundColor, value: theme.numberColour, range: NSRange(location: index, length: endIndex - index))
                 index = endIndex
                 continue
             }
 
             if let endIndex = Self.endOfJSONLiteral(startingAt: index, in: string) {
-                let tokenRange = NSRange(index..<endIndex, in: string)
-                textStorage.addAttribute(.foregroundColor, value: theme.keywordColour, range: tokenRange)
+                textStorage.addAttribute(.foregroundColor, value: theme.keywordColour, range: NSRange(location: index, length: endIndex - index))
                 index = endIndex
                 continue
             }
 
             if Self.isJSONPunctuation(character) {
-                let nextIndex = string.index(after: index)
-                let tokenRange = NSRange(index..<nextIndex, in: string)
-                let punctuationColour = character == ":" ? theme.operatorColour : theme.symbolColour
-                textStorage.addAttribute(.foregroundColor, value: punctuationColour, range: tokenRange)
-                index = nextIndex
+                let punctuationColour = character == JSONScalar.colon ? theme.operatorColour : theme.symbolColour
+                textStorage.addAttribute(.foregroundColor, value: punctuationColour, range: NSRange(location: index, length: 1))
+                index += 1
                 continue
             }
 
-            index = string.index(after: index)
+            index += 1
         }
     }
 
-    private static func endOfJSONString(startingAt startIndex: String.Index, in string: String) -> String.Index {
-        var index = string.index(after: startIndex)
+    private enum JSONScalar {
+        static let quote: unichar = 0x22       // "
+        static let backslash: unichar = 0x5C   // \
+        static let colon: unichar = 0x3A       // :
+        static let minus: unichar = 0x2D       // -
+        static let plus: unichar = 0x2B        // +
+        static let dot: unichar = 0x2E         // .
+        static let zero: unichar = 0x30        // 0
+        static let one: unichar = 0x31         // 1
+        static let nine: unichar = 0x39        // 9
+        static let lowercaseE: unichar = 0x65  // e
+        static let uppercaseE: unichar = 0x45  // E
+    }
+
+    private static let jsonLiterals: [[unichar]] = ["true", "false", "null"].map { Array($0.utf16) }
+    private static let jsonPunctuation: Set<unichar> = Set("{}[]:,".utf16)
+
+    private static func endOfJSONString(startingAt startIndex: Int, in string: NSString) -> Int {
+        var index = startIndex + 1
         var isEscaped = false
 
-        while index < string.endIndex {
-            let character = string[index]
+        while index < string.length {
+            let character = string.character(at: index)
             if isEscaped {
                 isEscaped = false
-            } else if character == "\\" {
+            } else if character == JSONScalar.backslash {
                 isEscaped = true
-            } else if character == "\"" {
-                return string.index(after: index)
+            } else if character == JSONScalar.quote {
+                return index + 1
             }
-            index = string.index(after: index)
+            index += 1
         }
 
-        return string.endIndex
+        return string.length
     }
 
-    private static func endOfJSONLiteral(startingAt startIndex: String.Index, in string: String) -> String.Index? {
-        for literal in ["true", "false", "null"] {
-            guard string[startIndex...].hasPrefix(literal) else {
+    private static func endOfJSONLiteral(startingAt startIndex: Int, in string: NSString) -> Int? {
+        for literal in jsonLiterals {
+            let endIndex = startIndex + literal.count
+            guard endIndex <= string.length,
+                  literal.indices.allSatisfy({ string.character(at: startIndex + $0) == literal[$0] }) else {
                 continue
             }
 
-            let endIndex = string.index(startIndex, offsetBy: literal.count, limitedBy: string.endIndex) ?? string.endIndex
-            if endIndex < string.endIndex, !isJSONLiteralBoundary(string[endIndex]) {
+            if endIndex < string.length, !isJSONLiteralBoundary(string.character(at: endIndex)) {
                 return nil
             }
             return endIndex
@@ -584,94 +625,99 @@ final class QuickLookViewController: NSViewController {
         return nil
     }
 
-    private static func endOfJSONNumber(startingAt startIndex: String.Index, in string: String) -> String.Index? {
+    private static func endOfJSONNumber(startingAt startIndex: Int, in string: NSString) -> Int? {
         var index = startIndex
 
-        if string[index] == "-" {
-            index = string.index(after: index)
-            guard index < string.endIndex else {
+        if string.character(at: index) == JSONScalar.minus {
+            index += 1
+            guard index < string.length else {
                 return nil
             }
         }
 
-        if string[index] == "0" {
-            index = string.index(after: index)
+        if string.character(at: index) == JSONScalar.zero {
+            index += 1
         } else {
-            guard isNonZeroDigit(string[index]) else {
+            guard isNonZeroDigit(string.character(at: index)) else {
                 return nil
             }
 
             repeat {
-                index = string.index(after: index)
-            } while index < string.endIndex && isDigit(string[index])
+                index += 1
+            } while index < string.length && isDigit(string.character(at: index))
         }
 
-        if index < string.endIndex, string[index] == "." {
-            index = string.index(after: index)
-            guard index < string.endIndex, isDigit(string[index]) else {
+        if index < string.length, string.character(at: index) == JSONScalar.dot {
+            index += 1
+            guard index < string.length, isDigit(string.character(at: index)) else {
                 return nil
             }
 
             repeat {
-                index = string.index(after: index)
-            } while index < string.endIndex && isDigit(string[index])
+                index += 1
+            } while index < string.length && isDigit(string.character(at: index))
         }
 
-        if index < string.endIndex, (string[index] == "e" || string[index] == "E") {
-            index = string.index(after: index)
-            guard index < string.endIndex else {
+        if index < string.length, (string.character(at: index) == JSONScalar.lowercaseE || string.character(at: index) == JSONScalar.uppercaseE) {
+            index += 1
+            guard index < string.length else {
                 return nil
             }
 
-            if string[index] == "+" || string[index] == "-" {
-                index = string.index(after: index)
-                guard index < string.endIndex else {
+            if string.character(at: index) == JSONScalar.plus || string.character(at: index) == JSONScalar.minus {
+                index += 1
+                guard index < string.length else {
                     return nil
                 }
             }
 
-            guard isDigit(string[index]) else {
+            guard isDigit(string.character(at: index)) else {
                 return nil
             }
 
             repeat {
-                index = string.index(after: index)
-            } while index < string.endIndex && isDigit(string[index])
+                index += 1
+            } while index < string.length && isDigit(string.character(at: index))
         }
 
-        guard index == string.endIndex || isJSONLiteralBoundary(string[index]) else {
+        guard index == string.length || isJSONLiteralBoundary(string.character(at: index)) else {
             return nil
         }
 
         return index
     }
 
-    private static func nextNonWhitespaceCharacter(after startIndex: String.Index, in string: String) -> Character? {
+    private static func nextNonWhitespaceCharacter(after startIndex: Int, in string: NSString) -> unichar? {
         var index = startIndex
-        while index < string.endIndex {
-            let character = string[index]
-            if !character.isWhitespace {
+        while index < string.length {
+            let character = string.character(at: index)
+            if !isWhitespace(character) {
                 return character
             }
-            index = string.index(after: index)
+            index += 1
         }
         return nil
     }
 
-    private static func isJSONPunctuation(_ character: Character) -> Bool {
-        "{}[]:,".contains(character)
+    private static func isJSONPunctuation(_ character: unichar) -> Bool {
+        jsonPunctuation.contains(character)
     }
 
-    private static func isJSONLiteralBoundary(_ character: Character) -> Bool {
-        character.isWhitespace || isJSONPunctuation(character)
+    private static func isJSONLiteralBoundary(_ character: unichar) -> Bool {
+        isWhitespace(character) || isJSONPunctuation(character)
     }
 
-    private static func isDigit(_ character: Character) -> Bool {
-        character >= "0" && character <= "9"
+    private static func isWhitespace(_ character: unichar) -> Bool {
+        guard let scalar = UnicodeScalar(character) else { return false }
+        return CharacterSet.whitespacesAndNewlines.contains(scalar)
     }
 
-    private static func isNonZeroDigit(_ character: Character) -> Bool {
-        character >= "1" && character <= "9"
+    private static func isDigit(_ character: unichar) -> Bool {
+        character >= JSONScalar.zero && character <= JSONScalar.nine
+    }
+
+    private static func isNonZeroDigit(_ character: unichar) -> Bool {
+        character >= JSONScalar.one && character <= JSONScalar.nine
     }
 }
 
@@ -1370,8 +1416,24 @@ private class QuickLookHoverTrackingView: NSView {
 extension QuickLookViewController: NSTextViewDelegate {
     nonisolated func textDidChange(_ notification: Notification) {
         MainActor.assumeIsolated {
-            applyEditorAttributesAndHighlighting()
+            let editedRange = pendingEditedRange
+            pendingEditedRange = nil
+            applyEditorAttributesAndHighlighting(editedRange: editedRange)
             buttonState.isSaveEnabled = allowsSaveWithoutTextChanges || textView.string != displayedInitialContent
+        }
+    }
+}
+
+extension QuickLookViewController: NSTextStorageDelegate {
+    nonisolated func textStorage(
+        _ textStorage: NSTextStorage,
+        didProcessEditing editedMask: NSTextStorageEditActions,
+        range editedRange: NSRange,
+        changeInLength delta: Int
+    ) {
+        guard editedMask.contains(.editedCharacters) else { return }
+        MainActor.assumeIsolated {
+            pendingEditedRange = pendingEditedRange.map { NSUnionRange($0, editedRange) } ?? editedRange
         }
     }
 }

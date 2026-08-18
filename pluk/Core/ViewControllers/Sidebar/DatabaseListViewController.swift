@@ -924,51 +924,58 @@ extension DatabaseListViewController: NSOutlineViewDelegate {
         }
         switch row {
         case .table(let name, _, let type):
-            let cell = SidebarRowCell(
+            let cell = dequeueSidebarCell(isExpandableTable(row) ? .tableRow : .plain, in: outlineView)
+            cell.configure(
                 symbolName: type == "view" ? "eye.fill" : "table",
                 title: name,
-                isMuted: false,
-                isGroupHeader: false,
-                showsTrailingDisclosure: isExpandableTable(row)
+                isMuted: false
             )
             cell.isExpanded = outlineView.isItemExpanded(row)
             cell.showDisclosure = cell.isExpanded
             return cell
         case .column(_, let name, let type, let icon):
-            return SidebarRowCell(
+            let cell = dequeueSidebarCell(.columnRow, in: outlineView)
+            cell.configure(
                 symbolName: icon,
                 title: name,
                 detail: type,
-                isMuted: true,
-                isGroupHeader: false,
-                isColumnRow: true
+                isMuted: true
             )
+            return cell
         case .columnStatus(_, let title):
-            return SidebarRowCell(
+            let cell = dequeueSidebarCell(.columnRow, in: outlineView)
+            cell.configure(
                 symbolName: nil,
                 title: title,
-                isMuted: true,
-                isGroupHeader: false,
-                isColumnRow: true
+                isMuted: true
             )
+            return cell
         case .function(let name, _, let type):
-            return SidebarRowCell(
+            let cell = dequeueSidebarCell(.plain, in: outlineView)
+            cell.configure(
                 symbolName: type == "procedure" ? "gearshape" : "f.cursive",
                 title: name,
-                isMuted: false,
-                isGroupHeader: false
+                isMuted: false
             )
+            return cell
         case .functionsGroup:
-            let cell = SidebarRowCell(
+            let cell = dequeueSidebarCell(.groupHeader, in: outlineView)
+            cell.configure(
                 symbolName: nil,
                 title: "Functions",
-                isMuted: true,
-                isGroupHeader: true
+                isMuted: true
             )
             cell.showDisclosure = isSidebarHovered
             cell.isExpanded = outlineView.isItemExpanded(row)
             return cell
         }
+    }
+
+    private func dequeueSidebarCell(_ layout: SidebarRowCell.Layout, in outlineView: NSOutlineView) -> SidebarRowCell {
+        if let cell = outlineView.makeView(withIdentifier: layout.reuseIdentifier, owner: nil) as? SidebarRowCell {
+            return cell
+        }
+        return SidebarRowCell(layout: layout)
     }
 
     func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
@@ -1280,11 +1287,24 @@ final class HoverTrackingOutlineView: NSOutlineView {
 
 @MainActor
 private final class SidebarRowCell: NSView {
+    /// Structural variants: constraints differ per layout, so each gets its
+    /// own reuse identifier and `configure(...)` only touches content.
+    enum Layout: String {
+        case groupHeader
+        case tableRow
+        case columnRow
+        case plain
+
+        var reuseIdentifier: NSUserInterfaceItemIdentifier {
+            NSUserInterfaceItemIdentifier("SidebarRowCell.\(rawValue)")
+        }
+    }
+
+    private let layout: Layout
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
     private let disclosureView = NSImageView()
-    private let showsTrailingDisclosure: Bool
 
     var showDisclosure: Bool = false {
         didSet { disclosureView.isHidden = !showDisclosure }
@@ -1294,47 +1314,30 @@ private final class SidebarRowCell: NSView {
         didSet { updateDisclosureRotation() }
     }
 
-    init(
-        symbolName: String?,
-        title: String,
-        detail: String? = nil,
-        isMuted: Bool,
-        isGroupHeader: Bool,
-        isColumnRow: Bool = false,
-        showsTrailingDisclosure: Bool = false
-    ) {
-        self.showsTrailingDisclosure = showsTrailingDisclosure
+    init(layout: Layout) {
+        self.layout = layout
         super.init(frame: .zero)
+        identifier = layout.reuseIdentifier
         // Cell's own frame is set by NSOutlineView's layout; subviews use
         // auto-layout relative to it. Leaving `translatesAutoresizingMask..`
         // at its default (true) so frame changes from the table view apply.
         autoresizingMask = [.width, .height]
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.contentTintColor = isMuted ? .tertiaryLabelColor : .secondaryLabelColor
-        if let symbolName {
-            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
-            iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(config)
-        }
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.stringValue = title
-        titleLabel.font = isGroupHeader
+        titleLabel.font = layout == .groupHeader
             ? NSFont.systemFont(ofSize: 11, weight: .medium)
             : NSFont.preferredFont(forTextStyle: .body)
-        titleLabel.textColor = isMuted ? .secondaryLabelColor : .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.maximumNumberOfLines = 1
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.stringValue = detail ?? ""
         detailLabel.font = NSFont.preferredFont(forTextStyle: .caption2)
         detailLabel.textColor = .tertiaryLabelColor
         detailLabel.lineBreakMode = .byTruncatingMiddle
         detailLabel.maximumNumberOfLines = 1
-        detailLabel.isHidden = detail == nil
         detailLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         disclosureView.translatesAutoresizingMaskIntoConstraints = false
@@ -1350,15 +1353,12 @@ private final class SidebarRowCell: NSView {
         addSubview(detailLabel)
         addSubview(disclosureView)
 
-        if isGroupHeader {
+        switch layout {
+        case .groupHeader:
             // Group-header layout: [Functions text]  ···  [chevron]
             // No leading icon; chevron pinned to the trailing edge and
             // rotates 90° when expanded.
             iconView.isHidden = true
-
-            let chevronConfig = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
-            disclosureView.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)?
-                .withSymbolConfiguration(chevronConfig)
             disclosureView.isHidden = false
             showDisclosure = true
 
@@ -1372,7 +1372,7 @@ private final class SidebarRowCell: NSView {
                 disclosureView.widthAnchor.constraint(equalToConstant: 12),
                 disclosureView.heightAnchor.constraint(equalToConstant: 12),
             ])
-        } else if showsTrailingDisclosure {
+        case .tableRow:
             // Table-row layout: [icon] [title]  ···  [chevron]
             // The disclosure sits on the trailing edge and rotates when the
             // table's columns are expanded.
@@ -1391,7 +1391,7 @@ private final class SidebarRowCell: NSView {
                 disclosureView.widthAnchor.constraint(equalToConstant: 12),
                 disclosureView.heightAnchor.constraint(equalToConstant: 12),
             ])
-        } else if isColumnRow {
+        case .columnRow:
             NSLayoutConstraint.activate([
                 iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
                 iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -1405,7 +1405,7 @@ private final class SidebarRowCell: NSView {
                 detailLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
                 detailLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             ])
-        } else {
+        case .plain:
             NSLayoutConstraint.activate([
                 iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
                 iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -1421,6 +1421,33 @@ private final class SidebarRowCell: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Resets all per-row content so a cell dequeued via
+    /// `makeView(withIdentifier:)` carries no state from its previous row.
+    func configure(
+        symbolName: String?,
+        title: String,
+        detail: String? = nil,
+        isMuted: Bool
+    ) {
+        if let symbolName {
+            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+            iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(config)
+        } else {
+            iconView.image = nil
+        }
+        iconView.contentTintColor = isMuted ? .tertiaryLabelColor : .secondaryLabelColor
+
+        titleLabel.stringValue = title
+        titleLabel.textColor = isMuted ? .secondaryLabelColor : .labelColor
+
+        detailLabel.stringValue = detail ?? ""
+        detailLabel.isHidden = detail == nil
+
+        showDisclosure = layout == .groupHeader
+        isExpanded = false
+    }
 
     private func updateDisclosureRotation() {
         // Swap the SF Symbol instead of rotating the view — rotating an

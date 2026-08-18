@@ -7,6 +7,7 @@ struct ScatterChartView: View {
     var body: some View {
         GeometryReader { geo in
             let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
+            let indexByX = ChartDataPoint.indexByX(data)
             Chart(data) { point in
                 PointMark(
                     x: .value("X", point.x),
@@ -18,7 +19,7 @@ struct ScatterChartView: View {
             .chartXAxis {
                 AxisMarks(values: .automatic) { value in
                     if let label = value.as(String.self),
-                       let index = data.firstIndex(where: { $0.x == label }),
+                       let index = indexByX[label],
                        index % stride == 0 {
                         AxisValueLabel {
                             Text(data[index].truncatedX)

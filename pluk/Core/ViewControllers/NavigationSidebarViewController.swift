@@ -138,16 +138,35 @@ final class NavigationSidebarViewController: NSViewController {
                     icon: nil
                 )
                 placeholder.installCustomTooltip("Unavailable Connection", position: .right, delay: Self.tooltipDelay)
+                // Early return skips the shared sizing below; without these the
+                // stack view collapses the row and neighbors overlap.
+                placeholder.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    placeholder.widthAnchor.constraint(equalToConstant: 50),
+                    placeholder.heightAnchor.constraint(equalToConstant: 40),
+                ])
                 return placeholder
             }
-            let color = NSColor(instance.connection.color.color)
-            let letter = String(instance.connection.name.prefix(1)).uppercased()
-            button = SidebarItemButton(
-                frame: NSRect(x: 0, y: 0, width: 50, height: 40),
-                fillColor: color,
-                label: letter,
-                icon: nil
-            )
+            let databaseType = instance.connection.databaseType
+            if let logo = NSImage(named: databaseType.homeIcon) {
+                button = SidebarItemButton(
+                    frame: NSRect(x: 0, y: 0, width: 50, height: 40),
+                    fillColor: NSColor(databaseType.backgroundColor),
+                    label: nil,
+                    icon: nil,
+                    assetImage: logo
+                )
+            } else {
+                // Letter avatar fallback when the database logo asset is missing
+                let color = NSColor(instance.connection.color.color)
+                let letter = String(instance.connection.name.prefix(1)).uppercased()
+                button = SidebarItemButton(
+                    frame: NSRect(x: 0, y: 0, width: 50, height: 40),
+                    fillColor: color,
+                    label: letter,
+                    icon: nil
+                )
+            }
             button.installCustomTooltip(instance.connection.name, position: .right, delay: Self.tooltipDelay)
             menu = makeConnectionContextMenu(instanceId: id, instance: instance)
 
@@ -375,13 +394,15 @@ final class SidebarItemButton: NSControl {
     private let fillColor: NSColor
     private let label: String?
     private let icon: String?
+    private let assetImage: NSImage?
     private var isHovering = false { didSet { needsDisplay = true } }
     private var trackingArea: NSTrackingArea?
 
-    init(frame: NSRect, fillColor: NSColor, label: String?, icon: String?) {
+    init(frame: NSRect, fillColor: NSColor, label: String?, icon: String?, assetImage: NSImage? = nil) {
         self.fillColor = fillColor
         self.label = label
         self.icon = icon
+        self.assetImage = assetImage
         super.init(frame: frame)
         wantsLayer = true
         focusRingType = .none
@@ -444,6 +465,18 @@ final class SidebarItemButton: NSControl {
         ctx.addPath(innerPath)
         fillColor.setFill()
         ctx.fillPath()
+
+        if let assetImage, assetImage.size.width > 0, assetImage.size.height > 0 {
+            let maxSide: CGFloat = 18
+            let scale = min(maxSide / assetImage.size.width, maxSide / assetImage.size.height)
+            let size = NSSize(width: assetImage.size.width * scale, height: assetImage.size.height * scale)
+            assetImage.draw(in: NSRect(
+                x: bounds.midX - size.width / 2,
+                y: bounds.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            ))
+        }
 
         if let label {
             let attrs: [NSAttributedString.Key: Any] = [

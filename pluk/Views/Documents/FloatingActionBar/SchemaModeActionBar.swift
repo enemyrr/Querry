@@ -19,6 +19,7 @@ struct SchemaModeActionBar: View {
     let schemaModificationTracker: SchemaModificationTracker?
     let onCommitSchemaModifications: (() -> Void)?
     var onNewField: (() -> Void)?
+    var onCancelLoad: (() -> Void)? = nil
 
     @State private var debounceTask: Task<Void, Never>?
     @State private var loadingTask: Task<Void, Never>?
@@ -31,7 +32,9 @@ struct SchemaModeActionBar: View {
                 .frame(height: 22)
                 .padding(.vertical, 6)
             Button(action: {
-                if !isLoading {
+                if isLoading {
+                    onCancelLoad?()
+                } else {
                     // Cancel any existing loading operations before starting new one
                     loadingTask?.cancel()
                     debounceTask?.cancel()
@@ -39,6 +42,7 @@ struct SchemaModeActionBar: View {
                     onRefresh(1, 300, true)
                 }
             }) {
+                // The xmark is a real cancel: clicking while loading aborts the query.
                 let iconName = debouncedIsLoading ? "xmark" : "arrow.clockwise"
 
                 Image(systemName: iconName)
@@ -51,27 +55,27 @@ struct SchemaModeActionBar: View {
                         debounceTask?.cancel()
 
                         if newValue {
-                            // Show loading immediately
-                            onDebounceLoadingChange(true)
-                        } else {
-                            // Debounce the loading -> stopped transition
+                            // Debounce the stopped -> loading transition so
+                            // fast loads don't flash the cancel icon
                             debounceTask = Task { @MainActor in
                                 do {
                                     try await Task.sleep(for: .milliseconds(400))
-                                    // Double-check we haven't been cancelled and loading hasn't restarted
-                                    if !Task.isCancelled && !isLoading {
-                                        onDebounceLoadingChange(false)
+                                    // Double-check we haven't been cancelled and loading is still running
+                                    if !Task.isCancelled && isLoading {
+                                        onDebounceLoadingChange(true)
                                     }
                                 } catch {
                                     // Task was cancelled, ignore
                                 }
                             }
+                        } else {
+                            // Restore the refresh icon immediately
+                            onDebounceLoadingChange(false)
                         }
                     }
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: debouncedIsLoading))
-            .disabled(isLoading)
-            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
+            .customHelp(debouncedIsLoading ? "Cancel" : "Refresh", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "R"
             ), spacing: 10)

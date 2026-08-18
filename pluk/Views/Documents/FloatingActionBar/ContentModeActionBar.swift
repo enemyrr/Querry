@@ -13,6 +13,7 @@ struct ContentModeActionBar: View {
     @Binding var tabViewMode: DatabaseTab.ViewMode
     let totalPages: Int
     let totalCount: Int
+    let totalRowCount: Int?
     let totalPerPage: Int
     let modificationTracker: TableModificationTracker
     let isProcessingUpdates: Bool
@@ -27,6 +28,7 @@ struct ContentModeActionBar: View {
     let onDebounceLoadingChange: (Bool) -> Void
     let onDiscardChanges: () -> Void
     let databaseType: DatabaseType?
+    var onCancelLoad: (() -> Void)? = nil
 
     @State private var debounceTask: Task<Void, Never>?
     @State private var loadingTask: Task<Void, Never>?
@@ -37,6 +39,7 @@ struct ContentModeActionBar: View {
                 currentPage: $currentPage,
                 totalPages: totalPages,
                 totalCount: totalCount,
+                totalRowCount: totalRowCount,
                 totalPerPage: totalPerPage,
                 onRefresh: { onRefresh(currentPage, totalPerPage, false) },
                 modificationTracker: modificationTracker,
@@ -48,7 +51,9 @@ struct ContentModeActionBar: View {
                 .padding(.vertical, 6)
 
             Button(action: {
-                if !isLoading {
+                if isLoading {
+                    onCancelLoad?()
+                } else {
                     // Cancel any existing loading operations before starting new one
                     loadingTask?.cancel()
                     debounceTask?.cancel()
@@ -56,6 +61,7 @@ struct ContentModeActionBar: View {
                     onRefresh(currentPage, totalPerPage, true)
                 }
             }) {
+                // The xmark is a real cancel: clicking while loading aborts the query.
                 let iconName = debouncedIsLoading ? "xmark" : "arrow.clockwise"
 
                 Image(systemName: iconName)
@@ -68,27 +74,27 @@ struct ContentModeActionBar: View {
                         debounceTask?.cancel()
 
                         if newValue {
-                            // Show loading immediately
-                            onDebounceLoadingChange(true)
-                        } else {
-                            // Debounce the loading -> stopped transition
+                            // Debounce the stopped -> loading transition so
+                            // fast loads don't flash the cancel icon
                             debounceTask = Task { @MainActor in
                                 do {
                                     try await Task.sleep(for: .milliseconds(400))
-                                    // Double-check we haven't been cancelled and loading hasn't restarted
-                                    if !Task.isCancelled && !isLoading {
-                                        onDebounceLoadingChange(false)
+                                    // Double-check we haven't been cancelled and loading is still running
+                                    if !Task.isCancelled && isLoading {
+                                        onDebounceLoadingChange(true)
                                     }
                                 } catch {
                                     // Task was cancelled, ignore
                                 }
                             }
+                        } else {
+                            // Restore the refresh icon immediately
+                            onDebounceLoadingChange(false)
                         }
                     }
             }
             .buttonStyle(ActionButtonStyle(padding: EdgeInsets(top: 7, leading: 8, bottom: 7, trailing: 8), isActive: debouncedIsLoading))
-            .disabled(isLoading)
-            .customHelp("Refresh", position: .top, shortcut: KeyboardShortcut(
+            .customHelp(debouncedIsLoading ? "Cancel query" : "Refresh", position: .top, shortcut: KeyboardShortcut(
                 modifiers: [.command],
                 key: "R"
             ), spacing: 10)

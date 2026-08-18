@@ -122,12 +122,36 @@ final class QueryHistoryService {
             if let successOnly {
                 entries = entries.filter { $0.wasSuccessful == successOnly }
             }
-            return entries.compactMap { entry in
+            let viewModels = entries.compactMap { entry in
                 createViewModel(from: entry, searchText: searchText)
             }
+            migrateLegacyEncryption(for: entries)
+            return viewModels
         } catch {
             debugLog("Failed to fetch query history: \(error)")
             return []
+        }
+    }
+
+    /// Lazily re-encrypts entries still under the legacy derived key so they
+    /// migrate to the Keychain-backed key as they're read. One save per batch.
+    private func migrateLegacyEncryption(for entries: [QueryHistoryEntry]) {
+        var migrated = 0
+        for entry in entries {
+            guard let encryptedQuery = entry.encryptedQuery,
+                  let reencrypted = QueryHistoryEncryptionService.reencryptLegacyEntry(
+                    encryptedQuery: encryptedQuery,
+                    connectionKeychainId: connectionKeychainId
+                  ) else { continue }
+            entry.encryptedQuery = reencrypted
+            migrated += 1
+        }
+        guard migrated > 0 else { return }
+        do {
+            try modelContext.save()
+            debugLog("Re-encrypted \(migrated) legacy query history entries")
+        } catch {
+            debugLog("Failed to persist re-encrypted query history: \(error)")
         }
     }
 

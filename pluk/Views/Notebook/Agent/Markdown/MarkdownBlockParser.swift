@@ -33,8 +33,52 @@ enum MarkdownBlockParser {
         case inThinkingBlock(lines: [String], duration: Int?)
     }
 
+    /// Incremental parse cache for streaming content. Everything before
+    /// `stablePrefix.count` characters has been parsed into `stableBlocks` and is
+    /// guaranteed not to change as long as new content only appends.
+    struct StreamingState {
+        fileprivate var stablePrefix: String = ""
+        fileprivate var stableBlocks: [MarkdownBlock] = []
+
+        init() {}
+    }
+
     static func parse(_ text: String) -> [MarkdownBlock] {
+        mergeToolCallsIntoThinking(parseBlocks(text).blocks)
+    }
+
+    /// Parses streaming content incrementally: blocks in the cached stable prefix
+    /// are reused and only the trailing, still-mutating portion is re-parsed.
+    /// Produces exactly the same result as `parse(_:)`; falls back to a full
+    /// parse whenever `text` is not an append to the previously seen content.
+    static func parseIncremental(_ text: String, state: inout StreamingState) -> [MarkdownBlock] {
+        if !text.hasPrefix(state.stablePrefix) {
+            state = StreamingState()
+        }
+        let tail = String(text.dropFirst(state.stablePrefix.count))
+        let (tailBlocks, boundary) = parseBlocks(tail)
+        let result = mergeToolCallsIntoThinking(state.stableBlocks + tailBlocks)
+        // Carriage returns make character offsets ambiguous ("\r\n" is one
+        // Character but splits as two lines), so don't advance the cache then.
+        if let boundary, !tail.unicodeScalars.contains("\r") {
+            state.stablePrefix += tail.prefix(boundary.offset)
+            state.stableBlocks += tailBlocks[0..<boundary.blockCount]
+        }
+        #if DEBUG
+        assert(result == parse(text), "Incremental markdown parse diverged from full parse")
+        #endif
+        return result
+    }
+
+    /// Parses `text` into blocks without the tool-call merge pass. Also returns
+    /// the last safe boundary: a character offset just past a newline-terminated
+    /// blank line where the parser was in the idle state with all buffers
+    /// flushed, and where the blocks emitted so far can no longer change (the
+    /// last block is not a tool-call group, which later lines could extend).
+    private static func parseBlocks(_ text: String) -> (blocks: [MarkdownBlock], stableBoundary: (offset: Int, blockCount: Int)?) {
         var blocks: [MarkdownBlock] = []
+        var stableBoundary: (offset: Int, blockCount: Int)?
+        var lineStart = 0
         var state = State.idle
         var paragraphBuffer: [String] = []
         var listBuffer: [ListItem] = []
@@ -71,8 +115,9 @@ enum MarkdownBlockParser {
 
         let lines = text.components(separatedBy: "\n")
 
-        for line in lines {
+        for (lineIndex, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            defer { lineStart += line.count + 1 }
 
             switch state {
             case .idle:
@@ -106,6 +151,14 @@ enum MarkdownBlockParser {
 
                 if trimmed.isEmpty {
                     flushAll()
+                    // Safe boundary: newline-terminated blank line, idle state,
+                    // buffers flushed, and no trailing block that later lines
+                    // could still extend.
+                    if lineIndex < lines.count - 1 {
+                        if case .toolCallGroup = blocks.last {} else {
+                            stableBoundary = (offset: lineStart + line.count + 1, blockCount: blocks.count)
+                        }
+                    }
                     continue
                 }
 
@@ -223,7 +276,7 @@ enum MarkdownBlockParser {
             blocks.append(.thinkingBlock(thinkingLines.joined(separator: "\n"), duration: duration, toolCalls: []))
         }
 
-        return mergeToolCallsIntoThinking(blocks)
+        return (blocks, stableBoundary)
     }
 
     private static func mergeToolCallsIntoThinking(_ blocks: [MarkdownBlock]) -> [MarkdownBlock] {

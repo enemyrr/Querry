@@ -690,6 +690,58 @@ import SwiftUI
         guard let activeDriverBox else { return 0 }
         return try await activeDriverBox.getDocumentCount(for: collectionName, filter: try makeDriverDocument(from: filter))
     }
+
+    /// Total row count for the table currently being browsed, honoring the
+    /// active filter query when one is set. Runs a COUNT(*) directly against
+    /// the driver (bypassing query-history recording) so the bottom bar can
+    /// show "300 of 12,345". Returns nil when a total can't be determined
+    /// (e.g. a filtered non-SQL source).
+    func getTotalRowCount(for collectionName: String, databaseSchema: String? = nil, filter: String = "") async throws -> Int? {
+        guard let activeDriverBox,
+              let connection = activeConnection else { return nil }
+
+        let trimmedFilter = filter.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch connection.databaseType {
+        case .postgres, .supabase, .mysql, .sqlite:
+            let quote: (String) -> String = connection.databaseType == .mysql
+                ? { "`\($0.replacingOccurrences(of: "`", with: "``"))`" }
+                : { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }
+
+            let countQuery: String
+            if trimmedFilter.isEmpty {
+                let schemaToUse = databaseSchema ?? currentSchema
+                var qualifiedName = quote(collectionName)
+                if let schemaToUse, !schemaToUse.isEmpty, connection.databaseType != .sqlite {
+                    qualifiedName = "\(quote(schemaToUse)).\(qualifiedName)"
+                }
+                countQuery = "SELECT COUNT(*) FROM \(qualifiedName)"
+            } else {
+                var inner = trimmedFilter
+                if inner.hasSuffix(";") { inner = String(inner.dropLast()) }
+                // A remaining semicolon means multi-statement input — don't wrap it.
+                guard !inner.contains(";") else { return nil }
+                countQuery = "SELECT COUNT(*) FROM (\(inner)) AS pluk_count_subquery"
+            }
+
+            let results = try await activeDriverBox.executeRawQuery(countQuery, databaseSchema: databaseSchema ?? currentSchema)
+            guard let row = results.first?.rows.first,
+                  let info = row.values.first else { return nil }
+            switch info.value {
+            case .int(let value): return value
+            case .int64(let value): return Int(value)
+            case .double(let value): return Int(value)
+            case .string(let value), .decimalString(let value): return Int(value)
+            default: return nil
+            }
+
+        case .mongodb, .convex:
+            // These drivers' counts don't honor a filter — only report the
+            // unfiltered total so we never show a wrong number.
+            guard trimmedFilter.isEmpty else { return nil }
+            return try await activeDriverBox.getDocumentCount(for: collectionName, filter: [:])
+        }
+    }
     
     func getDatabaseMetadata() async throws -> [any DatabaseWrapper] {
         guard let activeDriverBox else {

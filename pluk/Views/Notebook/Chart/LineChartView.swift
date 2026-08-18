@@ -13,6 +13,7 @@ struct LineChartView: View {
             let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
             let series = ChartDataPoint.seriesNames(data)
             let colors = series.indices.map { ChartDataPoint.seriesPalette[$0 % ChartDataPoint.seriesPalette.count] }
+            let indexByX = ChartDataPoint.indexByX(data)
 
             Chart(data) { point in
                 if isMultiSeries {
@@ -50,7 +51,7 @@ struct LineChartView: View {
             .chartXAxis {
                 AxisMarks(values: .automatic) { value in
                     if let label = value.as(String.self),
-                       let index = data.firstIndex(where: { $0.x == label }),
+                       let index = indexByX[label],
                        index % stride == 0 {
                         AxisValueLabel {
                             Text(data[index].truncatedX)

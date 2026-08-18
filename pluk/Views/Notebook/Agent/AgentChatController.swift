@@ -227,11 +227,11 @@ final class AgentChatController {
                     self.streamingTask = nil
                 }
             }
-            await self.performAgentLoop(chat: chat)
+            await self.performAgentLoop(chat: chat, taskID: taskID)
         }
     }
 
-    private func performAgentLoop(chat: AgentChat) async {
+    private func performAgentLoop(chat: AgentChat, taskID: UUID) async {
         streamingParts = []
         error = nil
         engine.clearPendingCreations()
@@ -264,10 +264,12 @@ final class AgentChatController {
                     surface: surface,
                     conversationSummary: conversationSummary,
                     onToken: { [weak self] token in
-                        self?.appendOrUpdateText(token)
+                        guard let self, self.streamingTaskID == taskID else { return }
+                        self.appendOrUpdateText(token)
                     },
                     onThinking: { [weak self] token in
-                        self?.appendOrUpdateThinking(token)
+                        guard let self, self.streamingTaskID == taskID else { return }
+                        self.appendOrUpdateThinking(token)
                     }
                 )
 
@@ -296,7 +298,10 @@ final class AgentChatController {
                     toolCallMeta.append((id: toolCall.id, name: toolCall.name, argumentsJSON: argumentsJSON))
                 }
 
-                // Execute all tool calls concurrently (Tasks inherit @MainActor)
+                // Execute all tool calls concurrently (Tasks inherit @MainActor).
+                // The tasks are unstructured, so cancel them explicitly when the
+                // loop is cancelled — otherwise Stop leaves queries running and
+                // the loop suspended on their results.
                 let tasks = round.toolCalls.enumerated().map { (i, toolCall) in
                     let blocks = currentBlocks
                     let conns = selectedConnections
@@ -304,10 +309,14 @@ final class AgentChatController {
                         await engine.executeToolCall(toolCall, connections: conns, blocks: blocks)
                     })
                 }
-                var toolResults: [(index: Int, result: String)] = []
-                for entry in tasks {
-                    let result = await entry.task.value
-                    toolResults.append((index: entry.index, result: result))
+                let toolResults: [(index: Int, result: String)] = await withTaskCancellationHandler {
+                    var results: [(index: Int, result: String)] = []
+                    for entry in tasks {
+                        results.append((index: entry.index, result: await entry.task.value))
+                    }
+                    return results
+                } onCancel: {
+                    for entry in tasks { entry.task.cancel() }
                 }
 
                 // Process side effects after all tools complete
@@ -343,10 +352,14 @@ final class AgentChatController {
                 }
             }
         } catch {
-            if !Task.isCancelled {
+            if !Task.isCancelled && streamingTaskID == taskID {
                 self.error = error.localizedDescription
             }
         }
+
+        // A superseded loop resuming late must not touch shared streaming
+        // state — a newer stream owns the UI now.
+        guard streamingTaskID == taskID else { return }
 
         guard !Task.isCancelled else {
             isStreaming = false

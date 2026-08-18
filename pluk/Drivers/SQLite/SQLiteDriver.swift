@@ -27,6 +27,9 @@ actor SQLiteDriver: DatabaseDriver {
     
     typealias Database = SQLiteDatabaseWrapper
     typealias Collection = SQLiteCollectionWrapper
+
+    /// Maximum number of rows materialized per raw-query statement
+    private static let maxRawQueryRows = 100_000
     
     // Store connection and event loop group for proper cleanup
     private var connection: SQLiteConnection?
@@ -41,13 +44,15 @@ actor SQLiteDriver: DatabaseDriver {
     private var collections: [SQLiteCollectionWrapper] = []
     
     deinit {
-        // Ensure cleanup happens even if disconnect wasn't called explicitly
+        // Ensure cleanup happens even if disconnect wasn't called explicitly.
+        // Capture the resources themselves into a detached task — never self or
+        // actor state, since the actor is being torn down.
         let connection = self.connection
         let eventLoopGroup = self.eventLoopGroup
         let threadPool = self.threadPool
         let securityScopedURL = self.securityScopedURL
-        
-        Task { [connection, eventLoopGroup, threadPool, securityScopedURL] in
+
+        Task.detached { [connection, eventLoopGroup, threadPool, securityScopedURL] in
             if let connection = connection {
                 try? await connection.close()
             }
@@ -150,27 +155,15 @@ actor SQLiteDriver: DatabaseDriver {
             // Store connection immediately so it can be cleaned up if anything fails
             self.connection = connection
             
-            do {
-                // Only set journal mode to MEMORY for non-WAL databases
-                if !isWALMode {
-                    let _ = try await connection.query("PRAGMA journal_mode = MEMORY")
-                    debugLog("✅ Set journal mode to MEMORY for non-WAL database")
-                } else {
-                    debugLog("ℹ️ Keeping WAL mode for WAL database")
-                }
-                
-                self.isConnected = true
-                
-                // Extract database name from final path
-                let databaseName = URL(fileURLWithPath: finalPath).lastPathComponent
-                
-                return SQLiteDatabaseWrapper(name: databaseName, size: nil, tableCount: nil)
-            } catch {
-                // Connection was created but query failed - cleanup will handle closing it
-                await cleanup()
-                throw error
-            }
-            
+            // Leave the database's own journal mode untouched — changing it mutates
+            // the user's file and risks corruption if the app crashes mid-write
+            self.isConnected = true
+
+            // Extract database name from final path
+            let databaseName = URL(fileURLWithPath: finalPath).lastPathComponent
+
+            return SQLiteDatabaseWrapper(name: databaseName, size: nil, tableCount: nil)
+
         } catch {
             // Clean up on failure (handles cases where connection creation itself failed)
             await cleanup()
@@ -249,14 +242,9 @@ actor SQLiteDriver: DatabaseDriver {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let pool = NIOThreadPool(numberOfThreads: 1)
         pool.start()
-        defer {
-            let g = group
-            let p = pool
-            Task {
-                try? await p.shutdownGracefully()
-                try? await g.shutdownGracefully()
-            }
-        }
+
+        // Shut down inline (not fire-and-forget) so ping's resources are fully
+        // released before the caller can replace or reuse the connection
         do {
             let temp = try await SQLiteConnection.open(
                 storage: .file(path: path),
@@ -265,8 +253,13 @@ actor SQLiteDriver: DatabaseDriver {
             )
             try await temp.close()
         } catch {
+            try? await pool.shutdownGracefully()
+            try? await group.shutdownGracefully()
             throw DatabaseError.connectionFailed("Ping failed: \(error.localizedDescription)")
         }
+
+        try? await pool.shutdownGracefully()
+        try? await group.shutdownGracefully()
     }
     
     func switchDatabase(to databaseName: String) async throws {
@@ -385,8 +378,20 @@ actor SQLiteDriver: DatabaseDriver {
             
             // Check if filter contains a raw query
             if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // Use the raw query directly
-                queryString = rawQuery
+                // Use the raw query, applying pagination when it's a plain SELECT without its own LIMIT
+                var raw = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+                if raw.hasSuffix(";") {
+                    raw = String(raw.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+
+                let lowered = raw.lowercased()
+                let isSelect = lowered.hasPrefix("select") || lowered.hasPrefix("with")
+                let hasLimit = lowered.range(of: #"\blimit\b"#, options: .regularExpression) != nil
+
+                if isSelect && !hasLimit {
+                    raw += " LIMIT \(limit) OFFSET \(skip)"
+                }
+                queryString = raw
             } else {
                 // Build standard query with optional WHERE clause and ORDER BY clause
                 let whereClause = buildWhereClause(from: filter)
@@ -524,7 +529,7 @@ actor SQLiteDriver: DatabaseDriver {
         
         do {
             let sortedKeys = document.keys.sorted()
-            let columns = sortedKeys.map { "\"\($0)\"" }.joined(separator: ", ")
+            let columns = sortedKeys.map { escapeIdentifier($0) }.joined(separator: ", ")
             let placeholders = Array(repeating: "?", count: sortedKeys.count).joined(separator: ", ")
             
             let queryString = "INSERT INTO \(sanitizedTableName) (\(columns)) VALUES (\(placeholders))"
@@ -549,7 +554,7 @@ actor SQLiteDriver: DatabaseDriver {
         }
         
         do {
-            let setClauses = data.keys.map { "\"\($0)\" = ?" }.joined(separator: ", ")
+            let setClauses = data.keys.map { "\(escapeIdentifier($0)) = ?" }.joined(separator: ", ")
             let recordColumn = try validateAndSanitizeIdentifier(id.columnName)
             let queryString = "UPDATE \(sanitizedTableName) SET \(setClauses) WHERE \(recordColumn) = ?"
             
@@ -609,7 +614,14 @@ actor SQLiteDriver: DatabaseDriver {
                     }
                 }
 
-                for row in rows {
+                for (rowIndex, row) in rows.enumerated() {
+                    if rowIndex >= Self.maxRawQueryRows {
+                        break
+                    }
+                    if rowIndex % 1000 == 0, Task.isCancelled {
+                        throw CancellationError()
+                    }
+
                     var processedRowData: [String: QueryRowInfo] = [:]
                     var rawRowData: DatabaseRawRow = [:]
 
@@ -658,6 +670,8 @@ actor SQLiteDriver: DatabaseDriver {
 
                 allResults.append(result)
 
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 throw DatabaseError.operationFailed("Failed to execute statement: \(error.localizedDescription)")
             }
@@ -1084,14 +1098,19 @@ actor SQLiteDriver: DatabaseDriver {
         }
     }
     
+    /// Quotes an identifier, doubling any embedded double-quotes so they can't break out
+    nonisolated func escapeIdentifier(_ identifier: String) -> String {
+        return "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
     private func validateAndSanitizeIdentifier(_ identifier: String) throws -> String {
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         if trimmed.isEmpty {
             throw DatabaseError.configurationError("Identifier cannot be empty")
         }
-        
-        return "\"\(trimmed)\""
+
+        return escapeIdentifier(trimmed)
     }
     
     private func buildWhereClause(from filter: DatabaseDocument) -> String {
@@ -1099,21 +1118,22 @@ actor SQLiteDriver: DatabaseDriver {
         guard !filteredDict.isEmpty else { return "" }
         
         let conditions = filteredDict.map { key, value in
+            let escapedKey = escapeIdentifier(key)
             switch value {
             case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
-                return "\"\(key)\" = '\(stringValue.replacing("'", with: "''"))'"
+                return "\(escapedKey) = '\(stringValue.replacing("'", with: "''"))'"
             case .int(let numberValue):
-                return "\"\(key)\" = \(numberValue)"
+                return "\(escapedKey) = \(numberValue)"
             case .int64(let numberValue):
-                return "\"\(key)\" = \(numberValue)"
+                return "\(escapedKey) = \(numberValue)"
             case .double(let numberValue):
-                return "\"\(key)\" = \(numberValue)"
+                return "\(escapedKey) = \(numberValue)"
             case .bool(let boolValue):
-                return "\"\(key)\" = \(boolValue ? 1 : 0)"
+                return "\(escapedKey) = \(boolValue ? 1 : 0)"
             case .null:
-                return "\"\(key)\" IS NULL"
+                return "\(escapedKey) IS NULL"
             default:
-                return "\"\(key)\" = '\(value.description.replacing("'", with: "''"))'"
+                return "\(escapedKey) = '\(value.description.replacing("'", with: "''"))'"
             }
         }
         
@@ -1124,7 +1144,7 @@ actor SQLiteDriver: DatabaseDriver {
         guard let sortBy = sortBy, !sortBy.isEmpty else { return "" }
         
         let direction = ascending == false ? "DESC" : "ASC"
-        return "ORDER BY \"\(sortBy)\" \(direction)"
+        return "ORDER BY \(escapeIdentifier(sortBy)) \(direction)"
     }
     
     private func buildSchemaPrompt(for collectionName: String) async -> String {
@@ -1249,19 +1269,20 @@ actor SQLiteDriver: DatabaseDriver {
     }
     
     private func isSQLiteFile(at path: String) -> Bool {
-        guard let fileData = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+        // SQLite files start with "SQLite format 3\0" (16 bytes)
+        let sqliteHeader = Data("SQLite format 3\0".utf8)
+
+        guard let fileHandle = FileHandle(forReadingAtPath: path) else {
+            return false
+        }
+        defer { try? fileHandle.close() }
+
+        // Read only the header bytes so large database files aren't loaded into memory
+        guard let headerData = try? fileHandle.read(upToCount: sqliteHeader.count) else {
             return false
         }
 
-        // SQLite files start with "SQLite format 3\0" (16 bytes)
-        let sqliteHeader = "SQLite format 3\0".data(using: .utf8)!
-
-        if fileData.count >= sqliteHeader.count {
-            let headerData = fileData.prefix(sqliteHeader.count)
-            return headerData == sqliteHeader
-        }
-
-        return false
+        return headerData == sqliteHeader
     }
 
     // MARK: - Schema Modification Methods

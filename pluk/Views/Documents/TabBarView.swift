@@ -805,9 +805,34 @@ final class TabBarView: NSView {
     }
 }
 
+// MARK: - Forwarded-Click Button
+
+/// The titlebar windows route tab-bar clicks by calling `mouseDown`/`mouseUp`
+/// directly on the hit view (`TitlebarTabs*TerminalWindow.sendEvent`). On
+/// macOS 26 a borderless `NSButton` no longer runs its blocking cell-tracking
+/// loop from a forwarded `mouseDown`, so the action never fired. Track the
+/// press manually and send the action on mouse-up inside the button instead.
+private class ForwardedClickButton: NSButton {
+    private var isPressed = false
+
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        isPressed = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isPressed else { return }
+        isPressed = false
+        let localPoint = convert(event.locationInWindow, from: nil)
+        if isEnabled, bounds.contains(localPoint) {
+            sendAction(action, to: target)
+        }
+    }
+}
+
 // MARK: - Hover Nav Button
 
-private final class HoverNavButton: NSButton {
+private final class HoverNavButton: ForwardedClickButton {
     private let hoverLayer = CALayer()
     private var trackingArea: NSTrackingArea?
     private var isPointerInside = false
@@ -1040,7 +1065,7 @@ final class TabButtonView: NSView {
         deviationLabel.isHidden = true
         addSubview(deviationLabel)
 
-        closeButton = NSButton(frame: .zero)
+        closeButton = ForwardedClickButton(frame: .zero)
         closeButton.bezelStyle = .inline
         closeButton.isBordered = false
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close tab")

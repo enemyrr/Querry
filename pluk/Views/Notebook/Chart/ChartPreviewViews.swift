@@ -40,13 +40,13 @@ struct ChartPreviewView: View {
     private func chartView(for chartType: ChartBlockConfig.ChartType) -> some View {
         switch chartType {
         case .groupedColumn, .stackedColumn, .hundredPercentStackedColumn:
-            BarChartView(data: viewModel.chartData, chartType: chartType)
+            BarChartView(data: viewModel.chartData, chartType: chartType, normalizedData: viewModel.normalizedChartData)
         case .groupedBar, .stackedBar, .hundredPercentStackedBar:
-            HorizontalBarChartView(data: viewModel.chartData, chartType: chartType)
+            HorizontalBarChartView(data: viewModel.chartData, chartType: chartType, normalizedData: viewModel.normalizedChartData)
         case .line:
             LineChartView(data: viewModel.chartData)
         case .stackedArea, .hundredPercentStackedArea:
-            AreaChartView(data: viewModel.chartData, chartType: chartType)
+            AreaChartView(data: viewModel.chartData, chartType: chartType, filledData: viewModel.seriesFilledChartData)
         case .histogram:
             HistogramChartView(data: viewModel.chartData)
         case .scatter:

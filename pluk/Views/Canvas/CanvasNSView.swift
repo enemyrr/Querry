@@ -160,6 +160,22 @@ final class CanvasNSView: NSView {
         }
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            // Leaving the window (e.g. tab closed) with a selection would
+            // otherwise leave the repeating timer firing forever.
+            animationTimer?.invalidate()
+            animationTimer = nil
+        } else {
+            updateAnimationTimer()
+        }
+    }
+
+    isolated deinit {
+        animationTimer?.invalidate()
+    }
+
     private func updateAnimationTimer() {
         if !selectedNodeIds.isEmpty {
             guard animationTimer == nil else { return }

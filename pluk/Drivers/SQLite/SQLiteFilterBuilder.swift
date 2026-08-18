@@ -24,16 +24,16 @@ extension SQLiteDriver {
         
         guard !validConditions.isEmpty else { return "" }
         
-        var sql = "SELECT * FROM \"\(tableName)\" "
-        
+        var sql = "SELECT * FROM \(escapeIdentifier(tableName)) "
+
         for (index, condition) in validConditions.enumerated() {
             if index == 0 {
                 sql += "WHERE "
             } else {
                 sql += " \(condition.conjunction.rawValue.uppercased()) "
             }
-            
-            let escapedField = "\"\(condition.field)\""
+
+            let escapedField = escapeIdentifier(condition.field)
             let escapedValue = "'\(condition.value.replacingOccurrences(of: "'", with: "''"))'"
             
             switch condition.filterOperator {
@@ -95,9 +95,9 @@ extension SQLiteDriver {
                 whereClause += " \(condition.conjunction.rawValue.uppercased()) "
             }
             
-            let escapedField = "\"\(condition.field)\""
+            let escapedField = escapeIdentifier(condition.field)
             let escapedValue = "'\(condition.value.replacingOccurrences(of: "'", with: "''"))'"
-            
+
             switch condition.filterOperator {
             case .equals:
                 whereClause += "\(escapedField) = \(escapedValue)"

@@ -66,7 +66,12 @@ struct PostgreSQLQueryResult {
     // For compatibility - decode on demand
     func value(row: Int, column: String) -> Any? {
         guard let cell = rawCell(row: row, column: column) else { return nil }
-        return try? decodeValue(from: cell)
+        do {
+            return try decodeValue(from: cell)
+        } catch {
+            debugLog("PostgreSQLQueryResult decode error for column '\(column)': \(String(reflecting: error))")
+            return nil
+        }
     }
 
     private func decodeValue(from cell: PostgresCell) throws -> Any? {
@@ -120,6 +125,9 @@ actor PostgreSQLDriver: DatabaseDriver {
     private var databases: [PostgreSQLDatabaseWrapper] = []
     private var schema: [PostgreSQLDatabaseWrapper] = []
     private var collections: [PostgreSQLCollectionWrapper] = []
+
+    /// Upper bound on rows materialized from a raw query, to keep memory in check.
+    private static let maxRawQueryRows = 100_000
 
     private func splitSQLStatements(_ sql: String) -> [String] {
         var statements: [String] = []
@@ -217,10 +225,14 @@ actor PostgreSQLDriver: DatabaseDriver {
 
     deinit {
         clientTask?.cancel()
-        if let directConnection {
-            try? directConnection.close().wait()
+        if let directConnection, let directEventLoopGroup {
+            Task.detached {
+                try? await directConnection.close()
+                try? await directEventLoopGroup.shutdownGracefully()
+            }
+        } else if let directEventLoopGroup {
+            Task.detached { try? await directEventLoopGroup.shutdownGracefully() }
         }
-        try? directEventLoopGroup?.syncShutdownGracefully()
     }
 
     func connect(to connectionUri: String) async throws -> PostgreSQLDatabaseWrapper {
@@ -322,6 +334,7 @@ actor PostgreSQLDriver: DatabaseDriver {
         directEventLoopGroup = nil
 
         await databaseSchema.removeAll()
+        primaryKeyCache.removeAll()
 
         self.isConnected = false
     }
@@ -476,7 +489,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                     END AS type
                 FROM pg_proc p
                 JOIN pg_namespace n ON p.pronamespace = n.oid
-                WHERE n.nspname = '\(unescaped: effectiveSchema)'
+                WHERE n.nspname = \(unescaped: quoteStringLiteral(effectiveSchema))
                     AND p.prokind IN ('f', 'p')
                 ORDER BY p.proname
                 """
@@ -516,7 +529,7 @@ actor PostgreSQLDriver: DatabaseDriver {
             JOIN pg_catalog.pg_class c
                 ON c.relnamespace = n.oid
                 AND c.relname = t.table_name
-            WHERE t.table_schema = '\(unescaped: schema)'
+            WHERE t.table_schema = \(unescaped: quoteStringLiteral(schema))
                 AND t.table_type IN ('BASE TABLE', 'VIEW')
                 AND c.relkind IN ('r', 'p', 'v', 'm')
             ORDER BY t.table_name
@@ -549,7 +562,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                 END AS type
             FROM pg_catalog.pg_class c
             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-            WHERE n.nspname = '\(unescaped: schema)'
+            WHERE n.nspname = \(unescaped: quoteStringLiteral(schema))
                 AND c.relkind IN ('r', 'p', 'v', 'm')
             ORDER BY c.relname
             """
@@ -601,7 +614,8 @@ actor PostgreSQLDriver: DatabaseDriver {
             let query: PostgresQuery
 
             if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let results = try await executeRawQuery(rawQuery, databaseSchema: databaseSchema)
+                let pagedQuery = pageFilterQuery(rawQuery, skip: skip, limit: limit, sortBy: sortBy, ascending: ascending)
+                let results = try await executeRawQuery(pagedQuery, databaseSchema: databaseSchema)
                 return results.first ?? QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])
             } else {
                 // Build standard query with optional WHERE clause and ORDER BY clause
@@ -668,7 +682,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                                 processedRowData[columnName] = decoded
                                 rawRowData[columnName] = decoded.value
                             } catch {
-                                debugLog("extractValue: \(String(reflecting: error))")
+                                debugLog("findDocuments decode error for column '\(columnName)': \(String(reflecting: error))")
                                 processedRowData[columnName] = nil
                                 rawRowData[columnName] = nil
                             }
@@ -691,6 +705,8 @@ actor PostgreSQLDriver: DatabaseDriver {
         } catch let error as PSQLError {
             debugLog(String(reflecting: error))
             throw mapPSQLError(error)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw DatabaseError.operationFailed("Failed to find documents: \(error.localizedDescription)")
         }
@@ -883,6 +899,8 @@ actor PostgreSQLDriver: DatabaseDriver {
 
             } catch let error as PSQLError {
                 throw mapPSQLError(error, query: statement)
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 throw DatabaseError.operationFailed("Failed to execute statement: \(error.localizedDescription)")
             }
@@ -904,6 +922,10 @@ actor PostgreSQLDriver: DatabaseDriver {
         var columnsInitialized = false
 
         for try await row in queryResults {
+            if convertedRows.count % 1_000 == 0, Task.isCancelled {
+                throw CancellationError()
+            }
+
             if !columnsInitialized {
                 var columnIndex = 0
                 for cell in row {
@@ -931,7 +953,7 @@ actor PostgreSQLDriver: DatabaseDriver {
                         processedRowData[columnName] = decoded
                         rawRowData[columnName] = decoded.value
                     } catch {
-                        debugLog("executeRawQuery decode error: \(String(reflecting: error))")
+                        debugLog("executeRawQuery decode error for column '\(columnName)': \(String(reflecting: error))")
                         processedRowData[columnName] = nil
                         rawRowData[columnName] = nil
                     }
@@ -943,6 +965,11 @@ actor PostgreSQLDriver: DatabaseDriver {
 
             convertedRows.append(processedRowData)
             convertedRawRows.append(rawRowData)
+
+            if convertedRows.count >= Self.maxRawQueryRows {
+                debugLog("executeRawQuery: result truncated at \(Self.maxRawQueryRows) rows")
+                break
+            }
         }
 
         return QueryResult(
@@ -1276,30 +1303,27 @@ actor PostgreSQLDriver: DatabaseDriver {
                 databaseList.append((name: name, size: size, allowConn: allowConn))
             }
 
-            let databases = try await withThrowingTaskGroup(of: Database.self, returning: [Database].self) { group in
-                for dbInfo in databaseList {
-                    group.addTask {
-                        let tableCount = try await self.getTableCountForDatabase(
-                            name: dbInfo.name,
-                            connectionUri: uri,
-                            allowConnections: dbInfo.allowConn
-                        )
+            // Reuse a single event loop group and query the databases serially
+            // instead of spawning a group + connection per database.
+            let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+            var databases: [Database] = []
 
-                        return Database(
-                            name: dbInfo.name,
-                            size: dbInfo.size,
-                            tableCount: tableCount
-                        )
-                    }
-                }
+            for dbInfo in databaseList {
+                let tableCount = await getTableCountForDatabase(
+                    name: dbInfo.name,
+                    connectionUri: uri,
+                    allowConnections: dbInfo.allowConn,
+                    on: eventLoopGroup
+                )
 
-                var results: [Database] = []
-                for try await database in group {
-                    results.append(database)
-                }
-
-                return results
+                databases.append(Database(
+                    name: dbInfo.name,
+                    size: dbInfo.size,
+                    tableCount: tableCount
+                ))
             }
+
+            try? await eventLoopGroup.shutdownGracefully()
 
             return databases.sorted { $0.name < $1.name }
         } catch let error as PSQLError {
@@ -1309,18 +1333,19 @@ actor PostgreSQLDriver: DatabaseDriver {
         }
     }
 
-    private func getTableCountForDatabase(name: String, connectionUri: String, allowConnections: Bool) async throws -> Int {
+    /// Returns the table count for a database, or nil if the count could not
+    /// be determined, so genuine failures aren't reported as empty databases.
+    private func getTableCountForDatabase(name: String, connectionUri: String, allowConnections: Bool, on eventLoopGroup: EventLoopGroup) async -> Int? {
         guard allowConnections else {
             return 0
         }
 
-        var tempConfig = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
-        tempConfig.database = name
-
-        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         var tempConnection: PostgresConnection?
 
         do {
+            var tempConfig = try PostgreSQLConnectionStringParser.parseConfiguration(connectionUri)
+            tempConfig.database = name
+
             tempConnection = try await PostgresConnection.connect(
                 on: eventLoopGroup.next(),
                 configuration: tempConfig,
@@ -1342,27 +1367,34 @@ actor PostgreSQLDriver: DatabaseDriver {
             }
 
             try await tempConnection!.close()
-            try await eventLoopGroup.shutdownGracefully()
             return tableCount
 
         } catch {
             if let conn = tempConnection, !conn.isClosed {
                 try? await conn.close()
             }
-            try? await eventLoopGroup.shutdownGracefully()
             debugLog("Warning: Could not get table count for database '\(name)': \(error.localizedDescription)")
-            return 0
+            return nil
         }
     }
 
     // Cache for database schemas with performance optimizations
     private let databaseSchema = SchemaCache()
 
+    // Cache for primary key columns, keyed by (schema, table). The stored
+    // value is Optional so "table has no primary key" is cached too.
+    // Invalidated alongside the schema cache.
+    private var primaryKeyCache: [SchemaKey: String?] = [:]
+
     func getSchema(for tableName: String, in schemaName: String = "public", forceFetch: Bool = false) async throws -> DatabaseSchemaResult {
         let cacheKey = SchemaKey(schemaName, tableName)
 
         if !forceFetch, let cachedSchema = await databaseSchema.get(cacheKey) {
             return cachedSchema
+        }
+
+        if forceFetch {
+            primaryKeyCache.removeValue(forKey: cacheKey)
         }
 
         do {
@@ -1440,12 +1472,12 @@ actor PostgreSQLDriver: DatabaseDriver {
                     JOIN pg_namespace ref_ns ON ref_ns.oid = ref_cl.relnamespace
                     JOIN pg_attribute ref_att ON ref_att.attrelid = con.confrelid AND ref_att.attnum = ANY(con.confkey)
                     WHERE con.contype = 'f'
-                        AND cl.relname = '\(unescaped: tableName)'
-                        AND ns.nspname = '\(unescaped: schemaName)'
+                        AND cl.relname = \(unescaped: quoteStringLiteral(tableName))
+                        AND ns.nspname = \(unescaped: quoteStringLiteral(schemaName))
                 ) fk ON fk.child_column = c.column_name
                 WHERE
-                    c.table_name = '\(unescaped: tableName)'
-                    AND c.table_schema = '\(unescaped: schemaName)'
+                    c.table_name = \(unescaped: quoteStringLiteral(tableName))
+                    AND c.table_schema = \(unescaped: quoteStringLiteral(schemaName))
                 ORDER BY c.ordinal_position;
             """)
 
@@ -1531,12 +1563,14 @@ actor PostgreSQLDriver: DatabaseDriver {
     /// Clear the schema cache - useful when schema changes are expected
     func clearSchemaCache() async {
         await databaseSchema.removeAll()
+        primaryKeyCache.removeAll()
     }
 
     /// Clear schema cache for a specific table
     func clearSchemaCache(for tableName: String, in schemaName: String = "public") async {
         let cacheKey = SchemaKey(schemaName, tableName)
         await databaseSchema.remove(cacheKey)
+        primaryKeyCache.removeValue(forKey: cacheKey)
     }
 
     /// Clear schema cache for a specific table (protocol conformance)
@@ -1544,6 +1578,7 @@ actor PostgreSQLDriver: DatabaseDriver {
         let schemaName = schema ?? "public"
         let cacheKey = SchemaKey(schemaName, tableName)
         await databaseSchema.remove(cacheKey)
+        primaryKeyCache.removeValue(forKey: cacheKey)
     }
 
     /// Get current cache statistics
@@ -1652,6 +1687,17 @@ actor PostgreSQLDriver: DatabaseDriver {
         }
     }
 
+    /// Quotes a SQL identifier, doubling any embedded double quotes.
+    /// Internal (not private) so the filter builder extension can use it too.
+    nonisolated func quoteIdentifier(_ identifier: String) -> String {
+        "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    /// Quotes a value as a SQL string literal, doubling any embedded single quotes.
+    private nonisolated func quoteStringLiteral(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "''"))'"
+    }
+
     private func validateAndSanitizeIdentifier(_ identifier: String, databaseSchema: String? = "public") throws -> String {
         // Remove whitespace and validate the identifier
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1699,25 +1745,52 @@ actor PostgreSQLDriver: DatabaseDriver {
         guard !filteredDict.isEmpty else { return "" }
 
         let conditions = filteredDict.map { key, value in
+            let column = quoteIdentifier(key)
             switch value {
             case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
-                return "\(key) = '\(stringValue.replacing("'", with: "''"))'"
+                return "\(column) = '\(stringValue.replacing("'", with: "''"))'"
             case .int(let value):
-                return "\(key) = \(value)"
+                return "\(column) = \(value)"
             case .int64(let value):
-                return "\(key) = \(value)"
+                return "\(column) = \(value)"
             case .double(let value):
-                return "\(key) = \(value)"
+                return "\(column) = \(value)"
             case .bool(let value):
-                return "\(key) = \(value)"
+                return "\(column) = \(value)"
             case .null:
-                return "\(key) IS NULL"
+                return "\(column) IS NULL"
             default:
-                return "\(key) = '\(value.description.replacing("'", with: "''"))'"
+                return "\(column) = '\(value.description.replacing("'", with: "''"))'"
             }
         }
 
         return conditions.joined(separator: " AND ")
+    }
+
+    /// Wraps a filter query in a subselect so filtered browsing respects
+    /// paging and sorting. Anything that isn't a single SELECT statement is
+    /// returned untouched.
+    private func pageFilterQuery(_ rawQuery: String, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) -> String {
+        var trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        while trimmed.hasSuffix(";") {
+            trimmed = String(trimmed.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let lowercased = trimmed.lowercased()
+        guard splitSQLStatements(trimmed).count == 1,
+              lowercased.hasPrefix("select") || lowercased.hasPrefix("with") else {
+            return rawQuery
+        }
+
+        var sql = "SELECT * FROM (\(trimmed)) AS pluk_filtered"
+
+        let orderByClause = buildOrderByClause(sortBy: sortBy, ascending: ascending, primaryKey: nil)
+        if !orderByClause.isEmpty {
+            sql += " \(orderByClause)"
+        }
+
+        sql += " LIMIT \(limit) OFFSET \(skip)"
+        return sql
     }
 
     private func buildOrderByClause(sortBy: String?, ascending: Bool?, primaryKey: String?) -> String {
@@ -1885,8 +1958,8 @@ actor PostgreSQLDriver: DatabaseDriver {
     private func getTableOid(schema: String, table: String) async throws -> Int64? {
         let query = PostgresQuery("""
             SELECT oid FROM pg_class
-            WHERE relname = '\(unescaped: table)'
-            AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '\(unescaped: schema)')
+            WHERE relname = \(unescaped: quoteStringLiteral(table))
+            AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = \(unescaped: quoteStringLiteral(schema)))
         """)
 
         let results = try await poolQuery(query)
@@ -1913,6 +1986,11 @@ actor PostgreSQLDriver: DatabaseDriver {
 
     // MARK: - Helper method to get primary key column
     private func getPrimaryKeyColumn(for tableName: String, in schemaName: String = "public") async throws -> String? {
+        let cacheKey = SchemaKey(schemaName, tableName)
+        if let cached = primaryKeyCache[cacheKey] {
+            return cached
+        }
+
         do {
             // Avoid `::regclass` and `to_regclass($1)` entirely — both attempt
             // to *parse* the qualified name from a string, which breaks if
@@ -1938,14 +2016,18 @@ actor PostgreSQLDriver: DatabaseDriver {
             let results = try await poolQuery(parameterized)
 
             for try await (columnName) in results.decode((String).self) {
-                return "\"\(columnName)\""  // Return quoted column name
+                let quoted = quoteIdentifier(columnName)
+                primaryKeyCache[cacheKey] = quoted
+                return quoted
             }
 
-            // If no primary key is found, return nil
+            // If no primary key is found, cache and return nil
+            primaryKeyCache.updateValue(nil, forKey: cacheKey)
             return nil
 
         } catch {
-            // If the query fails for any reason (e.g., table not found, permissions), return nil
+            // If the query fails for any reason (e.g., table not found, permissions),
+            // return nil without caching so transient failures don't stick
             return nil
         }
     }

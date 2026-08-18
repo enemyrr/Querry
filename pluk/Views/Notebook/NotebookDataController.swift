@@ -326,9 +326,17 @@ final class NotebookDataController {
                 blocks[index + 1].dashboardInline = false
             }
         }
-        chartViewModels.removeValue(forKey: block.id)
-        singleValueViewModels.removeValue(forKey: block.id)
-        queryViewModels.removeValue(forKey: block.id)
+        // Disconnect removed view models' driver sessions instead of leaving
+        // that to controller deinit, which may run much later (or never while
+        // something still retains the view model).
+        let chartVM = chartViewModels.removeValue(forKey: block.id)
+        let singleValueVM = singleValueViewModels.removeValue(forKey: block.id)
+        let queryVM = queryViewModels.removeValue(forKey: block.id)
+        Task {
+            await chartVM?.cleanup()
+            await singleValueVM?.cleanup()
+            await queryVM?.cleanup()
+        }
         modelContainer.mainContext.delete(block)
         blocks.removeAll { $0.id == block.id }
         reindexSortOrders()

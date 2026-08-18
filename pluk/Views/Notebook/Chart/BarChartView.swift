@@ -4,6 +4,8 @@ import Charts
 struct BarChartView: View {
     let data: [ChartDataPoint]
     var chartType: ChartBlockConfig.ChartType = .groupedColumn
+    /// Precomputed by the view model so body doesn't renormalize per evaluation.
+    var normalizedData: [ChartDataPoint]? = nil
 
     private var isMultiSeries: Bool {
         ChartDataPoint.hasMultipleSeries(data)
@@ -15,7 +17,7 @@ struct BarChartView: View {
 
     private var displayData: [ChartDataPoint] {
         if isHundredPercent, isMultiSeries {
-            return ChartDataPoint.normalized(data)
+            return normalizedData ?? ChartDataPoint.normalized(data)
         }
         return data
     }
@@ -25,6 +27,7 @@ struct BarChartView: View {
             let stride = ChartDataPoint.xAxisStride(for: data, availableWidth: geo.size.width)
             let series = ChartDataPoint.seriesNames(data)
             let colors = series.indices.map { ChartDataPoint.seriesPalette[$0 % ChartDataPoint.seriesPalette.count] }
+            let indexByX = ChartDataPoint.indexByX(data)
 
             Chart(displayData) { point in
                 if isMultiSeries {
@@ -57,7 +60,7 @@ struct BarChartView: View {
             .chartXAxis {
                 AxisMarks(values: .automatic) { value in
                     if let label = value.as(String.self),
-                       let index = data.firstIndex(where: { $0.x == label }),
+                       let index = indexByX[label],
                        index % stride == 0 {
                         AxisValueLabel {
                             Text(data[index].truncatedX)

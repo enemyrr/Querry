@@ -4,6 +4,8 @@ import Charts
 struct HorizontalBarChartView: View {
     let data: [ChartDataPoint]
     var chartType: ChartBlockConfig.ChartType = .groupedBar
+    /// Precomputed by the view model so body doesn't renormalize per evaluation.
+    var normalizedData: [ChartDataPoint]? = nil
 
     private var isMultiSeries: Bool {
         ChartDataPoint.hasMultipleSeries(data)
@@ -15,7 +17,7 @@ struct HorizontalBarChartView: View {
 
     private var displayData: [ChartDataPoint] {
         if isHundredPercent, isMultiSeries {
-            return ChartDataPoint.normalized(data)
+            return normalizedData ?? ChartDataPoint.normalized(data)
         }
         return data
     }

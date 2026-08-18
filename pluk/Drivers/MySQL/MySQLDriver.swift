@@ -31,6 +31,7 @@ actor MySQLDriver: DatabaseDriver {
     private var connectionUri: String?
     private var reconnectTask: Task<MySQLConnection, any Error>?
     private let logger = Logger(label: "mysql-driver")
+    private static let maxRawQueryRows = 100_000
     
     typealias Database = MySQLDatabaseWrapper
     typealias Collection = MySQLCollectionWrapper
@@ -125,9 +126,9 @@ actor MySQLDriver: DatabaseDriver {
             Task { try? await g.shutdownGracefully() }
         }
         do {
-            let temp = try await performConnection(
+            let temp = try await connectToMySQL(
                 connectionInfo: info,
-                tlsConfiguration: ssl.enabled ? ssl.tlsConfiguration : nil,
+                sslConfig: ssl,
                 eventLoop: group.next()
             )
             try await temp.close().get()
@@ -150,11 +151,24 @@ actor MySQLDriver: DatabaseDriver {
         do {
             return try await body(connection)
         } catch {
-            guard !connection.isClosed else { throw error }
-            try? await connection.close().get()
+            guard connection.isClosed || isConnectionFailure(error) else { throw error }
+            if !connection.isClosed {
+                try? await connection.close().get()
+            }
             let fresh = try await replaceConnection()
             return try await body(fresh)
         }
+    }
+
+    /// True for transport-level failures that a reconnect can fix; false for server-reported errors.
+    private func isConnectionFailure(_ error: any Error) -> Bool {
+        if error is CancellationError { return false }
+        if let mysqlError = error as? MySQLError {
+            if case .closed = mysqlError { return true }
+            return false
+        }
+        if error is DatabaseError { return false }
+        return true
     }
 
     private func replaceConnection() async throws -> MySQLConnection {
@@ -192,9 +206,9 @@ actor MySQLDriver: DatabaseDriver {
     
 
     func getBuildInfo() async throws -> BuildInfo {
-        let connection = try await ensureConnected()
-
-        let rows = try await connection.simpleQuery("SELECT VERSION() as version").get()
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("SELECT VERSION() as version").get()
+        }
         var version = "Unknown"
         for row in rows {
             if let versionValue = row.column("version")?.string {
@@ -207,9 +221,10 @@ actor MySQLDriver: DatabaseDriver {
     }
     
     func switchDatabase(to databaseName: String) async throws {
-        let connection = try await ensureConnected()
-        
-        _ = try await connection.simpleQuery("USE \(databaseName)").get()
+        let query = "USE \(quoteIdentifier(databaseName))"
+        _ = try await withConnection { connection in
+            try await connection.simpleQuery(query).get()
+        }
         self.currentDatabase = databaseName
     }
     
@@ -220,48 +235,52 @@ actor MySQLDriver: DatabaseDriver {
     }
     
     func listDatabases() async throws -> [MySQLDatabaseWrapper] {
-        let connection = try await ensureConnected()
-        
-        let rows = try await connection.simpleQuery("SHOW DATABASES").get()
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("SHOW DATABASES").get()
+        }
+
+        // Single aggregate query for table counts instead of one COUNT(*) per database
+        let countRows = try await withConnection { connection in
+            try await connection.simpleQuery("""
+                SELECT table_schema, COUNT(*) as table_count
+                FROM information_schema.tables
+                GROUP BY table_schema
+            """).get()
+        }
+        var tableCounts: [String: Int] = [:]
+        for countRow in countRows {
+            if let schemaName = countRow.column("TABLE_SCHEMA")?.string ?? countRow.column("table_schema")?.string,
+               let tableCount = countRow.column("table_count")?.int {
+                tableCounts[schemaName] = tableCount
+            }
+        }
+
         var databases: [MySQLDatabaseWrapper] = []
-        
         for row in rows {
             if let dbName = row.column("Database")?.string {
-                // Get table count for each database
-                let tableCountRows = try await connection.simpleQuery("""
-                    SELECT COUNT(*) as table_count 
-                    FROM information_schema.tables 
-                    WHERE table_schema = '\(dbName)'
-                """).get()
-                var tableCount: Int? = nil
-                for countRow in tableCountRows {
-                    tableCount = countRow.column("table_count")?.int
-                    break
-                }
-                
                 databases.append(MySQLDatabaseWrapper(
                     name: dbName,
                     size: nil, // MySQL doesn't easily provide database size
-                    tableCount: tableCount
+                    tableCount: tableCounts[dbName] ?? 0
                 ))
             }
         }
-        
+
         return databases
     }
     
     func listCollections(schema: String? = nil) async throws -> [MySQLCollectionWrapper] {
-        let connection = try await ensureConnected()
-        
         guard let database = currentDatabase else {
             throw DatabaseError.noDatabaseSelected("No database selected")
         }
-        
-        let rows = try await connection.simpleQuery("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = '\(database)'
-        """).get()
+
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = '\(database)'
+            """).get()
+        }
         
         var collections: [MySQLCollectionWrapper] = []
         for row in rows {
@@ -279,14 +298,12 @@ actor MySQLDriver: DatabaseDriver {
     // MARK: - Document Operations
     
     func getDocumentCount(for collectionName: String, filter: DatabaseDocument) async throws -> Int {
-        let connection = try await ensureConnected()
-        
-        let query: String
-        
         let whereClause = buildWhereClause(from: filter)
-        query = "SELECT COUNT(*) as count FROM `\(collectionName)`\(whereClause)"
-        
-        let rows = try await connection.simpleQuery(query).get()
+        let query = "SELECT COUNT(*) as count FROM \(quoteIdentifier(collectionName))\(whereClause)"
+
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery(query).get()
+        }
         for row in rows {
             if let count = row.column("count")?.int {
                 return count
@@ -305,32 +322,45 @@ actor MySQLDriver: DatabaseDriver {
     }
     
     func findDocuments(in collectionName: String, databaseSchema: String?, filter: DatabaseDocument, skip: Int, limit: Int, sortBy: String?, ascending: Bool?) async throws -> QueryResult {
-        let connection = try await ensureConnected()
-        
         let query: String
-        
+        let isRawQuery: Bool
+
         // Check if filter contains a raw query
         if let rawQuery = filter["rawQuery"]?.stringValue, !rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            // Use the raw query directly
-            query = rawQuery
+            // Use the raw query, paginated so filtered browsing respects skip/limit
+            query = applyPagination(to: rawQuery, skip: skip, limit: limit)
+            isRawQuery = true
         } else {
             // Build standard query with WHERE clause
             let whereClause = buildWhereClause(from: filter)
             let orderClause = buildOrderClause(sortBy: sortBy, ascending: ascending)
             let limitClause = " LIMIT \(limit) OFFSET \(skip)"
-            
-            query = "SELECT * FROM `\(collectionName)`\(whereClause)\(orderClause)\(limitClause)"
+
+            query = "SELECT * FROM \(quoteIdentifier(collectionName))\(whereClause)\(orderClause)\(limitClause)"
+            isRawQuery = false
         }
-        
+
         logger.info("Executing MySQL query: \(query)")
-        
-        let rows = try await connection.simpleQuery(query).get()
-        
+
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery(query).get()
+        }
+
         logger.info("MySQL query returned \(rows.count) rows")
-        
-        // Get column information
-        let columns = try await getColumnInfo(for: collectionName)
-        
+
+        // Derive column metadata from the result set itself; a raw query may
+        // target a different table than collectionName, and this avoids an
+        // information_schema round-trip on every page
+        let columns: [QueryColumnInfo]
+        if let firstRow = rows.first {
+            columns = columnInfo(from: firstRow)
+        } else if !isRawQuery {
+            // Empty result: fall back to information_schema so the table still shows its columns
+            columns = try await getColumnInfo(for: collectionName)
+        } else {
+            columns = []
+        }
+
         // Convert rows to the expected format
         var queryRows: [[String: QueryRowInfo]] = []
         var rawRows: [DatabaseRawRow] = []
@@ -374,49 +404,51 @@ actor MySQLDriver: DatabaseDriver {
     }
     
     func createDocument(in collectionName: String, databaseSchema: String?, document: DatabaseDocument) async throws {
-        let connection = try await ensureConnected()
-        
         let sortedKeys = document.keys.sorted()
-        let columns = sortedKeys.map { "`\($0)`" }.joined(separator: ", ")
+        let columns = sortedKeys.map { quoteIdentifier($0) }.joined(separator: ", ")
         let placeholders = sortedKeys.map { _ in "?" }.joined(separator: ", ")
         let values = sortedKeys.map { document[$0] ?? .null }
-        
-        let query = "INSERT INTO `\(collectionName)` (\(columns)) VALUES (\(placeholders))"
-        
+
+        let query = "INSERT INTO \(quoteIdentifier(collectionName)) (\(columns)) VALUES (\(placeholders))"
+        let bindings = values.map(convertToMySQLBindable)
+
         // Use direct parameter array approach
-        _ = try await connection.query(query, values.map(convertToMySQLBindable)).get()
+        _ = try await withConnection { connection in
+            try await connection.query(query, bindings).get()
+        }
     }
     
     func updateDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID, data: DatabaseDocument) async throws {
-        let connection = try await ensureConnected()
-        
         guard !data.isEmpty else {
             throw DatabaseError.operationFailed("No changes detected to update")
         }
-        
+
         let sortedKeys = data.keys.sorted()
-        let setClauses = sortedKeys.map { "`\($0)` = ?" }.joined(separator: ", ")
+        let setClauses = sortedKeys.map { "\(quoteIdentifier($0)) = ?" }.joined(separator: ", ")
         let values = sortedKeys.map { data[$0] ?? .null } + [id.value]
-        
-        let query = "UPDATE `\(collectionName)` SET \(setClauses) WHERE `\(id.columnName)` = ?"
-        
+
+        let query = "UPDATE \(quoteIdentifier(collectionName)) SET \(setClauses) WHERE \(quoteIdentifier(id.columnName)) = ?"
+        let bindings = values.map(convertToMySQLBindable)
+
         // Use direct parameter array approach
-        _ = try await connection.query(query, values.map(convertToMySQLBindable)).get()
+        _ = try await withConnection { connection in
+            try await connection.query(query, bindings).get()
+        }
     }
     
     func deleteDocument(in collectionName: String, databaseSchema: String?, id: DatabaseRecordID) async throws {
-        let connection = try await ensureConnected()
-        
         do {
-            let query = "DELETE FROM `\(collectionName)` WHERE `\(id.columnName)` = ?"
-            _ = try await connection.query(query, [convertToMySQLBindable(id.value)]).get()
+            let query = "DELETE FROM \(quoteIdentifier(collectionName)) WHERE \(quoteIdentifier(id.columnName)) = ?"
+            let bindings = [convertToMySQLBindable(id.value)]
+            _ = try await withConnection { connection in
+                try await connection.query(query, bindings).get()
+            }
         } catch {
             throw DatabaseError.operationFailed(error.localizedDescription)
         }
     }
     
     func executeRawQuery(_ query: String, databaseSchema: String?) async throws -> [QueryResult] {
-        let connection = try await ensureConnected()
         let statements = splitSQLStatements(query)
 
         if statements.isEmpty {
@@ -426,70 +458,64 @@ actor MySQLDriver: DatabaseDriver {
         var allResults: [QueryResult] = []
 
         for statement in statements {
+            let results: [MySQLRow]
             do {
-                let results = try await connection.simpleQuery(statement).get()
-
-                var queryColumns: [QueryColumnInfo] = []
-                var convertedRows: [[String: QueryRowInfo]] = []
-                var convertedRawRows: [DatabaseRawRow] = []
-                var columnsInitialized = false
-
-                for row in results {
-                    if !columnsInitialized {
-                        var columnIndex = 0
-                        for columnDef in row.columnDefinitions {
-                            let cleanedDataType = String(describing: columnDef.columnType)
-                                .replacingOccurrences(of: "MYSQL_TYPE_", with: "")
-                                .lowercased()
-
-                            queryColumns.append(QueryColumnInfo(
-                                name: columnDef.name,
-                                dataType: cleanedDataType,
-                                format: nil,
-                                index: columnIndex
-                            ))
-                            columnIndex += 1
-                        }
-                        columnsInitialized = true
-                    }
-
-                    var processedRowData: [String: QueryRowInfo] = [:]
-                    var rawRowData: DatabaseRawRow = [:]
-
-                    for column in queryColumns {
-                        let columnName = column.name
-                        if let mysqlData = row.column(columnName) {
-                            do {
-                                let decoded = try decode(from: mysqlData)
-                                processedRowData[columnName] = decoded
-                                rawRowData[columnName] = decoded.value
-                            } catch {
-                                logger.warning("Failed to decode column \(columnName): \(error)")
-                                processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
-                                rawRowData[columnName] = nil
-                            }
-                        } else {
-                            processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
-                            rawRowData[columnName] = nil
-                        }
-                    }
-
-                    convertedRows.append(processedRowData)
-                    convertedRawRows.append(rawRowData)
+                results = try await withConnection { connection in
+                    try await connection.simpleQuery(statement).get()
                 }
-
-                let result = QueryResult(
-                    columns: queryColumns,
-                    rows: convertedRows,
-                    totalCount: convertedRows.count,
-                    rawRows: convertedRawRows
-                )
-
-                allResults.append(result)
-
             } catch {
                 throw DatabaseError.operationFailed("Failed to execute statement: \(error.localizedDescription)")
             }
+
+            var queryColumns: [QueryColumnInfo] = []
+            var convertedRows: [[String: QueryRowInfo]] = []
+            var convertedRawRows: [DatabaseRawRow] = []
+
+            if let firstRow = results.first {
+                queryColumns = columnInfo(from: firstRow)
+            }
+
+            for (rowIndex, row) in results.enumerated() {
+                if rowIndex >= Self.maxRawQueryRows {
+                    break
+                }
+                if rowIndex % 1000 == 0, Task.isCancelled {
+                    throw CancellationError()
+                }
+
+                var processedRowData: [String: QueryRowInfo] = [:]
+                var rawRowData: DatabaseRawRow = [:]
+
+                for column in queryColumns {
+                    let columnName = column.name
+                    if let mysqlData = row.column(columnName) {
+                        do {
+                            let decoded = try decode(from: mysqlData)
+                            processedRowData[columnName] = decoded
+                            rawRowData[columnName] = decoded.value
+                        } catch {
+                            logger.warning("Failed to decode column \(columnName): \(error)")
+                            processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                            rawRowData[columnName] = nil
+                        }
+                    } else {
+                        processedRowData[columnName] = QueryRowInfo(value: nil, dataType: column.dataType, format: nil)
+                        rawRowData[columnName] = nil
+                    }
+                }
+
+                convertedRows.append(processedRowData)
+                convertedRawRows.append(rawRowData)
+            }
+
+            let result = QueryResult(
+                columns: queryColumns,
+                rows: convertedRows,
+                totalCount: convertedRows.count,
+                rawRows: convertedRawRows
+            )
+
+            allResults.append(result)
         }
 
         return allResults.isEmpty ? [QueryResult(columns: [], rows: [], totalCount: 0, rawRows: [])] : allResults
@@ -568,28 +594,25 @@ actor MySQLDriver: DatabaseDriver {
     }
     
     func renameCollection(databaseSchema: String?, from oldName: String, to newName: String) async throws {
-        let connection = try await ensureConnected()
-        
-        let query = "RENAME TABLE `\(oldName)` TO `\(newName)`"
-        
-        _ = try await connection.simpleQuery(query).get()
+        let query = "RENAME TABLE \(quoteIdentifier(oldName)) TO \(quoteIdentifier(newName))"
+
+        _ = try await withConnection { connection in
+            try await connection.simpleQuery(query).get()
+        }
     }
-    
+
     func deleteCollection(named collectionName: String, databaseSchema: String?) async throws {
-        let connection = try await ensureConnected()
+        let query = "DROP TABLE \(quoteIdentifier(collectionName))"
 
-        let query = "DROP TABLE `\(collectionName)`"
-
-        _ = try await connection.simpleQuery(query).get()
+        _ = try await withConnection { connection in
+            try await connection.simpleQuery(query).get()
+        }
     }
 
     // MARK: - Database Management
 
     func createDatabase(named databaseName: String, options: CreateDatabaseOptions) async throws {
-        let connection = try await ensureConnected()
-
-        let sanitizedName = databaseName.replacing("`", with: "``")
-        var query = "CREATE DATABASE `\(sanitizedName)`"
+        var query = "CREATE DATABASE \(quoteIdentifier(databaseName))"
 
         if let charset = options.charset, !charset.isEmpty {
             query += " CHARACTER SET \(charset)"
@@ -599,7 +622,9 @@ actor MySQLDriver: DatabaseDriver {
         }
 
         do {
-            _ = try await connection.simpleQuery(query).get()
+            _ = try await withConnection { connection in
+                try await connection.simpleQuery(query).get()
+            }
             debugLog("✓ Created database \(databaseName)")
         } catch {
             throw DatabaseError.operationFailed("Failed to create database: \(error.localizedDescription)", query: query)
@@ -607,13 +632,12 @@ actor MySQLDriver: DatabaseDriver {
     }
 
     func getSchema(for collectionName: String, schema: String?) async throws -> DatabaseSchemaResult? {
-        let connection = try await ensureConnected()
-        
         guard let database = currentDatabase else {
             throw DatabaseError.noDatabaseSelected("No database selected")
         }
-        
-        let rows = try await connection.simpleQuery("""
+
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("""
             SELECT 
                 c.ORDINAL_POSITION,
                 c.COLUMN_NAME,
@@ -650,7 +674,8 @@ actor MySQLDriver: DatabaseDriver {
             WHERE c.TABLE_SCHEMA = '\(database)' AND c.TABLE_NAME = '\(collectionName)'
             ORDER BY c.ORDINAL_POSITION
         """).get()
-        
+        }
+
         var columns: [DatabaseSchemaInfo] = []
 
         for row in rows {
@@ -731,13 +756,12 @@ actor MySQLDriver: DatabaseDriver {
     }
 
     func getIndexes(for collectionName: String, schema: String?) async throws -> [DatabaseIndexInfo] {
-        let connection = try await ensureConnected()
-
         guard let database = currentDatabase else {
             throw DatabaseError.noDatabaseSelected("No database selected")
         }
 
-        let rows = try await connection.simpleQuery("""
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("""
             SELECT
                 s.INDEX_NAME,
                 s.TABLE_NAME,
@@ -755,6 +779,7 @@ actor MySQLDriver: DatabaseDriver {
             GROUP BY s.INDEX_NAME, s.TABLE_NAME, s.TABLE_SCHEMA, s.NON_UNIQUE, s.INDEX_TYPE
             ORDER BY s.INDEX_NAME;
         """).get()
+        }
 
         var indexes: [DatabaseIndexInfo] = []
 
@@ -1018,61 +1043,58 @@ actor MySQLDriver: DatabaseDriver {
     }
     
     private func parseSSLConfiguration(from url: URL) -> SSLConfiguration {
-        var enabled = false
-        var required = false
-        var tlsConfiguration: TLSConfiguration? = nil
-
-        // Parse SSL mode from query parameters
+        // Find an explicit sslmode query parameter, if any
+        var sslMode: String? = nil
         if let query = url.query {
             let queryItems = URLComponents(string: "?\(query)")?.queryItems ?? []
-
             for item in queryItems where item.name.lowercased() == "sslmode" {
-                if let value = item.value?.lowercased() {
-                    switch value {
-                    case "require", "true", "1":
-                        enabled = true
-                        required = true
-                        var config = TLSConfiguration.makeClientConfiguration()
-                        config.certificateVerification = .none
-                        tlsConfiguration = config
-
-                    case "disable", "false", "0":
-                        enabled = false
-                        required = false
-                        tlsConfiguration = nil
-
-                    case "prefer":
-                        enabled = true
-                        required = false
-                        var config = TLSConfiguration.makeClientConfiguration()
-                        config.certificateVerification = .none
-                        tlsConfiguration = config
-
-                    default:
-                        // Unknown SSL mode, default to prefer (safe fallback)
-                        enabled = true
-                        required = false
-                        var config = TLSConfiguration.makeClientConfiguration()
-                        config.certificateVerification = .none
-                        tlsConfiguration = config
-                    }
-                }
+                sslMode = item.value?.lowercased()
                 break
             }
-        } else {
-            // Default: enable SSL for caching_sha2_password compatibility
-            enabled = true
-            required = false
-            var config = TLSConfiguration.makeClientConfiguration()
-            config.certificateVerification = .none
-            tlsConfiguration = config
         }
 
-        return SSLConfiguration(
-            enabled: enabled,
-            required: required,
-            tlsConfiguration: tlsConfiguration
-        )
+        func makeTLSConfiguration(verification: CertificateVerification) -> TLSConfiguration {
+            var config = TLSConfiguration.makeClientConfiguration()
+            config.certificateVerification = verification
+            return config
+        }
+
+        // Grade certificate verification by SSL mode. An explicit opt-out
+        // (disable / no-verify) is the only path to unverified connections.
+        switch sslMode {
+        case "disable", "false", "0":
+            return SSLConfiguration(enabled: false, required: false, tlsConfiguration: nil)
+
+        case "no-verify":
+            // Explicit opt-out of certificate verification, but keep encryption
+            return SSLConfiguration(enabled: true, required: true, tlsConfiguration: makeTLSConfiguration(verification: .none))
+
+        case "verify-ca":
+            // Verify the certificate chain, but not the hostname
+            return SSLConfiguration(enabled: true, required: true, tlsConfiguration: makeTLSConfiguration(verification: .noHostnameVerification))
+
+        case "verify-full", "verify-identity":
+            return SSLConfiguration(enabled: true, required: true, tlsConfiguration: makeTLSConfiguration(verification: .fullVerification))
+
+        case "require", "true", "1":
+            return SSLConfiguration(enabled: true, required: true, tlsConfiguration: makeTLSConfiguration(verification: .fullVerification))
+
+        case "prefer":
+            return SSLConfiguration(enabled: true, required: false, tlsConfiguration: makeTLSConfiguration(verification: .fullVerification))
+
+        default:
+            // No (or unknown) sslmode. Local endpoints keep the historical relaxed
+            // default so self-signed dev servers and caching_sha2_password keep
+            // working; everything else gets opportunistic TLS with full verification.
+            if let host = url.host, isLocalEndpoint(host) {
+                return SSLConfiguration(enabled: true, required: false, tlsConfiguration: makeTLSConfiguration(verification: .none))
+            }
+            return SSLConfiguration(enabled: true, required: false, tlsConfiguration: makeTLSConfiguration(verification: .fullVerification))
+        }
+    }
+
+    private func isLocalEndpoint(_ host: String) -> Bool {
+        host == "localhost" || host == "127.0.0.1" || host == "::1"
     }
     
     private func connectToMySQL(
@@ -1147,7 +1169,7 @@ actor MySQLDriver: DatabaseDriver {
         guard !filteredDict.isEmpty else { return "" }
         
         let conditions = filteredDict.map { key, value in
-            let escapedKey = "`\(key)`"
+            let escapedKey = quoteIdentifier(key)
             switch value {
             case .string(let stringValue), .decimalString(let stringValue), .objectID(let stringValue):
                 let escapedValue = stringValue.replacing("'", with: "\\'")
@@ -1175,25 +1197,58 @@ actor MySQLDriver: DatabaseDriver {
             return ""
         }
         let direction = ascending == false ? "DESC" : "ASC"
-        return " ORDER BY `\(sortBy)` \(direction)"
+        return " ORDER BY \(quoteIdentifier(sortBy)) \(direction)"
+    }
+
+    /// Appends LIMIT/OFFSET to a single raw SELECT statement unless it already has a LIMIT clause
+    private func applyPagination(to rawQuery: String, skip: Int, limit: Int) -> String {
+        let statements = splitSQLStatements(rawQuery)
+
+        // Only paginate a single SELECT statement; leave anything else untouched
+        guard statements.count == 1,
+              let statement = statements.first,
+              statement.lowercased().hasPrefix("select"),
+              statement.range(of: #"\bLIMIT\s+\d"#, options: [.regularExpression, .caseInsensitive]) == nil else {
+            return rawQuery
+        }
+
+        return "\(statement) LIMIT \(limit) OFFSET \(skip)"
+    }
+
+    /// Builds column metadata from a result row's column definitions
+    private func columnInfo(from row: MySQLRow) -> [QueryColumnInfo] {
+        var columns: [QueryColumnInfo] = []
+        for (columnIndex, columnDef) in row.columnDefinitions.enumerated() {
+            let cleanedDataType = String(describing: columnDef.columnType)
+                .replacingOccurrences(of: "MYSQL_TYPE_", with: "")
+                .lowercased()
+
+            columns.append(QueryColumnInfo(
+                name: columnDef.name,
+                dataType: cleanedDataType,
+                format: nil,
+                index: columnIndex
+            ))
+        }
+        return columns
     }
     
     private func getColumnInfo(for tableName: String) async throws -> [QueryColumnInfo] {
-        let connection = try await ensureConnected()
-        
         guard let database = currentDatabase else {
             throw DatabaseError.noDatabaseSelected("No database selected")
         }
-        
-        let rows = try await connection.simpleQuery("""
-            SELECT 
-                ORDINAL_POSITION,
-                COLUMN_NAME,
-                DATA_TYPE
-            FROM information_schema.COLUMNS 
-            WHERE TABLE_SCHEMA = '\(database)' AND TABLE_NAME = '\(tableName)'
-            ORDER BY ORDINAL_POSITION
-        """).get()
+
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("""
+                SELECT
+                    ORDINAL_POSITION,
+                    COLUMN_NAME,
+                    DATA_TYPE
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = '\(database)' AND TABLE_NAME = '\(tableName)'
+                ORDER BY ORDINAL_POSITION
+            """).get()
+        }
         
         var columns: [QueryColumnInfo] = []
         
@@ -1214,10 +1269,8 @@ actor MySQLDriver: DatabaseDriver {
 
     // MARK: - Helper method to get primary key column
     private func getPrimaryKeyColumn(for tableName: String, in databaseName: String? = nil) async throws -> String? {
-        let connection = try await ensureConnected()
-        
         let database = databaseName ?? currentDatabase ?? "mysql"
-        
+
         do {
             let query = """
                 SELECT COLUMN_NAME
@@ -1228,8 +1281,10 @@ actor MySQLDriver: DatabaseDriver {
                 ORDER BY ORDINAL_POSITION
                 LIMIT 1
             """
-            
-            let rows = try await connection.simpleQuery(query).get()
+
+            let rows = try await withConnection { connection in
+                try await connection.simpleQuery(query).get()
+            }
             
             for row in rows {
                 if let columnName = row.column("COLUMN_NAME")?.string {
@@ -1266,10 +1321,10 @@ actor MySQLDriver: DatabaseDriver {
     
     // MARK: - MySQL Foreign Key Information
     func getForeignKeyConstraints(for tableName: String, in databaseName: String? = nil) async throws -> [ConstraintInfo] {
-        let connection = try await ensureConnected()
         let database = databaseName ?? currentDatabase ?? "mysql"
-        
-        let rows = try await connection.simpleQuery("""
+
+        let rows = try await withConnection { connection in
+            try await connection.simpleQuery("""
             SELECT DISTINCT
                 kcu.CONSTRAINT_NAME,
                 kcu.COLUMN_NAME,
@@ -1287,6 +1342,7 @@ actor MySQLDriver: DatabaseDriver {
                 AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
             ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
         """).get()
+        }
         
         var constraints: [ConstraintInfo] = []
         
@@ -1328,7 +1384,7 @@ actor MySQLDriver: DatabaseDriver {
     // MARK: - Schema Modification Methods
 
     /// Quotes a MySQL identifier with backticks, escaping any embedded backticks
-    private func quoteIdentifier(_ identifier: String) -> String {
+    nonisolated func quoteIdentifier(_ identifier: String) -> String {
         let escaped = identifier.replacing("`", with: "``")
         return "`\(escaped)`"
     }
@@ -1338,8 +1394,6 @@ actor MySQLDriver: DatabaseDriver {
         schema: String?,
         column: DatabaseSchemaInfo
     ) async throws {
-        let connection = try await ensureConnected()
-
         let quotedTable = quoteIdentifier(tableName)
         let quotedColumn = quoteIdentifier(column.columnName)
         let dataType = column.formatType.isEmpty ? column.dataType : column.formatType
@@ -1357,7 +1411,9 @@ actor MySQLDriver: DatabaseDriver {
         }
 
         do {
-            _ = try await connection.simpleQuery(sql).get()
+            _ = try await withConnection { connection in
+                try await connection.simpleQuery(sql).get()
+            }
             logger.info("Added column \(column.columnName) to table \(tableName)")
         } catch {
             throw DatabaseError.operationFailed(
@@ -1373,7 +1429,6 @@ actor MySQLDriver: DatabaseDriver {
         columnName: String,
         newColumn: DatabaseSchemaInfo
     ) async throws {
-        let connection = try await ensureConnected()
         let quotedTable = quoteIdentifier(tableName)
 
         do {
@@ -1385,7 +1440,9 @@ actor MySQLDriver: DatabaseDriver {
                 let quotedOldName = quoteIdentifier(columnName)
                 let quotedNewName = quoteIdentifier(newColumn.columnName)
                 let renameSQL = "ALTER TABLE \(quotedTable) RENAME COLUMN \(quotedOldName) TO \(quotedNewName)"
-                _ = try await connection.simpleQuery(renameSQL).get()
+                _ = try await withConnection { connection in
+                    try await connection.simpleQuery(renameSQL).get()
+                }
                 currentColumnName = newColumn.columnName
                 logger.info("Renamed column \(columnName) to \(newColumn.columnName) in table \(tableName)")
             }
@@ -1408,7 +1465,9 @@ actor MySQLDriver: DatabaseDriver {
                 modifySQL += " DEFAULT \(defaultValue)"
             }
 
-            _ = try await connection.simpleQuery(modifySQL).get()
+            _ = try await withConnection { connection in
+                try await connection.simpleQuery(modifySQL).get()
+            }
             logger.info("Modified column \(currentColumnName) in table \(tableName)")
         } catch {
             throw DatabaseError.operationFailed(
@@ -1422,15 +1481,15 @@ actor MySQLDriver: DatabaseDriver {
         schema: String?,
         columnName: String
     ) async throws {
-        let connection = try await ensureConnected()
-
         let quotedTable = quoteIdentifier(tableName)
         let quotedColumn = quoteIdentifier(columnName)
 
         let sql = "ALTER TABLE \(quotedTable) DROP COLUMN \(quotedColumn)"
 
         do {
-            _ = try await connection.simpleQuery(sql).get()
+            _ = try await withConnection { connection in
+                try await connection.simpleQuery(sql).get()
+            }
             logger.info("Dropped column \(columnName) from table \(tableName)")
         } catch {
             throw DatabaseError.operationFailed(
@@ -1445,8 +1504,6 @@ actor MySQLDriver: DatabaseDriver {
         schema: String?,
         index: DatabaseIndexInfo
     ) async throws {
-        let connection = try await ensureConnected()
-
         let quotedTable = quoteIdentifier(tableName)
         let quotedIndexName = quoteIdentifier(index.name)
 
@@ -1476,7 +1533,9 @@ actor MySQLDriver: DatabaseDriver {
         }
 
         do {
-            _ = try await connection.simpleQuery(sql).get()
+            _ = try await withConnection { connection in
+                try await connection.simpleQuery(sql).get()
+            }
             logger.info("Created index \(index.name) on table \(tableName)")
         } catch {
             throw DatabaseError.operationFailed(
@@ -1491,8 +1550,6 @@ actor MySQLDriver: DatabaseDriver {
         tableName: String,
         schema: String?
     ) async throws {
-        let connection = try await ensureConnected()
-
         let quotedIndex = quoteIdentifier(indexName)
         let quotedTable = quoteIdentifier(tableName)
 
@@ -1500,7 +1557,9 @@ actor MySQLDriver: DatabaseDriver {
         let sql = "DROP INDEX \(quotedIndex) ON \(quotedTable)"
 
         do {
-            _ = try await connection.simpleQuery(sql).get()
+            _ = try await withConnection { connection in
+                try await connection.simpleQuery(sql).get()
+            }
             logger.info("Dropped index \(indexName) from table \(tableName)")
         } catch {
             throw DatabaseError.operationFailed(

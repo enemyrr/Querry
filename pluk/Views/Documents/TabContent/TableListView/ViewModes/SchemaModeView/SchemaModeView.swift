@@ -182,7 +182,7 @@ struct SchemaModeView: View {
         NotificationCenter.default.post(
             name: .tableReloadData,
             object: nil,
-            userInfo: ["autoEditLastRow": true]
+            userInfo: ["autoEditLastRow": true, "tabID": instance.selectedTab?.id.uuidString ?? ""]
         )
     }
 
@@ -216,7 +216,7 @@ struct SchemaModeView: View {
         NotificationCenter.default.post(
             name: .tableReloadData,
             object: nil,
-            userInfo: ["autoEditLastRow": true]
+            userInfo: ["autoEditLastRow": true, "tabID": instance.selectedTab?.id.uuidString ?? ""]
         )
     }
 

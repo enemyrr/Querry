@@ -8,6 +8,33 @@
 import Foundation
 import PostgresNIO
 
+/// Cached formatters for rendering date cells. DateFormatter is not
+/// thread-safe for mutation but is safe for concurrent formatting once
+/// configured, so each one is fully configured at init and never mutated.
+private enum PostgresCellDateFormatters {
+    nonisolated(unsafe) static let timestamp: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    nonisolated(unsafe) static let timestamptz: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ssX"
+        return formatter
+    }()
+
+    nonisolated(unsafe) static let date: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+}
+
 extension PostgreSQLDriver {
     func decode(from cell: PostgresCell) throws -> QueryRowInfo {
         // Check if the cell is null
@@ -119,10 +146,7 @@ extension PostgreSQLDriver {
             
         case .timestamp:
             let value = try cell.decode(Date.self)
-            let dateFormatter = DateFormatter()
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            let dateString = dateFormatter.string(from: value)
+            let dateString = PostgresCellDateFormatters.timestamp.string(from: value)
             return QueryRowInfo(
                 value: dateString,
                 dataType: String(describing: cell.dataType),
@@ -131,9 +155,7 @@ extension PostgreSQLDriver {
             
         case .timestamptz:
             let value = try cell.decode(Date.self)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ssX"
-            let dateString = dateFormatter.string(from: value)
+            let dateString = PostgresCellDateFormatters.timestamptz.string(from: value)
             return QueryRowInfo(
                 value: dateString,
                 dataType: String(describing: cell.dataType),
@@ -150,9 +172,7 @@ extension PostgreSQLDriver {
             
         case .date:
             let value = try cell.decode(Date.self)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: value)
+            let dateString = PostgresCellDateFormatters.date.string(from: value)
             return QueryRowInfo(
                 value: dateString,
                 dataType: "date",

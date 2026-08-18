@@ -195,6 +195,8 @@ final class TableChatSidebarViewController: NSViewController {
     func prepareForRemoval() {
         resolveApproval(false)
         chatController.cancelStreaming()
+        let engine = chatController.engine
+        Task { await engine.cleanup() }
     }
 
     deinit {

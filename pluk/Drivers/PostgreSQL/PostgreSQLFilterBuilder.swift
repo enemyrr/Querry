@@ -47,20 +47,20 @@ extension PostgreSQLDriver {
         
         guard !validConditions.isEmpty else { return "" }
         
-        var sql = "SELECT * FROM \"\(tableName)\" "
-        
+        var sql = "SELECT * FROM \(quoteIdentifier(tableName)) "
+
         if let schema = databaseSchema {
-            sql = "SELECT * FROM \"\(schema)\".\"\(tableName)\""
+            sql = "SELECT * FROM \(quoteIdentifier(schema)).\(quoteIdentifier(tableName)) "
         }
-        
+
         for (index, condition) in validConditions.enumerated() {
             if index == 0 {
                 sql += "WHERE "
             } else {
                 sql += " \(condition.conjunction.rawValue.uppercased()) "
             }
-            
-            let escapedField = "\"\(condition.field)\""
+
+            let escapedField = quoteIdentifier(condition.field)
             let escapedValue = "'\(condition.value.replacingOccurrences(of: "'", with: "''"))'"
             
             switch condition.filterOperator {
