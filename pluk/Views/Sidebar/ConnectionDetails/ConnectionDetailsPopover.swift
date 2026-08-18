@@ -127,7 +127,7 @@ struct ConnectionDetailsPopover: View {
                     VStack(spacing: 8) {
                         CompactDetailRow(label: "Driver", value: driverWithVersion)
                         
-                        CompactDetailRow(label: databaseType == .convex ? "Environment" : "Environment", value: databaseName)
+                        CompactDetailRow(label: databaseType == .convex ? "Environment" : "Database", value: databaseName)
                         
                         // Only show username for network-based databases
                         if let username = connection?.username, databaseType != .convex {
@@ -147,6 +147,48 @@ struct ConnectionDetailsPopover: View {
                     .cornerRadius(12)
                 }
                 
+                // Error Section
+                if instance.connectionStatus == .error, let lastError = instance.lastError {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("LAST ERROR")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+
+                            Spacer()
+
+                            Button {
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString(lastError.localizedDescription, forType: .string)
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                                    .font(.system(size: 10))
+                                    .labelStyle(.titleAndIcon)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                            .help("Copy error to clipboard")
+                        }
+
+                        Text(lastError.localizedDescription)
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                            .opacity(0.9)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                            .background(Color.red.opacity(0.06))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                            )
+                            .cornerRadius(12)
+                    }
+                }
+
                 // Actions Section
                 HStack(spacing: 8) {
                     Button("Disconnect") {

@@ -224,7 +224,7 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
     }
 
     private func refreshSearchInput() {
-        let isVisible = viewModel.isSearchVisible && viewModel.sidebarViewMode == .tables
+        let isVisible = viewModel.sidebarViewMode == .tables
         searchInputHost.isHidden = !isVisible
         searchInputHeightConstraint.constant = isVisible ? 40 : 0
         // Rebuild hosted content so bindings pick up state changes.
@@ -250,7 +250,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
 
     private func startObserving() {
         observeSidebarViewMode()
-        observeSearchVisibility()
         observeReadiness()
     }
 
@@ -262,17 +261,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
                 self?.refreshContent()
                 self?.refreshSearchInput()
                 self?.observeSidebarViewMode()
-            }
-        }
-    }
-
-    private func observeSearchVisibility() {
-        withObservationTracking {
-            _ = self.viewModel.isSearchVisible
-        } onChange: { [weak self] in
-            Task { @MainActor in
-                self?.refreshSearchInput()
-                self?.observeSearchVisibility()
             }
         }
     }

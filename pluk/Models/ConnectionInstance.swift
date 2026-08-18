@@ -176,6 +176,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         } catch {
             guard isCurrentConnectionAttempt(attemptID) else { return }
 
+            debugLog("Connection '\(connection.name)' failed: \(error)")
             await databaseService.disconnect()
             lastError = error
             connectionStatus = .error
@@ -214,6 +215,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
             await finishCancelledConnectionAttemptIfNeeded(attemptID)
         } catch {
             guard isCurrentConnectionAttempt(attemptID) else { return }
+            debugLog("Connection '\(connection.name)' failed to reconnect: \(error)")
             lastError = error
             connectionStatus = .error
             throw error
@@ -245,7 +247,7 @@ struct CachedCollectionWrapper: CollectionWrapper, Codable, Sendable {
         } catch {
             guard connectionStatus != .disconnected, !Task.isCancelled else { return }
             lastError = error
-            debugLog("Failed to load databases \(error)")
+            debugLog("Connection '\(connection.name)' failed to load databases: \(error)")
         }
     }
 

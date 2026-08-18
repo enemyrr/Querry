@@ -162,6 +162,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindowController.shared.show()
     }
 
+    // Show Logs window
+    @IBAction func showLogs(_ sender: Any?) {
+        LogWindowController.shared.show()
+    }
+
     func applicationWillTerminate(_ aNotification: Notification) {
         if let windowShortcutMonitor {
             NSEvent.removeMonitor(windowShortcutMonitor)

@@ -34,27 +34,6 @@ struct ConnectionNameHeader: View {
             // Action buttons
             HStack(spacing: 0) {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.isSearchVisible.toggle()
-                        if viewModel.isSearchVisible {
-                            viewModel.shouldFocusSearchOnAppear = true
-                        } else {
-                            viewModel.searchText = ""
-                        }
-                    }
-                }) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(ActionButtonStyle())
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-                .customHelp("Find Tables", shortcut: KeyboardShortcut(
-                    modifiers: [KeyboardModifier.command, KeyboardModifier.shift],
-                    key: "F"
-                ))
-
-                Button(action: {
                     showCreateCollectionPopover.toggle()
                 }) {
                     Image(systemName: "plus.circle")

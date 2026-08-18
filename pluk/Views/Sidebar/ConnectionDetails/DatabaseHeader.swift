@@ -490,13 +490,7 @@ struct SearchInput: View {
             .focused($isSearchFocused)
             .textFieldStyle(.plain)
             .onExitCommand {
-                if viewModel.searchText.isEmpty {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.isSearchVisible = false
-                    }
-                } else {
-                    viewModel.searchText = ""
-                }
+                viewModel.searchText = ""
             }
 
             if !viewModel.searchText.isEmpty {
@@ -523,22 +517,6 @@ struct SearchInput: View {
             isSearchFocused = true
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.searchText)
-        .onAppear {
-            guard viewModel.shouldFocusSearchOnAppear else { return }
-            viewModel.shouldFocusSearchOnAppear = false
-            Task {
-                try? await Task.sleep(for: .milliseconds(100))
-                isSearchFocused = true
-            }
-        }
-        .onChange(of: viewModel.isSearchVisible) { _, isVisible in
-            if isVisible {
-                Task {
-                    try? await Task.sleep(for: .milliseconds(100))
-                    isSearchFocused = true
-                }
-            }
-        }
     }
 }
 

@@ -144,6 +144,10 @@ class TableDataController {
         let taskID = UUID()
         loadingTaskID = taskID
 
+        // The prewarm path bypasses loadDocuments, so kick the total-count
+        // fetch here too or first-open tabs never get the "N of M" label.
+        refreshTotalRowCount(filter: filterString)
+
         loadingTask = Task.detached(priority: .userInitiated) { [weak self] in
             async let docsResult: QueryResult? = {
                 do {
@@ -423,6 +427,7 @@ class TableDataController {
            cachedDatabaseName == instance.connectedDatabase?.name,
            let cachedDocuments {
             viewState = .loaded(cachedDocuments, cachedSchema)
+            refreshTotalRowCount(filter: filter ?? currentActiveFilter ?? "")
             return
         }
 
@@ -468,6 +473,11 @@ class TableDataController {
                 }
             }
 
+            // Kick off the total count alongside the page query — it queues on
+            // the same connection, so starting it here (not after the page and
+            // schema round-trips) is what makes the "N of M" label feel instant.
+            refreshTotalRowCount(filter: filter ?? "", force: forceFetch)
+
             let documents = try await instance.databaseService.findDocuments(
                 in: tab.name,
                 databaseSchema: databaseSchema,
@@ -490,8 +500,6 @@ class TableDataController {
             // yet, schema is nil here — the background task will re-emit
             // `.loaded(documents, schema)` when it arrives.
             viewState = .loaded(documents, cachedSchema)
-
-            refreshTotalRowCount(filter: filter ?? "", force: forceFetch)
 
             if let schema = cachedSchema {
                 let mismatch = hasColumnMismatch(queryResult: documents, schema: schema)
@@ -547,13 +555,21 @@ class TableDataController {
         let databaseSchema = tab.databaseSchema
         Task { [weak self] in
             guard let self else { return }
-            let count = try? await instance.databaseService.getTotalRowCount(
-                for: tabName,
-                databaseSchema: databaseSchema,
-                filter: filter
-            )
+            var count: Int?
+            do {
+                count = try await instance.databaseService.getTotalRowCount(
+                    for: tabName,
+                    databaseSchema: databaseSchema,
+                    filter: filter
+                )
+                if count == nil {
+                    debugLog("Total row count unavailable for \(tabName)")
+                }
+            } catch {
+                debugLog("Total row count failed for \(tabName): \(error.localizedDescription)")
+            }
             guard self.totalRowCountKey == key else { return }
-            self.totalRowCount = count ?? nil
+            self.totalRowCount = count
         }
     }
 

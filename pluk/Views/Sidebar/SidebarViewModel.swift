@@ -14,10 +14,6 @@ import SwiftUI
 
     var activeSidebarItem: SidebarNavItem = .home
     var searchText: String = ""
-    var isSearchVisible: Bool = true
-    /// Set when the user opens search, so the field only steals focus on an explicit toggle.
-    @ObservationIgnored
-    var shouldFocusSearchOnAppear: Bool = false
     var sidebarViewMode: SidebarViewMode = .tables
     var isShowingAdvancedHistory: Bool = false
 

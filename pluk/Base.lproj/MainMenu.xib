@@ -320,6 +320,12 @@
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="eu3-7i-yIM"/>
+                            <menuItem title="Logs" keyEquivalent="L" id="Lgs-mI-001">
+                                <connections>
+                                    <action selector="showLogs:" target="Voe-Tx-rLC" id="Lgs-ac-001"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="Lgs-sp-001"/>
                             <menuItem title="Bring All to Front" id="LE2-aR-0XJ">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>

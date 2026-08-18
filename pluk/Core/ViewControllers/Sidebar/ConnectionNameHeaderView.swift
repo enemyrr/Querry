@@ -4,7 +4,7 @@ import SwiftUI
 
 /// AppKit replacement for the SwiftUI `ConnectionNameHeader`. Renders the
 /// top-of-sidebar row: database icon, connection name, live status badge,
-/// and the Search / New-Table action buttons. Tapping the row opens the
+/// and the New-Table action button. Tapping the row opens the
 /// connection-details popover; the Edit flow there routes back to this view
 /// to present the edit sheet.
 @MainActor
@@ -23,7 +23,6 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
     private let nameLabel = NSTextField(labelWithString: "")
     private let statusIconView = NSImageView()
     private let statusLabel = NSTextField(labelWithString: "")
-    private let searchButton = SidebarChromeButton()
     private let plusButton = SidebarChromeButton()
 
     // MARK: - State
@@ -96,21 +95,13 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
         nameStack.translatesAutoresizingMaskIntoConstraints = false
 
         configureActionButton(
-            searchButton,
-            symbolName: "magnifyingglass",
-            action: #selector(searchButtonTapped),
-            keyEquivalent: "f"
-        )
-        searchButton.toolTip = "Find Tables (⇧⌘F)"
-
-        configureActionButton(
             plusButton,
             symbolName: "plus.circle",
             action: #selector(plusButtonTapped),
             keyEquivalent: "n"
         )
 
-        let actionStack = NSStackView(views: [searchButton, plusButton])
+        let actionStack = NSStackView(views: [plusButton])
         actionStack.orientation = .horizontal
         actionStack.spacing = 0
         actionStack.alignment = .centerY
@@ -288,15 +279,6 @@ final class ConnectionNameHeaderView: NSView, NSPopoverDelegate {
     }
 
     // MARK: - Actions
-
-    @objc private func searchButtonTapped() {
-        viewModel.isSearchVisible.toggle()
-        if viewModel.isSearchVisible {
-            viewModel.shouldFocusSearchOnAppear = true
-        } else {
-            viewModel.searchText = ""
-        }
-    }
 
     @objc private func plusButtonTapped() {
         showCreateTablePopover()
