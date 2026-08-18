@@ -40,7 +40,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         }
     }
 
-    var toolDefinition: BedrockGLMToolDefinition? {
+    var toolDefinition: LLMToolDefinition? {
         guard isAICreatable else { return nil }
         switch self {
         case .chart: return Self.chartToolDefinition
@@ -50,11 +50,11 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         }
     }
 
-    static var allToolDefinitions: [BedrockGLMToolDefinition] {
+    static var allToolDefinitions: [LLMToolDefinition] {
         allCases.compactMap(\.toolDefinition)
     }
 
-    var updateToolDefinition: BedrockGLMToolDefinition? {
+    var updateToolDefinition: LLMToolDefinition? {
         guard isAICreatable else { return nil }
         switch self {
         case .chart: return Self.updateChartToolDefinition
@@ -64,7 +64,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         }
     }
 
-    static var allUpdateToolDefinitions: [BedrockGLMToolDefinition] {
+    static var allUpdateToolDefinitions: [LLMToolDefinition] {
         allCases.compactMap(\.updateToolDefinition)
     }
 
@@ -74,7 +74,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
 
     // MARK: - Tool Definitions
 
-    private static let chartToolDefinition = BedrockGLMToolDefinition(
+    private static let chartToolDefinition = LLMToolDefinition(
         name: "create_chart_block",
         description: """
         Creates a chart visualization block in the notebook. \
@@ -175,7 +175,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         ]
     )
 
-    private static let textToolDefinition = BedrockGLMToolDefinition(
+    private static let textToolDefinition = LLMToolDefinition(
         name: "create_text_block",
         description: "Creates a markdown text block in the notebook for written analysis, commentary, or section headers. Content must be prose only — NEVER include markdown tables (| col | col |). Use create_chart_block or create_single_value_block to present data.",
         inputSchema: [
@@ -194,7 +194,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         ]
     )
 
-    private static let singleValueToolDefinition = BedrockGLMToolDefinition(
+    private static let singleValueToolDefinition = LLMToolDefinition(
         name: "create_single_value_block",
         description: """
         Creates a single value block showing a single aggregated number (e.g. total count, sum, average). \
@@ -273,7 +273,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         ]
     )
 
-    private static let queryToolDefinition = BedrockGLMToolDefinition(
+    private static let queryToolDefinition = LLMToolDefinition(
         name: "create_query_block",
         description: """
         Creates a query block in the notebook that displays results as an inline table. \
@@ -328,7 +328,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
 
     // MARK: - Update Tool Definitions
 
-    private static func addBlockIdToSchema(_ base: BedrockGLMToolDefinition, name: String, description: String) -> BedrockGLMToolDefinition {
+    private static func addBlockIdToSchema(_ base: LLMToolDefinition, name: String, description: String) -> LLMToolDefinition {
         let blockIdProp: [String: JSONValue] = [
             "type": .string("string"),
             "description": .string("The UUID of the existing block to modify. Get this from list_notebook_blocks or <existing_notebook_blocks>."),
@@ -346,7 +346,7 @@ enum NotebookBlockKind: String, Codable, CaseIterable {
         }
         required.insert(.string("block_id"), at: 0)
 
-        return BedrockGLMToolDefinition(
+        return LLMToolDefinition(
             name: name,
             description: description,
             inputSchema: [

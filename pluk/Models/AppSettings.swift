@@ -173,33 +173,45 @@ enum KeymapPreset: String, CaseIterable {
     }
 }
 
-enum AIProvider: String, CaseIterable {
-    case anthropic = "Anthropic"
-    case openAI = "OpenAI"
-    case custom = "Custom"
+/// Governs how much friction stands between the user and a query hitting the server.
+/// Modelled on Sequel Ace's silent/alert/safe modes.
+enum QueryAlertMode: String, CaseIterable {
+    case silent = "Silent Mode"
+    case alert1 = "Alert Mode 1"
+    case alert2 = "Alert Mode 2"
+    case safe1 = "Safe Mode 1"
+    case safe2 = "Safe Mode 2"
 
-    var icon: String {
+    static let storageKey = "queryAlertMode"
+    static let `default` = QueryAlertMode.silent
+
+    var summary: String {
         switch self {
-        case .anthropic: "sparkles"
-        case .openAI: "brain"
-        case .custom: "gearshape"
+        case .silent: "Send queries to the server without any warnings"
+        case .alert1: "Warn before sending queries to the server"
+        case .alert2: "Warn before sending queries to the server except SELECT/EXPLAIN/SHOW queries"
+        case .safe1: "Prompt for password before sending queries to the server"
+        case .safe2: "Prompt for password before sending queries to the server except SELECT/EXPLAIN/SHOW queries"
         }
     }
-}
-
-enum AIModel: String, CaseIterable {
-    case claudeSonnet = "Claude Sonnet"
-    case claudeOpus = "Claude Opus"
-    case claudeHaiku = "Claude Haiku"
-    case gpt4 = "GPT-4"
-    case gpt4Turbo = "GPT-4 Turbo"
 
     var icon: String {
         switch self {
-        case .claudeSonnet: "music.note"
-        case .claudeOpus: "music.note.list"
-        case .claudeHaiku: "leaf"
-        case .gpt4, .gpt4Turbo: "cpu"
+        case .silent: "bolt"
+        case .alert1: "exclamationmark.triangle"
+        case .alert2: "exclamationmark.triangle.fill"
+        case .safe1: "lock"
+        case .safe2: "lock.fill"
         }
+    }
+
+    /// Whether the user has to re-enter the connection password to proceed.
+    var requiresPassword: Bool {
+        self == .safe1 || self == .safe2
+    }
+
+    /// Whether read-only queries pass through unprompted.
+    var allowsReadOnlyQueries: Bool {
+        self == .alert2 || self == .safe2
     }
 }

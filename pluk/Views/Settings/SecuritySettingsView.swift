@@ -14,7 +14,6 @@ struct SecuritySettingsView: View {
     @AppStorage("showSSLStatusInIndicator") private var showSSLStatusInIndicator = true
 
     @AppStorage("maskSensitiveColumns") private var maskSensitiveColumns = false
-    @AppStorage("confirmDestructiveQueries") private var confirmDestructiveQueries = true
 
     @AppStorage("lockOnSleep") private var lockOnSleep = false
     @AppStorage("autoDisconnectTimeout") private var autoDisconnectTimeout = AutoDisconnectTimeout.never.rawValue
@@ -55,8 +54,6 @@ struct SecuritySettingsView: View {
             Text("Columns containing: password, secret, token, key")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            Toggle("Require confirmation before executing DELETE/DROP", isOn: $confirmDestructiveQueries)
         }
     }
 

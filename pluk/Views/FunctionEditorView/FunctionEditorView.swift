@@ -13,6 +13,7 @@ struct FunctionEditorView: View {
     @State private var saveError: Error?
     @State private var showSaveError = false
     @State private var showSaveConfirmation = false
+    @State private var pendingConfirmation: QueryConfirmationRequest?
     @State private var hasLoaded = false
     @State private var tab: DatabaseTab?
 
@@ -44,7 +45,7 @@ struct FunctionEditorView: View {
             }
         )
         .background(
-            Button(action: { showSaveConfirmation = true }) { EmptyView() }
+            Button(action: { requestSave() }) { EmptyView() }
                 .keyboardShortcut("s", modifiers: [.command])
                 .hidden()
                 .disabled(!isModified || isSaving)
@@ -63,6 +64,9 @@ struct FunctionEditorView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will execute the function definition to update it in the database.")
+        }
+        .queryConfirmation($pendingConfirmation) { _ in
+            Task { await saveFunction() }
         }
         .alert("Save Error", isPresented: $showSaveError, presenting: saveError) { _ in
             Button("OK", role: .cancel) {}
@@ -83,7 +87,7 @@ struct FunctionEditorView: View {
 
             Spacer()
 
-            Button(action: { showSaveConfirmation = true }) {
+            Button(action: { requestSave() }) {
                 HStack(spacing: 6) {
                     Text("Save")
                     if isSaving {
@@ -142,6 +146,22 @@ struct FunctionEditorView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(100))
             hasLoaded = true
+        }
+    }
+
+    /// Routes the save through the query alert mode: warn/prompt for a password when
+    /// the setting asks for it, otherwise fall back to the plain save confirmation.
+    private func requestSave() {
+        let trimmed = functionBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if let request = QueryAlertPolicy.confirmationRequest(
+            for: trimmed,
+            connection: instance.connection
+        ) {
+            pendingConfirmation = request
+        } else {
+            showSaveConfirmation = true
         }
     }
 

@@ -525,7 +525,6 @@ struct FloatingActionBar: View {
     }
 
     private func openAISearch() {
-        BedrockService.shared.warmUpCredentials()
         searchFocusRequest += 1
         withAnimation(.spring(response: 0.3)) {
             action = .search

@@ -9,12 +9,11 @@ import SwiftUI
 // MARK: - Window Controller
 
 @MainActor
-final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowDelegate {
+final class SettingsWindowController: NSWindowController, NSToolbarDelegate {
     static let shared = SettingsWindowController()
 
     private var splitViewController: SettingsSplitViewController?
     private var navigationHistory = SettingsNavigationHistory()
-    private var pendingAccountPaneSource: String?
 
     private static let defaultWindowSize = NSSize(width: 780, height: 570)
     private static let minimumWindowSize = NSSize(width: 680, height: 536)
@@ -39,8 +38,6 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
 
         super.init(window: window)
 
-        window.delegate = self
-
         let toolbar = NSToolbar(identifier: "SettingsToolbar")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
@@ -51,9 +48,6 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
         let splitVC = SettingsSplitViewController(
             onPaneChange: { [weak self] pane, isUserSelection in
                 self?.updateTitle(pane.rawValue)
-                if pane == .account {
-                    self?.trackAccountPaneViewed(isUserSelection: isUserSelection)
-                }
                 if isUserSelection {
                     self?.navigationHistory.push(pane)
                 }
@@ -93,29 +87,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
     }
 
     func show(pane: SettingsPane) {
-        show(pane: pane, source: "programmatic")
-    }
-
-    func show(pane: SettingsPane, source: String) {
-        if pane == .account {
-            pendingAccountPaneSource = source
-        }
         splitViewController?.navigateTo(pane)
         show()
-    }
-
-    private func trackAccountPaneViewed(isUserSelection: Bool) {
-        let authService = WorkOSAuthService.shared
-        let source = isUserSelection ? "settings_sidebar" : (pendingAccountPaneSource ?? "programmatic")
-        pendingAccountPaneSource = nil
-
-        AnalyticsService.shared.trackAccountSettingsViewed(
-            source: source,
-            isAuthenticated: authService.isAuthenticated,
-            subscriptionStatus: authService.subscriptionStatus.rawValue,
-            isPro: authService.isPro,
-            hasLoadedSubscriptionStatus: authService.hasLoadedSubscriptionStatus
-        )
     }
 
     private func updateToolbarButtons() {
@@ -145,19 +118,6 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSW
 
     @objc private func backForwardAction(_ sender: NSSegmentedControl) {
         navigateHistory(selectedSegment: sender.selectedSegment)
-    }
-
-    // MARK: - NSWindowDelegate
-
-    func windowWillClose(_ notification: Notification) {
-        // Drop the Account pane so SwiftUI tears down the SCNView; its
-        // `.onDisappear` then releases the SceneKit/Metal caches via
-        // `PremiumCardView.purge()`. Without this, the card's ~100s of MB
-        // stay resident for the rest of the session because
-        // `isReleasedWhenClosed = false` keeps the hosting controller alive.
-        splitViewController?.navigateTo(.general)
-        navigationHistory = SettingsNavigationHistory()
-        navigationHistory.push(.general)
     }
 
     // MARK: - NSToolbarDelegate
@@ -319,8 +279,8 @@ final class SettingsSidebarViewModel {
 
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general = "General"
-    case account = "Account"
     case keymap = "Keymap"
+    case ai = "AI"
     case about = "About"
 
     // MARK: - Future Settings Panes (uncomment to enable)
@@ -330,15 +290,14 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     // case tabs = "Tabs"           // TabsSettingsView.swift - Tab behavior, restoration, display
     // case fontIcons = "Font & Icons"  // FontIconsSettingsView.swift - Editor fonts, icons, themes
     // case security = "Security"   // SecuritySettingsView.swift - Credentials, SSL, privacy
-    // case ai = "AI"               // AISettingsView.swift - AI features, model config, privacy
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .account: "person.crop.circle"
         case .general: "gear"
         case .keymap: "keyboard"
+        case .ai: "sparkles"
         case .about: "info.circle"
         }
     }
@@ -372,12 +331,12 @@ struct SettingsDetailView: View {
 
     var body: some View {
         switch viewModel.selectedPane {
-        case .account:
-            AccountSettingsView()
         case .general:
             GeneralSettingsView()
         case .keymap:
             KeymapSettingsView()
+        case .ai:
+            AISettingsView()
         case .about:
             AboutSettingsView()
         }

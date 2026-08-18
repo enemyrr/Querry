@@ -59,8 +59,6 @@ extension Notification.Name {
     /// Notebook block hover (userInfo: "blockIndex": Int, "isHovered": Bool)
     static let notebookBlockHoverChanged = Notification.Name("NotebookBlockHoverChanged")
 
-    /// Auth + billing deep-link callbacks
-    static let workOSAuthCallback = Notification.Name("WorkOSAuthCallback")
-    static let billingCallbackReceived = Notification.Name("BillingCallbackReceived")
+    /// Convex OAuth deep-link callback
     static let convexOAuthCallback = Notification.Name("ConvexOAuthCallback")
 }

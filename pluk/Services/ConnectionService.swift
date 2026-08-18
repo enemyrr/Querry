@@ -42,27 +42,6 @@ class ConnectionService {
 
         return newInstance.id
     }
-
-    /// Pluk Free allows up to 4 concurrent open items (connections +
-    /// notebooks). Call this BEFORE opening any new tab to block the path and
-    /// present the paywall. Returns `true` when the caller should bail.
-    @MainActor
-    func presentPaywallIfAtOpenLimit() -> Bool {
-        let auth = WorkOSAuthService.shared
-        let connectionCount = connectionInstances.count
-        let notebookCount = SidebarItemRegistry.shared.items.filter { item in
-            if case .notebook = item { return true }
-            return false
-        }.count
-        let total = connectionCount + notebookCount
-        let allowed = auth.entitlements.canAddConnection(currentCount: total)
-        NSLog("[Paywall] open gate — connections=\(connectionCount) notebooks=\(notebookCount) total=\(total) isPro=\(auth.isPro) isAuthed=\(auth.isAuthenticated) allowed=\(allowed)")
-        if !allowed {
-            Paywall.present(reason: .openLimitReached)
-            return true
-        }
-        return false
-    }
     
     @MainActor
     func removeConnectionInstance(_ instanceId: UUID, closeWindow: Bool = true) async {
@@ -150,8 +129,6 @@ class ConnectionService {
                 return existingInstance.id
             }
         }
-
-        if presentPaywallIfAtOpenLimit() { return nil }
 
         // No existing tab found, create a new connection instance
         let newId = createNewConnectionInstance(for: instance.connection)

@@ -47,6 +47,7 @@ struct SQLEditorView: View {
     @State private var showingInlineDiff: Bool = false
     @State private var sqlLanguageService: SQLAutocompleteLanguageService?
     @State private var editorWindow: NSWindow?
+    @State private var pendingConfirmation: QueryConfirmationRequest?
     
     @State private var splitRatio: CGFloat = 0.4
     private var isLoading : Bool { viewState == .loading }
@@ -119,7 +120,9 @@ struct SQLEditorView: View {
             configureSQLLanguageServiceIfNeeded()
             loadAvailableDatabases()
             loadInitialQueryFromTab()
-            BedrockService.shared.warmUpCredentials()
+        }
+        .queryConfirmation($pendingConfirmation) { request in
+            runQuery(request.query)
         }
     }
     
@@ -824,6 +827,18 @@ extension SQLEditorView {
 
         guard !queryToExecute.isEmpty else { return }
 
+        if let request = QueryAlertPolicy.confirmationRequest(
+            for: queryToExecute,
+            connection: instance.connection
+        ) {
+            pendingConfirmation = request
+            return
+        }
+
+        runQuery(queryToExecute)
+    }
+
+    private func runQuery(_ queryToExecute: String) {
         isExecuting = true
         viewState = .loading
         lastError = nil

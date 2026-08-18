@@ -6,8 +6,8 @@ struct AgentRoundResult {
     let text: String
     let toolCalls: [(id: String, name: String, input: [String: Any])]
     let responseContent: [ResponseContentBlock]
-    let assistantMessage: BedrockGLMChatMessage
-    let tokenUsage: BedrockTokenUsage?
+    let assistantMessage: LLMChatMessage
+    let tokenUsage: LLMTokenUsage?
 }
 
 struct BlockCreationRequest {
@@ -107,11 +107,6 @@ enum AgentSurface {
     /// Table viewer chat sidebar: exploration-only tools, answers stay in chat.
     /// Context is nil when no table tab is open.
     case table(TableAgentContext?)
-}
-
-private struct AgentGenerationConfig {
-    let temperature: Double
-    let thinkingMode: BedrockThinkingMode
 }
 
 @Observable
@@ -734,8 +729,8 @@ final class NotebookAgentEngine {
 
     // MARK: - Tool Definitions
 
-    func buildTools(connections: [Connection]) -> [BedrockGLMToolDefinition] {
-        var tools: [BedrockGLMToolDefinition] = [
+    func buildTools(connections: [Connection]) -> [LLMToolDefinition] {
+        var tools: [LLMToolDefinition] = [
             listTablesTool,
             listDatabasesTool,
             getTableSchemaTool,
@@ -757,8 +752,8 @@ final class NotebookAgentEngine {
     /// Exploration toolset for the table chat sidebar — no notebook block or
     /// dashboard tools. The write tool joins only when the user has enabled
     /// writes and the surface wired an approval handler.
-    func buildTableTools(connections: [Connection]) -> [BedrockGLMToolDefinition] {
-        var tools: [BedrockGLMToolDefinition] = [
+    func buildTableTools(connections: [Connection]) -> [LLMToolDefinition] {
+        var tools: [LLMToolDefinition] = [
             listTablesTool,
             listDatabasesTool,
             getTableSchemaTool,
@@ -783,14 +778,14 @@ final class NotebookAgentEngine {
     // MARK: - API Round (Streaming)
 
     func performRound(
-        messages: [BedrockGLMChatMessage],
+        messages: [LLMChatMessage],
         connections: [Connection],
         surface: AgentSurface = .notebook(blocks: []),
         conversationSummary: String? = nil,
         onToken: @MainActor @Sendable (String) -> Void = { _ in },
         onThinking: @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> AgentRoundResult {
-        let tools: [BedrockGLMToolDefinition]
+        let tools: [LLMToolDefinition]
         let systemPrompt: String
         switch surface {
         case .notebook(let blocks):
@@ -808,13 +803,11 @@ final class NotebookAgentEngine {
                 conversationSummary: conversationSummary
             )
         }
-        let generationConfig = generationConfig(for: messages)
-
-        let response = try await BedrockService.shared.notebookChatCompletionStream(
+        let response = try await LLM.chatCompletionStream(
             messages: messages,
             systemPrompt: systemPrompt,
             tools: tools,
-            thinkingMode: generationConfig.thinkingMode,
+            thinkingMode: thinkingMode(for: messages),
             onTextDelta: onToken,
             onThinkingDelta: onThinking
         )
@@ -1861,7 +1854,7 @@ final class NotebookAgentEngine {
         return connections.first
     }
 
-    private func generationConfig(for messages: [BedrockGLMChatMessage]) -> AgentGenerationConfig {
+    private func thinkingMode(for messages: [LLMChatMessage]) -> LLMThinkingMode {
         let latestUserText = messages
             .last(where: { $0.role == .user })?
             .content?
@@ -1872,17 +1865,7 @@ final class NotebookAgentEngine {
         }
         let trivialTurns: Set<String> = ["hi", "hello", "hey", "thanks", "thank you", "ok", "okay"]
 
-        if !hasToolContext && trivialTurns.contains(latestUserText) {
-            return AgentGenerationConfig(
-                temperature: 0.3,
-                thinkingMode: .disabled
-            )
-        }
-
-        return AgentGenerationConfig(
-            temperature: 0.2,
-            thinkingMode: .enabled
-        )
+        return !hasToolContext && trivialTurns.contains(latestUserText) ? .disabled : .enabled
     }
 
     private func parseStringDictionary(_ value: Any?) -> [String: String] {
@@ -2051,7 +2034,7 @@ final class NotebookAgentEngine {
 
     // MARK: - Tool Definitions
 
-    private let listTablesTool = BedrockGLMToolDefinition(
+    private let listTablesTool = LLMToolDefinition(
         name: "list_tables",
         description: "Lists all tables and collections in a database connection. Call this first to discover available data.",
         inputSchema: [
@@ -2074,7 +2057,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let runQueryTool = BedrockGLMToolDefinition(
+    private let runQueryTool = LLMToolDefinition(
         name: "run_query",
         description: "Execute a read-only query to explore data. Use SQL for SQL databases and JavaScript for Convex. Results are returned to you for analysis but are NOT added to the notebook.",
         inputSchema: [
@@ -2101,7 +2084,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let openQueryTabTool = BedrockGLMToolDefinition(
+    private let openQueryTabTool = LLMToolDefinition(
         name: "open_query_tab",
         description: "Open a new query editor tab in Pluk with a read-only SQL query preloaded and running, so the user can browse, sort, and explore the full result set in the real table view. Use when a result set is too large to show meaningfully in chat, or when the user asks to see or explore the full results. The tab runs against the connection's current database — always pass the database_name and schema_name you used in the preceding run_query calls, and qualify table names with schema when outside the default.",
         inputSchema: [
@@ -2124,7 +2107,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let runWriteQueryTool = BedrockGLMToolDefinition(
+    private let runWriteQueryTool = LLMToolDefinition(
         name: "run_write_query",
         description: "Execute a data-modifying SQL statement (INSERT, UPDATE, DELETE, etc.). Use ONLY when the user explicitly asks to change data. The user is shown the exact statement and may need to approve it before it runs. Always include a WHERE clause on UPDATE/DELETE unless the user explicitly asked for a full-table change.",
         inputSchema: [
@@ -2151,7 +2134,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let setNotebookInfoTool = BedrockGLMToolDefinition(
+    private let setNotebookInfoTool = LLMToolDefinition(
         name: "set_notebook_info",
         description: "Sets the notebook title and description. Call this early in the workflow to give the notebook a meaningful name based on the data being analyzed.",
         inputSchema: [
@@ -2170,7 +2153,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let listNotebookBlocksTool = BedrockGLMToolDefinition(
+    private let listNotebookBlocksTool = LLMToolDefinition(
         name: "list_notebook_blocks",
         description: "Returns all existing blocks in the notebook with their IDs, types, titles, and configuration summaries. Call this to get block_id values needed for update_* tools.",
         inputSchema: [
@@ -2179,7 +2162,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let getTableSchemaTool = BedrockGLMToolDefinition(
+    private let getTableSchemaTool = LLMToolDefinition(
         name: "get_table_schema",
         description: "Gets detailed column information for a table: names, data types, primary keys, foreign keys, and constraints.",
         inputSchema: [
@@ -2206,7 +2189,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let arrangeDashboardTool = BedrockGLMToolDefinition(
+    private let arrangeDashboardTool = LLMToolDefinition(
         name: "arrange_dashboard",
         description: """
         Arranges notebook blocks into a dashboard grid layout. Each block can be sized and positioned in rows. \
@@ -2256,7 +2239,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let listDatabasesTool = BedrockGLMToolDefinition(
+    private let listDatabasesTool = LLMToolDefinition(
         name: "list_databases",
         description: "Lists all databases available on a connection. Use this when the user references a table that may be in a different database.",
         inputSchema: [
@@ -2271,7 +2254,7 @@ final class NotebookAgentEngine {
         ]
     )
 
-    private let convexQueryGuideTool = BedrockGLMToolDefinition(
+    private let convexQueryGuideTool = LLMToolDefinition(
         name: "get_convex_query_guide",
         description: "Returns the Convex query guide. Call this before constructing any raw query for a Convex connection. The guide includes the JavaScript query template plus additional raw query details.",
         inputSchema: [

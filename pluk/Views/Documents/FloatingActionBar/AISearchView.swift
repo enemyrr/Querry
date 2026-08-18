@@ -224,18 +224,16 @@ struct AISearchView: View {
     
     private func performAIQuery(databaseService: DatabaseService, search: String) async throws -> String {
         guard let selectedTab = instance.selectedTab?.name else {
-            throw BedrockGLMError.invalidResponse
+            throw LLMError.invalidResponse
         }
 
         let prompt = try await instance.databaseService.buildSystemPrompt(for: selectedTab, databaseSchema: instance.selectedTab?.databaseSchema)
 
-        let response = try await BedrockGLMService.shared.chatCompletion(
-            messages: [BedrockGLMChatMessage(role: .user, content: search)],
+        let response = try await LLM.chatCompletion(
+            messages: [LLMChatMessage(role: .user, content: search)],
             systemPrompt: prompt,
             tools: [],
             maxTokens: 4096,
-            model: BedrockConfig.glm47ModelId,
-            temperature: 0.2,
             thinkingMode: .disabled
         )
 

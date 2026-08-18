@@ -152,7 +152,6 @@ final class NotebookInnerSplitController: NSSplitViewController {
     private func syncCollapseState() {
         if dataController.isRightSidebarVisible {
             expand()
-            BedrockService.shared.warmUpCredentials()
         } else {
             collapse()
         }

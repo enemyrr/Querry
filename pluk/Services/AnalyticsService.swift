@@ -40,27 +40,9 @@ final class AnalyticsService {
 
         PostHogSDK.shared.register([
             "first_seen_date": firstSeenDate,
-            "app_install_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            "auth_state": "anonymous"
+            "app_install_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
         ])
         updateAppearanceSuperProperty()
-    }
-
-    func identify(user: WorkOSUser, source: String) {
-        PostHogSDK.shared.identify(
-            user.id,
-            userProperties: ["email_verified": user.emailVerified],
-            userPropertiesSetOnce: ["platform": "macos"]
-        )
-        PostHogSDK.shared.register(["auth_state": "authenticated"])
-        PostHogSDK.shared.capture("auth_session_identified", properties: retentionProperties([
-            "source": source
-        ]))
-    }
-
-    func resetIdentity() {
-        PostHogSDK.shared.reset()
-        setupSuperPropertiesIfNeeded()
     }
 
     func updateAppearanceSuperProperty() {
@@ -219,98 +201,6 @@ final class AnalyticsService {
         PostHogSDK.shared.capture("query_editor_opened", properties: [
             "database_type": databaseType.rawValue,
             "source": source
-        ])
-    }
-
-    func trackAccountSettingsViewed(
-        source: String,
-        isAuthenticated: Bool,
-        subscriptionStatus: String,
-        isPro: Bool,
-        hasLoadedSubscriptionStatus: Bool
-    ) {
-        PostHogSDK.shared.capture("account_settings_viewed", properties: [
-            "source": source,
-            "is_authenticated": isAuthenticated,
-            "subscription_status": subscriptionStatus,
-            "is_pro": isPro,
-            "has_loaded_subscription_status": hasLoadedSubscriptionStatus
-        ])
-    }
-
-    func trackSidebarProPromo(
-        action: String,
-        databaseType: DatabaseType,
-        sidebarViewMode: String
-    ) {
-        PostHogSDK.shared.capture("sidebar_pro_promo", properties: [
-            "action": action,
-            "database_type": databaseType.rawValue,
-            "sidebar_view_mode": sidebarViewMode
-        ])
-    }
-
-    // MARK: - Auth Funnel
-
-    func trackAuthLoginStarted(mode: String, source: String) {
-        PostHogSDK.shared.capture("auth_login_started", properties: [
-            "mode": mode,
-            "source": source
-        ])
-    }
-
-    func trackAuthLoginCompleted(mode: String, source: String) {
-        let properties = retentionProperties([
-            "mode": mode,
-            "source": source
-        ])
-        PostHogSDK.shared.capture("auth_login_completed", properties: properties)
-        PostHogSDK.shared.capture(
-            mode == "sign_up" ? "signup_completed" : "login_completed",
-            properties: properties
-        )
-    }
-
-    func trackAuthLoginFailed(reason: String, mode: String, source: String) {
-        PostHogSDK.shared.capture("auth_login_failed", properties: retentionProperties([
-            "reason": reason,
-            "mode": mode,
-            "source": source
-        ]))
-    }
-
-    func trackAuthLogout() {
-        PostHogSDK.shared.capture("auth_logged_out", properties: retentionProperties([:]))
-    }
-
-    // MARK: - Billing Funnel
-
-    func trackBillingCheckoutStarted(source: String, currentStatus: String) {
-        PostHogSDK.shared.capture("billing_checkout_started", properties: [
-            "source": source,
-            "current_status": currentStatus
-        ])
-    }
-
-    func trackBillingPortalOpened(kind: String, currentStatus: String) {
-        PostHogSDK.shared.capture("billing_portal_opened", properties: [
-            "kind": kind,
-            "current_status": currentStatus
-        ])
-    }
-
-    func trackBillingCheckoutFailed(reason: String, currentStatus: String) {
-        PostHogSDK.shared.capture("billing_checkout_failed", properties: [
-            "reason": reason,
-            "current_status": currentStatus
-        ])
-    }
-
-    func trackSubscriptionActivated(status: String, fromStatus: String, isTrial: Bool) {
-        PostHogSDK.shared.capture("subscription_activated", properties: [
-            "status": status,
-            "from_status": fromStatus,
-            "is_trial": isTrial
         ])
     }
 

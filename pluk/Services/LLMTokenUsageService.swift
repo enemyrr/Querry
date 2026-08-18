@@ -1,10 +1,7 @@
 import Foundation
 
 struct LLMTokenUsageSnapshot: Codable, Sendable, Equatable {
-    let userKey: String
     let periodKey: String
-    let planKey: String
-    let creditBudgetCents: Int?
     var inputTokens: Int
     var outputTokens: Int
     var cacheCreationInputTokens: Int
@@ -16,16 +13,6 @@ struct LLMTokenUsageSnapshot: Codable, Sendable, Equatable {
 
     var usedCreditCents: Double {
         SonnetTokenPricing.costCents(for: self)
-    }
-
-    var remainingCreditCents: Double {
-        guard let creditBudgetCents else { return .infinity }
-        return max(0, Double(creditBudgetCents) - usedCreditCents)
-    }
-
-    var isExhausted: Bool {
-        guard let creditBudgetCents else { return false }
-        return usedCreditCents >= Double(creditBudgetCents)
     }
 }
 
@@ -81,58 +68,27 @@ final class LLMTokenUsageService {
     }
 
     @discardableResult
-    func record(_ usage: BedrockTokenUsage, date: Date = Date()) -> LLMTokenUsageSnapshot {
+    func record(_ usage: LLMTokenUsage, date: Date = Date()) -> LLMTokenUsageSnapshot {
         var snapshot = loadSnapshot(date: date)
         snapshot.inputTokens += usage.inputTokens
         snapshot.outputTokens += usage.outputTokens
         snapshot.cacheCreationInputTokens += usage.cacheCreationInputTokens
         snapshot.cacheReadInputTokens += usage.cacheReadInputTokens
-        persist(snapshot, forKey: storageKey(userKey: snapshot.userKey, periodKey: snapshot.periodKey))
+        persist(snapshot, forKey: storageKey(periodKey: snapshot.periodKey))
         updateLatestSnapshot(snapshot)
         return snapshot
     }
 
-    func exhaustionMessage(for snapshot: LLMTokenUsageSnapshot? = nil) -> String {
-        let snapshot = snapshot ?? currentSnapshot()
-        guard snapshot.creditBudgetCents != nil else {
-            return "Your \(snapshot.planKey.capitalized) plan includes unlimited AI credits."
-        }
-        return "Monthly AI credits reached. Your credits reset on \(resetDateText(for: snapshot))."
-    }
-
-    func resetDateText(for snapshot: LLMTokenUsageSnapshot) -> String {
-        resetDateText(after: snapshot.periodKey)
-    }
-
     private func loadSnapshot(date: Date) -> LLMTokenUsageSnapshot {
-        let userKey = currentUserKey
         let periodKey = Self.periodKey(for: date)
-        let planKey = currentPlanKey
-        let creditBudgetCents = WorkOSAuthService.shared.entitlements.monthlyLLMCreditBudgetCents
-        let key = storageKey(userKey: userKey, periodKey: periodKey)
+        let key = storageKey(periodKey: periodKey)
 
-        if var snapshot = readSnapshot(forKey: key) {
-            if snapshot.planKey != planKey || snapshot.creditBudgetCents != creditBudgetCents {
-                snapshot = LLMTokenUsageSnapshot(
-                    userKey: userKey,
-                    periodKey: periodKey,
-                    planKey: planKey,
-                    creditBudgetCents: creditBudgetCents,
-                    inputTokens: snapshot.inputTokens,
-                    outputTokens: snapshot.outputTokens,
-                    cacheCreationInputTokens: snapshot.cacheCreationInputTokens,
-                    cacheReadInputTokens: snapshot.cacheReadInputTokens
-                )
-                persist(snapshot, forKey: key)
-            }
+        if let snapshot = readSnapshot(forKey: key) {
             return snapshot
         }
 
         let snapshot = LLMTokenUsageSnapshot(
-            userKey: userKey,
             periodKey: periodKey,
-            planKey: planKey,
-            creditBudgetCents: creditBudgetCents,
             inputTokens: 0,
             outputTokens: 0,
             cacheCreationInputTokens: 0,
@@ -142,16 +98,8 @@ final class LLMTokenUsageService {
         return snapshot
     }
 
-    private var currentUserKey: String {
-        WorkOSAuthService.shared.currentUser?.id ?? "anonymous"
-    }
-
-    private var currentPlanKey: String {
-        WorkOSAuthService.shared.isPro ? "pro" : "free"
-    }
-
-    private func storageKey(userKey: String, periodKey: String) -> String {
-        "\(keyPrefix).\(userKey).\(periodKey)"
+    private func storageKey(periodKey: String) -> String {
+        "\(keyPrefix).\(periodKey)"
     }
 
     private func readSnapshot(forKey key: String) -> LLMTokenUsageSnapshot? {
@@ -177,22 +125,9 @@ final class LLMTokenUsageService {
         return "\(year)-\(monthText)"
     }
 
-    private func resetDateText(after periodKey: String) -> String {
-        let parts = periodKey.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 2,
-              let monthStart = Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: 1)),
-              let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: monthStart) else {
-            return "the start of next month"
-        }
-        return nextMonth.formatted(date: .abbreviated, time: .omitted)
-    }
-
     private static func emptySnapshot() -> LLMTokenUsageSnapshot {
         LLMTokenUsageSnapshot(
-            userKey: "anonymous",
             periodKey: periodKey(for: Date()),
-            planKey: "free",
-            creditBudgetCents: 0,
             inputTokens: 0,
             outputTokens: 0,
             cacheCreationInputTokens: 0,

@@ -5,7 +5,7 @@ import SwiftUI
 
 /// AppKit-native replacement for the SwiftUI `ConnectionDetailsSidebar` shell.
 /// Owns the vertical layout (connection header, database controls, scroll
-/// content, pro promo overlay) as real NSViews so `DatabaseListViewController`
+/// content) as real NSViews so `DatabaseListViewController`
 /// can embed its NSScrollView directly — no more representable sizing
 /// feedback loops.
 @MainActor
@@ -28,7 +28,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
     private var searchInputHost: NSHostingView<AnyView>!
     private var softSeparatorHost: NSHostingView<AnyView>!
     private var contentContainer: NSView!
-    private var promoCardHost: NSHostingView<AnyView>?
     private var currentContent: NSView?
     private var listViewController: DatabaseListViewController?
     private var historyViewController: QueryHistoryListViewController?
@@ -133,7 +132,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
         self.view = root
 
         refreshContent()
-        refreshPromoCard()
         refreshSearchInput()
         startObserving()
     }
@@ -173,19 +171,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
             .modelContainer(modelContainer)
     }
 
-    private func makePromoCard() -> some View {
-        SidebarProPromoCardView(
-            databaseType: instance.connection.databaseType,
-            sidebarViewModeAnalyticsValue: viewModel.sidebarViewMode == .tables ? "tables" : "history",
-            onDismissed: { [weak self] in
-                self?.refreshPromoCard()
-            }
-        )
-        .padding(.trailing, 2)
-        .padding(.bottom, 8)
-        .environment(instance)
-    }
-
     // MARK: - Content Switching
 
     private func refreshContent() {
@@ -215,12 +200,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
             newContent = historyVC.view
         }
 
-        // Apply the current promo-aware inset immediately so the first
-        // render has rows clearing the card.
-        Task { @MainActor [weak self] in
-            self?.updateListBottomInset()
-        }
-
         newContent.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(newContent)
         NSLayoutConstraint.activate([
@@ -230,6 +209,8 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
             newContent.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
         ])
         currentContent = newContent
+        listViewController?.setBottomContentInset(12)
+        historyViewController?.setBottomContentInset(12)
     }
 
     private func setSeparatorVisible(_ visible: Bool) {
@@ -248,59 +229,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
         searchInputHeightConstraint.constant = isVisible ? 40 : 0
         // Rebuild hosted content so bindings pick up state changes.
         searchInputHost.rootView = AnyView(makeSearchInput())
-    }
-
-    private func refreshPromoCard() {
-        let shouldShow = shouldShowProPromoNow()
-        if shouldShow {
-            if promoCardHost == nil {
-                let host = NSHostingView(rootView: AnyView(makePromoCard()))
-                host.translatesAutoresizingMaskIntoConstraints = false
-                view.addSubview(host)
-                NSLayoutConstraint.activate([
-                    host.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-                    host.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
-                    host.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
-                ])
-                promoCardHost = host
-            } else {
-                promoCardHost?.rootView = AnyView(makePromoCard())
-            }
-        } else {
-            promoCardHost?.removeFromSuperview()
-            promoCardHost = nil
-        }
-        updateListBottomInset()
-    }
-
-    /// Mirrors the SwiftUI original's `.padding(.bottom, shouldShowProPromo ?
-    /// promoCardHeight + 16 : 12)` on the list content so the last rows never
-    /// sit under the promo overlay.
-    private func updateListBottomInset() {
-        let inset: CGFloat
-        if let host = promoCardHost {
-            host.layoutSubtreeIfNeeded()
-            inset = host.fittingSize.height + 16
-        } else {
-            inset = 12
-        }
-        listViewController?.setBottomContentInset(inset)
-        historyViewController?.setBottomContentInset(inset)
-    }
-
-    private func shouldShowProPromoNow() -> Bool {
-        let dismissedAt = UserDefaults.standard.double(forKey: "sidebarProPromoDismissedAt")
-        if dismissedAt > 0 {
-            let elapsed = Date().timeIntervalSince1970 - dismissedAt
-            let cooldown: TimeInterval = 30 * 24 * 60 * 60
-            if elapsed < cooldown { return false }
-        }
-        let auth = WorkOSAuthService.shared
-        guard !auth.isPro else { return false }
-        if auth.isAuthenticated {
-            return auth.hasLoadedSubscriptionStatus
-        }
-        return true
     }
 
     // MARK: - Connect on Appear
@@ -323,7 +251,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
     private func startObserving() {
         observeSidebarViewMode()
         observeSearchVisibility()
-        observePromoState()
         observeReadiness()
     }
 
@@ -346,20 +273,6 @@ final class ConnectionDetailsSidebarViewController: NSViewController {
             Task { @MainActor in
                 self?.refreshSearchInput()
                 self?.observeSearchVisibility()
-            }
-        }
-    }
-
-    private func observePromoState() {
-        let auth = WorkOSAuthService.shared
-        withObservationTracking {
-            _ = auth.isPro
-            _ = auth.isAuthenticated
-            _ = auth.hasLoadedSubscriptionStatus
-        } onChange: { [weak self] in
-            Task { @MainActor in
-                self?.refreshPromoCard()
-                self?.observePromoState()
             }
         }
     }
@@ -478,121 +391,6 @@ private struct DatabaseControlsRow: View {
         .padding(.leading, 4)
         .padding(.trailing, 2)
         .padding(.bottom, 4)
-    }
-}
-
-// MARK: - Pro Promo Card Wrapper
-
-private struct SidebarProPromoCardView: View {
-    let databaseType: DatabaseType
-    let sidebarViewModeAnalyticsValue: String
-    let onDismissed: () -> Void
-
-    var body: some View {
-        SidebarProPromoCardBody(
-            onUpgrade: {
-                AnalyticsService.shared.trackSidebarProPromo(
-                    action: "cta_clicked",
-                    databaseType: databaseType,
-                    sidebarViewMode: sidebarViewModeAnalyticsValue
-                )
-                Paywall.present(source: "sidebar_promo")
-            },
-            onDismiss: {
-                AnalyticsService.shared.trackSidebarProPromo(
-                    action: "dismissed",
-                    databaseType: databaseType,
-                    sidebarViewMode: sidebarViewModeAnalyticsValue
-                )
-                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "sidebarProPromoDismissedAt")
-                onDismissed()
-            },
-            onAppear: {
-                AnalyticsService.shared.trackSidebarProPromo(
-                    action: "viewed",
-                    databaseType: databaseType,
-                    sidebarViewMode: sidebarViewModeAnalyticsValue
-                )
-            }
-        )
-    }
-}
-
-private struct SidebarProPromoCardBody: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isDismissHovering = false
-    @State private var isCardHovering = false
-    let onUpgrade: () -> Void
-    let onDismiss: () -> Void
-    let onAppear: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 6) {
-                Text("Try Pluk Pro for free")
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: 4)
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(isDismissHovering ? .primary : .secondary)
-                        .frame(width: 18, height: 18)
-                        .contentShape(.rect)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color(.separatorColor).opacity(isDismissHovering ? 0.5 : 0))
-                        )
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.08)) { isDismissHovering = hovering }
-                }
-            }
-
-            Text("Unlimited connections, expanded AI, and priority support.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-
-            HStack {
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.right")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-                    .offset(x: isCardHovering ? 2 : 0)
-            }
-            .padding(.top, 6)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(.rect)
-        .onTapGesture { onUpgrade() }
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.controlBackgroundColor).opacity(0.98))
-                .shadow(color: .black.opacity(0.10), radius: 1, y: 0.5)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(
-                    colorScheme == .dark
-                        ? Color.white.opacity(0.06)
-                        : Color.black.opacity(0.08),
-                    lineWidth: 0.5
-                )
-        )
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) { isCardHovering = hovering }
-        }
-        .onAppear(perform: onAppear)
     }
 }
 

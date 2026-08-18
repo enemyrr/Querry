@@ -89,9 +89,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             Task { @MainActor in
                 AnalyticsService.shared.setupSuperPropertiesIfNeeded()
-                if let user = WorkOSAuthService.shared.currentUser {
-                    AnalyticsService.shared.identify(user: user, source: "session_restore")
-                }
             }
         }
 
@@ -243,14 +240,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleURLCallback(_ url: URL) {
-        let host = url.host
-
-        // pluk://checkout/success or pluk://billing/portal
-        if host == "checkout" || host == "billing" {
-            NotificationCenter.default.post(name: .billingCallbackReceived, object: nil)
-            return
-        }
-
         // OAuth callbacks require a code parameter
         guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
             let code = queryItems.first(where: { $0.name == "code" })?.value
@@ -258,20 +247,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // pluk://auth/callback
-        if host == "auth" {
-            NotificationCenter.default.post(
-                name: .workOSAuthCallback,
-                object: nil,
-                userInfo: ["code": code]
-            )
-        } else {
-            NotificationCenter.default.post(
-                name: .convexOAuthCallback,
-                object: nil,
-                userInfo: ["code": code]
-            )
-        }
+        NotificationCenter.default.post(
+            name: .convexOAuthCallback,
+            object: nil,
+            userInfo: ["code": code]
+        )
     }
 
     private func handleOpenedFile(_ url: URL) {
@@ -404,8 +384,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             try? sharedModelContainer.mainContext.save()
             return
         }
-
-        if ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
 
         let instanceId = ConnectionService.shared.createNewConnectionInstance(for: connection)
         guard let connectionInstance = ConnectionService.shared.getInstance(instanceId) else { return }

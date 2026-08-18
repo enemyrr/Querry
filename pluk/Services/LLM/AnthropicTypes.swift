@@ -1,3 +1,8 @@
+//
+//  AnthropicTypes.swift
+//  Pluk
+//
+
 import Foundation
 
 // MARK: - JSONValue
@@ -349,24 +354,23 @@ extension ThinkingConfig: Codable {
 
 // MARK: - Request/Response Bodies
 
-struct BedrockAnthropicRequest: Codable, Sendable {
-    let anthropicVersion: String
-    let anthropicBeta: [String]?
+struct AnthropicRequest: Codable, Sendable {
+    let model: String
     let maxTokens: Int
     let system: [SystemContentBlock]
     let messages: [AnthropicMessage]
     let tools: [AnthropicToolDefinition]
     let thinking: ThinkingConfig?
+    let stream: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case anthropicVersion = "anthropic_version"
-        case anthropicBeta = "anthropic_beta"
+        case model
         case maxTokens = "max_tokens"
-        case system, messages, tools, thinking
+        case system, messages, tools, thinking, stream
     }
 }
 
-struct BedrockAnthropicResponse: Codable, Sendable {
+struct AnthropicResponse: Codable, Sendable {
     let id: String
     let type: String
     let role: String

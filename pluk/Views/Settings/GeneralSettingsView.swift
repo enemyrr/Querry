@@ -14,6 +14,7 @@ struct GeneralSettingsView: View {
     @AppStorage("reportCrashes") private var reportCrashes = true
     @AppStorage("sendAnalytics") private var sendAnalytics = true
     @AppStorage("containerSyncEnabled") private var containerSyncEnabled = true
+    @AppStorage(QueryAlertMode.storageKey) private var queryAlertMode = QueryAlertMode.default.rawValue
 
     // MARK: - Future Settings Storage (DO NOT REMOVE - enable when needed)
     // These @AppStorage properties are for future settings sections.
@@ -50,6 +51,7 @@ struct GeneralSettingsView: View {
             appearanceSection
             applicationSection
             containersSection
+            queryExecutionSection
             tableSection
 
             // MARK: - Future Settings Sections (DO NOT REMOVE - uncomment to enable)
@@ -100,6 +102,20 @@ struct GeneralSettingsView: View {
     }
 
     // MARK: - Active Sections
+
+    private var queryExecutionSection: some View {
+        Section("Query Execution") {
+            Picker("Before running a query", selection: $queryAlertMode) {
+                ForEach(QueryAlertMode.allCases, id: \.rawValue) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon).tag(mode.rawValue)
+                }
+            }
+
+            Text(QueryAlertMode(rawValue: queryAlertMode)?.summary ?? QueryAlertMode.default.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
 
     private var tableSection: some View {
         Section("Table") {

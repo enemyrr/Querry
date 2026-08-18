@@ -14,7 +14,6 @@ struct HomeView: View {
     // Optional read: a non-optional @Environment traps fatally if any hosting
     // path (e.g. window restoration) presents HomeView without the injection.
     @Environment(SidebarViewModel.self) private var viewModel: SidebarViewModel?
-    private var authService = WorkOSAuthService.shared
     @Query(sort: \Connection.lastOpenedAt, order: .reverse)
     private var connections: [Connection]
     @Query(sort: \Notebook.updatedAt, order: .reverse)
@@ -116,22 +115,15 @@ struct HomeView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading) {
-                    Text(titleText)
-                        .font(.title)
-                        .fontWeight(.semibold)
-                    Text(subtitleText)
+            VStack(alignment: .leading) {
+                Text(titleText)
+                    .font(.title)
+                    .fontWeight(.semibold)
+                Text(subtitleText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if !authService.isPro {
-                    FreePlanBadge()
-                        .padding(.top, 4)
-                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 20)
             .padding(.horizontal, 28)
             .padding(.bottom, 16)
@@ -211,10 +203,6 @@ struct HomeView: View {
             }
             Button("Create New Tab") {
                 if let connection = pendingConnection {
-                    if ConnectionService.shared.presentPaywallIfAtOpenLimit() {
-                        pendingConnection = nil
-                        return
-                    }
                     openNewConnectionTab(connection, isFirstConnection: false)
                 }
                 pendingConnection = nil
@@ -469,7 +457,6 @@ struct HomeView: View {
                 return
             }
         }
-        if ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
         let notebook = Notebook()
         modelContext.insert(notebook)
         handleNotebookOpen(notebook)
@@ -477,11 +464,6 @@ struct HomeView: View {
     }
 
     private func handleNotebookOpen(_ notebook: Notebook) {
-        let alreadyOpen = SidebarItemRegistry.shared.items.contains { item in
-            if case .notebook(let id, _) = item { return id == notebook.id }
-            return false
-        }
-        if !alreadyOpen, ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
         notebook.updatedAt = Date()
         SidebarItemRegistry.shared.addNotebook(id: notebook.id, title: notebook.title)
         WindowController.newTab(tabType: .notebook(notebook.id))
@@ -494,7 +476,6 @@ struct HomeView: View {
             pendingConnection = connection
             showConnectionAlert = true
         } else {
-            if ConnectionService.shared.presentPaywallIfAtOpenLimit() { return }
             openNewConnectionTab(connection, isFirstConnection: isFirstConnection)
         }
     }
@@ -540,31 +521,5 @@ struct DatabaseTypeIcon: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 18, height: 18)
             )
-    }
-}
-
-private struct FreePlanBadge: View {
-    var body: some View {
-        Button {
-            Paywall.present()
-        } label: {
-            HStack(spacing: 8) {
-                Text("Free")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color(.separatorColor), lineWidth: 1)
-                    )
-
-                Text("Upgrade")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.primaryButton)
-            }
-        }
-        .buttonStyle(.plain)
-        .customHelp("You're on the Free plan. Upgrade to Pluk Pro for unlimited connections and more.")
     }
 }

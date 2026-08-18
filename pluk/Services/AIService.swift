@@ -9,9 +9,6 @@ import Foundation
 
 class AIService: @unchecked Sendable {
 
-    private static let modelId = BedrockConfig.glm47ModelId
-    private static let generationTemperature = 0.2
-
     private static let schemaToolName = "get_table_schema"
 
     static func analyzeError(
@@ -76,17 +73,15 @@ class AIService: @unchecked Sendable {
                         """
                     }
 
-                    var messages: [BedrockGLMChatMessage] = [
-                        BedrockGLMChatMessage(role: .user, content: userMessage)
+                    var messages: [LLMChatMessage] = [
+                        LLMChatMessage(role: .user, content: userMessage)
                     ]
 
-                    let response = try await BedrockGLMService.shared.chatCompletion(
+                    let response = try await LLM.chatCompletion(
                         messages: messages,
                         systemPrompt: systemPrompt,
                         tools: [schemaTool],
                         maxTokens: 4096,
-                        model: modelId,
-                        temperature: generationTemperature,
                         thinkingMode: .enabled
                     )
 
@@ -102,13 +97,11 @@ class AIService: @unchecked Sendable {
                         let toolResults = try await collectToolResults(for: toolUses, databaseService: databaseService)
                         messages.append(contentsOf: toolResults)
 
-                        _ = try await BedrockGLMService.shared.chatCompletionStream(
+                        _ = try await LLM.chatCompletionStream(
                             messages: messages,
                             systemPrompt: systemPrompt,
                             tools: [],
                             maxTokens: 4096,
-                            model: modelId,
-                            temperature: generationTemperature,
                             thinkingMode: .enabled,
                             onTextDelta: { delta in
                                 continuation.yield(delta)
@@ -426,7 +419,7 @@ class AIService: @unchecked Sendable {
         """
     }
 
-    private static let schemaTool = BedrockGLMToolDefinition(
+    private static let schemaTool = LLMToolDefinition(
         name: schemaToolName,
         description: "Get the complete schema information for a specific table including column names, data types, constraints, and relationships",
         inputSchema: [
@@ -446,11 +439,11 @@ class AIService: @unchecked Sendable {
     )
 
     private static func collectToolResults(
-        for toolUses: [BedrockGLMToolCall],
+        for toolUses: [LLMToolCall],
         databaseService: DatabaseService,
         defaultSchemaName: String? = nil
-    ) async throws -> [BedrockGLMChatMessage] {
-        var results: [BedrockGLMChatMessage] = []
+    ) async throws -> [LLMChatMessage] {
+        var results: [LLMChatMessage] = []
         for toolUse in toolUses where toolUse.name == schemaToolName {
             let inputDict: [String: Any]
             if let data = toolUse.arguments.data(using: .utf8),
@@ -467,7 +460,7 @@ class AIService: @unchecked Sendable {
             )
 
             results.append(
-                BedrockGLMChatMessage(
+                LLMChatMessage(
                     role: .tool,
                     content: toolResult,
                     toolCallId: toolUse.id,
@@ -484,17 +477,15 @@ class AIService: @unchecked Sendable {
         databaseService: DatabaseService,
         defaultSchemaName: String?
     ) async throws -> String {
-        var messages: [BedrockGLMChatMessage] = [
-            BedrockGLMChatMessage(role: .user, content: userPrompt)
+        var messages: [LLMChatMessage] = [
+            LLMChatMessage(role: .user, content: userPrompt)
         ]
 
-        let response = try await BedrockGLMService.shared.chatCompletion(
+        let response = try await LLM.chatCompletion(
             messages: messages,
             systemPrompt: systemPrompt,
             tools: [schemaTool],
             maxTokens: 4096,
-            model: BedrockConfig.glm47ModelId,
-            temperature: generationTemperature,
             thinkingMode: .disabled
         )
 
@@ -508,13 +499,11 @@ class AIService: @unchecked Sendable {
             )
             messages.append(contentsOf: toolResults)
 
-            let finalResponse = try await BedrockGLMService.shared.chatCompletion(
+            let finalResponse = try await LLM.chatCompletion(
                 messages: messages,
                 systemPrompt: systemPrompt,
                 tools: [],
                 maxTokens: 4096,
-                model: BedrockConfig.glm47ModelId,
-                temperature: generationTemperature,
                 thinkingMode: .disabled
             )
 

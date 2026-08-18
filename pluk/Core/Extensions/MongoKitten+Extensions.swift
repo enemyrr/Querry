@@ -123,3 +123,7 @@ extension Document {
 }
 
 
+
+// SwiftUI in the macOS 27 SDK declares its own `Document` protocol, which makes the
+// unqualified BSON type ambiguous. A module-scope alias wins over both imports.
+typealias Document = BSON.Document

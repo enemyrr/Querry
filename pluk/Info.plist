@@ -2,10 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>PLUKBedrockIdentityPoolID</key>
-	<string>$(BEDROCK_IDENTITY_POOL_ID)</string>
-	<key>PLUKBedrockRoleARN</key>
-	<string>$(BEDROCK_ROLE_ARN)</string>
 	<key>PLUKConvexOAuthClientID</key>
 	<string>$(CONVEX_OAUTH_CLIENT_ID)</string>
 	<key>PLUKConvexOAuthClientSecret</key>
@@ -14,8 +10,6 @@
 	<string>$(POSTHOG_API_KEY)</string>
 	<key>PLUKSentryDSN</key>
 	<string>$(SENTRY_DSN)</string>
-	<key>PLUKWorkOSClientID</key>
-	<string>$(WORKOS_CLIENT_ID)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>Preferred default scene session role</key>
