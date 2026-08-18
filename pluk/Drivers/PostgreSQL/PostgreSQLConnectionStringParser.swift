@@ -174,8 +174,9 @@ public enum PostgreSQLConnectionStringParser {
             // Determine if TLS should be enabled
             var enableTLS = ssl.enabled ?? (ssl.mode?.lowercased() != "disable")
 
-            // If connecting to localhost, force-disable TLS even if requested
-            if isLocalEndpoint(host), ssl.tunneled != true {
+            // Local endpoints default to plaintext, but an explicit ssl mode wins --
+            // e.g. a port-forward to an RDS instance with rds.force_ssl enabled.
+            if isLocalEndpoint(host), ssl.tunneled != true, ssl.mode == nil, ssl.enabled == nil {
                 enableTLS = false
             }
 
@@ -249,7 +250,8 @@ public enum PostgreSQLConnectionStringParser {
         if let ssl = parsed.ssl {
             var enableTLS = ssl.enabled ?? (ssl.mode?.lowercased() != "disable")
 
-            if isLocalEndpoint(host), ssl.tunneled != true {
+            // Local endpoints default to plaintext, but an explicit ssl mode wins.
+            if isLocalEndpoint(host), ssl.tunneled != true, ssl.mode == nil, ssl.enabled == nil {
                 enableTLS = false
             }
 

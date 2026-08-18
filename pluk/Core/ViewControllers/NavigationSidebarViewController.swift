@@ -3,6 +3,8 @@ import SwiftUI
 
 final class NavigationSidebarViewController: NSViewController {
 
+    private static let tooltipDelay: TimeInterval = 0.4
+
     private let stackView = NSStackView()
     private var itemButtonsContainer = NSStackView()
     nonisolated(unsafe) private var notificationObservers: [Any] = []
@@ -80,6 +82,7 @@ final class NavigationSidebarViewController: NSViewController {
         button.action = #selector(homeButtonTapped)
         button.tag = -1
         button.isSelected = true
+        button.installCustomTooltip("Home", position: .right, delay: Self.tooltipDelay)
         return button
     }
 
@@ -128,12 +131,14 @@ final class NavigationSidebarViewController: NSViewController {
         case .connection(let id):
             guard let instance = ConnectionService.shared.getInstance(id),
                   instance.connection.modelContext != nil else {
-                return SidebarItemButton(
+                let placeholder = SidebarItemButton(
                     frame: NSRect(x: 0, y: 0, width: 50, height: 40),
                     fillColor: .gray,
                     label: "?",
                     icon: nil
                 )
+                placeholder.installCustomTooltip("Unavailable Connection", position: .right, delay: Self.tooltipDelay)
+                return placeholder
             }
             let color = NSColor(instance.connection.color.color)
             let letter = String(instance.connection.name.prefix(1)).uppercased()
@@ -143,15 +148,17 @@ final class NavigationSidebarViewController: NSViewController {
                 label: letter,
                 icon: nil
             )
+            button.installCustomTooltip(instance.connection.name, position: .right, delay: Self.tooltipDelay)
             menu = makeConnectionContextMenu(instanceId: id, instance: instance)
 
-        case .notebook(let id, _):
+        case .notebook(let id, let title):
             button = SidebarItemButton(
                 frame: NSRect(x: 0, y: 0, width: 50, height: 40),
                 fillColor: NSColor(red: 0.6, green: 0.4, blue: 0.1, alpha: 1.0),
                 label: nil,
                 icon: "doc.text"
             )
+            button.installCustomTooltip(title, position: .right, delay: Self.tooltipDelay)
             menu = makeNotebookContextMenu(notebookId: id)
         }
 
