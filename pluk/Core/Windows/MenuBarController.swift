@@ -38,7 +38,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         return NSImage(
             systemSymbolName: "sparkles",
-            accessibilityDescription: "Pluk"
+            accessibilityDescription: "Quarry"
         )?.withSymbolConfiguration(.init(pointSize: 15, weight: .semibold))
     }
 
@@ -93,7 +93,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         button.image = image
         button.imagePosition = .imageOnly
-        button.toolTip = "Pluk"
+        button.toolTip = "Quarry"
         statusItem.menu = statusMenu
     }
 

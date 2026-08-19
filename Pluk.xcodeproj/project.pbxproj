@@ -478,15 +478,15 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = pluk/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Pluk;
+				INFOPLIST_KEY_CFBundleDisplayName = Quarry;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright \U00a9 2026 RIBBAN AB. Based on Pluk, \U00a9 Pluk, Inc. Licensed under GNU AGPL v3.0.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Quarry;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -519,15 +519,15 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = pluk/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Pluk;
+				INFOPLIST_KEY_CFBundleDisplayName = Quarry;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright \U00a9 2026 RIBBAN AB. Based on Pluk, \U00a9 Pluk, Inc. Licensed under GNU AGPL v3.0.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Quarry;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
@@ -548,7 +548,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pluk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pluk";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Quarry.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Quarry";
 			};
 			name = Debug;
 		};
@@ -566,7 +566,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pluk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pluk";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Quarry.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Quarry";
 			};
 			name = Release;
 		};

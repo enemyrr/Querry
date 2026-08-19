@@ -16,7 +16,7 @@ struct ChartPreviewView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.title2)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.brand)
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.secondary)

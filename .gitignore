@@ -104,3 +104,6 @@ pluk/Secrets.xcconfig
 .claude/
 .codex/
 CLAUDE.local.md
+
+# Distribution builds
+dist/

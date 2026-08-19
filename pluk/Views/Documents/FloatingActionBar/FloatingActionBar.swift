@@ -567,7 +567,7 @@ struct FloatingActionBar: View {
                         HStack(spacing: 4) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 10))
-                                .foregroundColor(.orange)
+                                .foregroundColor(.brand)
                             
                             if processingStage != .idle {
                                 Text(processingStage.description + animationDots)
@@ -633,8 +633,8 @@ struct FloatingActionBar: View {
                         .fill(
                             RadialGradient(
                                 gradient: Gradient(stops: [
-                                    .init(color: .orange, location: 0),
-                                    .init(color: .orange.opacity(0.3), location: 0.8),
+                                    .init(color: .brand, location: 0),
+                                    .init(color: .brand.opacity(0.3), location: 0.8),
                                     .init(color: .clear, location: 1)
                                 ]),
                                 center: .leading,
@@ -714,7 +714,7 @@ struct FloatingActionBar: View {
                 
                 if isFiltered {
                     Circle()
-                        .fill(Color.orange)
+                        .fill(Color.brand)
                         .frame(width: 8, height: 8)
                         .offset(x: 5, y: -5)
                 }

@@ -63,7 +63,7 @@ struct TwoPhaseLoader: View {
 
             if progress != 0 {
                 Rectangle()
-                    .fill(.orange)
+                    .fill(.brand)
                     .opacity(0.05)
                     .frame(width: containerWidth)
             }

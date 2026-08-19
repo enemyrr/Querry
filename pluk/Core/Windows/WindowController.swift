@@ -3,10 +3,13 @@ import SwiftData
 import SwiftUI
 
 class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemValidation, NSUserInterfaceValidations {
-    private static let windowFrameAutosaveName: NSWindow.FrameAutosaveName = "PlukMainWindow"
+    private static let windowFrameAutosaveName: NSWindow.FrameAutosaveName = "QuarryMainWindow"
     private static let legacyWindowFrameDefaultsKey = "PlukWindowFrame"
     private static let minimumWindowSize = NSSize(width: 800, height: 600)
-    private static let defaultWindowSize = NSSize(width: 1200, height: 800)
+    private static let defaultWindowSize = NSSize(width: 1440, height: 900)
+    /// Share of the screen a first-run window takes, so the default scales
+    /// with the display instead of opening small on large ones.
+    private static let defaultWindowScreenFraction: CGFloat = 0.85
     private static var isSynchronizingTabbedWindowFrames = false
 
     override var windowNibName: NSNib.Name? {
@@ -333,8 +336,15 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
             return NSRect(origin: .zero, size: Self.defaultWindowSize)
         }
 
-        let width = min(Self.defaultWindowSize.width, visibleFrame.width)
-        let height = min(Self.defaultWindowSize.height, visibleFrame.height)
+        let fraction = Self.defaultWindowScreenFraction
+        let width = min(
+            max(Self.defaultWindowSize.width, visibleFrame.width * fraction),
+            visibleFrame.width
+        )
+        let height = min(
+            max(Self.defaultWindowSize.height, visibleFrame.height * fraction),
+            visibleFrame.height
+        )
 
         return NSRect(
             x: visibleFrame.midX - (width / 2),

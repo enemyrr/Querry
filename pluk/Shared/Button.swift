@@ -1152,14 +1152,14 @@ struct UpdateActionButton: View {
                         .fixedSize(horizontal: true, vertical: false)
                 }
             }
-            .foregroundColor(.white)
+            .foregroundColor(.onBrand)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .allowsHitTesting(!isProcessingBatch)
-        .background(Color.orange)
+        .background(Color.brand)
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
         .transition(.scale.combined(with: .opacity))

@@ -175,13 +175,13 @@ struct ConvexScopeInfoSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Note")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.orange)
+                        .foregroundColor(.brand)
                     Text("Token permissions are limited by the authorizing member's permissions. If the member is removed or their permissions change, the token permissions will also change.")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
                 .padding(12)
-                .background(Color.orange.opacity(0.1))
+                .background(Color.brand.opacity(0.1))
                 .cornerRadius(8)
             }
             .padding(.horizontal, 24)

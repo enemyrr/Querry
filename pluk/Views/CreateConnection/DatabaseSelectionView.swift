@@ -187,7 +187,7 @@ private struct DatabaseTypeRow: View {
         case .beta:
             Text("Beta")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(.brand)
         case .comingSoon:
             Text("Soon")
                 .font(.caption2.weight(.semibold))

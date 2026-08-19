@@ -63,7 +63,7 @@ class AboutWindowController: NSWindowController {
         textStack.spacing = 0
 
         // App Name
-        let nameLabel = NSTextField(labelWithString: "Pluk")
+        let nameLabel = NSTextField(labelWithString: "Quarry")
         nameLabel.font = NSFont.systemFont(ofSize: 28, weight: .regular)
         nameLabel.isBordered = false
         nameLabel.isEditable = false

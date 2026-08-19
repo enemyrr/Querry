@@ -32,7 +32,7 @@ struct NotebookEditorStubView: View {
             } else {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 40))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.brand)
 
                 Text("Notebook Not Found")
                     .font(.title2)

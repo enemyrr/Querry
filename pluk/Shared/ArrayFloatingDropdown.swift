@@ -93,7 +93,7 @@ private struct ArrayDropdownListView<T: Hashable>: View {
                 }) {
                     HStack {
                         Text(itemDisplay(item))
-                            .foregroundColor(.primary)
+                            .foregroundColor(foregroundColorForItem(at: index))
                         Spacer()
                     }
                     .padding(.horizontal, 8)
@@ -171,11 +171,15 @@ private struct ArrayDropdownListView<T: Hashable>: View {
     
     private func backgroundColorForItem(at index: Int) -> Color {
         if index == activeIndex {
-            return .orange
+            return .brand
         } else if hoveredIndex == index {
-            return .orange
+            return .brand.opacity(0.12)
         } else {
             return .clear
         }
+    }
+
+    private func foregroundColorForItem(at index: Int) -> Color {
+        index == activeIndex ? .onBrand : .primary
     }
 }

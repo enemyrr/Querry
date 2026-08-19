@@ -1,35 +1,35 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "dark-mode-icon.pdf",
-      "idiom" : "universal"
+      "filename": "dark-mode-icon.pdf",
+      "idiom": "universal"
     },
     {
-      "appearances" : [
+      "appearances": [
         {
-          "appearance" : "luminosity",
-          "value" : "light"
+          "appearance": "luminosity",
+          "value": "light"
         }
       ],
-      "filename" : "lightmode_pluk_icon.pdf",
-      "idiom" : "universal"
+      "filename": "sparkle-light.pdf",
+      "idiom": "universal"
     },
     {
-      "appearances" : [
+      "appearances": [
         {
-          "appearance" : "luminosity",
-          "value" : "dark"
+          "appearance": "luminosity",
+          "value": "dark"
         }
       ],
-      "filename" : "dark-mode-icon 1.pdf",
-      "idiom" : "universal"
+      "filename": "dark-mode-icon 1.pdf",
+      "idiom": "universal"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   },
-  "properties" : {
-    "preserves-vector-representation" : true
+  "properties": {
+    "preserves-vector-representation": true
   }
 }

@@ -685,7 +685,7 @@ private enum AppleCardScene {
 
         let wordmarkFont = NSFont.systemFont(ofSize: 90, weight: .semibold)
         drawEngravedText(
-            "Pluk",
+            "Quarry",
             at: CGPoint(x: logoRect.maxX + 26, y: drawY(forCapCenter: logoRect.midY, font: wordmarkFont)),
             font: wordmarkFont,
             kern: 0,
@@ -765,7 +765,7 @@ private enum AppleCardScene {
     }
 
     private static func drawEngravedLogo(in rect: CGRect, ink: NSColor, highlight: NSColor) {
-        guard let logo = NSImage(named: "pluk_logo_mark") else { return }
+        guard let logo = NSImage(named: "quarry_logo_mark") else { return }
 
         let highlightRect = rect.offsetBy(dx: 1, dy: -1.5)
         let highlightTinted = NSImage(size: rect.size, flipped: false) { bounds in

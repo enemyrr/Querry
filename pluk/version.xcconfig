@@ -1,16 +1,16 @@
 // Pluk Version Configuration
 // This file contains the version and build number for the app
 
-MARKETING_VERSION = 0.0.49
-CURRENT_PROJECT_VERSION = 312
+MARKETING_VERSION = 0.0.50
+CURRENT_PROJECT_VERSION = 313
 
 // Domain and GitHub configuration
 APP_DOMAIN = pluk.sh
-GITHUB_URL = https://github.com/pluk-inc/Pluk
+GITHUB_URL = https://github.com/enemyrr/Pluk
 
 // Bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = doc.pluk
-DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = se.ribban.quarry
+DEVELOPMENT_TEAM = 6ECNB95892
 
 // Official-build service configuration. Local values live in the ignored
 // Secrets.xcconfig file; source builds remain functional without it.

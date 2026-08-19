@@ -132,7 +132,7 @@ struct SchemaModeActionBar: View {
                         ), spacing: 10)
                     }
 
-                    // Show non-deletion modifications (additions + updates) with orange button
+                    // Show non-deletion modifications (additions + updates) with the brand button
                     let nonDeletionCount = tracker.columnAdditions.count + tracker.columnUpdates.count + tracker.indexAdditions.count + tracker.indexUpdates.count
                     if nonDeletionCount > 0 {
                         Button(action: {
@@ -144,13 +144,13 @@ struct SchemaModeActionBar: View {
                                     .lineLimit(1)
                                     .fixedSize()
                             }
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.onBrand)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 7)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .background(Color.orange)
+                        .background(Color.brand)
                         .clipShape(.rect(cornerRadius: 8))
                         .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                         .transition(.scale.combined(with: .opacity))

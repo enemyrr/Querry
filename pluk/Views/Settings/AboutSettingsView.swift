@@ -18,7 +18,7 @@ struct AboutSettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Pluk")
+                        Text("Quarry")
                             .font(.title)
                             .fontWeight(.medium)
 
@@ -33,38 +33,38 @@ struct AboutSettingsView: View {
 
             Section {
                 LabeledContent("Website") {
-                    Button("pluk.sh") {
-                        NSWorkspace.shared.open(URL(string: "https://pluk.sh")!)
+                    Button("ribban.se") {
+                        NSWorkspace.shared.open(URL(string: "https://ribban.se")!)
                     }
                     .buttonStyle(.link)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.brand)
                 }
 
                 LabeledContent("GitHub") {
-                    Button("pluk-inc/Pluk") {
-                        NSWorkspace.shared.open(URL(string: "https://github.com/pluk-inc/Pluk")!)
+                    Button("enemyrr/Pluk") {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/enemyrr/Pluk")!)
                     }
                     .buttonStyle(.link)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.brand)
                 }
 
                 LabeledContent("Support") {
-                    Button("support@pluk.sh") {
-                        NSWorkspace.shared.open(URL(string: "mailto:support@pluk.sh")!)
+                    Button("andreas.enemyr@gmail.com") {
+                        NSWorkspace.shared.open(URL(string: "mailto:andreas.enemyr@gmail.com")!)
                     }
                     .buttonStyle(.link)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.brand)
                 }
             }
 
             Section {
-                Text("Copyright © 2024-\(Date.now.formatted(.dateTime.year())) Pluk, Inc.\nLicensed under GNU AGPL v3.0.")
+                Text("Copyright © 2026 RIBBAN AB. Based on Pluk, © Pluk, Inc.\nLicensed under GNU AGPL v3.0.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .tint(.orange)
+        .tint(.brand)
     }
 }
 

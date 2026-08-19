@@ -90,7 +90,7 @@ struct AISettingsView: View {
                 .font(.caption)
         } else {
             Label("No key configured", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(.brand)
                 .font(.caption)
         }
     }
