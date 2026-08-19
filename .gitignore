@@ -107,3 +107,7 @@ CLAUDE.local.md
 
 # Distribution builds
 dist/
+
+# Coverage data
+*.profraw
+.DS_Store
