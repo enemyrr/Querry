@@ -14,6 +14,7 @@ final class NotebookMainPaneController: NSViewController {
     private var blocksController: NotebookBlocksController?
     private var dashboardController: DashboardGridController?
     private var emptyStateTopConstraint: NSLayoutConstraint?
+    private var shownIsDashboard: Bool?
 
 
     init(dataController: NotebookDataController) {
@@ -68,7 +69,7 @@ final class NotebookMainPaneController: NSViewController {
         setupTabView()
         setupToolbar()
         setupConstraints()
-        updateBlocksVisibility()
+        updateBlocksVisibility(animated: false)
         observeBlocksState()
 
     }
@@ -218,15 +219,39 @@ final class NotebookMainPaneController: NSViewController {
 
     // MARK: - Block State Management
 
-    private func updateBlocksVisibility() {
+    private func updateBlocksVisibility(animated: Bool) {
         let hasBlocks = dataController.hasBlocks
         let isDashboard = dataController.viewMode == .dashboard
 
-        notebookContainer.isHidden = isDashboard
-        dashboardContainer.isHidden = !isDashboard
-
         emptyStateController?.view.isHidden = hasBlocks
         blocksController?.view.isHidden = !hasBlocks
+
+        guard shownIsDashboard != isDashboard else { return }
+        shownIsDashboard = isDashboard
+
+        // Let the incoming pane rebuild while it is still invisible.
+        if isDashboard {
+            dashboardController?.prepareForDisplay()
+        }
+        syncScrollState(isDashboard: isDashboard)
+
+        let incoming = isDashboard ? dashboardContainer! : notebookContainer!
+        let outgoing = isDashboard ? notebookContainer! : dashboardContainer!
+
+        if animated {
+            NotebookTransition.crossfade(show: incoming, hide: outgoing)
+        } else {
+            NotebookTransition.snap(show: incoming, hide: [outgoing])
+        }
+    }
+
+    /// Each pane keeps its own scroll offset, so the shared scrolled flag has to
+    /// be re-read from whichever pane is coming into view.
+    private func syncScrollState(isDashboard: Bool) {
+        let offset = isDashboard
+            ? (dashboardController?.currentScrollOffset ?? 0)
+            : (blocksController?.currentScrollOffset ?? 0)
+        dataController.isScrolled = offset > 0
     }
 
     private func observeBlocksState() {
@@ -238,7 +263,7 @@ final class NotebookMainPaneController: NSViewController {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.updateBlocksVisibility()
+                self.updateBlocksVisibility(animated: true)
                 self.observeBlocksState()
             }
         }

@@ -790,7 +790,15 @@ final class TabBarView: NSView {
             NSNumber(value: trailingStart),
             1,
         ]
+        // A mask layer left at 1x rasterizes the masked subtree at 1x, which
+        // renders the tab labels blurry on Retina displays.
+        scrollFadeMask.contentsScale = window?.backingScaleFactor ?? scrollFadeMask.contentsScale
         scrollView.layer?.mask = scrollFadeMask
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateScrollFadeMask()
     }
 
     override func layout() {
@@ -984,6 +992,11 @@ final class TabButtonView: NSView {
 
     override var mouseDownCanMoveWindow: Bool { false }
 
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        needsLayout = true
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
         if !closeButton.isHidden {
@@ -1149,6 +1162,7 @@ final class TabButtonView: NSView {
 
             let shadowPadding: CGFloat = 10
             let maskLayer = CAShapeLayer()
+            maskLayer.contentsScale = window?.backingScaleFactor ?? maskLayer.contentsScale
             maskLayer.path = CGPath(rect: CGRect(
                 x: -shadowPadding,
                 y: 0,

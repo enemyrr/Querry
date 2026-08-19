@@ -214,7 +214,8 @@ struct RecentCard<ContextMenu: View>: View {
     }
 
     private var relativeTime: String {
-        let interval = Date().timeIntervalSince(item.lastAccessedAt)
+        let now = RelativeTimeClock.shared.now
+        let interval = now.timeIntervalSince(item.lastAccessedAt)
         if interval < 60 {
             return "Just now"
         }

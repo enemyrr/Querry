@@ -110,8 +110,8 @@ final class NotebookInnerSplitController: NSSplitViewController {
         NotificationCenter.default.post(name: .notebookChartFreeze, object: view.window)
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = NotebookTransition.duration
+            context.timingFunction = NotebookTransition.timing
             context.allowsImplicitAnimation = true
             inspectorView.animator().alphaValue = collapsed ? 0 : 1
             inspectorItem.animator().isCollapsed = collapsed

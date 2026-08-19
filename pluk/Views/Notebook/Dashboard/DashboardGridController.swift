@@ -86,6 +86,19 @@ final class DashboardGridController: NSViewController {
         scrollView.scrollerInsets.top = inset
     }
 
+    var currentScrollOffset: CGFloat {
+        max(0, scrollView.contentView.bounds.origin.y)
+    }
+
+    /// Flushes a reload deferred while the pane was off screen, so the grid is
+    /// already correct by the time it fades in.
+    func prepareForDisplay() {
+        guard needsReloadOnVisible, view.window != nil, collectionView.bounds.width > 0 else { return }
+        needsReloadOnVisible = false
+        collectionView.reloadData()
+        updateCollectionHeight()
+    }
+
     private func setupCollectionView() {
         let layout = DashboardGridLayout()
         layout.dataController = dataController
@@ -260,9 +273,10 @@ final class DashboardGridController: NSViewController {
     }
 
     private func observeState() {
+        // Deliberately not tracking `viewMode`: switching panes doesn't change
+        // what the grid renders, and reloading there flashes every card.
         withObservationTracking {
             _ = self.dataController.cachedDashboardBlocks
-            _ = self.dataController.viewMode
             _ = self.dataController.isDashboardPublished
             _ = self.dataController.isPublishPreviewing
         } onChange: { [weak self] in

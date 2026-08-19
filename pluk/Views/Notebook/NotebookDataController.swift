@@ -11,6 +11,7 @@ enum NotebookViewMode: String {
 final class NotebookDataController {
 
     private static let defaultTextBlockHeight = 140.0
+    private static let staleRefreshInterval: TimeInterval = 5 * 60
 
     let notebookId: UUID
     let modelContainer: ModelContainer
@@ -26,6 +27,8 @@ final class NotebookDataController {
     var isPublishPreviewing = false
     var isViewingPublished = false
     var isAgentStreaming = false
+
+    private var sidebarVisibleBeforePreview = false
 
     private var chartViewModels: [UUID: ChartBlockViewModel] = [:]
     private var singleValueViewModels: [UUID: SingleValueBlockViewModel] = [:]
@@ -52,7 +55,26 @@ final class NotebookDataController {
         cachedDashboardBlocks = blocks.filter { !$0.isHiddenInDashboard }.sorted { $0.dashboardSortOrder < $1.dashboardSortOrder }
     }
 
+    /// Enters preview in one synchronous batch so every observer coalesces into
+    /// a single transition instead of one per flag.
+    func beginPublishPreview() {
+        guard !isPublishPreviewing else { return }
+        sidebarVisibleBeforePreview = isRightSidebarVisible
+        isRightSidebarVisible = false
+        viewMode = .dashboard
+        isPublishPreviewing = true
+        refreshIfStale()
+    }
+
+    func cancelPublishPreview() {
+        guard isPublishPreviewing else { return }
+        isPublishPreviewing = false
+        viewMode = .notebook
+        isRightSidebarVisible = sidebarVisibleBeforePreview
+    }
+
     func publishDashboard() {
+        isPublishPreviewing = false
         isPublished = true
         isViewingPublished = true
         isRightSidebarVisible = false
@@ -67,6 +89,17 @@ final class NotebookDataController {
 
     var lastRefreshedAt: Date? {
         notebook?.lastRefreshedAt
+    }
+
+    /// Preview shouldn't blank every card on a notebook that was just refreshed.
+    func refreshIfStale() {
+        guard !isRefreshing else { return }
+        guard let last = lastRefreshedAt else {
+            rerunAllQueries()
+            return
+        }
+        guard Date().timeIntervalSince(last) > Self.staleRefreshInterval else { return }
+        rerunAllQueries()
     }
 
     func rerunAllQueries() {

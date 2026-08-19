@@ -455,15 +455,20 @@ struct WorkspaceList: View {
     }
 }
 
-private func relativeTimeText(for date: Date) -> String {
-    Date().timeIntervalSince(date) < 60
+private func relativeTimeText(for date: Date, now: Date) -> String {
+    now.timeIntervalSince(date) < 60
         ? "a moment ago"
         : date.formatted(.relative(presentation: .named))
 }
 
-private func relativeTimeText(for date: Date?) -> String {
-    guard let date else { return "" }
-    return relativeTimeText(for: date)
+/// Relative timestamp that refreshes itself instead of freezing at whatever the
+/// row said when it was last rendered.
+private struct RelativeTimeText: View {
+    let date: Date?
+
+    var body: some View {
+        Text(date.map { relativeTimeText(for: $0, now: RelativeTimeClock.shared.now) } ?? "")
+    }
 }
 
 private struct WorkspaceRow<Icon: View, ContextMenu: View>: View {
@@ -512,7 +517,7 @@ private struct WorkspaceRow<Icon: View, ContextMenu: View>: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 100, alignment: .leading)
 
-                Text(relativeTimeText(for: lastOpenedAt))
+                RelativeTimeText(date: lastOpenedAt)
                     .foregroundStyle(.secondary)
                     .frame(width: 120, alignment: .leading)
 

@@ -110,6 +110,10 @@ final class NotebookBlocksController: NSViewController {
         scrollView.contentInsets.top = inset
     }
 
+    var currentScrollOffset: CGFloat {
+        max(0, scrollView.contentView.bounds.origin.y)
+    }
+
     private func setupCollectionView() {
         let layout = NotebookGridLayout()
         layout.dataController = dataController

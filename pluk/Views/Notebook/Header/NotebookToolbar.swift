@@ -41,6 +41,8 @@ final class NotebookToolbarController: NSViewController {
     private var publishConfirmButton: NSView!
     private var cancelButton: NSView!
     private var previewScrolledBackground: ToolbarBlurView!
+    private var shownToolbar: NSView?
+    private var publishPopover: NSPopover?
 
     // Published toolbar (shown after confirmed publish)
     private var publishedToolbar: NSView!
@@ -791,7 +793,7 @@ final class NotebookToolbarController: NSViewController {
     // MARK: - State
 
     private func applyState() {
-        updateToolbarVisibility()
+        updateToolbarVisibility(animated: false)
         updateScrollState()
         updateScrolledTitleText()
         updateScrolledStatusText()
@@ -799,14 +801,25 @@ final class NotebookToolbarController: NSViewController {
         updateButtonBackgrounds()
     }
 
-    private func updateToolbarVisibility() {
-        let isDashboardPublished = dataController.isDashboardPublished
-        let isPreviewing = dataController.isPublishPreviewing
+    private func updateToolbarVisibility(animated: Bool) {
+        let target: NSView
+        if dataController.isPublishPreviewing {
+            target = previewToolbar
+        } else if dataController.isDashboardPublished {
+            target = publishedToolbar
+        } else {
+            target = normalToolbar
+        }
 
-        normalToolbar.isHidden = isDashboardPublished || isPreviewing
-        previewToolbar.isHidden = !isPreviewing
-        publishedToolbar.isHidden = !isDashboardPublished || isPreviewing
+        guard shownToolbar !== target else { return }
+        let previous = shownToolbar
+        shownToolbar = target
 
+        if animated, let previous {
+            NotebookTransition.crossfade(show: target, hide: previous)
+        } else {
+            NotebookTransition.snap(show: target, hide: [normalToolbar, previewToolbar, publishedToolbar])
+        }
     }
 
     private func updateScrollState() {
@@ -881,11 +894,8 @@ final class NotebookToolbarController: NSViewController {
         highlight.widthAnchor.constraint(equalTo: targetButton.widthAnchor).isActive = true
 
         if animated {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                context.allowsImplicitAnimation = true
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1.0)
-                self.segmentContainer?.layoutSubtreeIfNeeded()
+            NotebookTransition.run { [weak self] in
+                self?.segmentContainer?.layoutSubtreeIfNeeded()
             }
         }
     }
@@ -903,22 +913,30 @@ final class NotebookToolbarController: NSViewController {
     }
 
     @objc private func publishTapped() {
-        dataController.isPublishPreviewing = true
-        if dataController.viewMode != .dashboard {
-            dataController.viewMode = .dashboard
-        }
-        dataController.isRightSidebarVisible = false
-        dataController.rerunAllQueries()
+        dataController.beginPublishPreview()
     }
 
     @objc private func confirmPublishTapped() {
-        dataController.isPublishPreviewing = false
-        dataController.publishDashboard()
+        showPublishConfirmation()
     }
 
     @objc private func cancelPublishTapped() {
-        dataController.isPublishPreviewing = false
-        dataController.viewMode = .notebook
+        dataController.cancelPublishPreview()
+    }
+
+    private func showPublishConfirmation() {
+        guard publishPopover == nil, let anchor = publishConfirmButton else { return }
+
+        let controller = PublishConfirmationController { [weak self] in
+            self?.dataController.publishDashboard()
+        }
+        let popover = NSPopover()
+        popover.delegate = self
+        popover.contentViewController = controller
+        popover.behavior = .transient
+        controller.popover = popover
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
+        publishPopover = popover
     }
 
     @objc private func editTapped() {
@@ -1001,7 +1019,7 @@ final class NotebookToolbarController: NSViewController {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.updateToolbarVisibility()
+                self.updateToolbarVisibility(animated: true)
                 self.updateSegmentSelection(animated: true)
                 self.observeViewMode()
             }
@@ -1068,6 +1086,14 @@ final class NotebookToolbarController: NSViewController {
         if refreshing { previewRunAllSpinner?.startAnimation(nil) } else { previewRunAllSpinner?.stopAnimation(nil) }
     }
 
+}
+
+// MARK: - Popover Delegate
+
+extension NotebookToolbarController: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) {
+        publishPopover = nil
+    }
 }
 
 // MARK: - Glass Toolbar Button
@@ -1597,10 +1623,10 @@ private final class PrimaryToolbarButtonView: NSView {
 
 private final class PublishConfirmationController: NSViewController, NSPopoverDelegate {
 
-    private let onConfirm: () -> Void
+    private let onConfirm: @MainActor () -> Void
     weak var popover: NSPopover?
 
-    init(onConfirm: @escaping () -> Void) {
+    init(onConfirm: @escaping @MainActor () -> Void) {
         self.onConfirm = onConfirm
         super.init(nibName: nil, bundle: nil)
     }
