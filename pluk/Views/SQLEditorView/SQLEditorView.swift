@@ -351,6 +351,8 @@ struct SQLEditorView: View {
             return "Convex"
         case .mongodb:
             return "MongoDB"
+        case .redis:
+            return "Redis"
         default:
             return "SQL"
         }
@@ -366,6 +368,8 @@ struct SQLEditorView: View {
             return "Start writing a Convex query or type"
         case .mongodb:
             return "Start writing a MongoDB query or type"
+        case .redis:
+            return "Start writing Redis commands or type"
         default:
             return "Start writing SQL or type"
         }
@@ -373,7 +377,7 @@ struct SQLEditorView: View {
 
     private var emptyStateIntroText: String {
         switch instance.connection.databaseType {
-        case .convex, .mongodb:
+        case .convex, .mongodb, .redis:
             return "Write a query and press"
         default:
             return "Write a SQL query and press"

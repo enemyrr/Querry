@@ -18,7 +18,8 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
     case mongodb = "MongoDB"
     case sqlite = "sqlite"
     case mysql = "mysql"
-    
+    case redis = "redis"
+
     var displayName: String {
         switch self {
         case .convex: return "Convex"
@@ -28,9 +29,10 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
         case .mongodb: return "MongoDB"
         case .mysql: return "MySQL"
         case .sqlite: return "SQLite"
+        case .redis: return "Redis"
         }
     }
-    
+
     var accentColor: Color {
         switch self {
         case .convex: return Color(hex: "#8D2676")
@@ -40,9 +42,10 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#00ED64")
         case .sqlite: return Color(hex: "#003B57")
+        case .redis: return Color(hex: "#FF4438")
         }
     }
-    
+
     var backgroundColor: Color {
         switch self {
         case .convex: return Color(hex: "#1E1B1A")
@@ -52,9 +55,10 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
         case .mysql: return Color(hex: "#00546B")
         case .mongodb: return Color(hex: "#021E2C")
         case .sqlite: return Color(hex: "#E6F0FA")
+        case .redis: return Color(hex: "#091A23")
         }
     }
-    
+
     var icon: String {
         switch self {
         case .convex: return "convex"
@@ -64,9 +68,10 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
         case .mongodb: return "mongodb"
         case .mysql: return "mysql"
         case .sqlite: return "sqlite"
+        case .redis: return "redis"
         }
     }
-    
+
     var homeIcon: String {
         switch self {
         case .convex: return "convex"
@@ -76,6 +81,7 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
         case .mongodb: return "mongodb"
         case .mysql: return "mysql.white"
         case .sqlite: return "sqlite"
+        case .redis: return "redis"
         }
     }
     
@@ -105,32 +111,34 @@ enum DatabaseType: String, Codable, CaseIterable, Sendable {
             return "mongodb+srv://user:password@cluster.mongodb.net"
         case .sqlite:
             return "sqlite:///path/to/database.db"
+        case .redis:
+            return "redis://:password@localhost:6379/0"
         }
     }
-    
+
     var category: DatabaseCategory {
         switch self {
         case .convex, .supabase:
             return .platforms
-        case .postgres, .mysql, .mongodb, .sqlite:
+        case .postgres, .mysql, .mongodb, .sqlite, .redis:
             return .database
         }
     }
-    
+
     var dataModelType: DataModelType {
             switch self {
-            case .mongodb:
+            case .mongodb, .redis:
                 return .noSQL
             case .convex, .supabase, .postgres, .mysql, .sqlite:
                 return .sql
             }
         }
-    
+
     var supportsRealTime: Bool {
         switch self {
         case .convex:
             return true
-        case .supabase, .postgres, .mysql, .sqlite, .mongodb:
+        case .supabase, .postgres, .mysql, .sqlite, .mongodb, .redis:
             return false
         }
     }
@@ -305,13 +313,18 @@ final class Connection {
         if databaseType == .convex {
             return password ?? ""
         }
+        // Redis commonly has no username — hostname alone is enough
+        if databaseType == .redis,
+           let hostname = hostname, !hostname.isEmpty {
+            return constructURIFromFields()
+        }
         // If we have individual fields, construct URI from them (new approach)
         if let hostname = hostname, !hostname.isEmpty,
            let port = port, !port.isEmpty,
            let username = username, !username.isEmpty {
             return constructURIFromFields()
         }
-        
+
         // Fallback to legacy URI construction (backward compatibility)
         if let database = defaultDatabase, !database.isEmpty {
             return "\(url ?? "")/\(database)"
@@ -321,9 +334,11 @@ final class Connection {
     }
 
     private func constructURIFromFields(encodeCredentials: Bool = true) -> String {
-        guard let hostname = hostname, let port = port, let username = username else {
+        guard let hostname = hostname else {
             return url ?? ""
         }
+        let port = port ?? ""
+        let username = username ?? ""
 
         let scheme: String
         switch databaseType {
@@ -333,13 +348,28 @@ final class Connection {
             scheme = "mysql"
         case .mongodb:
             scheme = "mongodb"
+        case .redis:
+            scheme = sslMode == "require" ? "rediss" : "redis"
         }
 
+        let defaultPort: Int
+        switch databaseType {
+        case .mysql: defaultPort = 3306
+        case .redis: defaultPort = 6379
+        default: defaultPort = 5432
+        }
         let resolvedHost = hostname.isEmpty ? "localhost" : hostname
-        let resolvedPort = Int(port) ?? (databaseType == .mysql ? 3306 : 5432)
+        let resolvedPort = Int(port) ?? defaultPort
 
         var uri = "\(scheme)://"
-        if !username.isEmpty {
+        if databaseType == .redis, username.isEmpty, let pwd = password, !pwd.isEmpty {
+            // Redis auth without a username: redis://:password@host
+            if encodeCredentials {
+                uri += ":\(pwd.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? pwd)@"
+            } else {
+                uri += ":\(pwd)@"
+            }
+        } else if !username.isEmpty {
             if encodeCredentials {
                 uri += username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? username
             } else {
@@ -398,6 +428,10 @@ final class Connection {
         if databaseType == .convex {
             return password ?? ""
         }
+        if databaseType == .redis,
+           let hostname = hostname, !hostname.isEmpty {
+            return constructURIFromFields(encodeCredentials: false)
+        }
         if let hostname = hostname, !hostname.isEmpty,
            let port = port, !port.isEmpty,
            let username = username, !username.isEmpty {
@@ -440,6 +474,10 @@ final class Connection {
         }
         
         // If we have individual fields, construct display URL from them
+        if databaseType == .redis,
+           let hostname = hostname, !hostname.isEmpty {
+            return constructDisplayURLFromFields()
+        }
         if let hostname = hostname, !hostname.isEmpty,
            let port = port, !port.isEmpty,
            let username = username, !username.isEmpty {
@@ -460,9 +498,11 @@ final class Connection {
     }
     
     private func constructDisplayURLFromFields() -> String {
-        guard let hostname = hostname, let port = port, let username = username else {
+        guard let hostname = hostname else {
             return "Invalid connection"
         }
+        let port = port ?? ""
+        let username = username ?? ""
         
         var components = URLComponents()
         
@@ -475,11 +515,13 @@ final class Connection {
             components.scheme = "sqlLite"
         case .mongodb:
             components.scheme = "mongodb"
+        case .redis:
+            components.scheme = "redis"
         }
         
         components.host = hostname
         components.port = Int(port)
-        components.user = username
+        components.user = username.isEmpty ? nil : username
         
         // Show asterisks if password exists in keychain
         if hasPassword {

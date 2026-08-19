@@ -31,7 +31,7 @@ struct DatabaseHeader: View {
         switch databaseType {
         case .postgres, .mysql, .mongodb, .supabase:
             return true
-        case .sqlite, .convex:
+        case .sqlite, .convex, .redis:
             return false
         }
     }
@@ -694,7 +694,7 @@ struct TraditionalDatabaseHeaderView<TruncatedTextView: View>: View {
         switch databaseType {
         case .postgres, .mysql, .mongodb, .supabase:
             return true
-        case .sqlite, .convex:
+        case .sqlite, .convex, .redis:
             return false
         }
     }

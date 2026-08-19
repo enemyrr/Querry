@@ -30,6 +30,13 @@
                                     <action selector="showSettings:" target="Voe-Tx-rLC" id="pLk-St-1cW"/>
                                 </connections>
                             </menuItem>
+                            <menuItem isSeparatorItem="YES" id="sep-TP-imp"/>
+                            <menuItem title="Import from TablePlus…" id="tpi-Im-prt">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="importFromTablePlus:" target="Voe-Tx-rLC" id="tpi-Ac-tn1"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                             <menuItem title="Services" id="NMo-om-nkz">
                                 <modifierMask key="keyEquivalentModifierMask"/>

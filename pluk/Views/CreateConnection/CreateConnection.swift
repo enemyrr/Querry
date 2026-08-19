@@ -250,7 +250,7 @@ struct CreateConnectionForm: View {
     private var supportsSSHTunnel: Bool {
         guard let databaseType = selectedDatabaseType else { return false }
         switch databaseType {
-        case .postgres, .supabase, .mysql, .mongodb:
+        case .postgres, .supabase, .mysql, .mongodb, .redis:
             return true
         case .convex, .sqlite:
             return false
@@ -321,7 +321,7 @@ struct CreateConnectionForm: View {
 
         // For PostgreSQL databases using field-based input
         if (databaseType == .postgres || databaseType == .mysql
-            || databaseType == .supabase) && useFieldBasedInput
+            || databaseType == .supabase || databaseType == .redis) && useFieldBasedInput
         {
             return !name.isEmpty
         }
@@ -625,6 +625,16 @@ struct CreateConnectionForm: View {
                     sslMode: $sslMode,
                     onImportURI: { parseMySQLURI($0) }
                 )
+            } else if selectedDatabaseType == .redis {
+                RedisFieldsView(
+                    hostname: $hostname,
+                    port: $port,
+                    username: $username,
+                    password: $password,
+                    defaultDatabase: $defaultDatabase,
+                    sslMode: $sslMode,
+                    onImportURI: { parseRedisURI($0) }
+                )
             } else if selectedDatabaseType == .mongodb {
                 Section {
                     TextField(
@@ -699,6 +709,8 @@ struct CreateConnectionForm: View {
             return uri
         case .mongodb:
             return uri
+        case .redis:
+            return constructRedisURI()
         case .convex:
             return nil
         }
@@ -850,6 +862,17 @@ struct CreateConnectionForm: View {
         if sslMode.isEmpty { sslMode = "prefer" }
     }
 
+    private func parseRedisURI(_ uriString: String) {
+        guard let url = URL(string: uriString),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return }
+
+        parseURIComponents(components, url: url)
+
+        if hostname.isEmpty { hostname = "localhost" }
+        if port.isEmpty { port = "6379" }
+        sslMode = components.scheme?.lowercased() == "rediss" ? "require" : "disable"
+    }
+
     private func parseURIComponents(_ components: URLComponents, url: URL) {
         hostname = components.host ?? ""
         port = components.port?.description ?? ""
@@ -930,6 +953,22 @@ struct CreateConnectionForm: View {
         return components.url?.absoluteString ?? ""
     }
 
+    private func constructRedisURI() -> String {
+        var components = URLComponents()
+        components.scheme = sslMode == "require" ? "rediss" : "redis"
+        components.host = hostname.isEmpty ? "localhost" : hostname
+        components.port = Int(port) ?? 6379
+        // An empty (not nil) user keeps the ":password@" form Redis expects
+        components.user = username.isEmpty ? (password.isEmpty ? nil : "") : username
+        components.password = password.isEmpty ? nil : password
+
+        if !defaultDatabase.isEmpty {
+            components.path = "/\(defaultDatabase)"
+        }
+
+        return components.url?.absoluteString ?? ""
+    }
+
     private func currentSSHConfiguration() -> SSHConfiguration? {
         guard supportsSSHTunnel, sshEnabled else { return nil }
         let trimmedPort = sshPort.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -981,6 +1020,13 @@ struct CreateConnectionForm: View {
         guard databaseType != .convex else { return }
 
         // Fill defaults for PostgreSQL databases using field-based input
+        if databaseType == .redis && useFieldBasedInput {
+            if hostname.isEmpty { hostname = "localhost" }
+            if port.isEmpty { port = "6379" }
+            if sslMode.isEmpty || sslMode == "prefer" { sslMode = "disable" }
+            return
+        }
+
         if (databaseType == .postgres || databaseType == .supabase
             || databaseType == .mysql) && useFieldBasedInput
         {
@@ -1040,7 +1086,7 @@ struct CreateConnectionForm: View {
             applySSHSettings(to: existing)
 
             // For PostgreSQL databases using field-based input, update individual fields
-            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql || databaseType == .redis)
                 && useFieldBasedInput
             {
                 existing.hostname = hostname
@@ -1082,7 +1128,7 @@ struct CreateConnectionForm: View {
             let newConnection: Connection
 
             // For PostgreSQL databases using field-based input, use the new initializer
-            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql || databaseType == .redis)
                 && useFieldBasedInput
             {
                 newConnection = Connection(
@@ -1124,7 +1170,7 @@ struct CreateConnectionForm: View {
             try? modelContext.save()
 
             // For field-based connections, store password in keychain after getting persistentModelID
-            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql)
+            if (databaseType == .postgres || databaseType == .supabase || databaseType == .mysql || databaseType == .redis)
                 && useFieldBasedInput
             {
                 if !password.isEmpty {

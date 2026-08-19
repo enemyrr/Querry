@@ -380,7 +380,7 @@ struct HomeView: View {
         case .postgres, .mysql:
             connection.url = nil
             connection.sslMode = "disable"
-        case .mongodb:
+        case .mongodb, .redis:
             connection.url = candidate.connectionURI
             connection.sslMode = nil
         case .convex, .supabase, .sqlite:
@@ -427,7 +427,7 @@ struct HomeView: View {
                 color: .blue,
                 environment: .local
             )
-        case .convex, .supabase, .sqlite:
+        case .redis, .convex, .supabase, .sqlite:
             return Connection(
                 databaseType: candidate.databaseType,
                 url: candidate.connectionURI,

@@ -221,6 +221,10 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
     private func configureWindow() {
         guard let window = self.window else { return }
 
+        // The xib wires the delegate outlet at nib load; detach it so the
+        // resizes below don't persist an interim frame over the saved one.
+        window.delegate = nil
+
         window.tabbingIdentifier = "_PlukWindow"
         window.title = windowTitle
         window.styleMask.insert(.fullSizeContentView)
@@ -242,9 +246,7 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         // configureWindow, so restored SwiftUI trees miss their injected
         // environment objects. Frame persistence is handled manually below.
         window.isRestorable = false
-        restoreWindowFrame(window)
-
-        window.delegate = self
+        window.minSize = Self.minimumWindowSize
 
         let mainVC = MainContentViewController(
             tabType: tabType,
@@ -259,6 +261,12 @@ class WindowController: NSWindowController, NSToolbarDelegate, NSToolbarItemVali
         toolbar.delegate = self
         window.toolbar = toolbar
         toolbar.validateVisibleItems()
+
+        // Assigning contentViewController resizes the window to the view's
+        // fitting size, so the frame must be restored after it — and the
+        // delegate attached after that, so setup resizes are never persisted.
+        restoreWindowFrame(window)
+        window.delegate = self
 
         WindowController.register(self, for: window)
         setupConnectionObservation()

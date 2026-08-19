@@ -48,6 +48,8 @@ struct ConnectionDetailsPopover: View {
             return "3306"
         case .mongodb:
             return "27017"
+        case .redis:
+            return "6379"
         }
     }
     

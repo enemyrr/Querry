@@ -38,7 +38,7 @@ class TabContentView: NSView {
         }
 
         switch databaseType {
-        case .postgres, .sqlite, .mysql, .convex:
+        case .postgres, .sqlite, .mysql, .convex, .redis:
             setupTableView()
 
         case .mongodb:

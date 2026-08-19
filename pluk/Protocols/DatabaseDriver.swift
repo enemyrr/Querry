@@ -870,6 +870,8 @@ class DatabaseDriverFactory {
             return MySQLDriver()
         case .sqlite:
             return SQLiteDriver()
+        case .redis:
+            return RedisDriver()
         }
     }
 }

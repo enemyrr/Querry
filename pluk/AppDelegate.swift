@@ -167,6 +167,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LogWindowController.shared.show()
     }
 
+    // Import connections from TablePlus
+    @IBAction func importFromTablePlus(_ sender: Any?) {
+        TablePlusImportWindowController.shared.show(modelContainer: sharedModelContainer)
+    }
+
     func applicationWillTerminate(_ aNotification: Notification) {
         if let windowShortcutMonitor {
             NSEvent.removeMonitor(windowShortcutMonitor)
@@ -351,6 +356,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let symbolsByTitle: [String: String] = [
             "Settings…": "gearshape.fill",
+            "Import from TablePlus…": "square.and.arrow.down",
             "Toggle Row Details": "sidebar.right",
         ]
 

@@ -26,7 +26,7 @@ struct DatabaseSelectorModal: View {
         switch databaseType {
         case .postgres, .mysql, .mongodb, .supabase:
             return true
-        case .sqlite, .convex:
+        case .sqlite, .convex, .redis:
             return false
         }
     }

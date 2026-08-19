@@ -25,7 +25,7 @@ struct DockerDatabaseCandidate: Identifiable, Hashable, Sendable {
         switch databaseType {
         case .postgres, .mysql:
             return !(username ?? "").isEmpty && !(password ?? "").isEmpty
-        case .mongodb:
+        case .mongodb, .redis:
             return true
         case .convex, .supabase, .sqlite:
             return false
@@ -48,6 +48,7 @@ struct DockerDatabaseCandidate: Identifiable, Hashable, Sendable {
         case .postgres: services = ["postgresql", "postgres", "pg"]
         case .mysql: services = ["mariadb", "mysql"]
         case .mongodb: services = ["mongodb", "mongo"]
+        case .redis: services = ["redis", "valkey"]
         case .convex, .supabase, .sqlite: services = []
         }
 
@@ -77,6 +78,12 @@ struct DockerDatabaseCandidate: Identifiable, Hashable, Sendable {
             return buildSQLURI(scheme: "postgresql", defaultDatabase: "postgres")
         case .mysql:
             return buildSQLURI(scheme: "mysql", defaultDatabase: "")
+        case .redis:
+            guard let password, !password.isEmpty else {
+                return "redis://\(host):\(port)"
+            }
+            let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
+            return "redis://:\(encodedPassword)@\(host):\(port)"
         case .convex, .supabase, .sqlite:
             return ""
         }
@@ -432,6 +439,11 @@ struct DockerContainerDiscoveryService: Sendable {
             || tokens.contains("mongodb") {
             return .mongodb
         }
+        if ports.keys.contains(where: { $0.hasPrefix("6379/") })
+            || tokens.contains("redis")
+            || tokens.contains("valkey") {
+            return .redis
+        }
         return nil
     }
 
@@ -447,6 +459,8 @@ struct DockerContainerDiscoveryService: Sendable {
             containerPort = "3306/tcp"
         case .mongodb:
             containerPort = "27017/tcp"
+        case .redis:
+            containerPort = "6379/tcp"
         case .convex, .supabase, .sqlite:
             return nil
         }
@@ -468,6 +482,8 @@ struct DockerContainerDiscoveryService: Sendable {
             return env["MYSQL_USER"] ?? "root"
         case .mongodb:
             return env["MONGO_INITDB_ROOT_USERNAME"]
+        case .redis:
+            return nil
         case .convex, .supabase, .sqlite:
             return nil
         }
@@ -481,6 +497,8 @@ struct DockerContainerDiscoveryService: Sendable {
             return env["MYSQL_PASSWORD"] ?? env["MYSQL_ROOT_PASSWORD"]
         case .mongodb:
             return env["MONGO_INITDB_ROOT_PASSWORD"]
+        case .redis:
+            return env["REDIS_PASSWORD"]
         case .convex, .supabase, .sqlite:
             return nil
         }
@@ -492,7 +510,7 @@ struct DockerContainerDiscoveryService: Sendable {
             return env["POSTGRES_DB"] ?? env["POSTGRES_USER"] ?? "postgres"
         case .mysql:
             return env["MYSQL_DATABASE"]
-        case .mongodb:
+        case .mongodb, .redis:
             return nil
         case .convex, .supabase, .sqlite:
             return nil

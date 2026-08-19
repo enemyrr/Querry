@@ -250,7 +250,7 @@ import SwiftUI
 
     private func supportsSSHTunnel(_ databaseType: DatabaseType) -> Bool {
         switch databaseType {
-        case .postgres, .supabase, .mysql, .mongodb:
+        case .postgres, .supabase, .mysql, .mongodb, .redis:
             return true
         case .convex, .sqlite:
             return false
@@ -619,7 +619,7 @@ import SwiftUI
                 ascending: ascending
             )
             
-        case .mongodb:
+        case .mongodb, .redis:
             result = try await activeDriverBox.findDocuments(
                 in: collectionName,
                 databaseSchema: databaseSchema,
@@ -649,8 +649,8 @@ import SwiftUI
             return ConvexDriver().generateFilterQuery(from: conditions, tableName: tableName)
         case .mysql:
             return MySQLDriver().generateFilterQuery(from: conditions, tableName: tableName)
-        case .mongodb:
-            // TODO: Implement MongoDB filter generation
+        case .mongodb, .redis:
+            // TODO: Implement MongoDB filter generation; Redis filters are MATCH patterns
             return ""
         }
     }
@@ -735,7 +735,7 @@ import SwiftUI
             default: return nil
             }
 
-        case .mongodb, .convex:
+        case .mongodb, .convex, .redis:
             // These drivers' counts don't honor a filter — only report the
             // unfiltered total so we never show a wrong number.
             guard trimmedFilter.isEmpty else { return nil }
